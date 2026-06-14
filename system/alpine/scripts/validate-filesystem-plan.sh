@@ -51,43 +51,43 @@ assert_contains "${ROOTFS_LAYOUT}" '"glowfs"'
 assert_contains "${ROOTFS_LAYOUT}" '"erofs"'
 assert_contains "${ROOTFS_LAYOUT}" '"squashfs"'
 assert_contains "${ROOTFS_LAYOUT}" '"mountpoint": "/"'
-assert_contains "${ROOTFS_LAYOUT}" '"state_manifest": "/etc/soliloquy/filesystems/state-mounts.json"'
+assert_contains "${ROOTFS_LAYOUT}" '"state_manifest": "/etc/alpenglow/filesystems/state-mounts.json"'
 assert_contains "${STATE_MOUNTS}" '"mountpoint": "/state"'
 assert_contains "${STATE_MOUNTS}" '"target": "/home"'
-assert_contains "${STATE_MOUNTS}" '"target": "/var/lib/soliloquy"'
-assert_contains "${STATE_MOUNTS}" '"target": "/var/cache/soliloquy"'
-assert_contains "${STATE_MOUNTS}" '"target": "/var/log/soliloquy"'
+assert_contains "${STATE_MOUNTS}" '"target": "/var/lib/alpenglow"'
+assert_contains "${STATE_MOUNTS}" '"target": "/var/cache/alpenglow"'
+assert_contains "${STATE_MOUNTS}" '"target": "/var/log/alpenglow"'
 assert_not_contains "${STATE_MOUNTS}" '"target": "/etc"|"/state/etc"|"/state/usr"|"/state/opt"'
 
 if [ -n "${ROOTFS}" ]; then
   assert_dir "${ROOTFS}"
-  assert_file "${ROOTFS}/etc/soliloquy/filesystems/rootfs-layout.json"
-  assert_file "${ROOTFS}/etc/soliloquy/filesystems/state-mounts.json"
-  assert_contains "${ROOTFS}/etc/soliloquy/system.json" '"immutable_root": true'
-  assert_contains "${ROOTFS}/etc/soliloquy/system.json" '"state_root": "/state"'
-  assert_contains "${ROOTFS}/etc/soliloquy/system.json" '"rootfs_layout": "/etc/soliloquy/filesystems/rootfs-layout.json"'
-  assert_file "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan"
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-root / glowfs ro,nodev 0 0$'
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-state /state ext4 rw,nosuid,nodev 0 2$'
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^/state/home /home none bind 0 0$'
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^/state/var/lib/soliloquy /var/lib/soliloquy none bind 0 0$'
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^/state/var/cache/soliloquy /var/cache/soliloquy none bind 0 0$'
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^/state/var/log/soliloquy /var/log/soliloquy none bind 0 0$'
+  assert_file "${ROOTFS}/etc/alpenglow/filesystems/rootfs-layout.json"
+  assert_file "${ROOTFS}/etc/alpenglow/filesystems/state-mounts.json"
+  assert_contains "${ROOTFS}/etc/alpenglow/system.json" '"immutable_root": true'
+  assert_contains "${ROOTFS}/etc/alpenglow/system.json" '"state_root": "/state"'
+  assert_contains "${ROOTFS}/etc/alpenglow/system.json" '"rootfs_layout": "/etc/alpenglow/filesystems/rootfs-layout.json"'
+  assert_file "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan"
+  assert_contains "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" '^alpenglow-root / glowfs ro,nodev 0 0$'
+  assert_contains "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" '^alpenglow-state /state ext4 rw,nosuid,nodev 0 2$'
+  assert_contains "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" '^/state/home /home none bind 0 0$'
+  assert_contains "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" '^/state/var/lib/alpenglow /var/lib/alpenglow none bind 0 0$'
+  assert_contains "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" '^/state/var/cache/alpenglow /var/cache/alpenglow none bind 0 0$'
+  assert_contains "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" '^/state/var/log/alpenglow /var/log/alpenglow none bind 0 0$'
   for dir in \
     "${ROOTFS}/home" \
     "${ROOTFS}/state" \
-    "${ROOTFS}/sysroot/soliloquy" \
-    "${ROOTFS}/var/lib/soliloquy" \
-    "${ROOTFS}/var/cache/soliloquy" \
-    "${ROOTFS}/var/log/soliloquy"
+    "${ROOTFS}/sysroot/alpenglow" \
+    "${ROOTFS}/var/lib/alpenglow" \
+    "${ROOTFS}/var/cache/alpenglow" \
+    "${ROOTFS}/var/log/alpenglow"
   do
     assert_dir "${dir}"
   done
   assert_mode "${ROOTFS}/state" 700
-  assert_mode "${ROOTFS}/var/lib/soliloquy/browser/profiles" 700
-  assert_mode "${ROOTFS}/var/lib/soliloquy/system" 700
-  assert_mode "${ROOTFS}/var/cache/soliloquy" 700
-  assert_mode "${ROOTFS}/var/log/soliloquy" 700
+  assert_mode "${ROOTFS}/var/lib/alpenglow/browser/profiles" 700
+  assert_mode "${ROOTFS}/var/lib/alpenglow/system" 700
+  assert_mode "${ROOTFS}/var/cache/alpenglow" 700
+  assert_mode "${ROOTFS}/var/log/alpenglow" 700
 fi
 
 printf 'validate-filesystem-plan: ok\n'

@@ -2,18 +2,18 @@
 
 ## What is Alpenglow?
 
-Alpenglow is the installable operating-system layer for the Soliloquy desktop environment. It owns the immutable Linux appliance backend, kernel policy, GlowFS kernel module, rootfs assembly, service graph, local system bridge, and board/runtime install path.
+Alpenglow is the installable operating-system layer for the Alpenglow desktop environment. It owns the immutable Linux appliance backend, kernel policy, GlowFS kernel module, rootfs assembly, service graph, local system bridge, and board/runtime install path.
 
 The active base-system direction is Oasis-style composition with Void musl and runit. Alpine remains the existing reference backend while the backend abstraction comes online. The target board is the Radxa Cubie A5E (Allwinner A527 ARM64 SBC). The project is early-stage and not production-ready.
 
 ## Architecture
 
 Linux Appliance --------- Immutable base image, backend-selected service startup
-  Soliloquy Desktop ----- Desktop environment staged from `../soliloquy`
+  Alpenglow Desktop ----- Desktop environment staged from this repository
   sold Bridge ----------- Local authenticated system and terminal APIs
   OS Policy ------------- cgroup v2, PSI, zram, kernel/runtime policy helpers
   GlowFS ----------------- Immutable root filesystem tooling and kernel module
-  Networking ------------ Linux networking plus `sol-netd` runtime state
+  Networking ------------ Linux networking plus `alpenglow-netd` runtime state
   Kernel ---------------- Appliance kernel config and policy validation
   Drivers --------------- AIC8800 WiFi, GPIO, Mali G57 GPU stubs
 
@@ -25,12 +25,12 @@ Build paths currently coexist:
 - Void musl and runit backend inputs under `system/backends/void`
 - Alpine image assembly and OpenRC service staging under `system/alpine`
 - Cargo: `cargo build` / `cargo test`
-- Oil installer bridge through `../oil`
+- Oil installer bridge through [Oil](https://github.com/tschk/oil)
 
 ## Project Layout
 
-    ../soliloquy/       Soliloquy desktop environment and RV8-facing shell
-    ../rv8/             Canonical RV8 browser engine
+    https://github.com/tschk/alpenglow/       Alpenglow desktop environment and RV8-facing shell
+    https://github.com/tschk/rv8/             Canonical RV8 browser engine
     sold/               Local system bridge and static bundle service
     system/appliance/   Backend contract, selector, shared appliance metadata
     system/backends/    Distro backends, with Void musl and runit as active target
@@ -50,8 +50,8 @@ Build paths currently coexist:
     ./scripts/ci-glowfs-kernel-module.sh
     ./scripts/ci-rust-core.sh
     cargo test -p sold
-    cargo test -p sol-netd
-    cargo test -p sol-kernelctl
+    cargo test -p alpenglow-netd
+    cargo test -p alpenglow-kernelctl
     cargo test -p glowfsctl
 
 ## Known Issues

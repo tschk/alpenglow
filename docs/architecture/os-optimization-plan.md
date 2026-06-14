@@ -1,6 +1,6 @@
 # Alpenglow OS Optimization Plan
 
-Reasoning path: Soliloquy should borrow operating-system shapes that make a browser appliance faster, safer, and easier to recover, while using an explicit Linux appliance backend, keeping `../rv8` as the browser-engine boundary, and treating Vinix as reference-only because of GPL-2.0.
+Reasoning path: Alpenglow should borrow operating-system shapes that make a browser appliance faster, safer, and easier to recover, while using an explicit Linux appliance backend, keeping [RV8](https://github.com/tschk/rv8) as the browser-engine boundary, and treating Vinix as reference-only because of GPL-2.0.
 
 Confidence score: 8/10.
 
@@ -68,12 +68,12 @@ Confidence score: 8/10.
   - https://www.kernel.org/doc/html/latest/admin-guide/blockdev/zram.html
   - https://www.kernel.org/doc/html/next/core-api/real-time/theory.html
   - https://erofs.docs.kernel.org/
-- Alpine kernel packaging: multiple kernel profiles already fit Alpine's model, so Soliloquy-specific kernel packages are compatible with the base OS direction.
+- Alpine kernel packaging: multiple kernel profiles already fit Alpine's model, so Alpenglow-specific kernel packages are compatible with the base OS direction.
   - https://wiki.alpinelinux.org/wiki/Kernels
 
 ## Fit Review
 
-Soliloquy is not a general desktop distribution. It is a browser appliance on Alpine with an immutable root, OpenRC service startup, `sold` as the system bridge, Servo as the fullscreen surface, and `../rv8` as the browser-engine boundary. Keep ideas that improve boot-to-browser, active-tab latency, memory pressure behavior, rollback, and service recovery. Defer or reject ideas that mainly optimize distro-hopping convenience, gaming desktops, generic package availability, or broad desktop hardware coverage.
+Alpenglow is not a general desktop distribution. It is a browser appliance on Alpine with an immutable root, OpenRC service startup, `sold` as the system bridge, Servo as the fullscreen surface, and [RV8](https://github.com/tschk/rv8) as the browser-engine boundary. Keep ideas that improve boot-to-browser, active-tab latency, memory pressure behavior, rollback, and service recovery. Defer or reject ideas that mainly optimize distro-hopping convenience, gaming desktops, generic package availability, or broad desktop hardware coverage.
 
 ### Keep Now
 
@@ -108,9 +108,9 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
   - measure only against browser-interactive, active-tab input, frame pacing, and memory pressure
   - require QEMU and target-board evidence before promotion
 - Alpine-compatible kernel variants:
-  - `sol-linux-baseline`
-  - `sol-linux-appliance` as the default hybrid hardware-adapting kernel
-  - `sol-linux-debug`
+  - `alpenglow-linux-baseline`
+  - `alpenglow-linux-appliance` as the default hybrid hardware-adapting kernel
+  - `alpenglow-linux-debug`
 - One default hybrid hardware-adapting kernel:
   - adapt runtime policy to detected board, memory, thermal, input, GPU, and storage capabilities
   - keep generic baseline and broad fallback kernels bootable
@@ -150,11 +150,11 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
 - DAMON implementation lane:
   - useful for memory behavior, after PSI, MGLRU, zram, and cgroup event baselines.
 - PREEMPT_RT implementation lane:
-  - test as `sol-linux-rt-lab`, not default. Useful only if input/compositor latency data beats appliance kernel without hurting throughput or power.
+  - test as `alpenglow-linux-rt-lab`, not default. Useful only if input/compositor latency data beats appliance kernel without hurting throughput or power.
 - sched_ext implementation lane:
   - useful for scheduler experiments that can stay in BPF/userspace, after baseline EEVDF and cgroup data.
 - Board-specific optimized builds implementation lane:
-  - useful for `sold`, `sol-netd`, `glowfsctl`, Servo launcher helpers, and hot Rust services after correctness gates.
+  - useful for `sold`, `alpenglow-netd`, `glowfsctl`, Servo launcher helpers, and hot Rust services after correctness gates.
 
 ### Defer
 
@@ -175,32 +175,32 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
 - Kernel patch that improves synthetic throughput but hurts active-tab input or first frame.
 - Broad mutable root package layering.
 - Importing Vinix code.
-- Moving browser-engine ownership back into Soliloquy root.
+- Moving browser-engine ownership back into Alpenglow root.
 - Adding telemetry that leaves the device by default.
 - Supporting many distro families directly. Keep one active backend, one reference backend, and use the backend contract for experiments.
 
 ### Plan Corrections From Review
 
 - Kernel work should start with config and in-tree kernel features while keeping the BORE-style source patch lane explicit, small, and reversible.
-- `sol-linux-latency-lab` should be an experiment name, not a default release kernel.
-- `sol-linux-rt-lab` should remain an explicit experimental lane.
-- `sol-linux-appliance` should be the one default hybrid hardware-adapting kernel, with fallback kernels kept bootable.
+- `alpenglow-linux-latency-lab` should be an experiment name, not a default release kernel.
+- `alpenglow-linux-rt-lab` should remain an explicit experimental lane.
+- `alpenglow-linux-appliance` should be the one default hybrid hardware-adapting kernel, with fallback kernels kept bootable.
 - MGLRU should be added to the first kernel config target.
 - DAMON should be listed as later-stage memory instrumentation, not first-stage policy.
 - sched_ext and BORE-style source patches should both be lanes, with neither promoted without browser-appliance evidence.
 - RAM-loaded root should become default only on hardware that still passes 150-tab pressure goals, with disk-backed fallback root preserved.
-- Distro lessons should be reduced to mechanisms Soliloquy can own: generations, fallback boot, cgroup policy, immutable layers, kernel matrices, plain manifests.
+- Distro lessons should be reduced to mechanisms Alpenglow can own: generations, fallback boot, cgroup policy, immutable layers, kernel matrices, plain manifests.
 
 ## Linux Distribution Lessons
 
 ### CachyOS And Arch Family
 
 - Carry multiple kernel flavors instead of one irreversible kernel bet:
-  - `sol-linux-baseline`: conservative upstream kernel plus required board config.
-  - `sol-linux-appliance`: first-frame modules, cgroups, PSI, MGLRU, zram, seccomp, Landlock, BBR/fq.
-  - `sol-linux-latency-lab`: experimental scheduler/preemption lane.
-  - `sol-linux-rt-lab`: optional PREEMPT_RT experiment for input and compositor tests.
-  - `sol-linux-debug`: tracing, lockdep, and instrumentation.
+  - `alpenglow-linux-baseline`: conservative upstream kernel plus required board config.
+  - `alpenglow-linux-appliance`: first-frame modules, cgroups, PSI, MGLRU, zram, seccomp, Landlock, BBR/fq.
+  - `alpenglow-linux-latency-lab`: experimental scheduler/preemption lane.
+  - `alpenglow-linux-rt-lab`: optional PREEMPT_RT experiment for input and compositor tests.
+  - `alpenglow-linux-debug`: tracing, lockdep, and instrumentation.
 - Borrow CachyOS kernel-manager shape:
   - build kernel variants from one declarative matrix
   - cache build artifacts
@@ -213,7 +213,7 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
   - keep EEVDF/default scheduler as fallback
   - no scheduler patch becomes default without QEMU and target-board browser metrics
 - Borrow optimized repository idea for appliance-owned binaries:
-  - build `sold`, `sol-netd`, `glowfsctl`, and hot Rust services for target CPU tiers where useful
+  - build `sold`, `alpenglow-netd`, `glowfsctl`, and hot Rust services for target CPU tiers where useful
   - for ARM64 board targets, prefer board-specific `-mcpu`/target-feature builds only after correctness gates pass
   - keep generic baseline artifact for recovery
 - Borrow Arch `mkinitcpio` discipline:
@@ -241,7 +241,7 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
   - minimal patch stack
   - no opaque daemon if a static manifest works
   - no automatic magic that cannot be reproduced from a shell script
-- Prefer upstream defaults unless Soliloquy has browser-appliance evidence.
+- Prefer upstream defaults unless Alpenglow has browser-appliance evidence.
 - Make every local patch explain:
   - browser metric it affects
   - why upstream/default behavior is insufficient
@@ -326,7 +326,7 @@ Kernel work is allowed, but it must stay measurable, revertible, and browser-sco
   - tune zram for tab snapshot pressure
   - test proactive reclaim for background renderers
   - evaluate DAMON only after PSI, cgroup events, MGLRU, and zram baselines are understood
-  - expose low-memory notifications to `sol-pressure`
+  - expose low-memory notifications to `alpenglow-pressure`
 - IO:
   - prioritize profile writes, cache reads, and UI bundle reads
   - demote background HTTP cache churn
@@ -334,7 +334,7 @@ Kernel work is allowed, but it must stay measurable, revertible, and browser-sco
 - Networking:
   - test BBR/fq only against page-load and QUIC behavior
   - keep deterministic fallback for bad links
-  - expose network policy in `sol-netd`
+  - expose network policy in `alpenglow-netd`
 - Graphics/input:
   - keep DRM/KMS, input, and GPU modules first-frame critical
   - protect compositor/input latency with cgroup and scheduler policy
@@ -382,7 +382,7 @@ Each variant must record:
   - OpenRC start
   - `sold` listening
   - network ready
-  - `sol-session` launch
+  - `alpenglow-session` launch
   - Servo process start
   - RV8 renderer process start
   - first frame
@@ -418,7 +418,7 @@ Borrow Windows job objects, Zircon jobs, and cgroup v2:
 
 - Create stable process classes:
   - `system`: `sold`, service registry, watchdog
-  - `network`: `sol-netd`, DNS, preconnect, QUIC
+  - `network`: `alpenglow-netd`, DNS, preconnect, QUIC
   - `browser`: shell, UI, session manager
   - `foreground-renderer`: active tab and immediate visible work
   - `background-renderer`: hidden but warm tabs
@@ -432,7 +432,7 @@ Borrow Windows job objects, Zircon jobs, and cgroup v2:
   - `memory.high`
   - `memory.max`
   - `pids.max`
-- Keep policy data declarative in `/etc/soliloquy/kernel-policy.json`.
+- Keep policy data declarative in `/etc/alpenglow/kernel-policy.json`.
 - Make process placement observable in `/api/runtime`.
 - Prefer pidfd-based tracking for renderer children when the target kernel supports it.
 
@@ -440,7 +440,7 @@ Borrow Windows job objects, Zircon jobs, and cgroup v2:
 
 Borrow Android LMKD, Darwin pressure response, and Chrome tab discard:
 
-- Build `sol-pressure` as a small Rust service or `sold` module after telemetry proves the needed events.
+- Build `alpenglow-pressure` as a small Rust service or `sold` module after telemetry proves the needed events.
 - Inputs:
   - `/proc/pressure/{cpu,memory,io}`
   - cgroup memory events
@@ -472,7 +472,7 @@ Borrow Android LMKD, Darwin pressure response, and Chrome tab discard:
 
 Borrow ChromeOS A/B, NixOS generations, Haiku packagefs, and Solaris boot environments:
 
-- Treat a Soliloquy release as a generation:
+- Treat a Alpenglow release as a generation:
   - kernel or boot artifact
   - initramfs
   - root image
@@ -563,7 +563,7 @@ Borrow Zircon VMOs, Chrome shared-image style thinking, Linux `memfd`, and QNX m
 
 Borrow Darwin QoS, Windows priority classes, FreeBSD scheduler lessons, and Linux cgroups:
 
-- Define Soliloquy QoS labels:
+- Define Alpenglow QoS labels:
   - `interactive`: active tab input, compositor, command bar
   - `visible`: current page render and media
   - `utility`: downloads, cache writes, profile sync
@@ -589,10 +589,10 @@ Borrow OpenBSD, FreeBSD Capsicum, Windows AppContainer, Android app sandbox, and
   - cgroup placement by class
 - Split privileged service functions:
   - `sold`: authenticated system bridge
-  - `sol-netd`: network policy and probes
-  - `sol-updated`: generation install and rollback
-  - `sol-pressure`: pressure governor if separated from `sold`
-  - `sol-plugin`: plugin install and packagefs policy
+  - `alpenglow-netd`: network policy and probes
+  - `alpenglow-updated`: generation install and rollback
+  - `alpenglow-pressure`: pressure governor if separated from `sold`
+  - `alpenglow-plugin`: plugin install and packagefs policy
 - Add policy audit endpoint:
   - current sandbox mode
   - missing kernel features
@@ -601,7 +601,7 @@ Borrow OpenBSD, FreeBSD Capsicum, Windows AppContainer, Android app sandbox, and
 
 ## Phase 9: Cache And Prefetch Economy
 
-Borrow Windows SysMain, browser prefetchers, Haiku packagefs read-only caching, and Soliloquy existing V8/cache work:
+Borrow Windows SysMain, browser prefetchers, Haiku packagefs read-only caching, and Alpenglow existing V8/cache work:
 
 - Treat free memory as useful cache only while pressure is low.
 - Classify caches:
@@ -680,9 +680,8 @@ Borrow Solaris SMF, MINIX restartable services, QNX supervision, and ChromeOS re
 - `cargo fmt --all -- --check`
 - `cargo clippy --all-targets --all-features --locked -- -D warnings`
 - `cargo test --workspace`
-- `bun run check` in `ui/desktop`
-- `bun run build` in `ui/desktop`
-- `./tools/soliloquy/smoke_macos.sh`
+- `./install.sh --check`
+- `SERVO_DIR=/path/to/alpenglow-servo QEMU_RUN=0 ./system/alpine/scripts/qemu-v0.sh`
 - headless QEMU boot to browser-interactive
 - pressure simulation showing active tab preserved while background tabs freeze or discard
 - generation rollback simulation
@@ -691,7 +690,7 @@ Borrow Solaris SMF, MINIX restartable services, QNX supervision, and ChromeOS re
 
 - Do not replace the active Linux appliance backend to chase theoretical kernel wins.
 - Do not import Vinix code.
-- Do not move browser-engine ownership back into Soliloquy root.
+- Do not move browser-engine ownership back into Alpenglow root.
 - Do not add broad package managers beside Oil for system packages.
 - Do not optimize Rust internals without release-mode measurement.
 - Do not add telemetry that leaves the device by default.

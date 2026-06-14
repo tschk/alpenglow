@@ -2,11 +2,11 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-CREPUSCULARITY_DIR="${ROOT_DIR}/../crepuscularity"
-SOLILOQUY_DESKTOP_ROOT="${SOLILOQUY_DESKTOP_ROOT:-${ROOT_DIR}/../soliloquy}"
+CREPUSCULARITY_DIR="${CREPUSCULARITY_DIR:-}"
+SERVO_SOURCE_ROOT="${SERVO_SOURCE_ROOT:-${ROOT_DIR}/third_party/servo}"
 QEMU_ARCH="${QEMU_ARCH:-x86_64}"
 OUT_DIR="${ROOT_DIR}/build/alpine/artifacts/linux-${QEMU_ARCH}"
-SERVO_SRC_BIN="${SERVO_SRC_BIN:-${SOLILOQUY_DESKTOP_ROOT}/third_party/servo/target/release/servoshell}"
+SERVO_SRC_BIN="${SERVO_SRC_BIN:-${SERVO_SOURCE_ROOT}/target/release/servoshell}"
 SERVO_SOURCE_BUILD="${SERVO_SOURCE_BUILD:-1}"
 SERVO_FORCE_REBUILD="${SERVO_FORCE_REBUILD:-0}"
 SERVO_RELEASE_TAG="${SERVO_RELEASE_TAG:-v0.0.6}"
@@ -104,7 +104,7 @@ servo_needs_glibc_runtime() {
   return 1
 }
 
-servo_supports_soliloquy_chrome_mode() {
+servo_supports_alpenglow_chrome_mode() {
   bin_path="$1"
   strings "${bin_path}" 2>/dev/null | grep -q -- "no-browser-chrome"
 }
@@ -172,7 +172,7 @@ build_kernelctl_linux() {
       ;;
   esac
 
-  echo "Building Linux sol-kernelctl for ${QEMU_ARCH}..." >&2
+  echo "Building Linux alpenglow-kernelctl for ${QEMU_ARCH}..." >&2
   docker run --rm \
     --platform "${docker_platform}" \
     -v "${ROOT_DIR}:/work" \
@@ -183,7 +183,7 @@ build_kernelctl_linux() {
       export PATH=/usr/local/cargo/bin:\$PATH
       apk add --no-cache musl-dev
       cargo build --release --manifest-path system/kernelctl/Cargo.toml --target-dir target/alpine-kernelctl
-      cp target/alpine-kernelctl/release/sol-kernelctl build/alpine/artifacts/linux-${QEMU_ARCH}/sol-kernelctl
+      cp target/alpine-kernelctl/release/alpenglow-kernelctl build/alpine/artifacts/linux-${QEMU_ARCH}/alpenglow-kernelctl
     " >&2
 }
 
@@ -203,7 +203,7 @@ build_netd_linux() {
       ;;
   esac
 
-  echo "Building Linux sol-netd for ${QEMU_ARCH}..." >&2
+  echo "Building Linux alpenglow-netd for ${QEMU_ARCH}..." >&2
   docker run --rm \
     --platform "${docker_platform}" \
     -v "${ROOT_DIR}:/work" \
@@ -214,7 +214,7 @@ build_netd_linux() {
       export PATH=/usr/local/cargo/bin:\$PATH
       apk add --no-cache musl-dev
       cargo build --release --manifest-path system/netd/Cargo.toml --target-dir target/alpine-netd
-      cp target/alpine-netd/release/sol-netd build/alpine/artifacts/linux-${QEMU_ARCH}/sol-netd
+      cp target/alpine-netd/release/alpenglow-netd build/alpine/artifacts/linux-${QEMU_ARCH}/alpenglow-netd
     " >&2
 }
 
@@ -236,6 +236,7 @@ build_servo_linux_musl_from_source() {
     --platform "${docker_platform}" \
     -e QEMU_ARCH="${QEMU_ARCH}" \
     -v "${ROOT_DIR}:/work" \
+    -v "${SERVO_SOURCE_ROOT}:/servo-src:ro" \
     "${SERVO_BUILD_IMAGE}" sh -lc "
       set -eu
       export PATH=\"/usr/lib/llvm21/bin:/usr/local/cargo/bin:\${PATH}\"
@@ -252,7 +253,7 @@ build_servo_linux_musl_from_source() {
         autoconf automake gawk
       rm -rf /tmp/servo-src
       mkdir -p /tmp/servo-src
-      rsync -a --delete /work/third_party/servo/ /tmp/servo-src/
+      rsync -a --delete /servo-src/ /tmp/servo-src/
       rm -rf /src /examples
       ln -s /work/src /src
       ln -s /work/examples /examples
@@ -286,6 +287,7 @@ build_servo_linux_gnu_from_source() {
     --platform "${docker_platform}" \
     -e QEMU_ARCH="${QEMU_ARCH}" \
     -v "${ROOT_DIR}:/work" \
+    -v "${SERVO_SOURCE_ROOT}:/servo-src:ro" \
     rust:1.95-bookworm bash -lc '
       set -eu
       export DEBIAN_FRONTEND=noninteractive
@@ -324,7 +326,7 @@ build_servo_linux_gnu_from_source() {
       python3 -m pip install --break-system-packages uv >/dev/null
       rm -rf /tmp/servo-src
       mkdir -p /tmp/servo-src
-      rsync -a --delete /work/third_party/servo/ /tmp/servo-src/
+      rsync -a --delete /servo-src/ /tmp/servo-src/
       rm -rf /src /examples
       ln -s /work/src /src
       ln -s /work/examples /examples
@@ -490,14 +492,14 @@ else
   build_sold_linux
 fi
 
-if [ -f "${OUT_DIR}/sol-kernelctl" ] && file_matches_arch "${OUT_DIR}/sol-kernelctl" && kernelctl_matches_runtime "${OUT_DIR}/sol-kernelctl"; then
-  echo "Reusing Linux sol-kernelctl binary: ${OUT_DIR}/sol-kernelctl" >&2
+if [ -f "${OUT_DIR}/alpenglow-kernelctl" ] && file_matches_arch "${OUT_DIR}/alpenglow-kernelctl" && kernelctl_matches_runtime "${OUT_DIR}/alpenglow-kernelctl"; then
+  echo "Reusing Linux alpenglow-kernelctl binary: ${OUT_DIR}/alpenglow-kernelctl" >&2
 else
   build_kernelctl_linux
 fi
 
-if [ -f "${OUT_DIR}/sol-netd" ] && file_matches_arch "${OUT_DIR}/sol-netd" && netd_matches_runtime "${OUT_DIR}/sol-netd"; then
-  echo "Reusing Linux sol-netd binary: ${OUT_DIR}/sol-netd" >&2
+if [ -f "${OUT_DIR}/alpenglow-netd" ] && file_matches_arch "${OUT_DIR}/alpenglow-netd" && netd_matches_runtime "${OUT_DIR}/alpenglow-netd"; then
+  echo "Reusing Linux alpenglow-netd binary: ${OUT_DIR}/alpenglow-netd" >&2
 else
   build_netd_linux
 fi
@@ -519,12 +521,12 @@ if [ -n "${SERVO_BIN_LINUX:-}" ]; then
     echo "Use SERVO_LINUX_LIBC=gnu for glibc servoshell + runtime bundle, or omit SERVO_BIN_LINUX." >&2
     exit 1
   fi
-elif [ "${SERVO_FORCE_REBUILD}" != "1" ] && [ -f "${OUT_DIR}/servo" ] && file_matches_arch "${OUT_DIR}/servo" && servo_native_musl "${OUT_DIR}/servo" && servo_supports_soliloquy_chrome_mode "${OUT_DIR}/servo"; then
+elif [ "${SERVO_FORCE_REBUILD}" != "1" ] && [ -f "${OUT_DIR}/servo" ] && file_matches_arch "${OUT_DIR}/servo" && servo_native_musl "${OUT_DIR}/servo" && servo_supports_alpenglow_chrome_mode "${OUT_DIR}/servo"; then
   echo "Reusing Linux musl Servo binary: ${OUT_DIR}/servo" >&2
-elif [ -f "${SERVO_SRC_BIN}" ] && file_matches_arch "${SERVO_SRC_BIN}" && servo_native_musl "${SERVO_SRC_BIN}" && servo_supports_soliloquy_chrome_mode "${SERVO_SRC_BIN}"; then
+elif [ -f "${SERVO_SRC_BIN}" ] && file_matches_arch "${SERVO_SRC_BIN}" && servo_native_musl "${SERVO_SRC_BIN}" && servo_supports_alpenglow_chrome_mode "${SERVO_SRC_BIN}"; then
   echo "Using in-tree musl Servo binary: ${SERVO_SRC_BIN}" >&2
   cp "${SERVO_SRC_BIN}" "${OUT_DIR}/servo"
-elif [ "${SERVO_SOURCE_BUILD}" = "1" ] && [ -f "${ROOT_DIR}/third_party/servo/ports/servoshell/Cargo.toml" ]; then
+elif [ "${SERVO_SOURCE_BUILD}" = "1" ] && [ -f "${SERVO_SOURCE_ROOT}/ports/servoshell/Cargo.toml" ]; then
   case "${SERVO_LINUX_LIBC}" in
     gnu) build_servo_linux_gnu_from_source ;;
     *) build_servo_linux_musl_from_source ;;
@@ -533,9 +535,9 @@ else
   fetch_servo_release_linux
 fi
 
-if ! servo_supports_soliloquy_chrome_mode "${OUT_DIR}/servo"; then
+if ! servo_supports_alpenglow_chrome_mode "${OUT_DIR}/servo"; then
   echo "Servo binary does not support --no-browser-chrome: ${OUT_DIR}/servo" >&2
-  echo "Rebuild the local Servo fork so Soliloquy's desktop chrome is the only browser UI." >&2
+  echo "Rebuild the local Servo fork so Alpenglow's desktop chrome is the only browser UI." >&2
   exit 1
 fi
 
@@ -547,5 +549,5 @@ if servo_needs_glibc_runtime "${OUT_DIR}/servo"; then
   fi
 fi
 
-chmod +x "${OUT_DIR}/servo" "${OUT_DIR}/sold" "${OUT_DIR}/sol-kernelctl" "${OUT_DIR}/sol-netd"
+chmod +x "${OUT_DIR}/servo" "${OUT_DIR}/sold" "${OUT_DIR}/alpenglow-kernelctl" "${OUT_DIR}/alpenglow-netd"
 echo "${OUT_DIR}"

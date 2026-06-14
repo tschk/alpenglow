@@ -1,19 +1,19 @@
 # Browser-Centric OS Optimization
 
-Soliloquy should optimize for one primary workload: booting into an interactive browser surface quickly, keeping renderer work isolated, and recovering browser services without treating the machine like a general desktop distribution.
+Alpenglow should optimize for one primary workload: booting into an interactive browser surface quickly, keeping renderer work isolated, and recovering browser services without treating the machine like a general desktop distribution.
 
 ## Reference Systems
 
 - ChromeOS defines useful browser-appliance goals: verified system state, rollback, and a boot-complete point tied to the browser login surface instead of generic init completion.
-- Zircon is a useful model for handle-oriented process, channel, VMO, job, and futex boundaries. Soliloquy should mirror those boundaries in Rust and Linux primitives before considering kernel replacement work.
-- Darwin/XNU is useful for service supervision, QoS, memory pressure, and driver-boundary organization. Soliloquy should copy the shape, not the code.
-- Vinix is useful as a small-kernel module map and boot-sequencing reference. Vinix is GPL-2.0, so Soliloquy must not import or port Vinix code into this MPL-licensed repo.
+- Zircon is a useful model for handle-oriented process, channel, VMO, job, and futex boundaries. Alpenglow should mirror those boundaries in Rust and Linux primitives before considering kernel replacement work.
+- Darwin/XNU is useful for service supervision, QoS, memory pressure, and driver-boundary organization. Alpenglow should copy the shape, not the code.
+- Vinix is useful as a small-kernel module map and boot-sequencing reference. Vinix is GPL-2.0, so Alpenglow must not import or port Vinix code into this MPL-licensed repo.
 
 ## RV8 Boundary
 
-`../rv8` is the canonical browser-engine checkout. The Soliloquy root workspace should not build an in-repo RV8 crate as an active member.
+[RV8](https://github.com/tschk/rv8) is the canonical browser-engine checkout. The Alpenglow root workspace should not build an in-repo RV8 crate as an active member.
 
-Soliloquy owns:
+Alpenglow owns:
 
 - Alpine appliance image assembly.
 - `sold` and authenticated local system APIs.
@@ -34,7 +34,7 @@ Boot is complete when the browser is interactive. The minimal runtime graph is:
 1. `networking`
 2. `sold`
 3. `seatd`
-4. `sol-session`
+4. `alpenglow-session`
 5. `servo`
 6. `rv8`
 7. first frame
@@ -42,10 +42,10 @@ Boot is complete when the browser is interactive. The minimal runtime graph is:
 
 `sold` exposes the current graph through `/api/runtime`. Appliance launchers can populate these environment timestamps:
 
-- `SOLILOQUY_SOLD_START_UNIX_MS`
-- `SOLILOQUY_FIRST_FRAME_UNIX_MS`
-- `SOLILOQUY_BROWSER_INTERACTIVE_UNIX_MS`
-- `SOLILOQUY_RENDERER_RESTARTS`
+- `ALPENGLOW_SOLD_START_UNIX_MS`
+- `ALPENGLOW_FIRST_FRAME_UNIX_MS`
+- `ALPENGLOW_BROWSER_INTERACTIVE_UNIX_MS`
+- `ALPENGLOW_RENDERER_RESTARTS`
 
 ## Kernel-Level Optimization Ideas
 
@@ -59,7 +59,7 @@ Boot is complete when the browser is interactive. The minimal runtime graph is:
 ## First Implementation Slice
 
 - Keep Vinix reference-only in runtime status and docs.
-- Externalize active RV8 build ownership to `../rv8`.
+- Externalize active RV8 build ownership to [RV8](https://github.com/tschk/rv8).
 - Add browser-first runtime telemetry to `sold`.
 - Keep the Alpine service graph minimal and browser-oriented.
 - Validate with Cargo, Bun, and QEMU smoke checks before broad kernel or compositor changes.

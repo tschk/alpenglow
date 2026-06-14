@@ -1,9 +1,9 @@
 [package]
-name = "soliloquy-drivers"
+name = "alpenglow-drivers"
 version = "0.1.0"
 edition = "2021"
-authors = ["Soliloquy Authors"]
-description = "Generic hardware drivers for Soliloquy OS"
+authors = ["Alpenglow Authors"]
+description = "Generic hardware drivers for Alpenglow OS"
 license = "MPL-2.0"
 
 [lib]

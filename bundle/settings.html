@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings - Soliloquy</title>
+  <title>Settings - Alpenglow</title>
   <style>
     :root {
       color-scheme: dark;
@@ -1000,7 +1000,7 @@
     }
 
     function authHeaders(base = {}) {
-      const token = localStorage.getItem('sol-token');
+      const token = localStorage.getItem('alpenglow-token');
       if (token) {
         base['X-Sol-Token'] = token;
       }

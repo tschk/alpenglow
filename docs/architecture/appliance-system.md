@@ -12,10 +12,10 @@
 
 - `/` is an immutable system image.
 - `/home/<user>` is the only user-writable persistent area.
-- `/var/lib/soliloquy/browser/profiles` stores system-managed browser profiles.
-- `/var/lib/soliloquy/system` stores system-owned plugin and policy state.
-- `/var/cache/soliloquy` stores system-owned cache data.
-- `/var/log/soliloquy` stores system-owned logs.
+- `/var/lib/alpenglow/browser/profiles` stores system-managed browser profiles.
+- `/var/lib/alpenglow/system` stores system-owned plugin and policy state.
+- `/var/cache/alpenglow` stores system-owned cache data.
+- `/var/log/alpenglow` stores system-owned logs.
 - `/tmp` is a system scratch area, not a user workspace.
 
 ## Browser Data Model
@@ -27,10 +27,10 @@
 ## Plugin Model
 
 - Plugins are optional downloads rather than part of the immutable base.
-- Plugin policy defaults live in `/etc/soliloquy/system.json`.
-- Plugin package manifests live in `/etc/soliloquy/plugins/*.json`.
-- Writable plugin state lives in `/var/lib/soliloquy/system/plugin-state.json`.
-- Writable plugin install state lives in `/var/lib/soliloquy/system/plugin-installs.json`.
+- Plugin policy defaults live in `/etc/alpenglow/system.json`.
+- Plugin package manifests live in `/etc/alpenglow/plugins/*.json`.
+- Writable plugin state lives in `/var/lib/alpenglow/system/plugin-state.json`.
+- Writable plugin install state lives in `/var/lib/alpenglow/system/plugin-installs.json`.
 - The first plugin is `remote-sync`, with separate feature flags for:
   - file sync
   - photo sync
@@ -53,7 +53,7 @@ The target service architecture borrows from several operating system designs:
 - ToaruOS and Vinix: lean startup path, explicit boot sequencing, minimal runtime assumptions. Vinix is reference-only because it is GPL-2.0.
 
 The current appliance now carries a small declarative service registry in
-`/etc/soliloquy/services.json`. It is intentionally small, but it is the first
+`/etc/alpenglow/services.json`. It is intentionally small, but it is the first
 step toward a more declarative service graph instead of purely
 implicit shell-script ordering.
 
@@ -78,16 +78,16 @@ These changes are already reflected or scaffolded in the current appliance path:
 
 ## Updates And Rollback
 
-- Update policy lives in `/etc/soliloquy/update-policy.json`.
-- Writable update state lives in `/var/lib/soliloquy/system/update-state.json`.
+- Update policy lives in `/etc/alpenglow/update-policy.json`.
+- Writable update state lives in `/var/lib/alpenglow/system/update-state.json`.
 - The current strategy is `atomic-generations` with rollback enabled.
 - This mirrors the direction borrowed from Solaris boot environments and modern image-based Linux systems.
 
 ## Package Management
 
-- Oil is the declared package manager for Soliloquy system packages.
-- Soliloquy should track Oil's `system-packages` direction rather than the simpler Homebrew-style user package workflow.
-- Oil is expected to manage generations, manifests, and system/userland package state under `/var/lib/soliloquy/oil`.
+- Oil is the declared package manager for Alpenglow system packages.
+- Alpenglow should track Oil's `system-packages` direction rather than the simpler Homebrew-style user package workflow.
+- Oil is expected to manage generations, manifests, and system/userland package state under `/var/lib/alpenglow/oil`.
 - The browser profile vault remains outside package-manager ownership.
 
 ## Why These Changes

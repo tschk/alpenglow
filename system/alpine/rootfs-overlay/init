@@ -16,12 +16,12 @@ cmdline_value() {
 }
 
 record_rootfs_state() {
-  mkdir -p /run/soliloquy
+  mkdir -p /run/alpenglow
   {
-    printf 'SOLILOQUY_ROOT_MODE=%s\n' "$1"
-    printf 'SOLILOQUY_ROOT_SOURCE=%s\n' "$2"
-    printf 'SOLILOQUY_ROOT_MEM_MB=%s\n' "$3"
-  } >/run/soliloquy/rootfs.env
+    printf 'ALPENGLOW_ROOT_MODE=%s\n' "$1"
+    printf 'ALPENGLOW_ROOT_SOURCE=%s\n' "$2"
+    printf 'ALPENGLOW_ROOT_MEM_MB=%s\n' "$3"
+  } >/run/alpenglow/rootfs.env
 }
 
 load_kernel_module_file() {
@@ -54,18 +54,18 @@ wait_for_device() {
 }
 
 prepare_disk_root_state() {
-  for path in var/lib/soliloquy var/log var/cache home root state; do
+  for path in var/lib/alpenglow var/log var/cache home root state; do
     if [ -d "/sysroot/${path}" ]; then
       mount -t tmpfs -o mode=755,nosuid,nodev tmpfs "/sysroot/${path}" 2>/dev/null || true
     fi
   done
   if [ -f /sysroot/etc/resolv.conf ]; then
-    mkdir -p /run/soliloquy
-    : >/run/soliloquy/resolv.conf
-    mount --bind /run/soliloquy/resolv.conf /sysroot/etc/resolv.conf 2>/dev/null || true
+    mkdir -p /run/alpenglow
+    : >/run/alpenglow/resolv.conf
+    mount --bind /run/alpenglow/resolv.conf /sysroot/etc/resolv.conf 2>/dev/null || true
   fi
   if [ -d /sysroot/etc/udhcpc ]; then
-    mkdir -p /run/soliloquy
+    mkdir -p /run/alpenglow
   fi
 }
 
@@ -115,9 +115,9 @@ mount -t cgroup2 cgroup2 /sys/fs/cgroup 2>/dev/null || true
 mount -t tmpfs tmpfs /run || true
 mount -t tmpfs -o mode=755,nosuid,nodev tmpfs /tmp || true
 
-mkdir -p /run/soliloquy /var/log/soliloquy /var/cache/soliloquy || true
+mkdir -p /run/alpenglow /var/log/alpenglow /var/cache/alpenglow || true
 chmod 755 /tmp || true
-chmod 700 /run/soliloquy /var/log/soliloquy /var/cache/soliloquy || true
+chmod 700 /run/alpenglow /var/log/alpenglow /var/cache/alpenglow || true
 
 if ! mount -t devtmpfs devtmpfs /dev 2>/dev/null; then
   log "devtmpfs unavailable; falling back to tmpfs /dev"
@@ -138,15 +138,15 @@ mkdir -p /dev/shm
 chmod 1777 /dev/shm 2>/dev/null || true
 mount -t tmpfs -o mode=1777,nosuid,nodev,size=256m tmpfs /dev/shm 2>/dev/null || true
 
-ram_root_mode="$(cmdline_value soliloquy.ram_root || printf '%s\n' auto)"
-ram_root_min_mb="$(cmdline_value soliloquy.ram_root_min_mb || printf '%s\n' 3072)"
-root_fallback="$(cmdline_value soliloquy.root_fallback || printf '%s\n' /dev/vda)"
-root_fallback_fstype="$(cmdline_value soliloquy.root_fallback_fstype || printf '%s\n' ext4)"
+ram_root_mode="$(cmdline_value alpenglow.ram_root || printf '%s\n' auto)"
+ram_root_min_mb="$(cmdline_value alpenglow.ram_root_min_mb || printf '%s\n' 3072)"
+root_fallback="$(cmdline_value alpenglow.root_fallback || printf '%s\n' /dev/vda)"
+root_fallback_fstype="$(cmdline_value alpenglow.root_fallback_fstype || printf '%s\n' ext4)"
 mem_kb="$(awk '/MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || printf '%s\n' 0)"
 mem_mb="$((mem_kb / 1024))"
 load_kernel_module virtio_pci
 load_kernel_module virtio_blk
-load_kernel_module_file /usr/local/lib/soliloquy/kernel/glowfs.ko
+load_kernel_module_file /usr/local/lib/alpenglow/kernel/glowfs.ko
 
 case "${ram_root_mode}" in
   0|false|off|disk)

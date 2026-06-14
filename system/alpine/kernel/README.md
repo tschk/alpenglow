@@ -1,6 +1,6 @@
-# Soliloquy Appliance Kernel
+# Alpenglow Appliance Kernel
 
-This directory contains the Alpine packaging and config inputs for the custom Soliloquy internet appliance kernel.
+This directory contains the Alpine packaging and config inputs for the custom Alpenglow internet appliance kernel.
 
 The target profile keeps the browser appliance path narrow:
 

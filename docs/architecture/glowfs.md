@@ -1,10 +1,10 @@
 # GlowFS
 
-GlowFS is the Soliloquy root filesystem for internet-appliance images. Its job is narrower than ext4, Btrfs, XFS, EROFS, or SquashFS: boot a verified browser operating system quickly, expose immutable system generations, and keep mutable browser state out of the root image.
+GlowFS is the Alpenglow root filesystem for internet-appliance images. Its job is narrower than ext4, Btrfs, XFS, EROFS, or SquashFS: boot a verified browser operating system quickly, expose immutable system generations, and keep mutable browser state out of the root image.
 
 ## Why GlowFS Exists
 
-General filesystems optimize for broad POSIX workloads. Soliloquy has a smaller contract:
+General filesystems optimize for broad POSIX workloads. Alpenglow has a smaller contract:
 
 - `/usr`, `/etc`, OpenRC service graphs, UI bundles, Servo launchers, `sold`, and policy files are immutable generation content.
 - Browser cache is disposable and should not be treated like durable user state.

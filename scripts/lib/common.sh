@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Common shell functions for Soliloquy scripts
+# Common shell functions for Alpenglow scripts
 # Source this file in other scripts: source "${SCRIPT_DIR}/lib/common.sh"
 
 # Colors
@@ -12,19 +12,19 @@ NC='\033[0m' # No Color
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}[soliloquy]${NC} $1"
+    echo -e "${BLUE}[alpenglow]${NC} $1"
 }
 
 log_success() {
-    echo -e "${GREEN}[soliloquy]${NC} ✓ $1"
+    echo -e "${GREEN}[alpenglow]${NC} ✓ $1"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[soliloquy]${NC} ⚠ $1"
+    echo -e "${YELLOW}[alpenglow]${NC} ⚠ $1"
 }
 
 log_error() {
-    echo -e "${RED}[soliloquy]${NC} ✗ $1" >&2
+    echo -e "${RED}[alpenglow]${NC} ✗ $1" >&2
 }
 
 log_debug() {
@@ -87,7 +87,7 @@ check_tools() {
 
 # Create a temporary directory
 create_temp_dir() {
-    local prefix="${1:-soliloquy}"
+    local prefix="${1:-alpenglow}"
     mktemp -d -t "${prefix}.XXXXXX"
 }
 

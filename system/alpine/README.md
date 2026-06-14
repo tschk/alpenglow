@@ -1,6 +1,6 @@
 # Alpine tree (in-repo)
 
-This directory carries the Alpine-specific boot/runtime layout for the Soliloquy browser appliance:
+This directory carries the Alpine-specific boot/runtime layout for the Alpenglow browser appliance:
 
 - `packages-v0.txt` - minimal runtime package manifest
 - `packages-v0-dev.txt` - optional dev extras (terminal-oriented)
@@ -14,9 +14,9 @@ This directory carries the Alpine-specific boot/runtime layout for the Soliloquy
 
 1. OpenRC starts core services (`seatd`).
 2. OpenRC starts `sold` to serve the local browser UI and PTY bridge.
-3. OpenRC starts and respawns `sol-session`.
+3. OpenRC starts and respawns `alpenglow-session`.
 4. `cage` launches Servo fullscreen on the visible VT.
-5. Servo opens the local Soliloquy browser surface.
+5. Servo opens the local Alpenglow browser surface.
 
 The root filesystem is treated as immutable at runtime; browser profile, cache, downloads, logs, and terminal state are the writable areas.
 The concrete root and state contract lives in `filesystems/rootfs-layout.json` and `filesystems/state-mounts.json`, with the design captured in `docs/architecture/immutable-rootfs.md`.
@@ -40,9 +40,9 @@ Output:
 Build a sealed rootfs image from the configured rootfs:
 
 ```sh
-SOLILOQUY_ROOTFS_FORMAT=glowfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
-SOLILOQUY_ROOTFS_FORMAT=erofs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
-SOLILOQUY_ROOTFS_FORMAT=squashfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
+ALPENGLOW_ROOTFS_FORMAT=glowfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
+ALPENGLOW_ROOTFS_FORMAT=erofs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
+ALPENGLOW_ROOTFS_FORMAT=squashfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
 ```
 
 ## Full QEMU flow
@@ -73,7 +73,7 @@ This clones your fork into `third_party/servo` (if missing), builds it, and stag
 
 - `third_party/servo/target/release/servoshell` -> `/usr/local/bin/servo`
 - `target/release/sold` -> `/usr/local/bin/sold`
-- `ui/desktop/build` -> `/usr/local/share/soliloquy/bundle`
+- `bundle/` -> `/usr/local/share/alpenglow/bundle`
 
 Important: the staged `servo` and `sold` binaries must be Linux ELF binaries for the selected `QEMU_ARCH`.
 Building on macOS produces Mach-O binaries, which cannot run inside the Alpine Linux VM.
@@ -82,7 +82,7 @@ The staging script now fails fast when binary formats do not match.
 `qemu-v0.sh` now prepares Linux binaries automatically before staging:
 
 - `sold` is built in a Linux container and stored under `build/alpine/artifacts/linux-<arch>/sold`
-- `sol-netd` and `sol-kernelctl` are built for the same Linux target
+- `alpenglow-netd` and `alpenglow-kernelctl` are built for the same Linux target
 - `servo` prefers an in-tree Linux ELF build; if unavailable on `x86_64`, it fetches the Servo Linux release binary into `build/alpine/artifacts/linux-<arch>/servo`
 
 Override servo source explicitly:
@@ -103,39 +103,39 @@ Manual steps:
 QEMU_ARCH="${QEMU_ARCH:-x86_64}"
 export QEMU_ARCH
 SERVO_BUILD=0 ./system/alpine/scripts/ensure-servo-fork.sh
-./tools/soliloquy/build_ui.sh
+./install.sh --check
 LINUX_BIN_DIR="$(./system/alpine/scripts/ensure-linux-runtime-binaries.sh)"
 ./system/alpine/scripts/build-rootfs.sh
 ./system/alpine/scripts/fetch-qemu-kernel.sh build/alpine/qemu
-SOLILOQUY_ROOTFS_FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-glowfs}"
-if [ "${SOLILOQUY_ROOTFS_FORMAT}" = "glowfs" ]; then
+ALPENGLOW_ROOTFS_FORMAT="${ALPENGLOW_ROOTFS_FORMAT:-glowfs}"
+if [ "${ALPENGLOW_ROOTFS_FORMAT}" = "glowfs" ]; then
   GLOWFS_MODULE="${GLOWFS_MODULE:-build/alpine/qemu/glowfs.ko}"
   ./system/alpine/scripts/build-glowfs-module.sh "${GLOWFS_MODULE}"
   export GLOWFS_MODULE
 fi
 export SERVO_BIN="${LINUX_BIN_DIR}/servo"
 export SOLD_BIN="${LINUX_BIN_DIR}/sold"
-export SOL_NETD_BIN="${LINUX_BIN_DIR}/sol-netd"
-export SOL_KERNELCTL_BIN="${LINUX_BIN_DIR}/sol-kernelctl"
+export ALPENGLOW_NETD_BIN="${LINUX_BIN_DIR}/alpenglow-netd"
+export ALPENGLOW_KERNELCTL_BIN="${LINUX_BIN_DIR}/alpenglow-kernelctl"
 if [ -d "${LINUX_BIN_DIR}/servo-runtime-root" ]; then
   export SERVO_RUNTIME_DIR="${LINUX_BIN_DIR}/servo-runtime-root"
 else
   unset SERVO_RUNTIME_DIR
 fi
-./system/alpine/scripts/stage-soliloquy-artifacts.sh build/alpine/rootfs
-SOLILOQUY_ROOTFS_FORMAT="${SOLILOQUY_ROOTFS_FORMAT}" ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/qemu
+./system/alpine/scripts/stage-alpenglow-artifacts.sh build/alpine/rootfs
+ALPENGLOW_ROOTFS_FORMAT="${ALPENGLOW_ROOTFS_FORMAT}" ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/qemu
 ./system/alpine/scripts/build-qemu-initramfs.sh build/alpine/rootfs build/alpine/qemu/rootfs.cpio.gz
-SOLILOQUY_RAM_ROOT="${SOLILOQUY_RAM_ROOT:-auto}" \
-SOLILOQUY_RAM_ROOT_MIN_MB="${SOLILOQUY_RAM_ROOT_MIN_MB:-3072}" \
-SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE:-build/alpine/qemu/soliloquy-rootfs.${SOLILOQUY_ROOTFS_FORMAT}}" \
-SOLILOQUY_ROOTFS_IMAGE_REQUIRED="${SOLILOQUY_ROOTFS_IMAGE_REQUIRED:-1}" \
-SOLILOQUY_ROOT_FALLBACK_FSTYPE="${SOLILOQUY_ROOT_FALLBACK_FSTYPE:-${SOLILOQUY_ROOTFS_FORMAT}}" \
+ALPENGLOW_RAM_ROOT="${ALPENGLOW_RAM_ROOT:-auto}" \
+ALPENGLOW_RAM_ROOT_MIN_MB="${ALPENGLOW_RAM_ROOT_MIN_MB:-3072}" \
+ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE:-build/alpine/qemu/alpenglow-rootfs.${ALPENGLOW_ROOTFS_FORMAT}}" \
+ALPENGLOW_ROOTFS_IMAGE_REQUIRED="${ALPENGLOW_ROOTFS_IMAGE_REQUIRED:-1}" \
+ALPENGLOW_ROOT_FALLBACK_FSTYPE="${ALPENGLOW_ROOT_FALLBACK_FSTYPE:-${ALPENGLOW_ROOTFS_FORMAT}}" \
 ./system/alpine/scripts/run-qemu.sh build/alpine/qemu
 ```
 
 The manual sequence mirrors `scripts/qemu-v0.sh`. In normal use prefer `./system/alpine/scripts/qemu-v0.sh`; keep manual runs aligned with that script when debugging one stage at a time.
 
-The staged UI path is `/usr/local/share/soliloquy/bundle`. `stage-soliloquy-artifacts.sh` copies `ui/desktop/build` there, then overlays `bundle/terminal`, optional `files` and `settings` pages, and any shared static assets from `bundle/assets`.
+The staged UI path is `/usr/local/share/alpenglow/bundle`. `stage-alpenglow-artifacts.sh` copies the local `bundle/` directory there.
 
 `run-qemu.sh` defaults to `console=tty0 console=ttyS0 rdinit=/init`, so boot logs appear in both the QEMU window and terminal.
 You can override kernel args with:
@@ -144,4 +144,4 @@ You can override kernel args with:
 KERNEL_CMDLINE='console=ttyS0 rdinit=/init loglevel=7' ./system/alpine/scripts/run-qemu.sh build/alpine/qemu
 ```
 
-`sol-session-start` and `sol-servo-wrapper` mirror their logs (including Cage/Servo stderr/stdout) to `ttyS0`, so runtime failures are visible in the terminal even when the graphical VT is blank.
+`alpenglow-session-start` and `alpenglow-servo-wrapper` mirror their logs (including Cage/Servo stderr/stdout) to `ttyS0`, so runtime failures are visible in the terminal even when the graphical VT is blank.

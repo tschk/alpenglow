@@ -1,10 +1,10 @@
 [package]
-name = "sol-kernelctl"
+name = "alpenglow-kernelctl"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "sol-kernelctl"
+name = "alpenglow-kernelctl"
 path = "src/main.rs"
 
 [dependencies]

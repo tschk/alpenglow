@@ -3,7 +3,7 @@
   "id": "bore-style-scheduler-lane",
   "default": false,
   "lane": "direct-source-edit-or-patch-queue",
-  "applies_to": "linux-soliloquy-appliance",
+  "applies_to": "linux-alpenglow-appliance",
   "source_policy": "in-tree-source-expected",
   "source_path": "system/alpine/kernel/linux",
   "queue_path": "system/alpine/kernel/patches/series",

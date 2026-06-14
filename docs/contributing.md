@@ -1,22 +1,17 @@
 # Contributing
 
-Use current repo paths only: Cargo, Bun, `sold`, Servo/RV8 bridge scripts, and Alpine appliance scripts.
+Use current repo paths only: Cargo, native shell scripts, `sold`, GlowFS, and appliance scripts.
 
 ## Gates
 
 ```bash
-cargo fmt --check
-cargo test -p sold
-cargo test -p sold
-cargo test -p sol-netd
-cargo test -p sol-kernelctl
-cargo test -p glowfsctl
-cd ui/desktop && bun run check && bun run build
+./install.sh --check
+git diff --check
 ```
 
 ## Package Manager
 
-Use `wax` for system packages. Use `bun` for JavaScript. Do not add telemetry or secret-bearing config.
+Use `wax` for host system packages. Alpenglow records Oil as the OS package-manager identity. Do not add telemetry or secret-bearing config.
 
 ## License
 

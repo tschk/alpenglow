@@ -8,18 +8,18 @@ if [ -z "${ROOTFS}" ]; then
 fi
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-SOLILOQUY_DESKTOP_ROOT="${SOLILOQUY_DESKTOP_ROOT:-${REPO_ROOT}/../soliloquy}"
-SERVO_BIN="${SERVO_BIN:-${REPO_ROOT}/third_party/servo/target/release/servoshell}"
+SERVO_SOURCE_ROOT="${SERVO_SOURCE_ROOT:-${REPO_ROOT}/third_party/servo}"
+SERVO_BIN="${SERVO_BIN:-${SERVO_SOURCE_ROOT}/target/release/servoshell}"
 SERVO_RUNTIME_DIR="${SERVO_RUNTIME_DIR:-}"
 SOLD_BIN="${SOLD_BIN:-${REPO_ROOT}/target/release/sold}"
-SOL_KERNELCTL_BIN="${SOL_KERNELCTL_BIN:-${REPO_ROOT}/target/release/sol-kernelctl}"
-SOL_NETD_BIN="${SOL_NETD_BIN:-${REPO_ROOT}/target/release/sol-netd}"
+ALPENGLOW_KERNELCTL_BIN="${ALPENGLOW_KERNELCTL_BIN:-${REPO_ROOT}/target/release/alpenglow-kernelctl}"
+ALPENGLOW_NETD_BIN="${ALPENGLOW_NETD_BIN:-${REPO_ROOT}/target/release/alpenglow-netd}"
 GLOWFS_MODULE="${GLOWFS_MODULE:-}"
 NATIVE_POLICY_BUILD_SCRIPT="${NATIVE_POLICY_BUILD_SCRIPT:-${REPO_ROOT}/system/alpine/scripts/build-native-policy-modules.sh}"
 NATIVE_POLICY_DIR="${NATIVE_POLICY_DIR:-${REPO_ROOT}/build/alpine/native-policy-v}"
-NATIVE_POLICY_LIB="${NATIVE_POLICY_LIB:-${NATIVE_POLICY_DIR}/libsoliloquy_native_policy_v.so}"
+NATIVE_POLICY_LIB="${NATIVE_POLICY_LIB:-${NATIVE_POLICY_DIR}/libalpenglow_native_policy_v.so}"
 NATIVE_POLICY_REQUIRED="${NATIVE_POLICY_REQUIRED:-0}"
-UI_BUILD_DIR="${UI_BUILD_DIR:-${SOLILOQUY_DESKTOP_ROOT}/ui/desktop/build}"
+UI_BUILD_DIR="${UI_BUILD_DIR:-${REPO_ROOT}/bundle}"
 TARGET_ARCH="${QEMU_ARCH:-x86_64}"
 
 if [ ! -d "${ROOTFS}" ]; then
@@ -61,7 +61,7 @@ require_linux_elf_binary() {
 }
 
 mkdir -p "${ROOTFS}/usr/local/bin"
-mkdir -p "${ROOTFS}/usr/local/share/soliloquy"
+mkdir -p "${ROOTFS}/usr/local/share/alpenglow"
 if [ ! -f "${SERVO_BIN}" ]; then
   echo "servoshell binary not found at ${SERVO_BIN}" >&2
   echo "expected in-tree fork build artifact; run ensure-servo-fork.sh first" >&2
@@ -86,10 +86,10 @@ require_linux_elf_binary "${SOLD_BIN}"
 cp "${SOLD_BIN}" "${ROOTFS}/usr/local/bin/sold"
 chmod +x "${ROOTFS}/usr/local/bin/sold"
 
-if [ -f "${SOL_KERNELCTL_BIN}" ]; then
-  require_linux_elf_binary "${SOL_KERNELCTL_BIN}"
-  cp "${SOL_KERNELCTL_BIN}" "${ROOTFS}/usr/local/bin/sol-kernelctl"
-  chmod +x "${ROOTFS}/usr/local/bin/sol-kernelctl"
+if [ -f "${ALPENGLOW_KERNELCTL_BIN}" ]; then
+  require_linux_elf_binary "${ALPENGLOW_KERNELCTL_BIN}"
+  cp "${ALPENGLOW_KERNELCTL_BIN}" "${ROOTFS}/usr/local/bin/alpenglow-kernelctl"
+  chmod +x "${ROOTFS}/usr/local/bin/alpenglow-kernelctl"
 fi
 
 if [ -n "${GLOWFS_MODULE}" ]; then
@@ -97,19 +97,19 @@ if [ -n "${GLOWFS_MODULE}" ]; then
     echo "GlowFS kernel module not found at ${GLOWFS_MODULE}" >&2
     exit 1
   fi
-  mkdir -p "${ROOTFS}/usr/local/lib/soliloquy/kernel"
-  cp "${GLOWFS_MODULE}" "${ROOTFS}/usr/local/lib/soliloquy/kernel/glowfs.ko"
-  chmod 0644 "${ROOTFS}/usr/local/lib/soliloquy/kernel/glowfs.ko"
+  mkdir -p "${ROOTFS}/usr/local/lib/alpenglow/kernel"
+  cp "${GLOWFS_MODULE}" "${ROOTFS}/usr/local/lib/alpenglow/kernel/glowfs.ko"
+  chmod 0644 "${ROOTFS}/usr/local/lib/alpenglow/kernel/glowfs.ko"
 fi
 
-if [ ! -f "${SOL_NETD_BIN}" ]; then
-  echo "sol-netd binary not found at ${SOL_NETD_BIN}" >&2
-  echo "run cargo build --release -p sol-netd before staging artifacts" >&2
+if [ ! -f "${ALPENGLOW_NETD_BIN}" ]; then
+  echo "alpenglow-netd binary not found at ${ALPENGLOW_NETD_BIN}" >&2
+  echo "run cargo build --release -p alpenglow-netd before staging artifacts" >&2
   exit 1
 fi
-require_linux_elf_binary "${SOL_NETD_BIN}"
-cp "${SOL_NETD_BIN}" "${ROOTFS}/usr/local/bin/sol-netd"
-chmod +x "${ROOTFS}/usr/local/bin/sol-netd"
+require_linux_elf_binary "${ALPENGLOW_NETD_BIN}"
+cp "${ALPENGLOW_NETD_BIN}" "${ROOTFS}/usr/local/bin/alpenglow-netd"
+chmod +x "${ROOTFS}/usr/local/bin/alpenglow-netd"
 
 if [ ! -f "${NATIVE_POLICY_LIB}" ] && [ -x "${NATIVE_POLICY_BUILD_SCRIPT}" ]; then
   if ! OUT_DIR="${NATIVE_POLICY_DIR}" "${NATIVE_POLICY_BUILD_SCRIPT}"; then
@@ -137,12 +137,12 @@ if [ -f "${NATIVE_POLICY_LIB}" ]; then
       ;;
   esac
   if [ "${native_policy_ok}" = "1" ]; then
-    mkdir -p "${ROOTFS}/usr/local/lib/soliloquy/native-policy"
-    mkdir -p "${ROOTFS}/usr/local/share/soliloquy/native-policy"
-    cp "${NATIVE_POLICY_LIB}" "${ROOTFS}/usr/local/lib/soliloquy/native-policy/libsoliloquy_native_policy_v.so"
-    chmod +x "${ROOTFS}/usr/local/lib/soliloquy/native-policy/libsoliloquy_native_policy_v.so"
+    mkdir -p "${ROOTFS}/usr/local/lib/alpenglow/native-policy"
+    mkdir -p "${ROOTFS}/usr/local/share/alpenglow/native-policy"
+    cp "${NATIVE_POLICY_LIB}" "${ROOTFS}/usr/local/lib/alpenglow/native-policy/libalpenglow_native_policy_v.so"
+    chmod +x "${ROOTFS}/usr/local/lib/alpenglow/native-policy/libalpenglow_native_policy_v.so"
     if [ -f "${NATIVE_POLICY_DIR}/v.mod" ]; then
-      cp "${NATIVE_POLICY_DIR}/v.mod" "${ROOTFS}/usr/local/share/soliloquy/native-policy/v.mod"
+      cp "${NATIVE_POLICY_DIR}/v.mod" "${ROOTFS}/usr/local/share/alpenglow/native-policy/v.mod"
     fi
   elif [ "${NATIVE_POLICY_REQUIRED}" = "1" ]; then
     echo "ERROR: V native policy userland module is not a Linux ${TARGET_ARCH} shared object: ${NATIVE_POLICY_LIB}" >&2
@@ -159,12 +159,11 @@ else
 fi
 
 if [ ! -d "${UI_BUILD_DIR}" ]; then
-  echo "desktop UI build not found at ${UI_BUILD_DIR}" >&2
-  echo "run tools/soliloquy/build_ui.sh in ${SOLILOQUY_DESKTOP_ROOT} before staging artifacts" >&2
+  echo "Alpenglow bundle not found at ${UI_BUILD_DIR}" >&2
   exit 1
 fi
-rm -rf "${ROOTFS}/usr/local/share/soliloquy/bundle"
-cp -R "${UI_BUILD_DIR}" "${ROOTFS}/usr/local/share/soliloquy/bundle"
+rm -rf "${ROOTFS}/usr/local/share/alpenglow/bundle"
+cp -R "${UI_BUILD_DIR}" "${ROOTFS}/usr/local/share/alpenglow/bundle"
 
 # Stage sold bundle (includes os://terminal HTML + ghostty WASM)
 BUNDLE_DIR="${REPO_ROOT}/bundle"
@@ -188,16 +187,16 @@ if [ ! -f "${WASM_OUT}" ]; then
     echo "WARNING: zig not found; os://terminal will use JS fallback" >&2
   fi
 fi
-mkdir -p "${ROOTFS}/usr/local/share/soliloquy/bundle/terminal"
-cp -R "${BUNDLE_DIR}/terminal/." "${ROOTFS}/usr/local/share/soliloquy/bundle/terminal/"
+mkdir -p "${ROOTFS}/usr/local/share/alpenglow/bundle/terminal"
+cp -R "${BUNDLE_DIR}/terminal/." "${ROOTFS}/usr/local/share/alpenglow/bundle/terminal/"
 for asset in files.html settings.html files.crepus settings.crepus; do
   if [ -f "${BUNDLE_DIR}/${asset}" ]; then
-    cp "${BUNDLE_DIR}/${asset}" "${ROOTFS}/usr/local/share/soliloquy/bundle/${asset}"
+    cp "${BUNDLE_DIR}/${asset}" "${ROOTFS}/usr/local/share/alpenglow/bundle/${asset}"
   fi
 done
 if [ -d "${BUNDLE_DIR}/assets" ]; then
-  mkdir -p "${ROOTFS}/usr/local/share/soliloquy/bundle/assets"
-  cp -R "${BUNDLE_DIR}/assets/." "${ROOTFS}/usr/local/share/soliloquy/bundle/assets/"
+  mkdir -p "${ROOTFS}/usr/local/share/alpenglow/bundle/assets"
+  cp -R "${BUNDLE_DIR}/assets/." "${ROOTFS}/usr/local/share/alpenglow/bundle/assets/"
 fi
 
 echo "Staged servo into ${ROOTFS}"

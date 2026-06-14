@@ -1,22 +1,10 @@
 # Getting Started
 
-1. Install Rust, Bun, and system packages through `wax`.
-2. Run Rust checks:
+1. Install Rust, Docker, QEMU, and host packages through `wax`.
+2. Run the readiness gate:
 
 ```bash
-cargo test -p sold
+./install.sh --check
 ```
 
-3. Build the UI:
-
-```bash
-cd ui/desktop
-bun install
-bun run build
-```
-
-4. Start local runtime:
-
-```bash
-./tools/soliloquy/start.sh
-```
+3. Read [Readiness](../readiness.md) before attempting QEMU or board boot.

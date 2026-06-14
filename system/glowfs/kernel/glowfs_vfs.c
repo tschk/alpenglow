@@ -863,4 +863,4 @@ static void __exit glowfs_exit(void)
 module_init(glowfs_init);
 module_exit(glowfs_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Soliloquy filesystem VFS shim");
+MODULE_DESCRIPTION("Alpenglow filesystem VFS shim");

@@ -1,31 +1,31 @@
 #!/bin/sh
 set -eu
 
-SOLILOQUY_RUNTIME_STATE_ENV="${SOLILOQUY_RUNTIME_STATE_ENV:-/run/soliloquy/runtime-state.env}"
-SOLILOQUY_CGROUP_ROOT="${SOLILOQUY_CGROUP_ROOT:-/sys/fs/cgroup/soliloquy}"
-SOLILOQUY_PRESSURE_INTERVAL_SECONDS="${SOLILOQUY_PRESSURE_INTERVAL_SECONDS:-2}"
-SOLILOQUY_PRESSURE_ONESHOT="${SOLILOQUY_PRESSURE_ONESHOT:-0}"
+ALPENGLOW_RUNTIME_STATE_ENV="${ALPENGLOW_RUNTIME_STATE_ENV:-/run/alpenglow/runtime-state.env}"
+ALPENGLOW_CGROUP_ROOT="${ALPENGLOW_CGROUP_ROOT:-/sys/fs/cgroup/alpenglow}"
+ALPENGLOW_PRESSURE_INTERVAL_SECONDS="${ALPENGLOW_PRESSURE_INTERVAL_SECONDS:-2}"
+ALPENGLOW_PRESSURE_ONESHOT="${ALPENGLOW_PRESSURE_ONESHOT:-0}"
 
-mkdir -p "$(dirname "${SOLILOQUY_RUNTIME_STATE_ENV}")"
+mkdir -p "$(dirname "${ALPENGLOW_RUNTIME_STATE_ENV}")"
 
 record_runtime_state() {
   key="$1"
   value="$2"
-  tmp="${SOLILOQUY_RUNTIME_STATE_ENV}.$$"
-  if [ -f "${SOLILOQUY_RUNTIME_STATE_ENV}" ]; then
-    grep -v "^${key}=" "${SOLILOQUY_RUNTIME_STATE_ENV}" >"${tmp}" || true
+  tmp="${ALPENGLOW_RUNTIME_STATE_ENV}.$$"
+  if [ -f "${ALPENGLOW_RUNTIME_STATE_ENV}" ]; then
+    grep -v "^${key}=" "${ALPENGLOW_RUNTIME_STATE_ENV}" >"${tmp}" || true
   else
     : >"${tmp}"
   fi
   printf '%s=%s\n' "${key}" "${value}" >>"${tmp}"
-  mv "${tmp}" "${SOLILOQUY_RUNTIME_STATE_ENV}"
+  mv "${tmp}" "${ALPENGLOW_RUNTIME_STATE_ENV}"
 }
 
 set_cgroup_value() {
   group="$1"
   file="$2"
   value="$3"
-  path="${SOLILOQUY_CGROUP_ROOT}/${group}/${file}"
+  path="${ALPENGLOW_CGROUP_ROOT}/${group}/${file}"
   if [ -f "${path}" ]; then
     printf '%s\n' "${value}" >"${path}" 2>/dev/null || true
   fi
@@ -76,7 +76,7 @@ classify_pressure() {
 
 apply_pressure_level() {
   level="$1"
-  record_runtime_state SOLILOQUY_PRESSURE_LEVEL "${level}"
+  record_runtime_state ALPENGLOW_PRESSURE_LEVEL "${level}"
   case "${level}" in
     normal)
       set_group_policy background-renderer 250 200 768M 1280M 384
@@ -103,39 +103,39 @@ apply_pressure_level() {
       set_group_freeze frozen-renderer 1
       ;;
     *)
-      record_runtime_state SOLILOQUY_PRESSURE_POLICY_APPLIED 0
+      record_runtime_state ALPENGLOW_PRESSURE_POLICY_APPLIED 0
       return 0
       ;;
   esac
-  record_runtime_state SOLILOQUY_PRESSURE_POLICY_APPLIED 1
+  record_runtime_state ALPENGLOW_PRESSURE_POLICY_APPLIED 1
 }
 
 run_once() {
   if [ -r /proc/pressure/cpu ]; then
-    record_runtime_state SOLILOQUY_PRESSURE_PSI_CPU active
+    record_runtime_state ALPENGLOW_PRESSURE_PSI_CPU active
   else
-    record_runtime_state SOLILOQUY_PRESSURE_PSI_CPU unavailable
+    record_runtime_state ALPENGLOW_PRESSURE_PSI_CPU unavailable
   fi
   if [ -r /proc/pressure/memory ]; then
-    record_runtime_state SOLILOQUY_PRESSURE_PSI_MEMORY active
+    record_runtime_state ALPENGLOW_PRESSURE_PSI_MEMORY active
   else
-    record_runtime_state SOLILOQUY_PRESSURE_PSI_MEMORY unavailable
+    record_runtime_state ALPENGLOW_PRESSURE_PSI_MEMORY unavailable
   fi
   if [ -r /proc/pressure/io ]; then
-    record_runtime_state SOLILOQUY_PRESSURE_PSI_IO active
+    record_runtime_state ALPENGLOW_PRESSURE_PSI_IO active
   else
-    record_runtime_state SOLILOQUY_PRESSURE_PSI_IO unavailable
+    record_runtime_state ALPENGLOW_PRESSURE_PSI_IO unavailable
   fi
   level="$(classify_pressure)"
   apply_pressure_level "${level}"
 }
 
-if [ "${SOLILOQUY_PRESSURE_ONESHOT}" = "1" ]; then
+if [ "${ALPENGLOW_PRESSURE_ONESHOT}" = "1" ]; then
   run_once
   exit 0
 fi
 
 while :; do
   run_once
-  sleep "${SOLILOQUY_PRESSURE_INTERVAL_SECONDS}"
+  sleep "${ALPENGLOW_PRESSURE_INTERVAL_SECONDS}"
 done

@@ -24,6 +24,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "alpenglow-drivers"
+version = "0.1.0"
+
+[[package]]
+name = "alpenglow-kernelctl"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "alpenglow-netd"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1250,23 +1271,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sol-kernelctl"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "sol-netd"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "sold"
 version = "0.1.0"
 dependencies = [
@@ -1281,10 +1285,6 @@ dependencies = [
  "tower-http",
  "uuid",
 ]
-
-[[package]]
-name = "soliloquy-drivers"
-version = "0.1.0"
 
 [[package]]
 name = "stable_deref_trait"

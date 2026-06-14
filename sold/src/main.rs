@@ -34,9 +34,9 @@ nix::ioctl_write_int_bad!(pty_set_ctty, nix::libc::TIOCSCTTY);
 
 // ── constants ────────────────────────────────────────────────────────────────
 
-const DEFAULT_FILES_DIR: &str = "/var/lib/soliloquy/files";
-const LOCAL_FILES_DIR: &str = ".soliloquy/files";
-const DEFAULT_RUNTIME_EVENTS_FILE: &str = "/run/soliloquy/runtime-events.log";
+const DEFAULT_FILES_DIR: &str = "/var/lib/alpenglow/files";
+const LOCAL_FILES_DIR: &str = ".alpenglow/files";
+const DEFAULT_RUNTIME_EVENTS_FILE: &str = "/run/alpenglow/runtime-events.log";
 const RUNTIME_EVENT_RING_LIMIT: usize = 128;
 /// Shell search order on Alpine.
 const SHELLS: &[&str] = &["/usr/bin/zellij", "/bin/ash", "/bin/sh"];
@@ -537,7 +537,7 @@ impl Default for KernelPolicyConfig {
             groups: vec![
                 KernelPolicyGroupConfig {
                     id: "system".to_string(),
-                    path: "soliloquy/system".to_string(),
+                    path: "alpenglow/system".to_string(),
                     cpu_weight: Some(100),
                     io_weight: Some(100),
                     memory_high: Some("256M".to_string()),
@@ -546,7 +546,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "network".to_string(),
-                    path: "soliloquy/network".to_string(),
+                    path: "alpenglow/network".to_string(),
                     cpu_weight: Some(250),
                     io_weight: Some(500),
                     memory_high: Some("384M".to_string()),
@@ -555,7 +555,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "browser".to_string(),
-                    path: "soliloquy/browser".to_string(),
+                    path: "alpenglow/browser".to_string(),
                     cpu_weight: Some(350),
                     io_weight: Some(300),
                     memory_high: Some("768M".to_string()),
@@ -564,7 +564,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "foreground-renderer".to_string(),
-                    path: "soliloquy/foreground-renderer".to_string(),
+                    path: "alpenglow/foreground-renderer".to_string(),
                     cpu_weight: Some(800),
                     io_weight: Some(800),
                     memory_high: Some("1536M".to_string()),
@@ -573,7 +573,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "background-renderer".to_string(),
-                    path: "soliloquy/background-renderer".to_string(),
+                    path: "alpenglow/background-renderer".to_string(),
                     cpu_weight: Some(250),
                     io_weight: Some(200),
                     memory_high: Some("768M".to_string()),
@@ -582,7 +582,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "frozen-renderer".to_string(),
-                    path: "soliloquy/frozen-renderer".to_string(),
+                    path: "alpenglow/frozen-renderer".to_string(),
                     cpu_weight: Some(50),
                     io_weight: Some(50),
                     memory_high: Some("384M".to_string()),
@@ -591,7 +591,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "discardable-renderer".to_string(),
-                    path: "soliloquy/discardable-renderer".to_string(),
+                    path: "alpenglow/discardable-renderer".to_string(),
                     cpu_weight: Some(10),
                     io_weight: Some(10),
                     memory_high: Some("128M".to_string()),
@@ -600,7 +600,7 @@ impl Default for KernelPolicyConfig {
                 },
                 KernelPolicyGroupConfig {
                     id: "gpu-compositor".to_string(),
-                    path: "soliloquy/gpu-compositor".to_string(),
+                    path: "alpenglow/gpu-compositor".to_string(),
                     cpu_weight: Some(900),
                     io_weight: Some(300),
                     memory_high: Some("512M".to_string()),
@@ -695,20 +695,20 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let files_dir = std::env::var_os("SOLILOQUY_FILES_DIR")
+    let files_dir = std::env::var_os("ALPENGLOW_FILES_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_FILES_DIR));
     let files_dir = prepare_files_dir(files_dir).await;
-    let runtime_env_path = std::env::var_os("SOLILOQUY_RUNTIME_ENV")
+    let runtime_env_path = std::env::var_os("ALPENGLOW_RUNTIME_ENV")
         .map(PathBuf::from)
         .unwrap_or_else(|| files_dir.join("runtime.env"));
-    let runtime_state_env_path = std::env::var_os("SOLILOQUY_RUNTIME_STATE_ENV")
+    let runtime_state_env_path = std::env::var_os("ALPENGLOW_RUNTIME_STATE_ENV")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/run/soliloquy/runtime-state.env"));
-    let runtime_events_path = std::env::var_os("SOLILOQUY_RUNTIME_EVENTS_FILE")
+        .unwrap_or_else(|| PathBuf::from("/run/alpenglow/runtime-state.env"));
+    let runtime_events_path = std::env::var_os("ALPENGLOW_RUNTIME_EVENTS_FILE")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_RUNTIME_EVENTS_FILE));
-    let token = std::env::var("SOL_TOKEN")
+    let token = std::env::var("ALPENGLOW_TOKEN")
         .ok()
         .and_then(|value| configured_token(&value));
     let plugin_state_path = Arc::new(system_plugin_state_path());
@@ -718,7 +718,7 @@ async fn main() {
     let service_registry = Arc::new(load_service_registry());
     let update_policy = Arc::new(load_update_policy());
     let update_state_path = Arc::new(system_update_state_path());
-    let bundle_dir = std::env::var_os("SOL_BUNDLE_DIR")
+    let bundle_dir = std::env::var_os("ALPENGLOW_BUNDLE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("bundle"));
 
@@ -733,7 +733,7 @@ async fn main() {
         http: reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(3))
             .timeout(Duration::from_secs(8))
-            .user_agent("Soliloquy/0.1")
+            .user_agent("Alpenglow/0.1")
             .build()
             .unwrap(),
         page_cache: Arc::new(DashMap::new()),
@@ -820,11 +820,11 @@ async fn prepare_files_dir(files_dir: PathBuf) -> PathBuf {
             );
             fs::create_dir_all(&fallback)
                 .await
-                .expect("failed to create local Soliloquy files directory");
+                .expect("failed to create local Alpenglow files directory");
             fallback
         }
         Err(error) => panic!(
-            "failed to create Soliloquy files directory {}: {error}",
+            "failed to create Alpenglow files directory {}: {error}",
             files_dir.display()
         ),
     }
@@ -1278,7 +1278,7 @@ async fn write_runtime_env(path: &FsPath, settings: &Settings) -> Result<(), Sta
     }
     let flags = v8_flags(settings).join(" ");
     let content = format!(
-        "SOLILOQUY_JS_ENGINE={}\nSOLILOQUY_V8_FLAGS={}\nSOLILOQUY_RENDERER_PROCESS_LIMIT={}\nSOLILOQUY_SITE_ISOLATION={}\nSOLILOQUY_SANDBOX={}\nSOLILOQUY_GPU_COMPOSITING={}\nSOLILOQUY_HARDWARE_ACCELERATION={}\nSOLILOQUY_HTTP3={}\nSOLILOQUY_CODE_CACHE={}\nSOLILOQUY_TARGET_FPS={}\nSOLILOQUY_LOW_POWER_IDLE={}\nSERVO_DISPLAY_BACKEND={}\nWINIT_UNIX_BACKEND={}\nEGL_PLATFORM={}\n",
+        "ALPENGLOW_JS_ENGINE={}\nALPENGLOW_V8_FLAGS={}\nALPENGLOW_RENDERER_PROCESS_LIMIT={}\nALPENGLOW_SITE_ISOLATION={}\nALPENGLOW_SANDBOX={}\nALPENGLOW_GPU_COMPOSITING={}\nALPENGLOW_HARDWARE_ACCELERATION={}\nALPENGLOW_HTTP3={}\nALPENGLOW_CODE_CACHE={}\nALPENGLOW_TARGET_FPS={}\nALPENGLOW_LOW_POWER_IDLE={}\nSERVO_DISPLAY_BACKEND={}\nWINIT_UNIX_BACKEND={}\nEGL_PLATFORM={}\n",
         shell_escape(&settings.js_engine),
         shell_escape(&flags),
         settings.renderer_process_limit,
@@ -1343,7 +1343,7 @@ fn build_runtime_status(
     runtime_state: &RuntimeState,
     runtime_events: Vec<RuntimeEvent>,
 ) -> RuntimeStatus {
-    let env_engine = std::env::var("SOLILOQUY_JS_ENGINE").unwrap_or_default();
+    let env_engine = std::env::var("ALPENGLOW_JS_ENGINE").unwrap_or_default();
     let requested_engine = if env_engine.trim().is_empty() {
         settings.js_engine.clone()
     } else {
@@ -1352,7 +1352,7 @@ fn build_runtime_status(
     let active_backend = std::env::var("XDG_SESSION_TYPE")
         .or_else(|_| std::env::var("SERVO_DISPLAY_BACKEND"))
         .unwrap_or_else(|_| settings.display_backend.clone());
-    let renderer_pid = runtime_state.u64("SOLILOQUY_RENDERER_PID");
+    let renderer_pid = runtime_state.u64("ALPENGLOW_RENDERER_PID");
     RuntimeStatus {
         service: "sold",
         vinix: VinixReferenceStatus {
@@ -1365,26 +1365,26 @@ fn build_runtime_status(
             boot_complete_target: "browser-interactive",
             service_graph: browser_service_graph(service_registry),
             boot_metrics: BrowserBootMetrics {
-                session_start_unix_ms: runtime_state.u128("SOLILOQUY_SESSION_START_UNIX_MS"),
+                session_start_unix_ms: runtime_state.u128("ALPENGLOW_SESSION_START_UNIX_MS"),
                 sold_start_unix_ms: runtime_state
-                    .u128("SOLILOQUY_SOLD_START_UNIX_MS")
-                    .or_else(|| env_u128("SOLILOQUY_SOLD_START_UNIX_MS")),
-                sold_ready_unix_ms: runtime_state.u128("SOLILOQUY_SOLD_READY_UNIX_MS"),
-                sold_probe_unix_ms: runtime_state.u128("SOLILOQUY_SOLD_PROBE_UNIX_MS"),
-                browser_launch_unix_ms: runtime_state.u128("SOLILOQUY_BROWSER_LAUNCH_UNIX_MS"),
-                servo_spawn_unix_ms: runtime_state.u128("SOLILOQUY_SERVO_SPAWN_UNIX_MS"),
+                    .u128("ALPENGLOW_SOLD_START_UNIX_MS")
+                    .or_else(|| env_u128("ALPENGLOW_SOLD_START_UNIX_MS")),
+                sold_ready_unix_ms: runtime_state.u128("ALPENGLOW_SOLD_READY_UNIX_MS"),
+                sold_probe_unix_ms: runtime_state.u128("ALPENGLOW_SOLD_PROBE_UNIX_MS"),
+                browser_launch_unix_ms: runtime_state.u128("ALPENGLOW_BROWSER_LAUNCH_UNIX_MS"),
+                servo_spawn_unix_ms: runtime_state.u128("ALPENGLOW_SERVO_SPAWN_UNIX_MS"),
                 first_frame_unix_ms: runtime_state
-                    .u128("SOLILOQUY_FIRST_FRAME_UNIX_MS")
-                    .or_else(|| env_u128("SOLILOQUY_FIRST_FRAME_UNIX_MS")),
+                    .u128("ALPENGLOW_FIRST_FRAME_UNIX_MS")
+                    .or_else(|| env_u128("ALPENGLOW_FIRST_FRAME_UNIX_MS")),
                 interactive_unix_ms: runtime_state
-                    .u128("SOLILOQUY_BROWSER_INTERACTIVE_UNIX_MS")
-                    .or_else(|| env_u128("SOLILOQUY_BROWSER_INTERACTIVE_UNIX_MS")),
-                browser_exit_unix_ms: runtime_state.u128("SOLILOQUY_BROWSER_EXIT_UNIX_MS"),
+                    .u128("ALPENGLOW_BROWSER_INTERACTIVE_UNIX_MS")
+                    .or_else(|| env_u128("ALPENGLOW_BROWSER_INTERACTIVE_UNIX_MS")),
+                browser_exit_unix_ms: runtime_state.u128("ALPENGLOW_BROWSER_EXIT_UNIX_MS"),
                 renderer_pid,
                 renderer_restarts: runtime_state
-                    .u64("SOLILOQUY_RENDERER_RESTARTS")
-                    .or_else(|| env_u64("SOLILOQUY_RENDERER_RESTARTS")),
-                last_renderer_exit: runtime_state.i64("SOLILOQUY_LAST_RENDERER_EXIT"),
+                    .u64("ALPENGLOW_RENDERER_RESTARTS")
+                    .or_else(|| env_u64("ALPENGLOW_RENDERER_RESTARTS")),
+                last_renderer_exit: runtime_state.i64("ALPENGLOW_LAST_RENDERER_EXIT"),
             },
         },
         javascript: JavascriptRuntimeStatus {
@@ -1400,7 +1400,7 @@ fn build_runtime_status(
             active_backend,
             wayland_required: settings.wayland_required,
             x11_fallback: false,
-            headless: env_flag("SOL_SERVO_HEADLESS"),
+            headless: env_flag("ALPENGLOW_SERVO_HEADLESS"),
         },
         kernel_policy: build_kernel_policy_status(renderer_pid, runtime_state),
         pressure: build_pressure_runtime_status(runtime_state),
@@ -1471,7 +1471,7 @@ fn browser_service_graph(service_registry: &ServiceRegistry) -> Vec<BrowserRunti
     nodes.push(BrowserRuntimeNode {
         id: "servo".to_string(),
         label: "Page renderer surface".to_string(),
-        depends_on: vec!["sol-session".to_string()],
+        depends_on: vec!["alpenglow-session".to_string()],
         critical: true,
         status: "runtime-managed".to_string(),
     });
@@ -1492,7 +1492,7 @@ fn build_kernel_policy_status(
     let config = read_kernel_policy_config();
     let cgroup_v2_available = kernel_feature_flag(
         runtime_state,
-        "SOLILOQUY_KERNEL_FEATURE_CGROUP_V2",
+        "ALPENGLOW_KERNEL_FEATURE_CGROUP_V2",
         FsPath::new("/sys/fs/cgroup/cgroup.controllers").exists(),
     );
     let features = kernel_feature_status(runtime_state, cgroup_v2_available);
@@ -1503,10 +1503,10 @@ fn build_kernel_policy_status(
         .collect();
     KernelPolicyStatus {
         profile: runtime_state
-            .string("SOLILOQUY_KERNEL_POLICY_PROFILE")
+            .string("ALPENGLOW_KERNEL_POLICY_PROFILE")
             .unwrap_or(config.profile),
         cgroup_v2_available,
-        cgroups_state: runtime_state.string("SOLILOQUY_KERNEL_POLICY_CGROUPS"),
+        cgroups_state: runtime_state.string("ALPENGLOW_KERNEL_POLICY_CGROUPS"),
         features,
         source: build_kernel_source_status(runtime_state),
         groups,
@@ -1524,27 +1524,27 @@ fn kernel_feature_status(
         cgroup_v2_available,
         cpu_controller_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_CPU_CONTROLLER",
+            "ALPENGLOW_KERNEL_FEATURE_CPU_CONTROLLER",
             controller_available(&controllers, "cpu"),
         ),
         io_controller_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_IO_CONTROLLER",
+            "ALPENGLOW_KERNEL_FEATURE_IO_CONTROLLER",
             controller_available(&controllers, "io"),
         ),
         memory_controller_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_MEMORY_CONTROLLER",
+            "ALPENGLOW_KERNEL_FEATURE_MEMORY_CONTROLLER",
             controller_available(&controllers, "memory"),
         ),
         pids_controller_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_PIDS_CONTROLLER",
+            "ALPENGLOW_KERNEL_FEATURE_PIDS_CONTROLLER",
             controller_available(&controllers, "pids"),
         ),
         bbr_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_BBR",
+            "ALPENGLOW_KERNEL_FEATURE_BBR",
             proc_file_contains(
                 FsPath::new("/proc/sys/net/ipv4/tcp_available_congestion_control"),
                 "bbr",
@@ -1552,48 +1552,48 @@ fn kernel_feature_status(
         ),
         tcp_fastopen_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_TCP_FASTOPEN",
+            "ALPENGLOW_KERNEL_FEATURE_TCP_FASTOPEN",
             FsPath::new("/proc/sys/net/ipv4/tcp_fastopen").exists(),
         ),
         virtio_gpu_available: kernel_feature_flag(
             runtime_state,
-            "SOLILOQUY_KERNEL_FEATURE_VIRTIO_GPU",
+            "ALPENGLOW_KERNEL_FEATURE_VIRTIO_GPU",
             module_available("virtio_gpu"),
         ),
         mglru_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_MGLRU",
+            "ALPENGLOW_KERNEL_CAP_MGLRU",
             FsPath::new("/sys/kernel/mm/lru_gen/enabled").exists(),
         ),
         zram_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_ZRAM",
+            "ALPENGLOW_KERNEL_CAP_ZRAM",
             FsPath::new("/sys/block/zram0").exists(),
         ),
         damon_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_DAMON",
+            "ALPENGLOW_KERNEL_CAP_DAMON",
             FsPath::new("/sys/kernel/mm/damon/admin").exists(),
         ),
         seccomp_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_SECCOMP",
+            "ALPENGLOW_KERNEL_CAP_SECCOMP",
             FsPath::new("/proc/sys/kernel/seccomp/actions_avail").exists(),
         ),
         landlock_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_LANDLOCK",
+            "ALPENGLOW_KERNEL_CAP_LANDLOCK",
             FsPath::new("/proc/sys/kernel/landlock").exists()
                 || FsPath::new("/proc/sys/kernel/landlock/restrict_self").exists(),
         ),
         sched_ext_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_SCHED_EXT",
+            "ALPENGLOW_KERNEL_CAP_SCHED_EXT",
             FsPath::new("/sys/kernel/sched_ext").exists(),
         ),
         preempt_rt_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_PREEMPT_RT",
+            "ALPENGLOW_KERNEL_CAP_PREEMPT_RT",
             FsPath::new("/sys/kernel/realtime").exists(),
         ),
         glowfs_available: runtime_capability_active(
@@ -1603,12 +1603,12 @@ fn kernel_feature_status(
         ),
         erofs_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_EROFS",
+            "ALPENGLOW_KERNEL_CAP_EROFS",
             filesystem_available("erofs"),
         ),
         squashfs_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_SQUASHFS",
+            "ALPENGLOW_KERNEL_CAP_SQUASHFS",
             filesystem_available("squashfs"),
         ),
     }
@@ -1616,20 +1616,20 @@ fn kernel_feature_status(
 
 fn build_kernel_source_status(runtime_state: &RuntimeState) -> KernelSourceStatus {
     let in_tree_path = runtime_state
-        .string("SOLILOQUY_KERNEL_SOURCE_IN_TREE")
+        .string("ALPENGLOW_KERNEL_SOURCE_IN_TREE")
         .unwrap_or_else(|| "system/alpine/kernel/linux".to_string());
     let source_env = runtime_state
-        .string("SOLILOQUY_KERNEL_SOURCE_ENV")
-        .unwrap_or_else(|| "SOLILOQUY_KERNEL_SOURCE".to_string());
+        .string("ALPENGLOW_KERNEL_SOURCE_ENV")
+        .unwrap_or_else(|| "ALPENGLOW_KERNEL_SOURCE".to_string());
     let active_source = runtime_state
-        .string("SOLILOQUY_KERNEL_SOURCE")
-        .or_else(|| std::env::var("SOLILOQUY_KERNEL_SOURCE").ok());
+        .string("ALPENGLOW_KERNEL_SOURCE")
+        .or_else(|| std::env::var("ALPENGLOW_KERNEL_SOURCE").ok());
     let in_tree_present = runtime_state
-        .bool("SOLILOQUY_KERNEL_SOURCE_IN_TREE_PRESENT")
+        .bool("ALPENGLOW_KERNEL_SOURCE_IN_TREE_PRESENT")
         .unwrap_or_else(|| FsPath::new(&in_tree_path).exists());
     KernelSourceStatus {
         mode: runtime_state
-            .string("SOLILOQUY_KERNEL_SOURCE_MODE")
+            .string("ALPENGLOW_KERNEL_SOURCE_MODE")
             .unwrap_or_else(|| "external-or-in-tree".to_string()),
         in_tree_path,
         source_env,
@@ -1637,12 +1637,12 @@ fn build_kernel_source_status(runtime_state: &RuntimeState) -> KernelSourceStatu
         in_tree_present,
         patch_queue_present: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_PATCH_QUEUE",
+            "ALPENGLOW_KERNEL_PATCH_QUEUE",
             FsPath::new("system/alpine/kernel/patches/series").exists(),
         ),
         bore_lane_present: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_BORE_LANE",
+            "ALPENGLOW_KERNEL_BORE_LANE",
             FsPath::new("system/alpine/kernel/patch-series/bore-style.json").exists(),
         ),
     }
@@ -1652,27 +1652,27 @@ fn build_pressure_runtime_status(runtime_state: &RuntimeState) -> PressureRuntim
     let psi_available = FsPath::new("/proc/pressure").exists();
     let cpu_psi_available = runtime_capability_active(
         runtime_state,
-        "SOLILOQUY_PRESSURE_PSI_CPU",
+        "ALPENGLOW_PRESSURE_PSI_CPU",
         FsPath::new("/proc/pressure/cpu").exists(),
     );
     let memory_psi_available = runtime_capability_active(
         runtime_state,
-        "SOLILOQUY_PRESSURE_PSI_MEMORY",
+        "ALPENGLOW_PRESSURE_PSI_MEMORY",
         FsPath::new("/proc/pressure/memory").exists(),
     );
     let io_psi_available = runtime_capability_active(
         runtime_state,
-        "SOLILOQUY_PRESSURE_PSI_IO",
+        "ALPENGLOW_PRESSURE_PSI_IO",
         FsPath::new("/proc/pressure/io").exists(),
     );
     let mglru_active = runtime_capability_active(
         runtime_state,
-        "SOLILOQUY_KERNEL_CAP_MGLRU",
+        "ALPENGLOW_KERNEL_CAP_MGLRU",
         FsPath::new("/sys/kernel/mm/lru_gen/enabled").exists(),
     );
     let damon_active = runtime_capability_active(
         runtime_state,
-        "SOLILOQUY_KERNEL_CAP_DAMON",
+        "ALPENGLOW_KERNEL_CAP_DAMON",
         FsPath::new("/sys/kernel/mm/damon/admin").exists(),
     );
     PressureRuntimeStatus {
@@ -1682,15 +1682,15 @@ fn build_pressure_runtime_status(runtime_state: &RuntimeState) -> PressureRuntim
         memory_psi_available,
         io_psi_available,
         mglru_active,
-        zram_state: runtime_state.string("SOLILOQUY_ZRAM_STATE"),
-        zram_size: runtime_state.string("SOLILOQUY_ZRAM_SIZE"),
+        zram_state: runtime_state.string("ALPENGLOW_ZRAM_STATE"),
+        zram_size: runtime_state.string("ALPENGLOW_ZRAM_SIZE"),
         damon_active,
-        ram_root_state: runtime_state.string("SOLILOQUY_RAM_ROOT_STATE"),
+        ram_root_state: runtime_state.string("ALPENGLOW_RAM_ROOT_STATE"),
     }
 }
 
 fn pressure_level(runtime_state: &RuntimeState, memory_psi_available: bool) -> &'static str {
-    if let Some(level) = runtime_state.string("SOLILOQUY_PRESSURE_LEVEL") {
+    if let Some(level) = runtime_state.string("ALPENGLOW_PRESSURE_LEVEL") {
         return match level.as_str() {
             "normal" => "normal",
             "constrained" => "constrained",
@@ -1764,8 +1764,8 @@ fn kernel_policy_group(
 }
 
 fn read_kernel_policy_config() -> KernelPolicyConfig {
-    let path = std::env::var("SOLILOQUY_KERNEL_POLICY_FILE")
-        .unwrap_or_else(|_| "/etc/soliloquy/kernel-policy.json".to_string());
+    let path = std::env::var("ALPENGLOW_KERNEL_POLICY_FILE")
+        .unwrap_or_else(|_| "/etc/alpenglow/kernel-policy.json".to_string());
     let Ok(raw) = std::fs::read_to_string(path) else {
         return KernelPolicyConfig::default();
     };
@@ -1939,16 +1939,16 @@ fn default_system_config() -> SystemConfig {
         },
         browser: BrowserPolicy {
             profile_management: "system".to_string(),
-            profiles_root: "/var/lib/soliloquy/browser/profiles".to_string(),
-            cache_root: "/var/lib/soliloquy/browser/cache".to_string(),
-            state_root: "/var/lib/soliloquy/browser/state".to_string(),
-            logs_root: "/var/lib/soliloquy/browser/logs".to_string(),
+            profiles_root: "/var/lib/alpenglow/browser/profiles".to_string(),
+            cache_root: "/var/lib/alpenglow/browser/cache".to_string(),
+            state_root: "/var/lib/alpenglow/browser/state".to_string(),
+            logs_root: "/var/lib/alpenglow/browser/logs".to_string(),
         },
         package_manager: PackageManagerPolicy {
             id: "oil".to_string(),
             mode: "system-packages".to_string(),
             binary: "/usr/local/bin/wax".to_string(),
-            root: "/var/lib/soliloquy/oil".to_string(),
+            root: "/var/lib/alpenglow/oil".to_string(),
             developer_mode_required: false,
         },
         plugins: vec![PluginConfig {
@@ -1971,7 +1971,7 @@ fn default_package_manager_config() -> PackageManagerConfig {
         display_name: "Oil".to_string(),
         mode: "system-packages".to_string(),
         binary: "/usr/local/bin/wax".to_string(),
-        state_root: "/var/lib/soliloquy/oil".to_string(),
+        state_root: "/var/lib/alpenglow/oil".to_string(),
         developer_mode_required: false,
         manages: vec![
             "system-packages".to_string(),
@@ -1984,8 +1984,8 @@ fn default_package_manager_config() -> PackageManagerConfig {
 }
 
 fn load_package_manager_config() -> PackageManagerConfig {
-    let path = std::env::var("SOLILOQUY_PACKAGE_MANAGER_FILE")
-        .unwrap_or_else(|_| "/etc/soliloquy/package-manager.json".to_string());
+    let path = std::env::var("ALPENGLOW_PACKAGE_MANAGER_FILE")
+        .unwrap_or_else(|_| "/etc/alpenglow/package-manager.json".to_string());
     match std::fs::read_to_string(&path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| default_package_manager_config()),
         Err(_) => default_package_manager_config(),
@@ -2015,26 +2015,26 @@ fn default_service_registry() -> ServiceRegistry {
             },
             ServiceDefinition {
                 id: "sold".to_string(),
-                display_name: "Soliloquy Local Server".to_string(),
+                display_name: "Alpenglow Local Server".to_string(),
                 run_as: "sold".to_string(),
                 restart: "always".to_string(),
                 dependencies: vec!["networking".to_string()],
                 optional: false,
                 state_paths: vec![
-                    "/var/lib/soliloquy/system".to_string(),
-                    "/var/log/soliloquy".to_string(),
+                    "/var/lib/alpenglow/system".to_string(),
+                    "/var/log/alpenglow".to_string(),
                 ],
             },
             ServiceDefinition {
-                id: "sol-session".to_string(),
-                display_name: "Soliloquy Session".to_string(),
+                id: "alpenglow-session".to_string(),
+                display_name: "Alpenglow Session".to_string(),
                 run_as: "root".to_string(),
                 restart: "always".to_string(),
                 dependencies: vec!["sold".to_string(), "seatd".to_string()],
                 optional: false,
                 state_paths: vec![
                     "/run/user/0".to_string(),
-                    "/var/lib/soliloquy/browser".to_string(),
+                    "/var/lib/alpenglow/browser".to_string(),
                 ],
             },
             ServiceDefinition {
@@ -2044,7 +2044,7 @@ fn default_service_registry() -> ServiceRegistry {
                 restart: "on-failure".to_string(),
                 dependencies: vec!["sold".to_string()],
                 optional: true,
-                state_paths: vec!["/var/lib/soliloquy/system/plugins".to_string()],
+                state_paths: vec!["/var/lib/alpenglow/system/plugins".to_string()],
             },
         ],
     }
@@ -2055,7 +2055,7 @@ fn default_plugin_manifests() -> Vec<PluginManifest> {
         id: "remote-sync".to_string(),
         display_name: "Remote Sync".to_string(),
         kind: "optional-download".to_string(),
-        entrypoint: "/var/lib/soliloquy/system/plugins/remote-sync".to_string(),
+        entrypoint: "/var/lib/alpenglow/system/plugins/remote-sync".to_string(),
         capabilities: vec![
             "profile-sync".to_string(),
             "encrypted-relay".to_string(),
@@ -2075,14 +2075,14 @@ fn default_update_policy() -> UpdatePolicy {
         strategy: "atomic-generations".to_string(),
         rollback_enabled: true,
         channels: vec!["stable".to_string()],
-        generation_root: "/sysroot/soliloquy".to_string(),
+        generation_root: "/sysroot/alpenglow".to_string(),
         retained_generations: 2,
     }
 }
 
 fn default_update_state() -> UpdateState {
     UpdateState {
-        active_generation: "soliloquy-0001".to_string(),
+        active_generation: "alpenglow-0001".to_string(),
         staged_generation: None,
         rollback_generation: None,
         last_result: "bootstrapped".to_string(),
@@ -2090,26 +2090,26 @@ fn default_update_state() -> UpdateState {
 }
 
 fn system_plugin_state_path() -> PathBuf {
-    std::env::var("SOLILOQUY_PLUGIN_STATE_FILE")
+    std::env::var("ALPENGLOW_PLUGIN_STATE_FILE")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/var/lib/soliloquy/system/plugin-state.json"))
+        .unwrap_or_else(|_| PathBuf::from("/var/lib/alpenglow/system/plugin-state.json"))
 }
 
 fn system_plugin_install_state_path() -> PathBuf {
-    std::env::var("SOLILOQUY_PLUGIN_INSTALL_STATE_FILE")
+    std::env::var("ALPENGLOW_PLUGIN_INSTALL_STATE_FILE")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/var/lib/soliloquy/system/plugin-installs.json"))
+        .unwrap_or_else(|_| PathBuf::from("/var/lib/alpenglow/system/plugin-installs.json"))
 }
 
 fn system_update_state_path() -> PathBuf {
-    std::env::var("SOLILOQUY_UPDATE_STATE_FILE")
+    std::env::var("ALPENGLOW_UPDATE_STATE_FILE")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/var/lib/soliloquy/system/update-state.json"))
+        .unwrap_or_else(|_| PathBuf::from("/var/lib/alpenglow/system/update-state.json"))
 }
 
 fn load_system_config(plugin_state_path: &FsPath) -> SystemConfig {
-    let path = std::env::var("SOLILOQUY_SYSTEM_CONFIG")
-        .unwrap_or_else(|_| "/etc/soliloquy/system.json".to_string());
+    let path = std::env::var("ALPENGLOW_SYSTEM_CONFIG")
+        .unwrap_or_else(|_| "/etc/alpenglow/system.json".to_string());
     let base = match std::fs::read_to_string(&path) {
         Ok(raw) => {
             serde_json::from_str::<SystemConfig>(&raw).unwrap_or_else(|_| default_system_config())
@@ -2120,8 +2120,8 @@ fn load_system_config(plugin_state_path: &FsPath) -> SystemConfig {
 }
 
 fn load_plugin_manifests() -> Vec<PluginManifest> {
-    let manifest_dir = std::env::var("SOLILOQUY_PLUGIN_MANIFEST_DIR")
-        .unwrap_or_else(|_| "/etc/soliloquy/plugins".to_string());
+    let manifest_dir = std::env::var("ALPENGLOW_PLUGIN_MANIFEST_DIR")
+        .unwrap_or_else(|_| "/etc/alpenglow/plugins".to_string());
     let Ok(entries) = std::fs::read_dir(&manifest_dir) else {
         return default_plugin_manifests();
     };
@@ -2147,8 +2147,8 @@ fn load_plugin_manifests() -> Vec<PluginManifest> {
 }
 
 fn load_service_registry() -> ServiceRegistry {
-    let path = std::env::var("SOLILOQUY_SERVICE_REGISTRY")
-        .unwrap_or_else(|_| "/etc/soliloquy/services.json".to_string());
+    let path = std::env::var("ALPENGLOW_SERVICE_REGISTRY")
+        .unwrap_or_else(|_| "/etc/alpenglow/services.json".to_string());
     match std::fs::read_to_string(&path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| default_service_registry()),
         Err(_) => default_service_registry(),
@@ -2156,8 +2156,8 @@ fn load_service_registry() -> ServiceRegistry {
 }
 
 fn load_update_policy() -> UpdatePolicy {
-    let path = std::env::var("SOLILOQUY_UPDATE_POLICY_FILE")
-        .unwrap_or_else(|_| "/etc/soliloquy/update-policy.json".to_string());
+    let path = std::env::var("ALPENGLOW_UPDATE_POLICY_FILE")
+        .unwrap_or_else(|_| "/etc/alpenglow/update-policy.json".to_string());
     match std::fs::read_to_string(&path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| default_update_policy()),
         Err(_) => default_update_policy(),
@@ -2325,7 +2325,7 @@ fn is_allowed_cors_origin(origin: &HeaderValue) -> bool {
     ) {
         return true;
     }
-    std::env::var("SOL_CORS_ORIGINS")
+    std::env::var("ALPENGLOW_CORS_ORIGINS")
         .ok()
         .map(|origins| {
             origins
@@ -2339,7 +2339,7 @@ fn is_allowed_cors_origin(origin: &HeaderValue) -> bool {
 
 fn header_token(headers: &HeaderMap) -> Option<String> {
     if let Some(value) = headers
-        .get("x-sol-token")
+        .get("x-alpenglow-token")
         .and_then(|value| value.to_str().ok())
     {
         return Some(value.to_string());
@@ -2435,9 +2435,9 @@ async fn stage_plugin_install(
     else {
         return Err(StatusCode::NOT_FOUND);
     };
-    let package_root = std::env::var("SOLILOQUY_PLUGIN_PACKAGE_DIR")
+    let package_root = std::env::var("ALPENGLOW_PLUGIN_PACKAGE_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/var/lib/soliloquy/system/plugin-packages"));
+        .unwrap_or_else(|_| PathBuf::from("/var/lib/alpenglow/system/plugin-packages"));
     let source_path = safe_file_path(&package_root, &request.source_path)?;
     let digest = sha256_file(&source_path)?;
     if digest != package.sha256 {
@@ -2632,7 +2632,7 @@ fn apply_device_action(
 }
 
 fn power_actions_enabled() -> bool {
-    std::env::var("SOLILOQUY_ENABLE_POWER_ACTIONS")
+    std::env::var("ALPENGLOW_ENABLE_POWER_ACTIONS")
         .ok()
         .as_deref()
         == Some("1")
@@ -2837,10 +2837,10 @@ mod tests {
 
     #[test]
     fn file_paths_reject_escape_attempts() {
-        let root = FsPath::new("/var/lib/soliloquy/files");
+        let root = FsPath::new("/var/lib/alpenglow/files");
         assert_eq!(
             safe_file_path(root, "notes/today.txt").unwrap(),
-            PathBuf::from("/var/lib/soliloquy/files/notes/today.txt")
+            PathBuf::from("/var/lib/alpenglow/files/notes/today.txt")
         );
         assert!(safe_file_path(root, "../etc/passwd").is_err());
         assert!(safe_file_path(root, "/etc/passwd").is_err());
@@ -2880,7 +2880,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("authorization", "Bearer local-secret".parse().unwrap());
         assert_eq!(header_token(&headers).as_deref(), Some("local-secret"));
-        headers.insert("x-sol-token", "header-secret".parse().unwrap());
+        headers.insert("x-alpenglow-token", "header-secret".parse().unwrap());
         assert_eq!(header_token(&headers).as_deref(), Some("header-secret"));
     }
 
@@ -2903,7 +2903,7 @@ mod tests {
     #[test]
     fn runtime_status_is_honest_about_v8_bridge() {
         let registry = default_service_registry();
-        let state = parse_runtime_state("SOLILOQUY_SESSION_START_UNIX_MS=1000\nSOLILOQUY_BROWSER_LAUNCH_UNIX_MS=1500\nSOLILOQUY_BROWSER_EXIT_UNIX_MS=2500\nSOLILOQUY_RENDERER_PID=42\nSOLILOQUY_RENDERER_RESTARTS=2\nSOLILOQUY_KERNEL_FEATURE_CGROUP_V2=1\nSOLILOQUY_KERNEL_FEATURE_CPU_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_IO_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_MEMORY_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_PIDS_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_BBR=1\nSOLILOQUY_KERNEL_FEATURE_TCP_FASTOPEN=1\nSOLILOQUY_KERNEL_CAP_MGLRU=active\nSOLILOQUY_KERNEL_CAP_ZRAM=active\nSOLILOQUY_KERNEL_CAP_DAMON=unavailable\nSOLILOQUY_KERNEL_CAP_SECCOMP=active\nSOLILOQUY_KERNEL_CAP_LANDLOCK=active\nSOLILOQUY_KERNEL_CAP_SCHED_EXT=unavailable\nSOLILOQUY_KERNEL_CAP_PREEMPT_RT=unavailable\nALPENGLOW_KERNEL_CAP_GLOWFS=active\nSOLILOQUY_KERNEL_CAP_EROFS=active\nSOLILOQUY_KERNEL_CAP_SQUASHFS=active\nSOLILOQUY_KERNEL_SOURCE_MODE=external-or-in-tree\nSOLILOQUY_KERNEL_SOURCE_IN_TREE=system/alpine/kernel/linux\nSOLILOQUY_KERNEL_SOURCE_IN_TREE_PRESENT=0\nSOLILOQUY_KERNEL_PATCH_QUEUE=active\nSOLILOQUY_KERNEL_BORE_LANE=active\nSOLILOQUY_PRESSURE_PSI_CPU=active\nSOLILOQUY_PRESSURE_PSI_MEMORY=active\nSOLILOQUY_PRESSURE_PSI_IO=active\nSOLILOQUY_PRESSURE_LEVEL=observable\nSOLILOQUY_ZRAM_STATE=active\nSOLILOQUY_ZRAM_SIZE=768M\nSOLILOQUY_RAM_ROOT_STATE=active\n");
+        let state = parse_runtime_state("ALPENGLOW_SESSION_START_UNIX_MS=1000\nALPENGLOW_BROWSER_LAUNCH_UNIX_MS=1500\nALPENGLOW_BROWSER_EXIT_UNIX_MS=2500\nALPENGLOW_RENDERER_PID=42\nALPENGLOW_RENDERER_RESTARTS=2\nALPENGLOW_KERNEL_FEATURE_CGROUP_V2=1\nALPENGLOW_KERNEL_FEATURE_CPU_CONTROLLER=1\nALPENGLOW_KERNEL_FEATURE_IO_CONTROLLER=1\nALPENGLOW_KERNEL_FEATURE_MEMORY_CONTROLLER=1\nALPENGLOW_KERNEL_FEATURE_PIDS_CONTROLLER=1\nALPENGLOW_KERNEL_FEATURE_BBR=1\nALPENGLOW_KERNEL_FEATURE_TCP_FASTOPEN=1\nALPENGLOW_KERNEL_CAP_MGLRU=active\nALPENGLOW_KERNEL_CAP_ZRAM=active\nALPENGLOW_KERNEL_CAP_DAMON=unavailable\nALPENGLOW_KERNEL_CAP_SECCOMP=active\nALPENGLOW_KERNEL_CAP_LANDLOCK=active\nALPENGLOW_KERNEL_CAP_SCHED_EXT=unavailable\nALPENGLOW_KERNEL_CAP_PREEMPT_RT=unavailable\nALPENGLOW_KERNEL_CAP_GLOWFS=active\nALPENGLOW_KERNEL_CAP_EROFS=active\nALPENGLOW_KERNEL_CAP_SQUASHFS=active\nALPENGLOW_KERNEL_SOURCE_MODE=external-or-in-tree\nALPENGLOW_KERNEL_SOURCE_IN_TREE=system/alpine/kernel/linux\nALPENGLOW_KERNEL_SOURCE_IN_TREE_PRESENT=0\nALPENGLOW_KERNEL_PATCH_QUEUE=active\nALPENGLOW_KERNEL_BORE_LANE=active\nALPENGLOW_PRESSURE_PSI_CPU=active\nALPENGLOW_PRESSURE_PSI_MEMORY=active\nALPENGLOW_PRESSURE_PSI_IO=active\nALPENGLOW_PRESSURE_LEVEL=observable\nALPENGLOW_ZRAM_STATE=active\nALPENGLOW_ZRAM_SIZE=768M\nALPENGLOW_RAM_ROOT_STATE=active\n");
         let runtime = build_runtime_status(&Settings::default(), &registry, &state, Vec::new());
         assert_eq!(runtime.javascript.requested_engine, "v8-experimental");
         assert_eq!(runtime.javascript.active_engine, "mozjs");
@@ -2998,10 +2998,10 @@ mod tests {
     #[test]
     fn runtime_state_parses_shell_env_values() {
         let state = parse_runtime_state(
-            "SOLILOQUY_SOLD_READY_UNIX_MS='2000'\nSOLILOQUY_LAST_RENDERER_EXIT=1\nignored\n",
+            "ALPENGLOW_SOLD_READY_UNIX_MS='2000'\nALPENGLOW_LAST_RENDERER_EXIT=1\nignored\n",
         );
-        assert_eq!(state.u128("SOLILOQUY_SOLD_READY_UNIX_MS"), Some(2000));
-        assert_eq!(state.i64("SOLILOQUY_LAST_RENDERER_EXIT"), Some(1));
+        assert_eq!(state.u128("ALPENGLOW_SOLD_READY_UNIX_MS"), Some(2000));
+        assert_eq!(state.i64("ALPENGLOW_LAST_RENDERER_EXIT"), Some(1));
     }
 
     #[test]
@@ -3019,15 +3019,15 @@ mod tests {
     #[tokio::test]
     async fn runtime_env_exports_wayland_and_optimization_flags() {
         let path = std::env::temp_dir().join(format!(
-            "soliloquy-runtime-env-{}.env",
+            "alpenglow-runtime-env-{}.env",
             uuid::Uuid::new_v4()
         ));
         let settings = Settings::default();
         write_runtime_env(&path, &settings).await.unwrap();
         let content = fs::read_to_string(&path).await.unwrap();
         let _ = fs::remove_file(&path).await;
-        assert!(content.contains("SOLILOQUY_JS_ENGINE='v8-experimental'"));
-        assert!(content.contains("SOLILOQUY_V8_FLAGS='--turbofan --max-heap-size=512"));
+        assert!(content.contains("ALPENGLOW_JS_ENGINE='v8-experimental'"));
+        assert!(content.contains("ALPENGLOW_V8_FLAGS='--turbofan --max-heap-size=512"));
         assert!(content.contains("SERVO_DISPLAY_BACKEND='wayland'"));
         assert!(content.contains("WINIT_UNIX_BACKEND='wayland'"));
         assert!(content.contains("EGL_PLATFORM='wayland'"));

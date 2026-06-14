@@ -3,7 +3,7 @@ set -eu
 
 ROOTFS_DIR="${1:-build/alpine/rootfs}"
 OUT_DIR="${2:-build/alpine/images}"
-FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-erofs}"
+FORMAT="${ALPENGLOW_ROOTFS_FORMAT:-erofs}"
 
 case "${FORMAT}" in
   glowfs|erofs|squashfs)
@@ -22,7 +22,7 @@ fi
 mkdir -p "${OUT_DIR}"
 
 if [ "${FORMAT}" = "glowfs" ]; then
-  OUT_IMG="${OUT_DIR}/soliloquy-rootfs.glowfs"
+  OUT_IMG="${OUT_DIR}/alpenglow-rootfs.glowfs"
   rm -f "${OUT_IMG}"
   if command -v glowfsctl >/dev/null 2>&1; then
     glowfsctl mkfs "${ROOTFS_DIR}" "${OUT_IMG}"
@@ -34,7 +34,7 @@ elif [ "${FORMAT}" = "erofs" ]; then
     echo "missing required tool: mkfs.erofs" >&2
     exit 1
   }
-  OUT_IMG="${OUT_DIR}/soliloquy-rootfs.erofs"
+  OUT_IMG="${OUT_DIR}/alpenglow-rootfs.erofs"
   rm -f "${OUT_IMG}"
   mkfs.erofs -zlz4hc "${OUT_IMG}" "${ROOTFS_DIR}"
 else
@@ -42,7 +42,7 @@ else
     echo "missing required tool: mksquashfs" >&2
     exit 1
   }
-  OUT_IMG="${OUT_DIR}/soliloquy-rootfs.squashfs"
+  OUT_IMG="${OUT_DIR}/alpenglow-rootfs.squashfs"
   rm -f "${OUT_IMG}"
   mksquashfs "${ROOTFS_DIR}" "${OUT_IMG}" -noappend -comp zstd
 fi

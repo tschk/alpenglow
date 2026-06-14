@@ -4,7 +4,7 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
 ALPINE_DIR="${ROOT_DIR}/system/alpine"
 OUT_DIR="${ROOT_DIR}/build/alpine"
-IMAGE_TAG="soliloquy-alpine-rootfs:latest"
+IMAGE_TAG="alpenglow-alpine-rootfs:latest"
 QEMU_ARCH="${QEMU_ARCH:-x86_64}"
 
 case "${QEMU_ARCH}" in

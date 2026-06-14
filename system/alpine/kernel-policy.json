@@ -1,10 +1,10 @@
 {
   "profile": "internet-appliance",
-  "cgroup_root": "soliloquy",
+  "cgroup_root": "alpenglow",
   "groups": [
     {
       "id": "system",
-      "path": "soliloquy/system",
+      "path": "alpenglow/system",
       "cpu_weight": 100,
       "io_weight": 100,
       "memory_high": "256M",
@@ -12,7 +12,7 @@
     },
     {
       "id": "network",
-      "path": "soliloquy/network",
+      "path": "alpenglow/network",
       "cpu_weight": 250,
       "io_weight": 500,
       "memory_high": "384M",
@@ -21,7 +21,7 @@
     },
     {
       "id": "browser",
-      "path": "soliloquy/browser",
+      "path": "alpenglow/browser",
       "cpu_weight": 350,
       "io_weight": 300,
       "memory_high": "768M",
@@ -30,7 +30,7 @@
     },
     {
       "id": "foreground-renderer",
-      "path": "soliloquy/foreground-renderer",
+      "path": "alpenglow/foreground-renderer",
       "cpu_weight": 800,
       "io_weight": 800,
       "memory_high": "1536M",
@@ -39,7 +39,7 @@
     },
     {
       "id": "background-renderer",
-      "path": "soliloquy/background-renderer",
+      "path": "alpenglow/background-renderer",
       "cpu_weight": 250,
       "io_weight": 200,
       "memory_high": "768M",
@@ -48,7 +48,7 @@
     },
     {
       "id": "frozen-renderer",
-      "path": "soliloquy/frozen-renderer",
+      "path": "alpenglow/frozen-renderer",
       "cpu_weight": 50,
       "io_weight": 50,
       "memory_high": "384M",
@@ -57,7 +57,7 @@
     },
     {
       "id": "discardable-renderer",
-      "path": "soliloquy/discardable-renderer",
+      "path": "alpenglow/discardable-renderer",
       "cpu_weight": 10,
       "io_weight": 10,
       "memory_high": "128M",
@@ -66,7 +66,7 @@
     },
     {
       "id": "gpu-compositor",
-      "path": "soliloquy/gpu-compositor",
+      "path": "alpenglow/gpu-compositor",
       "cpu_weight": 900,
       "io_weight": 300,
       "memory_high": "512M",

@@ -2,12 +2,13 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-EQUILIBRIUM_DIR="${EQUILIBRIUM_DIR:-${ROOT_DIR}/../equilibrium}"
+EQUILIBRIUM_REPO_URL="${EQUILIBRIUM_REPO_URL:-https://github.com/tschk/equilibrium}"
+EQUILIBRIUM_DIR="${EQUILIBRIUM_DIR:-${ROOT_DIR}/third_party/equilibrium}"
 PACKAGE_DIR="${ROOT_DIR}/system/native/kernel-policy-v"
 PACKAGE_MANIFEST="${PACKAGE_DIR}/v.mod"
 NATIVE_SRC="${PACKAGE_DIR}/policy.v"
 OUT_DIR="${OUT_DIR:-${ROOT_DIR}/build/alpine/native-policy-v}"
-OUT_LIB="${OUT_DIR}/libsoliloquy_native_policy_v.so"
+OUT_LIB="${OUT_DIR}/libalpenglow_native_policy_v.so"
 V_TARGET_OS="${V_TARGET_OS:-linux}"
 
 if [ ! -f "${NATIVE_SRC}" ]; then
@@ -22,7 +23,9 @@ fi
 
 mkdir -p "${OUT_DIR}"
 
-if [ -x "${EQUILIBRIUM_DIR}/target/release/eq" ]; then
+if [ ! -d "${EQUILIBRIUM_DIR}" ]; then
+  echo "equilibrium checkout not found at ${EQUILIBRIUM_DIR}; clone ${EQUILIBRIUM_REPO_URL} or set EQUILIBRIUM_DIR" >&2
+elif [ -x "${EQUILIBRIUM_DIR}/target/release/eq" ]; then
   "${EQUILIBRIUM_DIR}/target/release/eq" check >/dev/null 2>&1 || true
 elif [ -f "${EQUILIBRIUM_DIR}/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
   cargo run --manifest-path "${EQUILIBRIUM_DIR}/Cargo.toml" --features cli --bin eq -- check >/dev/null 2>&1 || true

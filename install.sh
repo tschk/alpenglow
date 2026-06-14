@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-BACKEND="${ALPENGLOW_BACKEND:-${SOLILOQUY_BACKEND:-void-musl-runit}}"
+BACKEND="${ALPENGLOW_BACKEND:-${ALPENGLOW_BACKEND:-void-musl-runit}}"
 
 usage() {
   cat <<'EOF'

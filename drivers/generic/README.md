@@ -1,4 +1,4 @@
-# Generic Drivers for Soliloquy OS
+# Generic Drivers for Alpenglow OS
 
 Platform-agnostic hardware driver implementations that can be used across
 different ARM SoCs.
@@ -39,7 +39,7 @@ common hardware peripherals:
 ### GPIO Example
 
 ```rust
-use soliloquy_drivers::{AllwinnerGpio, GpioDriver, GpioConfig, GpioDirection};
+use alpenglow_drivers::{AllwinnerGpio, GpioDriver, GpioConfig, GpioDirection};
 
 // Create GPIO controller for Allwinner A527
 let mut gpio = unsafe { AllwinnerGpio::new(0x02000000, 8) };
@@ -58,7 +58,7 @@ gpio.toggle(10)?;
 ### Clock Example
 
 ```rust
-use soliloquy_drivers::{AllwinnerCcu, ClockDriver, ClockId, ClockRate};
+use alpenglow_drivers::{AllwinnerCcu, ClockDriver, ClockId, ClockRate};
 
 // Create CCU driver
 let mut ccu = unsafe { AllwinnerCcu::new(0x02001000) };
@@ -73,7 +73,7 @@ ccu.configure_mmc_clock(0, ClockRate::mhz(50))?;
 ### MMC Example
 
 ```rust
-use soliloquy_drivers::{GenericMmcDriver, MmcDriver, BlockDevice};
+use alpenglow_drivers::{GenericMmcDriver, MmcDriver, BlockDevice};
 
 // Implement MmcHostOps for your platform
 struct MyMmcHost { /* ... */ }
@@ -93,7 +93,7 @@ mmc.read_blocks(0, &mut buffer)?;
 ### UART Example
 
 ```rust
-use soliloquy_drivers::{GenericUart, UartDriver, UartConfig};
+use alpenglow_drivers::{GenericUart, UartDriver, UartConfig};
 
 // Create UART driver (24 MHz clock, register shift 2)
 let mut uart = unsafe { GenericUart::new(0x02500000, 24_000_000, 2) };
@@ -102,7 +102,7 @@ let mut uart = unsafe { GenericUart::new(0x02500000, 24_000_000, 2) };
 uart.configure(&UartConfig::default())?;
 
 // Write data
-uart.write(b"Hello, Soliloquy!\n")?;
+uart.write(b"Hello, Alpenglow!\n")?;
 ```
 
 ## Traits
@@ -166,7 +166,7 @@ The Allwinner A527 (sun55i) is the primary target. Enable with:
 
 ```toml
 [dependencies]
-soliloquy-drivers = { features = ["allwinner"] }
+alpenglow-drivers = { features = ["allwinner"] }
 ```
 
 Register base addresses:

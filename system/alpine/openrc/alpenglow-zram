@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+
+description="Alpenglow zram swap"
+
+command="/usr/local/bin/apply-zram-policy.sh"
+command_background="no"
+
+depend() {
+    need localmount alpenglow-kernel-policy
+    before sold alpenglow-session
+}

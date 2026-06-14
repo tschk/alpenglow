@@ -1,5 +1,5 @@
 #!/bin/bash
-# Configure rootfs with Soliloquy overlay
+# Configure rootfs with Alpenglow overlay
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,13 +7,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 WORK_DIR="${PROJECT_ROOT}/build/alpine"
 ROOTFS_DIR="${WORK_DIR}/rootfs"
 
-echo "Configuring rootfs with Soliloquy overlay..."
+echo "Configuring rootfs with Alpenglow overlay..."
 
 cd "${ROOTFS_DIR}"
 
-# Create Soliloquy directories
-mkdir -p var/lib/soliloquy
-mkdir -p var/log/soliloquy
+# Create Alpenglow directories
+mkdir -p var/lib/alpenglow
+mkdir -p var/log/alpenglow
 mkdir -p tmp
 
 # Configure OpenRC
@@ -24,16 +24,16 @@ rc-update del hwdrivers default || true
 rc-update del acpid default || true
 rc-update del crond default || true
 
-# Add Soliloquy services
+# Add Alpenglow services
 cp "${SCRIPT_DIR}/openrc/ seatd" etc/init.d/
 cp "${SCRIPT_DIR}/openrc/sold" etc/init.d/
-cp "${SCRIPT_DIR}/openrc/sol-session" etc/init.d/
+cp "${SCRIPT_DIR}/openrc/alpenglow-session" etc/init.d/
 
-chmod +x etc/init.d/seatd etc/init.d/sold etc/init.d/sol-session
+chmod +x etc/init.d/seatd etc/init.d/sold etc/init.d/alpenglow-session
 
 rc-update add seatd default
 rc-update add sold default
-rc-update add sol-session default
+rc-update add alpenglow-session default
 
 # Configure networking (static)
 cat > etc/network/interfaces << 'EOF'

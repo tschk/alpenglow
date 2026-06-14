@@ -19,90 +19,90 @@
       ]
     },
     {
-      "id": "sol-kernel-policy",
+      "id": "alpenglow-kernel-policy",
       "display_name": "Kernel Policy",
       "run_as": "root",
       "restart": "system",
       "dependencies": [],
       "state_paths": [
-        "/sys/fs/cgroup/soliloquy",
-        "/run/soliloquy/runtime-state.env"
+        "/sys/fs/cgroup/alpenglow",
+        "/run/alpenglow/runtime-state.env"
       ]
     },
     {
-      "id": "sol-netd",
+      "id": "alpenglow-netd",
       "display_name": "Network State Daemon",
       "run_as": "root",
       "restart": "always",
       "dependencies": [
         "networking",
-        "sol-kernel-policy"
+        "alpenglow-kernel-policy"
       ],
       "state_paths": [
-        "/run/soliloquy/netd/interfaces.json",
-        "/run/soliloquy/netd/runtime-state.env"
+        "/run/alpenglow/netd/interfaces.json",
+        "/run/alpenglow/netd/runtime-state.env"
       ]
     },
     {
       "id": "sold",
-      "display_name": "Soliloquy Local Server",
+      "display_name": "Alpenglow Local Server",
       "run_as": "sold",
       "restart": "always",
       "dependencies": [
         "networking",
-        "sol-netd",
-        "sol-kernel-policy",
-        "sol-zram",
-        "sol-pressure"
+        "alpenglow-netd",
+        "alpenglow-kernel-policy",
+        "alpenglow-zram",
+        "alpenglow-pressure"
       ],
       "state_paths": [
-        "/var/lib/soliloquy/system",
-        "/var/log/soliloquy"
+        "/var/lib/alpenglow/system",
+        "/var/log/alpenglow"
       ]
     },
     {
-      "id": "sol-session",
-      "display_name": "Soliloquy Session",
+      "id": "alpenglow-session",
+      "display_name": "Alpenglow Session",
       "run_as": "root",
       "restart": "always",
       "dependencies": [
         "sold",
         "seatd",
-        "sol-zram",
-        "sol-pressure"
+        "alpenglow-zram",
+        "alpenglow-pressure"
       ],
       "state_paths": [
         "/run/user/0",
-        "/var/lib/soliloquy/browser"
+        "/var/lib/alpenglow/browser"
       ]
     },
     {
-      "id": "sol-zram",
+      "id": "alpenglow-zram",
       "display_name": "Compressed Swap",
       "run_as": "root",
       "restart": "system",
       "dependencies": [
-        "sol-kernel-policy"
+        "alpenglow-kernel-policy"
       ],
       "state_paths": [
         "/dev/zram0",
         "/proc/swaps",
-        "/run/soliloquy/runtime-state.env"
+        "/run/alpenglow/runtime-state.env"
       ]
     },
     {
-      "id": "sol-pressure",
+      "id": "alpenglow-pressure",
       "display_name": "Pressure Policy",
       "run_as": "root",
       "restart": "always",
       "dependencies": [
-        "sol-kernel-policy",
-        "sol-zram"
+        "alpenglow-kernel-policy",
+        "alpenglow-zram"
       ],
       "state_paths": [
         "/proc/pressure",
-        "/sys/fs/cgroup/soliloquy",
-        "/run/soliloquy/runtime-state.env"
+        "/sys/fs/cgroup/alpenglow",
+        "/run/alpenglow/runtime-state.env"
       ]
     },
     {
@@ -115,7 +115,7 @@
       ],
       "optional": true,
       "state_paths": [
-        "/var/lib/soliloquy/system/plugins"
+        "/var/lib/alpenglow/system/plugins"
       ]
     }
   ]

@@ -1,4 +1,4 @@
-// Copyright 2024 Soliloquy Authors
+// Copyright 2024 Alpenglow Authors
 // SPDX-License-Identifier: MPL-2.0
 //
 // Generic Clock Driver

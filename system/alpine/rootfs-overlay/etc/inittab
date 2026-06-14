@@ -1,4 +1,4 @@
-# /etc/inittab for Soliloquy v0
+# /etc/inittab for Alpenglow v0
 
 ::sysinit:/sbin/openrc sysinit
 ::sysinit:/sbin/openrc boot

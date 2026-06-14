@@ -8,8 +8,8 @@ use tokio::fs;
 use tokio::process::Command;
 use tokio::task::JoinSet;
 
-const DEFAULT_POLICY: &str = "/etc/soliloquy/kernel-policy.json";
-const DEFAULT_RUNTIME_STATE: &str = "/run/soliloquy/runtime-state.env";
+const DEFAULT_POLICY: &str = "/etc/alpenglow/kernel-policy.json";
+const DEFAULT_RUNTIME_STATE: &str = "/run/alpenglow/runtime-state.env";
 const DEFAULT_CGROUP_FS: &str = "/sys/fs/cgroup";
 const POLICY_TASK_LIMIT: usize = 8;
 
@@ -49,7 +49,7 @@ enum CommandMode {
 #[tokio::main]
 async fn main() {
     if let Err(error) = run(parse_args(env::args().skip(1))).await {
-        eprintln!("sol-kernelctl: {error}");
+        eprintln!("alpenglow-kernelctl: {error}");
         std::process::exit(1);
     }
 }
@@ -58,13 +58,13 @@ fn parse_args<I>(args: I) -> Args
 where
     I: IntoIterator<Item = String>,
 {
-    let mut policy = env::var_os("SOLILOQUY_KERNEL_POLICY_FILE")
+    let mut policy = env::var_os("ALPENGLOW_KERNEL_POLICY_FILE")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_POLICY));
-    let mut runtime_state = env::var_os("SOLILOQUY_RUNTIME_STATE_ENV")
+    let mut runtime_state = env::var_os("ALPENGLOW_RUNTIME_STATE_ENV")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_RUNTIME_STATE));
-    let mut cgroup_fs = env::var_os("SOLILOQUY_CGROUP_FS")
+    let mut cgroup_fs = env::var_os("ALPENGLOW_CGROUP_FS")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_CGROUP_FS));
     let mut command = CommandMode::Apply;
@@ -139,21 +139,21 @@ async fn run(args: Args) -> Result<(), String> {
     )?;
     record_runtime_state(
         &args.runtime_state,
-        "SOLILOQUY_KERNEL_POLICY_FILE",
+        "ALPENGLOW_KERNEL_POLICY_FILE",
         args.policy.display(),
     )
     .await
     .map_err(|error| format!("runtime state: {error}"))?;
     record_runtime_state(
         &args.runtime_state,
-        "SOLILOQUY_KERNEL_POLICY_CGROUPS",
+        "ALPENGLOW_KERNEL_POLICY_CGROUPS",
         cgroups_state,
     )
     .await
     .map_err(|error| format!("runtime state: {error}"))?;
     record_runtime_state(
         &args.runtime_state,
-        "SOLILOQUY_KERNEL_POLICY_PROFILE",
+        "ALPENGLOW_KERNEL_POLICY_PROFILE",
         &policy.profile,
     )
     .await
@@ -231,7 +231,7 @@ async fn apply_cgroups(
     if dry_run {
         return Ok("active");
     }
-    fs::create_dir_all(cgroup_fs.join("soliloquy"))
+    fs::create_dir_all(cgroup_fs.join("alpenglow"))
         .await
         .map_err(|error| format!("cgroup policy: {error}"))?;
     enable_controllers(cgroup_fs).await;
@@ -352,7 +352,7 @@ async fn attach_to_cgroup(
     if group.is_empty() || pid == 0 || dry_run {
         return Ok(());
     }
-    let path = cgroup_fs.join("soliloquy").join(group);
+    let path = cgroup_fs.join("alpenglow").join(group);
     if fs::try_exists(cgroup_fs.join("cgroup.controllers")).await? {
         fs::create_dir_all(&path).await?;
         write_kernel_file(&path.join("cgroup.procs"), &pid.to_string()).await?;
@@ -407,7 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn dry_run_records_policy_state() {
-        let root = temp_root("sol-kernelctl-dry-run");
+        let root = temp_root("alpenglow-kernelctl-dry-run");
         std_fs::create_dir_all(root.join("cgroup")).unwrap();
         std_fs::write(
             root.join("cgroup/cgroup.controllers"),
@@ -419,7 +419,7 @@ mod tests {
             &policy,
             r#"{
               "profile": "internet-appliance",
-              "groups": [{"id":"renderer","path":"soliloquy/renderer","cpu_weight":800}],
+              "groups": [{"id":"renderer","path":"alpenglow/renderer","cpu_weight":800}],
               "sysctl": {"net.core.somaxconn": "4096"}
             }"#,
         )
@@ -435,17 +435,17 @@ mod tests {
         .await
         .unwrap();
         let state = std_fs::read_to_string(runtime_state).unwrap();
-        assert!(state.contains("SOLILOQUY_KERNEL_POLICY_PROFILE=internet-appliance"));
-        assert!(state.contains("SOLILOQUY_KERNEL_POLICY_CGROUPS=active"));
+        assert!(state.contains("ALPENGLOW_KERNEL_POLICY_PROFILE=internet-appliance"));
+        assert!(state.contains("ALPENGLOW_KERNEL_POLICY_CGROUPS=active"));
     }
 
     #[tokio::test]
     async fn attach_command_writes_pid_to_group() {
-        let root = temp_root("sol-kernelctl-attach");
+        let root = temp_root("alpenglow-kernelctl-attach");
         let cgroup = root.join("cgroup");
-        std_fs::create_dir_all(cgroup.join("soliloquy/renderer")).unwrap();
+        std_fs::create_dir_all(cgroup.join("alpenglow/renderer")).unwrap();
         std_fs::write(cgroup.join("cgroup.controllers"), "cpu io memory pids\n").unwrap();
-        std_fs::write(cgroup.join("soliloquy/renderer/cgroup.procs"), "").unwrap();
+        std_fs::write(cgroup.join("alpenglow/renderer/cgroup.procs"), "").unwrap();
         run(Args {
             command: CommandMode::Attach {
                 group: "renderer".to_string(),
@@ -459,26 +459,26 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("soliloquy/renderer/cgroup.procs")).unwrap(),
+            std_fs::read_to_string(cgroup.join("alpenglow/renderer/cgroup.procs")).unwrap(),
             "42\n"
         );
     }
 
     #[tokio::test]
     async fn cgroup_policy_applies_independent_groups() {
-        let root = temp_root("sol-kernelctl-cgroups");
+        let root = temp_root("alpenglow-kernelctl-cgroups");
         let cgroup = root.join("cgroup");
-        std_fs::create_dir_all(cgroup.join("soliloquy/system")).unwrap();
-        std_fs::create_dir_all(cgroup.join("soliloquy/renderer")).unwrap();
+        std_fs::create_dir_all(cgroup.join("alpenglow/system")).unwrap();
+        std_fs::create_dir_all(cgroup.join("alpenglow/renderer")).unwrap();
         std_fs::write(cgroup.join("cgroup.controllers"), "cpu io memory pids\n").unwrap();
         std_fs::write(cgroup.join("cgroup.subtree_control"), "").unwrap();
-        std_fs::write(cgroup.join("soliloquy/system/cpu.weight"), "").unwrap();
-        std_fs::write(cgroup.join("soliloquy/system/pids.max"), "").unwrap();
-        std_fs::write(cgroup.join("soliloquy/renderer/memory.high"), "").unwrap();
+        std_fs::write(cgroup.join("alpenglow/system/cpu.weight"), "").unwrap();
+        std_fs::write(cgroup.join("alpenglow/system/pids.max"), "").unwrap();
+        std_fs::write(cgroup.join("alpenglow/renderer/memory.high"), "").unwrap();
         let groups = vec![
             CgroupPolicy {
                 id: "system".to_string(),
-                path: "soliloquy/system".to_string(),
+                path: "alpenglow/system".to_string(),
                 cpu_weight: Some(100),
                 io_weight: None,
                 memory_high: None,
@@ -487,7 +487,7 @@ mod tests {
             },
             CgroupPolicy {
                 id: "renderer".to_string(),
-                path: "soliloquy/renderer".to_string(),
+                path: "alpenglow/renderer".to_string(),
                 cpu_weight: None,
                 io_weight: None,
                 memory_high: Some("1536M".to_string()),
@@ -498,22 +498,22 @@ mod tests {
         let state = apply_cgroups(&groups, &cgroup, false).await.unwrap();
         assert_eq!(state, "active");
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("soliloquy/system/cpu.weight")).unwrap(),
+            std_fs::read_to_string(cgroup.join("alpenglow/system/cpu.weight")).unwrap(),
             "100\n"
         );
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("soliloquy/system/pids.max")).unwrap(),
+            std_fs::read_to_string(cgroup.join("alpenglow/system/pids.max")).unwrap(),
             "128\n"
         );
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("soliloquy/renderer/memory.high")).unwrap(),
+            std_fs::read_to_string(cgroup.join("alpenglow/renderer/memory.high")).unwrap(),
             "1536M\n"
         );
     }
 
     #[tokio::test]
     async fn cgroup_policy_reports_unavailable_without_cgroup_v2() {
-        let root = temp_root("sol-kernelctl-cgroups-unavailable");
+        let root = temp_root("alpenglow-kernelctl-cgroups-unavailable");
         let cgroup = root.join("cgroup");
         std_fs::create_dir_all(&cgroup).unwrap();
         let state = apply_cgroups(&[], &cgroup, false).await.unwrap();

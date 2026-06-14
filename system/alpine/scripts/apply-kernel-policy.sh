@@ -1,36 +1,36 @@
 #!/bin/sh
 set -eu
 
-SOLILOQUY_KERNEL_POLICY_FILE="${SOLILOQUY_KERNEL_POLICY_FILE:-/etc/soliloquy/kernel-policy.json}"
-SOLILOQUY_HYBRID_KERNEL_METADATA="${SOLILOQUY_HYBRID_KERNEL_METADATA:-/usr/share/soliloquy/kernel/hybrid-kernel.json}"
-SOLILOQUY_RUNTIME_STATE_ENV="${SOLILOQUY_RUNTIME_STATE_ENV:-/run/soliloquy/runtime-state.env}"
-SOLILOQUY_GLOWFS_MODULE="${SOLILOQUY_GLOWFS_MODULE:-/usr/local/lib/soliloquy/kernel/glowfs.ko}"
+ALPENGLOW_KERNEL_POLICY_FILE="${ALPENGLOW_KERNEL_POLICY_FILE:-/etc/alpenglow/kernel-policy.json}"
+ALPENGLOW_HYBRID_KERNEL_METADATA="${ALPENGLOW_HYBRID_KERNEL_METADATA:-/usr/share/alpenglow/kernel/hybrid-kernel.json}"
+ALPENGLOW_RUNTIME_STATE_ENV="${ALPENGLOW_RUNTIME_STATE_ENV:-/run/alpenglow/runtime-state.env}"
+ALPENGLOW_GLOWFS_MODULE="${ALPENGLOW_GLOWFS_MODULE:-/usr/local/lib/alpenglow/kernel/glowfs.ko}"
 
-if [ -x /usr/local/bin/sol-kernelctl ]; then
-  exec /usr/local/bin/sol-kernelctl \
-    --policy "${SOLILOQUY_KERNEL_POLICY_FILE}" \
-    --runtime-state "${SOLILOQUY_RUNTIME_STATE_ENV}"
+if [ -x /usr/local/bin/alpenglow-kernelctl ]; then
+  exec /usr/local/bin/alpenglow-kernelctl \
+    --policy "${ALPENGLOW_KERNEL_POLICY_FILE}" \
+    --runtime-state "${ALPENGLOW_RUNTIME_STATE_ENV}"
 fi
 
-mkdir -p "$(dirname "${SOLILOQUY_RUNTIME_STATE_ENV}")"
+mkdir -p "$(dirname "${ALPENGLOW_RUNTIME_STATE_ENV}")"
 
 record_runtime_state() {
   key="$1"
   value="$2"
-  tmp="${SOLILOQUY_RUNTIME_STATE_ENV}.$$"
-  if [ -f "${SOLILOQUY_RUNTIME_STATE_ENV}" ]; then
-    grep -v "^${key}=" "${SOLILOQUY_RUNTIME_STATE_ENV}" >"${tmp}" || true
+  tmp="${ALPENGLOW_RUNTIME_STATE_ENV}.$$"
+  if [ -f "${ALPENGLOW_RUNTIME_STATE_ENV}" ]; then
+    grep -v "^${key}=" "${ALPENGLOW_RUNTIME_STATE_ENV}" >"${tmp}" || true
   else
     : >"${tmp}"
   fi
   printf '%s=%s\n' "${key}" "${value}" >>"${tmp}"
-  mv "${tmp}" "${SOLILOQUY_RUNTIME_STATE_ENV}"
+  mv "${tmp}" "${ALPENGLOW_RUNTIME_STATE_ENV}"
 }
 
 record_feature() {
   key="$1"
   value="$2"
-  record_runtime_state "SOLILOQUY_KERNEL_FEATURE_${key}" "${value}"
+  record_runtime_state "ALPENGLOW_KERNEL_FEATURE_${key}" "${value}"
 }
 
 apply_sysctl() {
@@ -99,7 +99,7 @@ set_cgroup_value() {
   group="$1"
   file="$2"
   value="$3"
-  path="/sys/fs/cgroup/soliloquy/${group}/${file}"
+  path="/sys/fs/cgroup/alpenglow/${group}/${file}"
   if [ -f "${path}" ]; then
     printf '%s\n' "${value}" >"${path}" 2>/dev/null || true
   fi
@@ -108,7 +108,7 @@ set_cgroup_value() {
 prepare_group() {
   group="$1"
   if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
-    mkdir -p "/sys/fs/cgroup/soliloquy/${group}" 2>/dev/null || true
+    mkdir -p "/sys/fs/cgroup/alpenglow/${group}" 2>/dev/null || true
   fi
 }
 
@@ -173,34 +173,34 @@ else
   record_feature VIRTIO_GPU 0
 fi
 
-if [ -f "${SOLILOQUY_KERNEL_POLICY_FILE}" ]; then
-  record_runtime_state SOLILOQUY_KERNEL_POLICY_FILE "${SOLILOQUY_KERNEL_POLICY_FILE}"
+if [ -f "${ALPENGLOW_KERNEL_POLICY_FILE}" ]; then
+  record_runtime_state ALPENGLOW_KERNEL_POLICY_FILE "${ALPENGLOW_KERNEL_POLICY_FILE}"
 fi
 
-if [ -f "${SOLILOQUY_HYBRID_KERNEL_METADATA}" ]; then
-  record_runtime_state SOLILOQUY_HYBRID_KERNEL_METADATA "${SOLILOQUY_HYBRID_KERNEL_METADATA}"
+if [ -f "${ALPENGLOW_HYBRID_KERNEL_METADATA}" ]; then
+  record_runtime_state ALPENGLOW_HYBRID_KERNEL_METADATA "${ALPENGLOW_HYBRID_KERNEL_METADATA}"
 fi
 
-record_runtime_state SOLILOQUY_KERNEL_SOURCE_MODE external-or-in-tree
-record_runtime_state SOLILOQUY_KERNEL_SOURCE_IN_TREE system/alpine/kernel/linux
-record_runtime_state SOLILOQUY_KERNEL_SOURCE_ENV SOLILOQUY_KERNEL_SOURCE
-if [ -n "${SOLILOQUY_KERNEL_SOURCE:-}" ]; then
-  record_runtime_state SOLILOQUY_KERNEL_SOURCE "${SOLILOQUY_KERNEL_SOURCE}"
+record_runtime_state ALPENGLOW_KERNEL_SOURCE_MODE external-or-in-tree
+record_runtime_state ALPENGLOW_KERNEL_SOURCE_IN_TREE system/alpine/kernel/linux
+record_runtime_state ALPENGLOW_KERNEL_SOURCE_ENV ALPENGLOW_KERNEL_SOURCE
+if [ -n "${ALPENGLOW_KERNEL_SOURCE:-}" ]; then
+  record_runtime_state ALPENGLOW_KERNEL_SOURCE "${ALPENGLOW_KERNEL_SOURCE}"
 fi
-if [ -d /usr/src/soliloquy-linux ] || [ -d /usr/src/linux ] || [ -d /work/system/alpine/kernel/linux ]; then
-  record_runtime_state SOLILOQUY_KERNEL_SOURCE_IN_TREE_PRESENT 1
+if [ -d /usr/src/alpenglow-linux ] || [ -d /usr/src/linux ] || [ -d /work/system/alpine/kernel/linux ]; then
+  record_runtime_state ALPENGLOW_KERNEL_SOURCE_IN_TREE_PRESENT 1
 else
-  record_runtime_state SOLILOQUY_KERNEL_SOURCE_IN_TREE_PRESENT 0
+  record_runtime_state ALPENGLOW_KERNEL_SOURCE_IN_TREE_PRESENT 0
 fi
-if [ -s /usr/share/soliloquy/kernel/patches/series ] || [ -s /work/system/alpine/kernel/patches/series ]; then
-  record_runtime_state SOLILOQUY_KERNEL_PATCH_QUEUE active
+if [ -s /usr/share/alpenglow/kernel/patches/series ] || [ -s /work/system/alpine/kernel/patches/series ]; then
+  record_runtime_state ALPENGLOW_KERNEL_PATCH_QUEUE active
 else
-  record_runtime_state SOLILOQUY_KERNEL_PATCH_QUEUE unavailable
+  record_runtime_state ALPENGLOW_KERNEL_PATCH_QUEUE unavailable
 fi
-if [ -f /usr/share/soliloquy/kernel/patch-series/bore-style.json ] || [ -f /work/system/alpine/kernel/patch-series/bore-style.json ]; then
-  record_runtime_state SOLILOQUY_KERNEL_BORE_LANE active
+if [ -f /usr/share/alpenglow/kernel/patch-series/bore-style.json ] || [ -f /work/system/alpine/kernel/patch-series/bore-style.json ]; then
+  record_runtime_state ALPENGLOW_KERNEL_BORE_LANE active
 else
-  record_runtime_state SOLILOQUY_KERNEL_BORE_LANE unavailable
+  record_runtime_state ALPENGLOW_KERNEL_BORE_LANE unavailable
 fi
 
 load_kernel_module virtio_pci
@@ -210,7 +210,7 @@ load_kernel_module virtio_gpu
 load_kernel_module erofs
 load_kernel_module squashfs
 load_kernel_module glowfs
-load_kernel_module_file "${SOLILOQUY_GLOWFS_MODULE}"
+load_kernel_module_file "${ALPENGLOW_GLOWFS_MODULE}"
 
 apply_sysctl net.core.somaxconn 4096
 apply_sysctl net.core.default_qdisc fq
@@ -229,54 +229,54 @@ apply_sysctl vm.swappiness 20
 apply_sysctl vm.vfs_cache_pressure 50
 apply_sysctl kernel.unprivileged_bpf_disabled 1
 
-record_path_capability SOLILOQUY_KERNEL_CAP_MGLRU /sys/kernel/mm/lru_gen/enabled
-record_path_capability SOLILOQUY_KERNEL_CAP_ZRAM /sys/block/zram0
-record_path_capability SOLILOQUY_KERNEL_CAP_DAMON /sys/kernel/mm/damon/admin
-record_path_capability SOLILOQUY_KERNEL_CAP_SECCOMP /proc/sys/kernel/seccomp/actions_avail
-record_path_capability SOLILOQUY_KERNEL_CAP_SCHED_EXT /sys/kernel/sched_ext
-record_path_capability SOLILOQUY_KERNEL_CAP_PREEMPT_RT /sys/kernel/realtime
+record_path_capability ALPENGLOW_KERNEL_CAP_MGLRU /sys/kernel/mm/lru_gen/enabled
+record_path_capability ALPENGLOW_KERNEL_CAP_ZRAM /sys/block/zram0
+record_path_capability ALPENGLOW_KERNEL_CAP_DAMON /sys/kernel/mm/damon/admin
+record_path_capability ALPENGLOW_KERNEL_CAP_SECCOMP /proc/sys/kernel/seccomp/actions_avail
+record_path_capability ALPENGLOW_KERNEL_CAP_SCHED_EXT /sys/kernel/sched_ext
+record_path_capability ALPENGLOW_KERNEL_CAP_PREEMPT_RT /sys/kernel/realtime
 if [ -d /proc/sys/kernel/landlock ] || [ -e /proc/sys/kernel/landlock/restrict_self ]; then
-  record_runtime_state SOLILOQUY_KERNEL_CAP_LANDLOCK active
+  record_runtime_state ALPENGLOW_KERNEL_CAP_LANDLOCK active
 else
-  record_runtime_state SOLILOQUY_KERNEL_CAP_LANDLOCK unavailable
+  record_runtime_state ALPENGLOW_KERNEL_CAP_LANDLOCK unavailable
 fi
 record_filesystem_capability ALPENGLOW_KERNEL_CAP_GLOWFS glowfs
-record_filesystem_capability SOLILOQUY_KERNEL_CAP_EROFS erofs
-record_filesystem_capability SOLILOQUY_KERNEL_CAP_SQUASHFS squashfs
-record_sysctl_value SOLILOQUY_KERNEL_NET_QDISC net.core.default_qdisc
-record_sysctl_value SOLILOQUY_KERNEL_TCP_CC net.ipv4.tcp_congestion_control
+record_filesystem_capability ALPENGLOW_KERNEL_CAP_EROFS erofs
+record_filesystem_capability ALPENGLOW_KERNEL_CAP_SQUASHFS squashfs
+record_sysctl_value ALPENGLOW_KERNEL_NET_QDISC net.core.default_qdisc
+record_sysctl_value ALPENGLOW_KERNEL_TCP_CC net.ipv4.tcp_congestion_control
 
 if [ -r /proc/pressure/cpu ]; then
-  record_runtime_state SOLILOQUY_PRESSURE_PSI_CPU active
+  record_runtime_state ALPENGLOW_PRESSURE_PSI_CPU active
 else
-  record_runtime_state SOLILOQUY_PRESSURE_PSI_CPU unavailable
+  record_runtime_state ALPENGLOW_PRESSURE_PSI_CPU unavailable
 fi
 if [ -r /proc/pressure/memory ]; then
-  record_runtime_state SOLILOQUY_PRESSURE_PSI_MEMORY active
+  record_runtime_state ALPENGLOW_PRESSURE_PSI_MEMORY active
 else
-  record_runtime_state SOLILOQUY_PRESSURE_PSI_MEMORY unavailable
+  record_runtime_state ALPENGLOW_PRESSURE_PSI_MEMORY unavailable
 fi
 if [ -r /proc/pressure/io ]; then
-  record_runtime_state SOLILOQUY_PRESSURE_PSI_IO active
+  record_runtime_state ALPENGLOW_PRESSURE_PSI_IO active
 else
-  record_runtime_state SOLILOQUY_PRESSURE_PSI_IO unavailable
+  record_runtime_state ALPENGLOW_PRESSURE_PSI_IO unavailable
 fi
 if [ -r /proc/pressure/memory ]; then
   memory_some_avg10="$(awk '/some/ { for (i = 1; i <= NF; i++) if ($i ~ /^avg10=/) { split($i, a, "="); print a[2] } }' /proc/pressure/memory 2>/dev/null || true)"
   case "${memory_some_avg10}" in
     ""|0.00|0.0|0)
-      record_runtime_state SOLILOQUY_PRESSURE_LEVEL normal
+      record_runtime_state ALPENGLOW_PRESSURE_LEVEL normal
       ;;
     *)
-      record_runtime_state SOLILOQUY_PRESSURE_LEVEL observable
+      record_runtime_state ALPENGLOW_PRESSURE_LEVEL observable
       ;;
   esac
 else
-  record_runtime_state SOLILOQUY_PRESSURE_LEVEL unknown
+  record_runtime_state ALPENGLOW_PRESSURE_LEVEL unknown
 fi
 
 if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
-  mkdir -p /sys/fs/cgroup/soliloquy 2>/dev/null || true
+  mkdir -p /sys/fs/cgroup/alpenglow 2>/dev/null || true
   for controller in cpu io memory pids; do
     enable_controller "${controller}"
   done
@@ -290,9 +290,9 @@ if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
   configure_group discardable-renderer 10 10 128M 256M 128
   configure_group gpu-compositor 900 300 512M 768M 192
 
-  record_runtime_state SOLILOQUY_KERNEL_POLICY_CGROUPS active
+  record_runtime_state ALPENGLOW_KERNEL_POLICY_CGROUPS active
 else
-  record_runtime_state SOLILOQUY_KERNEL_POLICY_CGROUPS unavailable
+  record_runtime_state ALPENGLOW_KERNEL_POLICY_CGROUPS unavailable
 fi
 
-record_runtime_state SOLILOQUY_KERNEL_POLICY_PROFILE internet-appliance
+record_runtime_state ALPENGLOW_KERNEL_POLICY_PROFILE internet-appliance

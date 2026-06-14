@@ -239,8 +239,8 @@ mod tests {
     #[test]
     fn v2_layout_places_bitmap_extents_and_journal_after_v1_image() {
         let root = temp_dir("layout");
-        fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
-        fs::write(root.join("var/lib/soliloquy/state.env"), vec![7_u8; 8192]).unwrap();
+        fs::create_dir_all(root.join("var/lib/alpenglow")).unwrap();
+        fs::write(root.join("var/lib/alpenglow/state.env"), vec![7_u8; 8192]).unwrap();
         let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
         let image = inspect_image(&image_path).unwrap();
@@ -265,8 +265,8 @@ mod tests {
     #[test]
     fn v2_upgrade_writes_metadata_regions_and_marks_used_blocks() {
         let root = temp_dir("upgrade");
-        fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
-        fs::write(root.join("var/lib/soliloquy/state.env"), vec![9_u8; 5000]).unwrap();
+        fs::create_dir_all(root.join("var/lib/alpenglow")).unwrap();
+        fs::write(root.join("var/lib/alpenglow/state.env"), vec![9_u8; 5000]).unwrap();
         let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
         let before = inspect_image(&image_path).unwrap();

@@ -1,6 +1,6 @@
 # Void Musl Runit Backend
 
-This backend is the active Soliloquy base-system target. It follows the shared appliance contract while using Void musl packages and runit services.
+This backend is the active Alpenglow base-system target. It follows the shared appliance contract while using Void musl packages and runit services.
 
 The design borrows from Oasis by treating the deployed system as a composed root filesystem rather than a mutable general-purpose installation. Void provides the practical bootstrap, package repository, and shared-library surface needed by Servo, V8, Wayland, GPU, and media components.
 
@@ -9,16 +9,16 @@ Backend properties:
 - base: Void Linux
 - libc: musl
 - init: runit
-- package manager: Oil through `../oil`
+- package manager: Oil through [Oil](https://github.com/tschk/oil)
 - bootstrap fetcher: XBPS during base Void image composition
 - deployed model: immutable rootfs plus `/state`
 
 Use `system/appliance/scripts/select-backend.sh` to resolve the active backend.
 
-`scripts/build-rootfs.sh` bootstraps the base rootfs with XBPS until Oil has a Void registry backend. Set `SOLILOQUY_OIL_SYSTEM_PACKAGES` to a space-separated package list when extra image packages should be installed through the Oil bridge:
+`scripts/build-rootfs.sh` bootstraps the base rootfs with XBPS until Oil has a Void registry backend. Set `ALPENGLOW_OIL_SYSTEM_PACKAGES` to a space-separated package list when extra image packages should be installed through the Oil bridge:
 
 ```sh
-OIL_BUILD=1 SOLILOQUY_OIL_SYSTEM_PACKAGES="ripgrep" ./system/backends/void/scripts/build-rootfs.sh
+OIL_BUILD=1 ALPENGLOW_OIL_SYSTEM_PACKAGES="ripgrep" ./system/backends/void/scripts/build-rootfs.sh
 ```
 
 That path is intentionally for additions. The base Void musl and runit image remains XBPS-backed until Oil has a Void registry backend.

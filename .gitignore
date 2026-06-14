@@ -35,7 +35,7 @@ tmp/
 # Rust
 target/
 src/shell/target/
-.soliloquy/
+.alpenglow/
 **/*.rs.bk
 
 # Python

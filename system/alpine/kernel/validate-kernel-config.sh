@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-CONFIG_FILE="${1:-$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/soliloquy-internet-appliance.config}"
+CONFIG_FILE="${1:-$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/alpenglow-internet-appliance.config}"
 KERNEL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-METADATA_FILE="${SOLILOQUY_KERNEL_METADATA:-${KERNEL_DIR}/hybrid-kernel.json}"
+METADATA_FILE="${ALPENGLOW_KERNEL_METADATA:-${KERNEL_DIR}/hybrid-kernel.json}"
 
 if [ ! -f "${CONFIG_FILE}" ]; then
   printf 'validate-kernel-config: missing config: %s\n' "${CONFIG_FILE}" >&2
@@ -163,7 +163,7 @@ require_file "${KERNEL_DIR}/patch-series/bore-style.json"
 require_file "${KERNEL_DIR}/patches/series"
 
 for token in \
-  '"id": "soliloquy-hybrid-default"' \
+  '"id": "alpenglow-hybrid-default"' \
   '"default": true' \
   '"mode": "single_default"' \
   '"hardware_adjustment": "runtime_capability_probe"' \

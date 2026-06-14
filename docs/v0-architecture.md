@@ -1,4 +1,4 @@
-# Soliloquy v0 architecture
+# Alpenglow v0 architecture
 
 ## Goal
 
@@ -14,9 +14,9 @@ Deliver a minimal browser-only immutable OS experience on Alpine Linux:
 
 1. Alpine/OpenRC boots.
 2. OpenRC starts `seatd`, `sold`, and network.
-3. OpenRC starts `sol-session` (no login manager).
-4. `sol-session` runs `cage` and starts Servo fullscreen.
-5. Servo loads the local `ui/desktop` bundle as the primary UI.
+3. OpenRC starts `alpenglow-session` (no login manager).
+4. `alpenglow-session` runs `cage` and starts Servo fullscreen.
+5. Servo loads the local `bundle/` shell as the primary UI.
 
 The host root filesystem is read-only at runtime; writable state is limited to browser profile, cache, downloads, logs, and terminal/session data.
 
@@ -24,7 +24,7 @@ The host root filesystem is read-only at runtime; writable state is limited to b
 
 - UI cannot access host filesystem directly.
 - UI talks only to `sold` over localhost APIs.
-- `sold` requires bearer token (`SOL_TOKEN`).
+- `sold` requires bearer token (`ALPENGLOW_TOKEN`).
 - API allowlist:
   - `/v1/status/battery`
   - `/v1/status/network`

@@ -32,12 +32,12 @@ printf '%s\n' "${metadata}" | grep -q '"name":"rv8"' && fail "rv8 must not be a 
 grep -Eq 'third_party/servo|src/rv8|\.\./rv8' Cargo.toml && fail "root Cargo.toml must not depend on browser engine paths"
 
 cargo_ci fmt --package sold -- --check
-cargo_ci fmt --package sol-netd -- --check
+cargo_ci fmt --package alpenglow-netd -- --check
 cargo_ci fmt --package glowfsctl -- --check
 cargo_ci test -p sold
-cargo_ci test -p sol-kernelctl
-cargo_ci test -p sol-netd
+cargo_ci test -p alpenglow-kernelctl
+cargo_ci test -p alpenglow-netd
 cargo_ci test -p glowfsctl
-cargo_ci test -p soliloquy-drivers
+cargo_ci test -p alpenglow-drivers
 
 printf 'ci-rust-core: ok\n'

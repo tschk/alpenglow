@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: (GPL-2.0+ OR MIT) */
 /*
  * Allwinner A527 Clock Control Unit bindings
- * Copyright (c) 2024 Soliloquy Authors
+ * Copyright (c) 2024 Alpenglow Authors
  *
  * Clock and reset definitions for sun55i-a527 SoC
  */

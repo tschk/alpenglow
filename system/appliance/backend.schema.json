@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Soliloquy appliance backend",
+  "title": "Alpenglow appliance backend",
   "type": "object",
   "required": [
     "id",

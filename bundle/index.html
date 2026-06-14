@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soliloquy</title>
+  <title>Alpenglow</title>
   <style>
     @font-face {
       font-family: "Material Symbols Rounded";
@@ -473,7 +473,7 @@
 
     <section class="viewport">
       <div class="load-bar" id="load-bar"></div>
-      <iframe id="app-frame" title="Soliloquy page"></iframe>
+      <iframe id="app-frame" title="Alpenglow page"></iframe>
     </section>
   </main>
 
@@ -655,7 +655,7 @@
     function setZenMode(enabled) {
       document.body.classList.toggle('zen', enabled);
       zenToggle.classList.toggle('active', enabled);
-      localStorage.setItem('soliloquy-zen', enabled ? '1' : '0');
+      localStorage.setItem('alpenglow-zen', enabled ? '1' : '0');
       document.activeElement?.blur?.();
     }
 
@@ -677,7 +677,7 @@
       loadDevice();
     });
 
-    localStorage.removeItem('soliloquy-zen');
+    localStorage.removeItem('alpenglow-zen');
     setZenMode(false);
     const params = new URLSearchParams(window.location.search);
     createTab(params.get('url') || 'os://terminal');

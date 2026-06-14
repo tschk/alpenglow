@@ -188,7 +188,7 @@ ensure_path_hint() {
   esac
 }
 
-echo "Setting up host dependencies for Soliloquy (QEMU + Servo build)..."
+echo "Setting up host dependencies for Alpenglow (QEMU + Servo build)..."
 prepend_user_bin
 ensure_wax_available
 install_with_wax

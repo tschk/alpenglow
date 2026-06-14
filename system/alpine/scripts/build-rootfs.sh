@@ -17,8 +17,8 @@ rootfs_manifest_changed() {
     "${ALPINE_DIR}/filesystems/state-mounts.json" \
     "${ALPINE_DIR}/rootfs-overlay/init" \
     "${ALPINE_DIR}/scripts/configure-rootfs.sh" \
-    "${ALPINE_DIR}/scripts/sol-session-start" \
-    "${ALPINE_DIR}/scripts/sol-servo-wrapper"
+    "${ALPINE_DIR}/scripts/alpenglow-session-start" \
+    "${ALPINE_DIR}/scripts/alpenglow-servo-wrapper"
   do
     [ "${manifest}" -nt "${ROOTFS_TAR}" ] && return 0
   done

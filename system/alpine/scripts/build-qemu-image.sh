@@ -2,7 +2,7 @@
 set -eu
 
 ROOTFS_DIR="${1:-build/alpine/rootfs}"
-OUT_IMG="${2:-build/alpine/qemu/soliloquy-v0.qcow2}"
+OUT_IMG="${2:-build/alpine/qemu/alpenglow-v0.qcow2}"
 SIZE="${SIZE:-2G}"
 
 if [ "$(uname -s)" != "Linux" ]; then

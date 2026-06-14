@@ -419,12 +419,12 @@ mod behavior_tests {
     #[test]
     fn image_reads_file_bytes_by_path() {
         let root = temp_dir("read");
-        fs::create_dir_all(root.join("etc/soliloquy")).unwrap();
-        fs::write(root.join("etc/soliloquy/system.json"), b"{\"ok\":true}\n").unwrap();
+        fs::create_dir_all(root.join("etc/alpenglow")).unwrap();
+        fs::write(root.join("etc/alpenglow/system.json"), b"{\"ok\":true}\n").unwrap();
         let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
 
-        let bytes = read_file(&image_path, "etc/soliloquy/system.json").unwrap();
+        let bytes = read_file(&image_path, "etc/alpenglow/system.json").unwrap();
 
         assert_eq!(bytes, b"{\"ok\":true}\n");
         fs::remove_dir_all(&root).unwrap();
@@ -434,18 +434,18 @@ mod behavior_tests {
     #[test]
     fn image_overwrites_existing_file_extent() {
         let root = temp_dir("write");
-        fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
-        fs::write(root.join("var/lib/soliloquy/state.env"), b"renderer=old\n").unwrap();
+        fs::create_dir_all(root.join("var/lib/alpenglow")).unwrap();
+        fs::write(root.join("var/lib/alpenglow/state.env"), b"renderer=old\n").unwrap();
         let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
 
         overwrite_file(
             &image_path,
-            "var/lib/soliloquy/state.env",
+            "var/lib/alpenglow/state.env",
             b"renderer=new\n",
         )
         .unwrap();
-        let bytes = read_file(&image_path, "var/lib/soliloquy/state.env").unwrap();
+        let bytes = read_file(&image_path, "var/lib/alpenglow/state.env").unwrap();
 
         assert_eq!(bytes, b"renderer=new\n");
         fs::remove_dir_all(&root).unwrap();
@@ -455,18 +455,18 @@ mod behavior_tests {
     #[test]
     fn image_grows_mutable_file_by_allocating_new_extent() {
         let root = temp_dir("write-grow");
-        fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
-        fs::write(root.join("var/lib/soliloquy/state.env"), b"small").unwrap();
+        fs::create_dir_all(root.join("var/lib/alpenglow")).unwrap();
+        fs::write(root.join("var/lib/alpenglow/state.env"), b"small").unwrap();
         let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
 
-        overwrite_file(&image_path, "var/lib/soliloquy/state.env", b"larger-value").unwrap();
-        let bytes = read_file(&image_path, "var/lib/soliloquy/state.env").unwrap();
+        overwrite_file(&image_path, "var/lib/alpenglow/state.env", b"larger-value").unwrap();
+        let bytes = read_file(&image_path, "var/lib/alpenglow/state.env").unwrap();
         let image = inspect_image(&image_path).unwrap();
 
         assert_eq!(bytes, b"larger-value");
         assert_eq!(
-            image.find_path("var/lib/soliloquy/state.env").unwrap().size,
+            image.find_path("var/lib/alpenglow/state.env").unwrap().size,
             12
         );
         fs::remove_dir_all(&root).unwrap();
@@ -771,8 +771,8 @@ mod tests {
     #[test]
     fn build_and_inspect_round_trip() {
         let root = temp_dir("round-trip");
-        fs::create_dir_all(root.join("etc/soliloquy")).unwrap();
-        fs::write(root.join("etc/soliloquy/system.json"), b"{\"ok\":true}\n").unwrap();
+        fs::create_dir_all(root.join("etc/alpenglow")).unwrap();
+        fs::write(root.join("etc/alpenglow/system.json"), b"{\"ok\":true}\n").unwrap();
         let image = root.with_extension("glowfs");
 
         let built = build_image(&root, &image).unwrap();
@@ -783,7 +783,7 @@ mod tests {
         assert!(inspected
             .entries
             .iter()
-            .any(|entry| entry.path == "etc/soliloquy/system.json" && entry.kind == KIND_FILE));
+            .any(|entry| entry.path == "etc/alpenglow/system.json" && entry.kind == KIND_FILE));
         fs::remove_dir_all(&root).unwrap();
         fs::remove_file(&image).unwrap();
     }

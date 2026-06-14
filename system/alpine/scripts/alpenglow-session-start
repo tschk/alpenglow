@@ -1,15 +1,15 @@
 #!/bin/sh
 set -eu
 
-if [ -f /etc/conf.d/sol-session ]; then
+if [ -f /etc/conf.d/alpenglow-session ]; then
   # shellcheck disable=SC1091
-  . /etc/conf.d/sol-session
+  . /etc/conf.d/alpenglow-session
 fi
 
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export WLR_BACKENDS="${WLR_BACKENDS:-drm,libinput}"
 # Pixman keeps the compositor on a predictable software path in tiny VMs. Override via
-# /etc/conf.d/sol-session (WLR_RENDERER=gles2) when GLES is preferred on real hardware.
+# /etc/conf.d/alpenglow-session (WLR_RENDERER=gles2) when GLES is preferred on real hardware.
 export WLR_RENDERER="${WLR_RENDERER:-pixman}"
 export WLR_RENDERER_ALLOW_SOFTWARE="${WLR_RENDERER_ALLOW_SOFTWARE:-1}"
 # Avoid hardware cursor paths that occasionally break under virtio/llvmpipe in VMs.
@@ -21,66 +21,66 @@ export WINIT_UNIX_BACKEND="${WINIT_UNIX_BACKEND:-wayland}"
 export EGL_PLATFORM="${EGL_PLATFORM:-wayland}"
 export WLR_XWAYLAND="${WLR_XWAYLAND:-0}"
 
-if [ -z "${SOL_TOKEN:-}" ]; then
-  TOKEN_FILE="/var/lib/soliloquy/system/api-token"
+if [ -z "${ALPENGLOW_TOKEN:-}" ]; then
+  TOKEN_FILE="/var/lib/alpenglow/system/api-token"
   if [ ! -f "${TOKEN_FILE}" ] && [ -w "$(dirname "${TOKEN_FILE}")" ]; then
     head -c 32 /dev/urandom | base64 | tr -d '+/=' > "${TOKEN_FILE}" || true
     chmod 600 "${TOKEN_FILE}" 2>/dev/null || true
   fi
   if [ -f "${TOKEN_FILE}" ]; then
-    export SOL_TOKEN="$(cat "${TOKEN_FILE}")"
+    export ALPENGLOW_TOKEN="$(cat "${TOKEN_FILE}")"
   else
-    export SOL_TOKEN="$(head -c 32 /dev/urandom | base64 | tr -d '+/=')"
+    export ALPENGLOW_TOKEN="$(head -c 32 /dev/urandom | base64 | tr -d '+/=')"
   fi
 else
-  export SOL_TOKEN="${SOL_TOKEN}"
+  export ALPENGLOW_TOKEN="${ALPENGLOW_TOKEN}"
 fi
 
-export SOLILOQUY_HOME="${SOLILOQUY_HOME:-/var/lib/soliloquy}"
-export SOLILOQUY_SYSTEM_CONFIG="${SOLILOQUY_SYSTEM_CONFIG:-/etc/soliloquy/system.json}"
-export XDG_DATA_HOME="${XDG_DATA_HOME:-${SOLILOQUY_HOME}/data}"
-export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${SOLILOQUY_HOME}/cache}"
-export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${SOLILOQUY_HOME}/config}"
-export XDG_STATE_HOME="${XDG_STATE_HOME:-${SOLILOQUY_HOME}/state}"
-export SOLILOQUY_PROFILE_DIR="${SOLILOQUY_PROFILE_DIR:-${SOLILOQUY_HOME}/browser/profiles/default}"
-export SOLILOQUY_CACHE_DIR="${SOLILOQUY_CACHE_DIR:-${SOLILOQUY_HOME}/browser/cache}"
-export SOLILOQUY_DOWNLOADS_DIR="${SOLILOQUY_DOWNLOADS_DIR:-${SOLILOQUY_HOME}/browser/downloads}"
-export SOLILOQUY_STATE_DIR="${SOLILOQUY_STATE_DIR:-${SOLILOQUY_HOME}/browser/state}"
-export SOLILOQUY_LOG_DIR="${SOLILOQUY_LOG_DIR:-${SOLILOQUY_HOME}/browser/logs}"
-export SOLILOQUY_TERMINAL_STATE_DIR="${SOLILOQUY_TERMINAL_STATE_DIR:-${SOLILOQUY_HOME}/browser/terminal}"
-export SOLILOQUY_RUNTIME_STATE_ENV="${SOLILOQUY_RUNTIME_STATE_ENV:-/run/soliloquy/runtime-state.env}"
-export SOLILOQUY_RUNTIME_EVENTS_FILE="${SOLILOQUY_RUNTIME_EVENTS_FILE:-/run/soliloquy/runtime-events.log}"
+export ALPENGLOW_HOME="${ALPENGLOW_HOME:-/var/lib/alpenglow}"
+export ALPENGLOW_SYSTEM_CONFIG="${ALPENGLOW_SYSTEM_CONFIG:-/etc/alpenglow/system.json}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-${ALPENGLOW_HOME}/data}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${ALPENGLOW_HOME}/cache}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${ALPENGLOW_HOME}/config}"
+export XDG_STATE_HOME="${XDG_STATE_HOME:-${ALPENGLOW_HOME}/state}"
+export ALPENGLOW_PROFILE_DIR="${ALPENGLOW_PROFILE_DIR:-${ALPENGLOW_HOME}/browser/profiles/default}"
+export ALPENGLOW_CACHE_DIR="${ALPENGLOW_CACHE_DIR:-${ALPENGLOW_HOME}/browser/cache}"
+export ALPENGLOW_DOWNLOADS_DIR="${ALPENGLOW_DOWNLOADS_DIR:-${ALPENGLOW_HOME}/browser/downloads}"
+export ALPENGLOW_STATE_DIR="${ALPENGLOW_STATE_DIR:-${ALPENGLOW_HOME}/browser/state}"
+export ALPENGLOW_LOG_DIR="${ALPENGLOW_LOG_DIR:-${ALPENGLOW_HOME}/browser/logs}"
+export ALPENGLOW_TERMINAL_STATE_DIR="${ALPENGLOW_TERMINAL_STATE_DIR:-${ALPENGLOW_HOME}/browser/terminal}"
+export ALPENGLOW_RUNTIME_STATE_ENV="${ALPENGLOW_RUNTIME_STATE_ENV:-/run/alpenglow/runtime-state.env}"
+export ALPENGLOW_RUNTIME_EVENTS_FILE="${ALPENGLOW_RUNTIME_EVENTS_FILE:-/run/alpenglow/runtime-events.log}"
 SERIAL_CONSOLE="${SERIAL_CONSOLE:-/dev/ttyS0}"
 
 mkdir -p "${XDG_RUNTIME_DIR}"
-mkdir -p "$(dirname "${SOLILOQUY_RUNTIME_STATE_ENV}")"
-mkdir -p "$(dirname "${SOLILOQUY_RUNTIME_EVENTS_FILE}")"
+mkdir -p "$(dirname "${ALPENGLOW_RUNTIME_STATE_ENV}")"
+mkdir -p "$(dirname "${ALPENGLOW_RUNTIME_EVENTS_FILE}")"
 mkdir -p \
   "${XDG_DATA_HOME}" \
   "${XDG_CACHE_HOME}" \
   "${XDG_CONFIG_HOME}" \
   "${XDG_STATE_HOME}" \
-  "${SOLILOQUY_PROFILE_DIR}" \
-  "${SOLILOQUY_CACHE_DIR}" \
-  "${SOLILOQUY_DOWNLOADS_DIR}" \
-  "${SOLILOQUY_STATE_DIR}" \
-  "${SOLILOQUY_LOG_DIR}" \
-  "${SOLILOQUY_TERMINAL_STATE_DIR}"
+  "${ALPENGLOW_PROFILE_DIR}" \
+  "${ALPENGLOW_CACHE_DIR}" \
+  "${ALPENGLOW_DOWNLOADS_DIR}" \
+  "${ALPENGLOW_STATE_DIR}" \
+  "${ALPENGLOW_LOG_DIR}" \
+  "${ALPENGLOW_TERMINAL_STATE_DIR}"
 chmod 700 "${XDG_RUNTIME_DIR}"
 chmod 700 \
   "${XDG_DATA_HOME}" \
   "${XDG_CACHE_HOME}" \
   "${XDG_CONFIG_HOME}" \
   "${XDG_STATE_HOME}" \
-  "${SOLILOQUY_PROFILE_DIR}" \
-  "${SOLILOQUY_CACHE_DIR}" \
-  "${SOLILOQUY_DOWNLOADS_DIR}" \
-  "${SOLILOQUY_STATE_DIR}" \
-  "${SOLILOQUY_LOG_DIR}" \
-  "${SOLILOQUY_TERMINAL_STATE_DIR}"
+  "${ALPENGLOW_PROFILE_DIR}" \
+  "${ALPENGLOW_CACHE_DIR}" \
+  "${ALPENGLOW_DOWNLOADS_DIR}" \
+  "${ALPENGLOW_STATE_DIR}" \
+  "${ALPENGLOW_LOG_DIR}" \
+  "${ALPENGLOW_TERMINAL_STATE_DIR}"
 
 log() {
-  printf '[sol-session] %s\n' "$1" >&2
+  printf '[alpenglow-session] %s\n' "$1" >&2
 }
 
 now_unix_ms() {
@@ -90,36 +90,36 @@ now_unix_ms() {
 record_runtime_state() {
   key="$1"
   value="$2"
-  tmp="${SOLILOQUY_RUNTIME_STATE_ENV}.$$"
-  if [ -f "${SOLILOQUY_RUNTIME_STATE_ENV}" ]; then
-    grep -v "^${key}=" "${SOLILOQUY_RUNTIME_STATE_ENV}" >"${tmp}" || true
+  tmp="${ALPENGLOW_RUNTIME_STATE_ENV}.$$"
+  if [ -f "${ALPENGLOW_RUNTIME_STATE_ENV}" ]; then
+    grep -v "^${key}=" "${ALPENGLOW_RUNTIME_STATE_ENV}" >"${tmp}" || true
   else
     : >"${tmp}"
   fi
   printf '%s=%s\n' "${key}" "${value}" >>"${tmp}"
-  mv "${tmp}" "${SOLILOQUY_RUNTIME_STATE_ENV}"
+  mv "${tmp}" "${ALPENGLOW_RUNTIME_STATE_ENV}"
 }
 
 record_runtime_event() {
   kind="$1"
   source="$2"
   detail="${3:-}"
-  printf '%s\t%s\t%s\t%s\n' "$(now_unix_ms)" "${kind}" "${source}" "${detail}" >>"${SOLILOQUY_RUNTIME_EVENTS_FILE}" 2>/dev/null || true
+  printf '%s\t%s\t%s\t%s\n' "$(now_unix_ms)" "${kind}" "${source}" "${detail}" >>"${ALPENGLOW_RUNTIME_EVENTS_FILE}" 2>/dev/null || true
 }
 
 runtime_state_value() {
   key="$1"
-  if [ -f "${SOLILOQUY_RUNTIME_STATE_ENV}" ]; then
-    grep "^${key}=" "${SOLILOQUY_RUNTIME_STATE_ENV}" | tail -n 1 | cut -d= -f2-
+  if [ -f "${ALPENGLOW_RUNTIME_STATE_ENV}" ]; then
+    grep "^${key}=" "${ALPENGLOW_RUNTIME_STATE_ENV}" | tail -n 1 | cut -d= -f2-
   fi
 }
 
 require_kernel_policy() {
-  case "${SOL_KERNEL_POLICY_REQUIRED:-0}" in
+  case "${ALPENGLOW_KERNEL_POLICY_REQUIRED:-0}" in
     1|true|TRUE|yes|YES) ;;
     *) return ;;
   esac
-  policy_state="$(runtime_state_value SOLILOQUY_KERNEL_POLICY_CGROUPS)"
+  policy_state="$(runtime_state_value ALPENGLOW_KERNEL_POLICY_CGROUPS)"
   if [ "${policy_state}" != "active" ]; then
     log "kernel policy required but cgroups state is ${policy_state:-missing}"
     exit 1
@@ -129,19 +129,19 @@ require_kernel_policy() {
 attach_to_cgroup() {
   group="$1"
   pid="$2"
-  if [ -x /usr/local/bin/sol-kernelctl ]; then
-    /usr/local/bin/sol-kernelctl attach --group "${group}" --pid "${pid}" >/dev/null 2>&1 || true
+  if [ -x /usr/local/bin/alpenglow-kernelctl ]; then
+    /usr/local/bin/alpenglow-kernelctl attach --group "${group}" --pid "${pid}" >/dev/null 2>&1 || true
     return
   fi
-  path="/sys/fs/cgroup/soliloquy/${group}"
+  path="/sys/fs/cgroup/alpenglow/${group}"
   if [ -f /sys/fs/cgroup/cgroup.controllers ] && mkdir -p "${path}" 2>/dev/null; then
     printf '%s\n' "${pid}" >"${path}/cgroup.procs" 2>/dev/null || true
   fi
 }
 
 wait_for_sold() {
-  origin="${SOL_SOLD_ORIGIN:-http://127.0.0.1:8080}"
-  retries="${SOL_SOLD_READY_RETRIES:-600}"
+  origin="${ALPENGLOW_SOLD_ORIGIN:-http://127.0.0.1:8080}"
+  retries="${ALPENGLOW_SOLD_READY_RETRIES:-600}"
   i=0
   if ! command -v wget >/dev/null 2>&1; then
     log "wget not found; skipping sold readiness probe"
@@ -156,11 +156,11 @@ wait_for_sold() {
     sleep 0.1
   done
   log "sold ready (${origin}/health)"
-  record_runtime_state SOLILOQUY_SOLD_READY_UNIX_MS "$(now_unix_ms)"
-  record_runtime_event sold_ready sol-session "${origin}/health"
+  record_runtime_state ALPENGLOW_SOLD_READY_UNIX_MS "$(now_unix_ms)"
+  record_runtime_event sold_ready alpenglow-session "${origin}/health"
   if wget -q -O /dev/null -T 1 -t 1 "${origin}/api/runtime" 2>/dev/null; then
     log "runtime api ready (${origin}/api/runtime)"
-    record_runtime_event runtime_api_ready sol-session "${origin}/api/runtime"
+    record_runtime_event runtime_api_ready alpenglow-session "${origin}/api/runtime"
   fi
 }
 
@@ -180,7 +180,7 @@ wait_for_seatd_socket() {
   i=0
   while ! has_seatd_socket; do
     i=$((i + 1))
-    if [ "${i}" -ge "${SOL_SEATD_READY_RETRIES:-50}" ]; then
+    if [ "${i}" -ge "${ALPENGLOW_SEATD_READY_RETRIES:-50}" ]; then
       return 1
     fi
     sleep 0.1
@@ -201,24 +201,24 @@ launch_session() {
   log "XDG_SESSION_TYPE=${XDG_SESSION_TYPE}"
   log "WINIT_UNIX_BACKEND=${WINIT_UNIX_BACKEND}"
   log "EGL_PLATFORM=${EGL_PLATFORM}"
-  log "SOLILOQUY_JS_ENGINE=${SOLILOQUY_JS_ENGINE:-v8-experimental}"
+  log "ALPENGLOW_JS_ENGINE=${ALPENGLOW_JS_ENGINE:-v8-experimental}"
 
   if [ -c "${SERIAL_CONSOLE}" ]; then
-    cage -- /usr/local/bin/sol-servo-wrapper >>"${SERIAL_CONSOLE}" 2>&1
+    cage -- /usr/local/bin/alpenglow-servo-wrapper >>"${SERIAL_CONSOLE}" 2>&1
   else
-    cage -- /usr/local/bin/sol-servo-wrapper
+    cage -- /usr/local/bin/alpenglow-servo-wrapper
   fi
 }
 
 log "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
-log "SOLILOQUY_SYSTEM_CONFIG=${SOLILOQUY_SYSTEM_CONFIG}"
-record_runtime_state SOLILOQUY_SESSION_START_UNIX_MS "$(now_unix_ms)"
-record_runtime_event session_start sol-session "${XDG_RUNTIME_DIR}"
+log "ALPENGLOW_SYSTEM_CONFIG=${ALPENGLOW_SYSTEM_CONFIG}"
+record_runtime_state ALPENGLOW_SESSION_START_UNIX_MS "$(now_unix_ms)"
+record_runtime_event session_start alpenglow-session "${XDG_RUNTIME_DIR}"
 attach_to_cgroup browser "$$"
 require_kernel_policy
 
 if ! has_drm_device; then
-  if [ "${SOL_SESSION_HEADLESS_FALLBACK:-1}" = "1" ]; then
+  if [ "${ALPENGLOW_SESSION_HEADLESS_FALLBACK:-1}" = "1" ]; then
     export WLR_BACKENDS=headless
     export WLR_LIBINPUT_NO_DEVICES=1
     log "no DRM device found; using wlroots headless backend"
@@ -245,10 +245,10 @@ fi
 
 if [ "${WLR_BACKENDS}" = "headless" ]; then
   log "using cage with wlroots headless backend"
-  record_runtime_event display_ready sol-session headless
+  record_runtime_event display_ready alpenglow-session headless
 else
   log "DRM device found; using cage (Wayland)"
-  record_runtime_event display_ready sol-session wayland
+  record_runtime_event display_ready alpenglow-session wayland
 fi
 wait_for_sold
 set +e
@@ -257,11 +257,11 @@ status=$?
 set -e
 
 # If the session was started with native Wayland winit, retry once with X11 (XWayland).
-if [ "${status}" != 0 ] && [ "${SOL_SESSION_X11_FALLBACK:-0}" = "1" ] && [ "${WINIT_UNIX_BACKEND}" != "x11" ]; then
+if [ "${status}" != 0 ] && [ "${ALPENGLOW_SESSION_X11_FALLBACK:-0}" = "1" ] && [ "${WINIT_UNIX_BACKEND}" != "x11" ]; then
   log "session exited ${status}; retrying with X11 client backend via XWayland (WINIT_UNIX_BACKEND=x11)"
   export WINIT_UNIX_BACKEND=x11
   export DISPLAY="${DISPLAY:-:0}"
-  export EGL_PLATFORM="${SOL_SESSION_X11_EGL_PLATFORM:-x11}"
+  export EGL_PLATFORM="${ALPENGLOW_SESSION_X11_EGL_PLATFORM:-x11}"
   set +e
   launch_session "${WLR_BACKENDS:-drm,libinput}"
   status=$?
@@ -269,9 +269,9 @@ if [ "${status}" != 0 ] && [ "${SOL_SESSION_X11_FALLBACK:-0}" = "1" ] && [ "${WI
 fi
 
 log "Wayland session exited with status ${status}"
-record_runtime_event session_exit sol-session "${status}"
+record_runtime_event session_exit alpenglow-session "${status}"
 if [ "${status}" != 0 ]; then
-  delay="${SOL_SESSION_FAILURE_DELAY:-8}"
+  delay="${ALPENGLOW_SESSION_FAILURE_DELAY:-8}"
   log "non-zero exit; sleeping ${delay}s before returning (reduces inittab respawn tight-loop)"
   sleep "${delay}"
 fi

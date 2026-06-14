@@ -5,7 +5,7 @@ REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-180}"
-QEMU_LOG="${QEMU_LOG:-${TMPDIR:-/tmp}/soliloquy-qemu-appliance.log}"
+QEMU_LOG="${QEMU_LOG:-${TMPDIR:-/tmp}/alpenglow-qemu-appliance.log}"
 QEMU_DIR="${QEMU_DIR:-build/alpine/qemu}"
 
 fail() {
@@ -66,26 +66,26 @@ esac
 
 require_log '\[init\] launching /sbin/init'
 require_log 'OpenRC .*Linux 6\.12\.[0-9]+-0-virt'
-require_log 'Starting sol-kernel-policy .*ok'
-require_log 'Starting sol-zram .*ok'
-require_log 'Starting sol-pressure'
+require_log 'Starting alpenglow-kernel-policy .*ok'
+require_log 'Starting alpenglow-zram .*ok'
+require_log 'Starting alpenglow-pressure'
 require_log 'lease of 10\.0\.2\.15 obtained'
 require_log 'Starting sold .*ok'
-require_log 'Starting sol-session'
+require_log 'Starting alpenglow-session'
 require_log 'runtime api ready \(http://127\.0\.0\.1:8080/api/runtime\)'
 require_log 'DRM device found; using cage \(Wayland\)'
-require_log 'redraw requested: .*active_webview=true.*title=Soliloquy( Shell)?'
+require_log 'redraw requested: .*active_webview=true.*title=Alpenglow( Shell)?'
 require_log 'gui\.paint end'
 reject_log 'kernel policy required but cgroups state is unavailable'
 reject_log 'Cannot find Xwayland binary'
 reject_log '/etc/resolv\.conf\.[A-Za-z0-9]+'
-reject_log '\[sol-servo\] pump_servo_event_loop start'
-reject_log '\[sol-servo\] running_app_state\.spin_event_loop start'
-reject_log '\[sol-servo\] winit about_to_wait'
-reject_log '\[sol-servo\] request_repaint:'
-reject_log '\[sol-servo\] gui\.paint begin:'
-reject_log 'cannot start .* as sol-kernel-policy would not start'
-reject_log 'cannot start .* as sol-pressure would not start'
-reject_log 'ERROR: sol-session failed to start'
+reject_log '\[alpenglow-servo\] pump_servo_event_loop start'
+reject_log '\[alpenglow-servo\] running_app_state\.spin_event_loop start'
+reject_log '\[alpenglow-servo\] winit about_to_wait'
+reject_log '\[alpenglow-servo\] request_repaint:'
+reject_log '\[alpenglow-servo\] gui\.paint begin:'
+reject_log 'cannot start .* as alpenglow-kernel-policy would not start'
+reject_log 'cannot start .* as alpenglow-pressure would not start'
+reject_log 'ERROR: alpenglow-session failed to start'
 
 printf 'ci-qemu-appliance: ok\n'

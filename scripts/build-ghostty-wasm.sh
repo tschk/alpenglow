@@ -6,7 +6,7 @@
 #
 # The wasm module is gitignored (large binary). Run this script:
 #   - Manually: ./scripts/build-ghostty-wasm.sh
-#   - As part of Alpine staging: system/alpine/scripts/stage-soliloquy-artifacts.sh
+#   - As part of Alpine staging: system/alpine/scripts/stage-alpenglow-artifacts.sh
 #     calls this automatically when the .wasm is absent.
 #
 # Requirements:

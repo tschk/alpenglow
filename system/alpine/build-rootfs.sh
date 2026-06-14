@@ -1,11 +1,11 @@
 #!/bin/bash
-# Build minimal Alpine rootfs for Soliloquy appliance
+# Build minimal Alpine rootfs for Alpenglow appliance
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "Building minimal Alpine rootfs for Soliloquy..."
+echo "Building minimal Alpine rootfs for Alpenglow..."
 
 # Create working directory
 WORK_DIR="${PROJECT_ROOT}/build/alpine"

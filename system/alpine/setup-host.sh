@@ -1,8 +1,8 @@
 #!/bin/bash
-# Setup host dependencies for Soliloquy Alpine appliance build
+# Setup host dependencies for Alpenglow Alpine appliance build
 set -euo pipefail
 
-echo "Setting up host for Soliloquy Alpine appliance build..."
+echo "Setting up host for Alpenglow Alpine appliance build..."
 
 # Check if running on macOS or Linux
 if [[ "$OSTYPE" == "darwin"* ]]; then

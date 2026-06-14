@@ -92,7 +92,7 @@ pub fn render_runtime_env(snapshot: &NetworkSnapshot) -> String {
         .filter(|interface| interface.operstate == OperState::Up)
         .count();
     format!(
-        "SOLILOQUY_NETD_INTERFACES={}\nSOLILOQUY_NETD_UP_INTERFACES={}\nSOLILOQUY_NETD_DEFAULT_INTERFACE={}\nSOLILOQUY_NETD_GENERATED_UNIX_MS={}\n",
+        "ALPENGLOW_NETD_INTERFACES={}\nALPENGLOW_NETD_UP_INTERFACES={}\nALPENGLOW_NETD_DEFAULT_INTERFACE={}\nALPENGLOW_NETD_GENERATED_UNIX_MS={}\n",
         snapshot.interfaces.len(),
         up_count,
         default,
@@ -276,7 +276,7 @@ mod tests {
 
         assert_eq!(
             render_runtime_env(&snapshot),
-            "SOLILOQUY_NETD_INTERFACES=2\nSOLILOQUY_NETD_UP_INTERFACES=2\nSOLILOQUY_NETD_DEFAULT_INTERFACE=eth0\nSOLILOQUY_NETD_GENERATED_UNIX_MS=123\n"
+            "ALPENGLOW_NETD_INTERFACES=2\nALPENGLOW_NETD_UP_INTERFACES=2\nALPENGLOW_NETD_DEFAULT_INTERFACE=eth0\nALPENGLOW_NETD_GENERATED_UNIX_MS=123\n"
         );
     }
 
@@ -288,7 +288,7 @@ mod tests {
         fn new() -> Self {
             let mut path = std::env::temp_dir();
             path.push(format!(
-                "sol-netd-test-{}-{}",
+                "alpenglow-netd-test-{}-{}",
                 std::process::id(),
                 now_unix_ms()
             ));

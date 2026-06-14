@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
-use sol_netd::{read_snapshot, write_snapshot};
+use alpenglow_netd::{read_snapshot, write_snapshot};
 
 const DEFAULT_SYS_CLASS_NET: &str = "/sys/class/net";
-const DEFAULT_STATE_JSON: &str = "/run/soliloquy/netd/interfaces.json";
-const DEFAULT_RUNTIME_ENV: &str = "/run/soliloquy/netd/runtime-state.env";
+const DEFAULT_STATE_JSON: &str = "/run/alpenglow/netd/interfaces.json";
+const DEFAULT_RUNTIME_ENV: &str = "/run/alpenglow/netd/runtime-state.env";
 
 #[derive(Debug)]
 struct Args {
@@ -20,7 +20,7 @@ struct Args {
 
 fn main() {
     if let Err(error) = run(parse_args(env::args().skip(1))) {
-        eprintln!("sol-netd: {error}");
+        eprintln!("alpenglow-netd: {error}");
         std::process::exit(1);
     }
 }
@@ -30,17 +30,17 @@ where
     I: IntoIterator<Item = String>,
 {
     let mut parsed = Args {
-        sys_class_net: env::var_os("SOLILOQUY_NETD_SYS_CLASS_NET")
+        sys_class_net: env::var_os("ALPENGLOW_NETD_SYS_CLASS_NET")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(DEFAULT_SYS_CLASS_NET)),
-        state_json: env::var_os("SOLILOQUY_NETD_STATE_JSON")
+        state_json: env::var_os("ALPENGLOW_NETD_STATE_JSON")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(DEFAULT_STATE_JSON)),
-        runtime_env: env::var_os("SOLILOQUY_NETD_RUNTIME_ENV")
+        runtime_env: env::var_os("ALPENGLOW_NETD_RUNTIME_ENV")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(DEFAULT_RUNTIME_ENV)),
         interval: Duration::from_secs(
-            env::var("SOLILOQUY_NETD_INTERVAL_SECS")
+            env::var("ALPENGLOW_NETD_INTERVAL_SECS")
                 .ok()
                 .and_then(|value| value.parse().ok())
                 .unwrap_or(5),

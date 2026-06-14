@@ -1,23 +1,23 @@
 {
   "schema": 1,
-  "id": "soliloquy-hybrid-default",
-  "package": "linux-soliloquy-appliance",
+  "id": "alpenglow-hybrid-default",
+  "package": "linux-alpenglow-appliance",
   "default": true,
   "end_user_defaults": [
-    "soliloquy-hybrid-default"
+    "alpenglow-hybrid-default"
   ],
-  "config": "soliloquy-internet-appliance.config",
+  "config": "alpenglow-internet-appliance.config",
   "kernel_source": {
     "mode": "external-or-in-tree",
     "in_tree_path": "system/alpine/kernel/linux",
-    "source_env": "SOLILOQUY_KERNEL_SOURCE",
+    "source_env": "ALPENGLOW_KERNEL_SOURCE",
     "imported": false
   },
   "patch_queue": {
     "path": "patches/series",
     "enabled_by_default": false
   },
-  "runtime_state": "/run/soliloquy/runtime-state.env",
+  "runtime_state": "/run/alpenglow/runtime-state.env",
   "fallback_boot": {
     "enabled": true,
     "artifact": "vmlinuz-virt"

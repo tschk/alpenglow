@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-BACKEND_ID="${1:-${SOLILOQUY_BACKEND:-void-musl-runit}}"
+BACKEND_ID="${1:-${ALPENGLOW_BACKEND:-void-musl-runit}}"
 
 case "${BACKEND_ID}" in
   void|void-musl-runit)

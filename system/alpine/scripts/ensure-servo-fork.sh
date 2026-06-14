@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-SERVO_DIR="${ROOT_DIR}/third_party/servo"
+SERVO_DIR="${SERVO_DIR:-${ROOT_DIR}/third_party/servo}"
 SERVO_BIN="${SERVO_DIR}/target/release/servoshell"
 SERVO_FORK_URL="${SERVO_FORK_URL:-}"
 SERVO_FORK_BRANCH="${SERVO_FORK_BRANCH:-main}"
@@ -61,6 +61,7 @@ if [ ! -d "${SERVO_DIR}/.git" ]; then
     echo "missing Servo fork checkout at ${SERVO_DIR}" >&2
     echo "set SERVO_FORK_URL to clone your fork, e.g.:" >&2
     echo "  SERVO_FORK_URL=https://github.com/<org-or-user>/servo.git ./system/alpine/scripts/qemu-v0.sh" >&2
+    echo "or set SERVO_DIR to an existing Servo checkout." >&2
     exit 1
   fi
   git clone --depth 1 --branch "${SERVO_FORK_BRANCH}" "${SERVO_FORK_URL}" "${SERVO_DIR}"
@@ -92,9 +93,14 @@ if [ "${SERVO_BUILD}" = "1" ] && { [ "${SERVO_FORCE_REBUILD}" = "1" ] || [ ! -x 
   )
 fi
 
+if [ "${SERVO_BUILD}" = "0" ]; then
+  echo "Servo source checkout ready: ${SERVO_DIR}"
+  exit 0
+fi
+
 if [ ! -x "${SERVO_BIN}" ]; then
   echo "servoshell binary missing: ${SERVO_BIN}" >&2
-  echo "build your fork with ./mach build --release (in third_party/servo), then rerun." >&2
+  echo "build your fork with ./mach build --release (in ${SERVO_DIR}), then rerun." >&2
   exit 1
 fi
 

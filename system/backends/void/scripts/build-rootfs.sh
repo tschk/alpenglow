@@ -24,8 +24,8 @@ else
 fi
 
 "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
-if [ -n "${SOLILOQUY_OIL_SYSTEM_PACKAGES:-}" ]; then
-  set -- ${SOLILOQUY_OIL_SYSTEM_PACKAGES}
+if [ -n "${ALPENGLOW_OIL_SYSTEM_PACKAGES:-}" ]; then
+  set -- ${ALPENGLOW_OIL_SYSTEM_PACKAGES}
   "${OIL_INSTALLER}" system-add "${ROOTFS_DIR}" "$@"
 fi
 tar -czf "${OUT_DIR}/rootfs.tar.gz" -C "${OUT_DIR}" rootfs

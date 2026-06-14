@@ -2,7 +2,8 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-OIL_ROOT="${OIL_ROOT:-${ROOT_DIR}/../oil}"
+OIL_REPO_URL="${OIL_REPO_URL:-https://github.com/tschk/oil}"
+OIL_ROOT="${OIL_ROOT:-${ROOT_DIR}/third_party/oil}"
 OIL_BIN="${OIL_BIN:-}"
 ACTION="${1:-bin}"
 
@@ -27,7 +28,7 @@ resolve_oil_bin() {
     return
   fi
 
-  echo "oil installer binary not found; set OIL_BIN or OIL_BUILD=1" >&2
+  echo "oil installer binary not found; set OIL_BIN, set OIL_ROOT, or clone ${OIL_REPO_URL} into ${OIL_ROOT} and set OIL_BUILD=1" >&2
   exit 1
 }
 
@@ -43,8 +44,8 @@ case "${ACTION}" in
       exit 1
     fi
     OIL="$(resolve_oil_bin)"
-    mkdir -p "${ROOTFS}/var/lib/soliloquy/oil"
-    HOME="${ROOTFS}/var/lib/soliloquy/oil" \
+    mkdir -p "${ROOTFS}/var/lib/alpenglow/oil"
+    HOME="${ROOTFS}/var/lib/alpenglow/oil" \
       WAX_SYSTEM_PREFIX="${ROOTFS}" \
       "${OIL}" system add --no-script "$@"
     ;;
@@ -55,8 +56,8 @@ case "${ACTION}" in
       exit 1
     fi
     OIL="$(resolve_oil_bin)"
-    mkdir -p "${ROOTFS}/var/lib/soliloquy/oil"
-    HOME="${ROOTFS}/var/lib/soliloquy/oil" \
+    mkdir -p "${ROOTFS}/var/lib/alpenglow/oil"
+    HOME="${ROOTFS}/var/lib/alpenglow/oil" \
       WAX_SYSTEM_PREFIX="${ROOTFS}" \
       "${OIL}" system sync
     ;;

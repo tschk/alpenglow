@@ -19,22 +19,22 @@
       "purpose": "user workspaces"
     },
     {
-      "source": "/state/var/lib/soliloquy",
-      "target": "/var/lib/soliloquy",
+      "source": "/state/var/lib/alpenglow",
+      "target": "/var/lib/alpenglow",
       "owner": "root:root",
       "mode": "0755",
       "purpose": "system state namespace"
     },
     {
-      "source": "/state/var/cache/soliloquy",
-      "target": "/var/cache/soliloquy",
-      "owner": "soliloquy:soliloquy",
+      "source": "/state/var/cache/alpenglow",
+      "target": "/var/cache/alpenglow",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700",
       "purpose": "browser and service cache"
     },
     {
-      "source": "/state/var/log/soliloquy",
-      "target": "/var/log/soliloquy",
+      "source": "/state/var/log/alpenglow",
+      "target": "/var/log/alpenglow",
       "owner": "root:root",
       "mode": "0700",
       "purpose": "appliance logs"
@@ -47,62 +47,62 @@
       "mode": "0755"
     },
     {
-      "path": "/state/var/lib/soliloquy/browser/profiles",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/lib/alpenglow/browser/profiles",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/browser/cache",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/lib/alpenglow/browser/cache",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/browser/downloads",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/lib/alpenglow/browser/downloads",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/browser/state",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/lib/alpenglow/browser/state",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/browser/logs",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/lib/alpenglow/browser/logs",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/browser/terminal",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/lib/alpenglow/browser/terminal",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/files",
+      "path": "/state/var/lib/alpenglow/files",
       "owner": "sold:sold",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/system",
+      "path": "/state/var/lib/alpenglow/system",
       "owner": "sold:sold",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/system/plugins",
+      "path": "/state/var/lib/alpenglow/system/plugins",
       "owner": "sold:sold",
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/oil",
+      "path": "/state/var/lib/alpenglow/oil",
       "owner": "root:root",
       "mode": "0755"
     },
     {
-      "path": "/state/var/cache/soliloquy",
-      "owner": "soliloquy:soliloquy",
+      "path": "/state/var/cache/alpenglow",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
-      "path": "/state/var/log/soliloquy",
+      "path": "/state/var/log/alpenglow",
       "owner": "root:root",
       "mode": "0700"
     }

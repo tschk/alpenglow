@@ -1,7 +1,7 @@
-# U-Boot Configuration for Soliloquy OS
+# U-Boot Configuration for Alpenglow OS
 # Radxa Cubie A5E (Allwinner A527)
 
-This directory contains U-Boot configuration files for booting Soliloquy OS
+This directory contains U-Boot configuration files for booting Alpenglow OS
 on the Radxa Cubie A5E board.
 
 ## Files
@@ -30,7 +30,7 @@ git clone https://github.com/AwakenOS/u-boot.git -b sun55i
 cd u-boot
 
 # Copy our defconfig
-cp /path/to/soliloquy/boards/arm64/soliloquy/uboot/cubie_a5e_defconfig configs/
+cp /path/to/alpenglow/boards/arm64/alpenglow/uboot/cubie_a5e_defconfig configs/
 
 # Configure
 make CROSS_COMPILE=aarch64-linux-gnu- cubie_a5e_defconfig
@@ -62,7 +62,7 @@ sudo mkfs.fat -F 32 /dev/sdX1
 # Copy boot files
 sudo mount /dev/sdX1 /mnt
 sudo cp boot.scr /mnt/
-sudo cp soliloquy.zbi /mnt/
+sudo cp alpenglow.zbi /mnt/
 sudo umount /mnt
 ```
 
@@ -83,7 +83,7 @@ mmc write 0x42000000 0x10 0x800  # Write at 8KB offset
 1. BROM loads SPL from SD/eMMC at offset 8KB
 2. SPL initializes DRAM and loads U-Boot
 3. U-Boot runs boot.scr
-4. boot.scr loads soliloquy.zbi to memory
+4. boot.scr loads alpenglow.zbi to memory
 5. U-Boot boots the appliance kernel with booti command
 
 ## Debugging
@@ -108,7 +108,7 @@ Set in U-Boot shell or boot.cmd:
 | boot_device | mmc | Boot device type |
 | boot_instance | auto | MMC device number (0=SD, 2=eMMC) |
 | boot_part | 1 | Boot partition number |
-| zbi_name | soliloquy.zbi | ZBI image filename |
+| zbi_name | alpenglow.zbi | ZBI image filename |
 | debug | 0 | Enable debug mode |
 | headless | 0 | Disable display driver |
 

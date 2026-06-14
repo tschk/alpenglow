@@ -2,8 +2,8 @@
 set -eu
 
 ROOTFS="${1:-build/alpine/rootfs}"
-MAX_PACKAGES="${SOLILOQUY_MAX_RUNTIME_PACKAGES:-84}"
-MAX_SIZE_KIB="${SOLILOQUY_MAX_RUNTIME_SIZE_KIB:-380000}"
+MAX_PACKAGES="${ALPENGLOW_MAX_RUNTIME_PACKAGES:-84}"
+MAX_SIZE_KIB="${ALPENGLOW_MAX_RUNTIME_SIZE_KIB:-380000}"
 
 if [ ! -d "${ROOTFS}" ]; then
   echo "rootfs directory not found: ${ROOTFS}" >&2
@@ -12,7 +12,7 @@ fi
 
 world="${ROOTFS}/etc/apk/world"
 if [ ! -f "${world}" ]; then
-  world="${ROOTFS}/etc/apk/world.soliloquy"
+  world="${ROOTFS}/etc/apk/world.alpenglow"
 fi
 if [ ! -f "${world}" ]; then
   echo "apk world not found under ${ROOTFS}" >&2

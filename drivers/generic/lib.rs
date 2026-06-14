@@ -1,8 +1,8 @@
-// Copyright 2024 Soliloquy Authors
+// Copyright 2024 Alpenglow Authors
 // SPDX-License-Identifier: MPL-2.0
 //
 // Generic Drivers Library
-// Platform-agnostic hardware driver implementations for Soliloquy OS
+// Platform-agnostic hardware driver implementations for Alpenglow OS
 //
 // This crate provides:
 // - Abstract driver traits (GPIO, Clock, MMC, UART, etc.)

@@ -4,17 +4,17 @@ set -eu
 QEMU_DIR="${1:-build/alpine/qemu}"
 KERNEL="${QEMU_DIR}/vmlinuz-virt"
 INITRAMFS="${QEMU_DIR}/rootfs.cpio.gz"
-SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE:-${QEMU_DIR}/soliloquy-rootfs.glowfs}"
+ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE:-${QEMU_DIR}/alpenglow-rootfs.glowfs}"
 QEMU_HEADLESS="${QEMU_HEADLESS:-0}"
 QEMU_ACCEL="${QEMU_ACCEL:-tcg}"
 QEMU_RNG="${QEMU_RNG:-1}"
 QEMU_MEMORY_MB="${QEMU_MEMORY_MB:-4096}"
-SOLILOQUY_RAM_ROOT="${SOLILOQUY_RAM_ROOT:-auto}"
-SOLILOQUY_RAM_ROOT_MIN_MB="${SOLILOQUY_RAM_ROOT_MIN_MB:-3072}"
-SOLILOQUY_ROOT_FALLBACK="${SOLILOQUY_ROOT_FALLBACK:-/dev/vda}"
-SOLILOQUY_ROOT_FALLBACK_FSTYPE="${SOLILOQUY_ROOT_FALLBACK_FSTYPE:-glowfs}"
-SOLILOQUY_ROOTFS_IMAGE_REQUIRED="${SOLILOQUY_ROOTFS_IMAGE_REQUIRED:-0}"
-KERNEL_CMDLINE="${KERNEL_CMDLINE:-quiet loglevel=3 console=tty0 console=ttyS0 random.trust_cpu=on rng_core.default_quality=1000 rdinit=/init soliloquy.ram_root=${SOLILOQUY_RAM_ROOT} soliloquy.ram_root_min_mb=${SOLILOQUY_RAM_ROOT_MIN_MB} soliloquy.root_fallback=${SOLILOQUY_ROOT_FALLBACK} soliloquy.root_fallback_fstype=${SOLILOQUY_ROOT_FALLBACK_FSTYPE}}"
+ALPENGLOW_RAM_ROOT="${ALPENGLOW_RAM_ROOT:-auto}"
+ALPENGLOW_RAM_ROOT_MIN_MB="${ALPENGLOW_RAM_ROOT_MIN_MB:-3072}"
+ALPENGLOW_ROOT_FALLBACK="${ALPENGLOW_ROOT_FALLBACK:-/dev/vda}"
+ALPENGLOW_ROOT_FALLBACK_FSTYPE="${ALPENGLOW_ROOT_FALLBACK_FSTYPE:-glowfs}"
+ALPENGLOW_ROOTFS_IMAGE_REQUIRED="${ALPENGLOW_ROOTFS_IMAGE_REQUIRED:-0}"
+KERNEL_CMDLINE="${KERNEL_CMDLINE:-quiet loglevel=3 console=tty0 console=ttyS0 random.trust_cpu=on rng_core.default_quality=1000 rdinit=/init alpenglow.ram_root=${ALPENGLOW_RAM_ROOT} alpenglow.ram_root_min_mb=${ALPENGLOW_RAM_ROOT_MIN_MB} alpenglow.root_fallback=${ALPENGLOW_ROOT_FALLBACK} alpenglow.root_fallback_fstype=${ALPENGLOW_ROOT_FALLBACK_FSTYPE}}"
 
 for bin in qemu-system-x86_64; do
   command -v "${bin}" >/dev/null 2>&1 || {
@@ -43,11 +43,11 @@ if [ "${QEMU_RNG}" = "1" ]; then
 fi
 
 ROOT_DRIVE_FLAGS=""
-if [ -f "${SOLILOQUY_ROOTFS_IMAGE}" ]; then
-  echo "Using rootfs image: ${SOLILOQUY_ROOTFS_IMAGE}"
-  ROOT_DRIVE_FLAGS="-drive file=${SOLILOQUY_ROOTFS_IMAGE},format=raw,if=none,id=solroot,readonly=on -device virtio-blk-pci,drive=solroot"
-elif [ "${SOLILOQUY_ROOTFS_IMAGE_REQUIRED}" = "1" ]; then
-  echo "missing required rootfs image: ${SOLILOQUY_ROOTFS_IMAGE}" >&2
+if [ -f "${ALPENGLOW_ROOTFS_IMAGE}" ]; then
+  echo "Using rootfs image: ${ALPENGLOW_ROOTFS_IMAGE}"
+  ROOT_DRIVE_FLAGS="-drive file=${ALPENGLOW_ROOTFS_IMAGE},format=raw,if=none,id=solroot,readonly=on -device virtio-blk-pci,drive=solroot"
+elif [ "${ALPENGLOW_ROOTFS_IMAGE_REQUIRED}" = "1" ]; then
+  echo "missing required rootfs image: ${ALPENGLOW_ROOTFS_IMAGE}" >&2
   exit 1
 fi
 

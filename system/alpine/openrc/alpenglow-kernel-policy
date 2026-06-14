@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+description="Alpenglow kernel policy"
+
+command="/usr/local/bin/apply-kernel-policy.sh"
+command_background="no"
+
+start_pre() {
+    mkdir -p /run/alpenglow
+    [ -f /run/alpenglow/resolv.conf ] || printf 'nameserver 10.0.2.3\n' >/run/alpenglow/resolv.conf
+}
+
+depend() {
+    need localmount
+    before networking sold alpenglow-session
+}

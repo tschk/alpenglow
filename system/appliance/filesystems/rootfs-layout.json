@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target": "soliloquy-a527-browser-appliance",
+  "target": "alpenglow-a527-browser-appliance",
   "root": {
     "mountpoint": "/",
     "role": "immutable-system",
@@ -20,19 +20,19 @@
       "fallback_mode": "disk-root",
       "fallback_device": "/dev/vda",
       "fallback_fstype": "ext4",
-      "kernel_arg": "soliloquy.ram_root"
+      "kernel_arg": "alpenglow.ram_root"
     },
-    "generation_root": "/sysroot/soliloquy",
-    "active_generation_link": "/sysroot/soliloquy/current",
-    "metadata_path": "/etc/soliloquy/generation.json",
-    "runtime_status_path": "/run/soliloquy/rootfs.env",
+    "generation_root": "/sysroot/alpenglow",
+    "active_generation_link": "/sysroot/alpenglow/current",
+    "metadata_path": "/etc/alpenglow/generation.json",
+    "runtime_status_path": "/run/alpenglow/rootfs.env",
     "rollback_generations": 2
   },
   "generation": {
-    "id": "soliloquy-0001",
+    "id": "alpenglow-0001",
     "status": "pending-good",
-    "mark_good_hook": "/usr/local/bin/soliloquy-generation-mark-good",
-    "state_path": "/var/lib/soliloquy/system/update-state.json"
+    "mark_good_hook": "/usr/local/bin/alpenglow-generation-mark-good",
+    "state_path": "/var/lib/alpenglow/system/update-state.json"
   },
   "immutable_paths": [
     "/bin",
@@ -72,13 +72,13 @@
       ]
     }
   ],
-  "state_manifest": "/etc/soliloquy/filesystems/state-mounts.json",
+  "state_manifest": "/etc/alpenglow/filesystems/state-mounts.json",
   "sealed_inputs": [
-    "/etc/soliloquy/world",
-    "/etc/soliloquy/backend.json",
-    "/etc/soliloquy/kernel-policy.json",
-    "/etc/soliloquy/services.json",
-    "/etc/soliloquy/system.json",
-    "/etc/soliloquy/update-policy.json"
+    "/etc/alpenglow/world",
+    "/etc/alpenglow/backend.json",
+    "/etc/alpenglow/kernel-policy.json",
+    "/etc/alpenglow/services.json",
+    "/etc/alpenglow/system.json",
+    "/etc/alpenglow/update-policy.json"
   ]
 }

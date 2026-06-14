@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0+
 #
 # U-Boot configuration for Radxa Cubie A5E (Allwinner A527)
-# This is used to boot Soliloquy OS on the Cubie A5E board.
+# This is used to boot Alpenglow OS on the Cubie A5E board.
 #
 
 # ============================================================================
@@ -19,7 +19,7 @@ CONFIG_MMC_SUNXI_SLOT_EXTRA=2
 # Target Board
 # ============================================================================
 CONFIG_TARGET_CUBIE_A5E=y
-CONFIG_IDENT_STRING=" Soliloquy Cubie-A5E"
+CONFIG_IDENT_STRING=" Alpenglow Cubie-A5E"
 CONFIG_DEFAULT_DEVICE_TREE="allwinner-a527-cubie-a5e"
 
 # ============================================================================
@@ -39,18 +39,18 @@ CONFIG_DISTRO_DEFAULTS=y
 CONFIG_BOOTDELAY=3
 CONFIG_USE_BOOTARGS=y
 CONFIG_BOOTARGS="console=ttyS0,115200 earlycon=sunxi,0x02500000 kernel.serial=legacy"
-CONFIG_BOOTCOMMAND="run soliloquy_boot"
+CONFIG_BOOTCOMMAND="run alpenglow_boot"
 
-# Extra environment variables for Soliloquy boot
+# Extra environment variables for Alpenglow boot
 CONFIG_EXTRA_ENV_SETTINGS=" \
 	kernel_addr_r=0x42000000\0 \
 	fdt_addr_r=0x4FA00000\0 \
 	ramdisk_addr_r=0x4FE00000\0 \
 	zbi_addr=0x42000000\0 \
 	zbi_name=zircon.zbi\0 \
-	soliloquy_boot=if mmc dev ${mmc_bootdev}; then " \
+	alpenglow_boot=if mmc dev ${mmc_bootdev}; then " \
 		"if load mmc ${mmc_bootdev}:1 ${zbi_addr} ${zbi_name}; then " \
-			"echo Booting Soliloquy from MMC...; " \
+			"echo Booting Alpenglow from MMC...; " \
 			"booti ${zbi_addr}; " \
 		"fi; " \
 	"fi\0 \

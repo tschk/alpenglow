@@ -1,6 +1,6 @@
 # Browser Networking Optimizations
 
-This document describes the advanced networking optimizations implemented in the Soliloquy browser shell to provide fast, efficient web browsing on resource-constrained embedded devices.
+This document describes the advanced networking optimizations implemented in the Alpenglow browser shell to provide fast, efficient web browsing on resource-constrained embedded devices.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This document describes the advanced networking optimizations implemented in the
 
 ## Overview
 
-The Soliloquy networking stack implements modern web performance optimizations including:
+The Alpenglow networking stack implements modern web performance optimizations including:
 
 - **HTTP/3 with QUIC**: Faster connection establishment, 0-RTT resumption, connection migration
 - **DNS Caching**: Reduce DNS lookup latency with intelligent TTL management
@@ -32,7 +32,7 @@ The Soliloquy networking stack implements modern web performance optimizations i
 └──────────────────┬──────────────────────────────────────┘
                    │
 ┌──────────────────┴──────────────────────────────────────┐
-│              Soliloquy Networking Layer                  │
+│              Alpenglow Networking Layer                  │
 ├──────────────────┬──────────────────┬───────────────────┤
 │  ResourceLoader  │  QuicTransport   │ SpeculationEngine │
 ├──────────────────┼──────────────────┼───────────────────┤
@@ -165,7 +165,7 @@ High-level HTTP client with redirect handling and compression support.
 **API:**
 ```rust
 let loader = ResourceLoader::new()
-    .with_user_agent("Soliloquy/0.1.0")
+    .with_user_agent("Alpenglow/0.1.0")
     .with_max_redirects(10);
 
 // Simple GET request
@@ -311,7 +311,7 @@ React Production Bundle (130 KB):
 ### Complete Integration Example
 
 ```rust
-use soliloquy_shell::net::{
+use alpenglow_shell::net::{
     CodeCache, ConnectionManager, QuicTransport, ResourceLoader, SpeculationEngine
 };
 use std::sync::Arc;
@@ -380,21 +380,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```bash
 # Code cache settings
-export SOLILOQUY_CODE_CACHE_SIZE=104857600  # 100MB
-export SOLILOQUY_CODE_CACHE_DIR=/data/cache
+export ALPENGLOW_CODE_CACHE_SIZE=104857600  # 100MB
+export ALPENGLOW_CODE_CACHE_DIR=/data/cache
 
 # Connection settings
-export SOLILOQUY_DNS_TTL=300                # 5 minutes
-export SOLILOQUY_TLS_SESSION_LIFETIME=86400 # 24 hours
-export SOLILOQUY_MAX_CONNECTIONS_PER_HOST=6
+export ALPENGLOW_DNS_TTL=300                # 5 minutes
+export ALPENGLOW_TLS_SESSION_LIFETIME=86400 # 24 hours
+export ALPENGLOW_MAX_CONNECTIONS_PER_HOST=6
 
 # QUIC settings
-export SOLILOQUY_QUIC_IDLE_TIMEOUT=30       # seconds
-export SOLILOQUY_QUIC_ENABLE_0RTT=true
+export ALPENGLOW_QUIC_IDLE_TIMEOUT=30       # seconds
+export ALPENGLOW_QUIC_ENABLE_0RTT=true
 
 # Speculation settings
-export SOLILOQUY_MAX_PREFETCH=10
-export SOLILOQUY_MAX_PRERENDER=1
+export ALPENGLOW_MAX_PREFETCH=10
+export ALPENGLOW_MAX_PRERENDER=1
 ```
 
 ### Runtime Configuration
@@ -481,5 +481,5 @@ let loader = ResourceLoader::new()
 
 ## License
 
-Copyright (c) 2025 Soliloquy Project
+Copyright (c) 2025 Alpenglow Project
 Licensed under MPL-2.0

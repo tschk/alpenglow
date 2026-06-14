@@ -1,8 +1,8 @@
-// Copyright 2024 Soliloquy Authors
+// Copyright 2024 Alpenglow Authors
 // SPDX-License-Identifier: MPL-2.0
 //
 // Generic Driver Traits
-// Platform-agnostic driver interfaces for Soliloquy OS
+// Platform-agnostic driver interfaces for Alpenglow OS
 
 // Driver traits module - no crate-level attributes here
 

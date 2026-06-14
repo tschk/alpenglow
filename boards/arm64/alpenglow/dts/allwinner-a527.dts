@@ -3,9 +3,9 @@
  * Allwinner A527 SoC Device Tree Stub
  * Base device tree for Radxa Cubie A5E
  *
- * Copyright (c) 2024 Soliloquy Authors
+ * Copyright (c) 2024 Alpenglow Authors
  *
- * This is a minimal device tree for Soliloquy OS on Allwinner A527.
+ * This is a minimal device tree for Alpenglow OS on Allwinner A527.
  * It defines core peripherals needed for boot and basic operation.
  */
 

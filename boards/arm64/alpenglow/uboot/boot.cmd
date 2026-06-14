@@ -1,12 +1,12 @@
 #!/bin/bash
 # SPDX-License-Identifier: MPL-2.0
 #
-# U-Boot boot script for Soliloquy OS on Radxa Cubie A5E
+# U-Boot boot script for Alpenglow OS on Radxa Cubie A5E
 # This script is compiled with mkimage and stored on the boot partition.
 #
 
 echo "========================================"
-echo " Soliloquy OS Boot Loader"
+echo " Alpenglow OS Boot Loader"
 echo " Radxa Cubie A5E (Allwinner A527)"
 echo "========================================"
 
@@ -40,7 +40,7 @@ fi
 
 # ZBI image name
 if test -z "${zbi_name}"; then
-    setenv zbi_name soliloquy.zbi
+    setenv zbi_name alpenglow.zbi
 fi
 
 # Boot arguments for appliance kernel
@@ -64,7 +64,7 @@ echo "Loading ${zbi_name} from ${boot_device} ${boot_instance}:${boot_part}..."
 if load ${boot_device} ${boot_instance}:${boot_part} ${zbi_addr} ${zbi_name}; then
     echo "ZBI loaded successfully"
     echo "Image size: ${filesize} bytes"
-    echo "Starting Soliloquy OS..."
+    echo "Starting Alpenglow OS..."
     echo ""
     
     # Boot the ARM64 image
@@ -78,7 +78,7 @@ else
         booti ${zbi_addr}
     else
         echo "ERROR: No bootable image found!"
-        echo "Please ensure soliloquy.zbi or zircon.zbi is on the boot partition."
+        echo "Please ensure alpenglow.zbi or zircon.zbi is on the boot partition."
     fi
 fi
 
