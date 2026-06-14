@@ -2,9 +2,7 @@ base-devel
 git
 rsync
 pkg-config
-clang
-lld
-llvm
+# LLVM/Clang moved to packages-runtime.txt for in-target compilation
 rust
 cargo
 cmake

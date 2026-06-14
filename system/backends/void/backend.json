@@ -8,6 +8,17 @@
   "bootstrap_package_manager": "xbps",
   "installer": "oil",
   "composition_model": "oasis-static",
+  "compiler": {
+    "default": "clang",
+    "fallback": "gcc",
+    "linker": "lld",
+    "available": ["clang", "gcc", "g++", "clang++"]
+  },
+  "userland": {
+    "style": "hybrid",
+    "core": "gnu",
+    "supplemental": "freebsd"
+  },
   "paths": {
     "packages": "packages-runtime.txt",
     "packages_dev": "packages-dev.txt",
@@ -19,6 +30,7 @@
   "notes": [
     "Oil is the package-manager identity for the composed system.",
     "XBPS is only the Void base bootstrap fetcher until Oil exposes a Void registry backend.",
+    "Clang/LLVM is the default system compiler (Option D / Chimera-style).",
     "The deployed runtime follows the shared immutable rootfs and state mount contract.",
     "Oasis remains the composition model for reproducible, inspectable system images."
   ]

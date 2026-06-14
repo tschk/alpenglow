@@ -21,3 +21,11 @@ erofs-utils
 squashfs-tools
 curl
 tzdata
+# LLVM/Clang system compiler (Option D: Chimera-style)
+clang
+lld
+llvm
+# Build deps needed at runtime for Oil-installed packages
+pkg-config
+rust
+cargo
