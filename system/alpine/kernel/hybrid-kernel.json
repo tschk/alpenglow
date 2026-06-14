@@ -91,14 +91,14 @@
       }
     },
     "filesystems": {
-      "solfs": {
+      "glowfs": {
         "required": true,
         "config": [
           "CONFIG_RUST"
         ],
         "source_lane": "direct-source-edit",
-        "image_format": "solfs",
-        "mount": "solfs"
+        "image_format": "glowfs",
+        "mount": "glowfs"
       },
       "erofs": {
         "required": true,

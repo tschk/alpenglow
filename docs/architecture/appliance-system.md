@@ -85,9 +85,9 @@ These changes are already reflected or scaffolded in the current appliance path:
 
 ## Package Management
 
-- Wax is the declared package manager for Soliloquy system packages.
-- Soliloquy should track Wax's `system-packages` direction rather than the simpler Homebrew-style user package workflow.
-- Wax is expected to manage generations, manifests, and system/userland package state under `/var/lib/soliloquy/wax`.
+- Oil is the declared package manager for Soliloquy system packages.
+- Soliloquy should track Oil's `system-packages` direction rather than the simpler Homebrew-style user package workflow.
+- Oil is expected to manage generations, manifests, and system/userland package state under `/var/lib/soliloquy/oil`.
 - The browser profile vault remains outside package-manager ownership.
 
 ## Why These Changes

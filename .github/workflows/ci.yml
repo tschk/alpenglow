@@ -20,15 +20,15 @@ jobs:
       - name: Check appliance OS policy
         run: scripts/ci-os-appliance.sh
 
-  solfs-kernel-module:
-    name: Alpenglow SolFS kernel module compile
+  glowfs-kernel-module:
+    name: Alpenglow GlowFS kernel module compile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Compile SolFS module against Linux headers
-        run: scripts/ci-solfs-kernel-module.sh
+      - name: Compile GlowFS module against Linux headers
+        run: scripts/ci-glowfs-kernel-module.sh
 
   rust-core:
     name: Alpenglow Rust core gates

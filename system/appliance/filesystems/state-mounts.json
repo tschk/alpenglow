@@ -92,7 +92,7 @@
       "mode": "0700"
     },
     {
-      "path": "/state/var/lib/soliloquy/wax",
+      "path": "/state/var/lib/soliloquy/oil",
       "owner": "root:root",
       "mode": "0755"
     },

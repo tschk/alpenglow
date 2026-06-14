@@ -5,12 +5,12 @@ REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-180}"
-QEMU_LOG="${QEMU_LOG:-${TMPDIR:-/tmp}/soliloquy-qemu-solfs-disk-root.log}"
+QEMU_LOG="${QEMU_LOG:-${TMPDIR:-/tmp}/soliloquy-qemu-glowfs-disk-root.log}"
 QEMU_DIR="${QEMU_DIR:-build/alpine/qemu}"
-SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE:-${QEMU_DIR}/soliloquy-rootfs.solfs}"
+SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE:-${QEMU_DIR}/soliloquy-rootfs.glowfs}"
 
 fail() {
-  printf 'ci-qemu-solfs-disk-root: %s\n' "$1" >&2
+  printf 'ci-qemu-glowfs-disk-root: %s\n' "$1" >&2
   exit 1
 }
 
@@ -34,7 +34,7 @@ require_tool qemu-system-x86_64
 
 [ -f "${QEMU_DIR}/vmlinuz-virt" ] || fail "missing ${QEMU_DIR}/vmlinuz-virt"
 [ -f "${QEMU_DIR}/rootfs.cpio.gz" ] || fail "missing ${QEMU_DIR}/rootfs.cpio.gz"
-[ -f "${QEMU_DIR}/solfs.ko" ] || fail "missing ${QEMU_DIR}/solfs.ko"
+[ -f "${QEMU_DIR}/glowfs.ko" ] || fail "missing ${QEMU_DIR}/glowfs.ko"
 [ -f "${SOLILOQUY_ROOTFS_IMAGE}" ] || fail "missing ${SOLILOQUY_ROOTFS_IMAGE}"
 
 rm -f "${QEMU_LOG}"
@@ -42,19 +42,19 @@ set +e
 if command -v timeout >/dev/null 2>&1; then
   QEMU_HEADLESS=1 QEMU_ACCEL="${QEMU_ACCEL:-tcg}" SOLILOQUY_RAM_ROOT=disk \
     SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE}" SOLILOQUY_ROOTFS_IMAGE_REQUIRED=1 \
-    SOLILOQUY_ROOT_FALLBACK_FSTYPE=solfs timeout "${QEMU_TIMEOUT}" \
+    SOLILOQUY_ROOT_FALLBACK_FSTYPE=glowfs timeout "${QEMU_TIMEOUT}" \
     system/alpine/scripts/run-qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1
   status=$?
 elif command -v gtimeout >/dev/null 2>&1; then
   QEMU_HEADLESS=1 QEMU_ACCEL="${QEMU_ACCEL:-tcg}" SOLILOQUY_RAM_ROOT=disk \
     SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE}" SOLILOQUY_ROOTFS_IMAGE_REQUIRED=1 \
-    SOLILOQUY_ROOT_FALLBACK_FSTYPE=solfs gtimeout "${QEMU_TIMEOUT}" \
+    SOLILOQUY_ROOT_FALLBACK_FSTYPE=glowfs gtimeout "${QEMU_TIMEOUT}" \
     system/alpine/scripts/run-qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1
   status=$?
 else
   QEMU_HEADLESS=1 QEMU_ACCEL="${QEMU_ACCEL:-tcg}" SOLILOQUY_RAM_ROOT=disk \
     SOLILOQUY_ROOTFS_IMAGE="${SOLILOQUY_ROOTFS_IMAGE}" SOLILOQUY_ROOTFS_IMAGE_REQUIRED=1 \
-    SOLILOQUY_ROOT_FALLBACK_FSTYPE=solfs \
+    SOLILOQUY_ROOT_FALLBACK_FSTYPE=glowfs \
     system/alpine/scripts/run-qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1 &
   qemu_pid=$!
   (
@@ -73,7 +73,7 @@ case "${status}" in
   *) tail -n 160 "${QEMU_LOG}" >&2; fail "QEMU exited with status ${status}" ;;
 esac
 
-require_log 'Using rootfs image: .*soliloquy-rootfs\.solfs'
+require_log 'Using rootfs image: .*soliloquy-rootfs\.glowfs'
 require_log '\[init\] switching to disk root /dev/vda'
 require_log 'OpenRC .*Linux 6\.12\.[0-9]+-0-virt'
 require_log 'Starting sol-kernel-policy .*ok'
@@ -89,4 +89,4 @@ reject_log '\[sol-servo\] request_repaint:'
 reject_log '\[sol-servo\] gui\.paint begin:'
 reject_log 'ERROR: sol-session failed to start'
 
-printf 'ci-qemu-solfs-disk-root: ok\n'
+printf 'ci-qemu-glowfs-disk-root: ok\n'

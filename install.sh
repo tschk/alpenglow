@@ -16,7 +16,7 @@ EOF
 
 check_ready() {
   "${ROOT_DIR}/scripts/ci-os-appliance.sh"
-  "${ROOT_DIR}/scripts/ci-solfs-kernel-module.sh"
+  "${ROOT_DIR}/scripts/ci-glowfs-kernel-module.sh"
   "${ROOT_DIR}/scripts/ci-rust-core.sh"
 }
 

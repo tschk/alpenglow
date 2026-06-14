@@ -75,7 +75,7 @@ mkdir -p \
   "${ROOTFS}/var/lib/soliloquy/files" \
   "${ROOTFS}/var/lib/soliloquy/system" \
   "${ROOTFS}/var/lib/soliloquy/system/plugins" \
-  "${ROOTFS}/var/lib/soliloquy/wax"
+  "${ROOTFS}/var/lib/soliloquy/oil"
 mkdir -p "${ROOTFS}/var/cache/soliloquy" "${ROOTFS}/var/log/soliloquy"
 
 chmod 700 "${ROOTFS}/state"
@@ -164,7 +164,7 @@ nameserver 10.0.2.3
 EOF
 
 cat > "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" <<'EOF'
-soliloquy-root / solfs ro,nodev 0 0
+soliloquy-root / glowfs ro,nodev 0 0
 soliloquy-ram-root / ramfs auto,min_ram_mb=3072,fallback=/dev/vda 0 0
 soliloquy-state /state ext4 rw,nosuid,nodev 0 2
 tmpfs /run tmpfs nosuid,nodev,mode=0755 0 0
@@ -212,10 +212,11 @@ cat > "${ROOTFS}/etc/soliloquy/system.json" <<'EOF'
     "state": "/var/lib/soliloquy/system/update-state.json"
   },
   "package_manager": {
-    "id": "wax",
+    "id": "oil",
     "mode": "system-packages",
     "binary": "/usr/local/bin/wax",
-    "root": "/var/lib/soliloquy/wax",
+    "root": "/var/lib/soliloquy/oil",
+    "bootstrap": "apk",
     "developer_mode_required": false
   },
   "plugins": [
@@ -236,11 +237,12 @@ EOF
 
 cat > "${ROOTFS}/etc/soliloquy/package-manager.json" <<'EOF'
 {
-  "id": "wax",
-  "display_name": "Wax",
+  "id": "oil",
+  "display_name": "Oil",
   "mode": "system-packages",
   "binary": "/usr/local/bin/wax",
-  "state_root": "/var/lib/soliloquy/wax",
+  "state_root": "/var/lib/soliloquy/oil",
+  "bootstrap": "apk",
   "developer_mode_required": false,
   "manages": [
     "system-packages",

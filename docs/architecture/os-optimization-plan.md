@@ -1,4 +1,4 @@
-# Soliloquy Alpine OS Optimization Plan
+# Alpenglow OS Optimization Plan
 
 Reasoning path: Soliloquy should borrow operating-system shapes that make a browser appliance faster, safer, and easier to recover, while using an explicit Linux appliance backend, keeping `../rv8` as the browser-engine boundary, and treating Vinix as reference-only because of GPL-2.0.
 
@@ -7,7 +7,7 @@ Confidence score: 8/10.
 ## Design Constraints
 
 - Optimize for browser interactive time, renderer survival, tab residency, and recoverability.
-- Prefer Linux primitives already available to Alpine: cgroup v2, PSI, seccomp, Landlock, pidfd, memfd, Unix socket FD passing, zram, EROFS, SquashFS, SolFS, OpenRC.
+- Prefer Linux primitives already available to Alpine: cgroup v2, PSI, seccomp, Landlock, pidfd, memfd, Unix socket FD passing, zram, EROFS, SquashFS, GlowFS, OpenRC.
 - Keep the immutable root image small and boring.
 - Keep browser, renderer, `sold`, network, terminal, and plugin work in separate failure domains.
 - Measure before optimizing Rust code. Add telemetry first, then benchmarks or release-mode profiles before micro-optimizing.
@@ -154,18 +154,18 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
 - sched_ext implementation lane:
   - useful for scheduler experiments that can stay in BPF/userspace, after baseline EEVDF and cgroup data.
 - Board-specific optimized builds implementation lane:
-  - useful for `sold`, `sol-netd`, `solfsctl`, Servo launcher helpers, and hot Rust services after correctness gates.
+  - useful for `sold`, `sol-netd`, `glowfsctl`, Servo launcher helpers, and hot Rust services after correctness gates.
 
 ### Defer
 
 - Multiple full kernel flavors for end users:
   - keep internal variants first; expose user-selectable kernels only after rollback and mark-good are solid.
 - Full OSTree/rpm-ostree import:
-  - keep full-tree deployment idea, but SolFS/generation metadata already points in the local direction.
+  - keep full-tree deployment idea, but GlowFS/generation metadata already points in the local direction.
 - Snap as package system:
   - keep kernel/gadget/base/app component model and transactional lessons, not snapd.
 - Pacman, apt, dnf, or rpm package flow:
-  - keep lessons, not package managers. Wax remains the package direction for Soliloquy.
+  - keep lessons, not package managers. Oil remains the package direction for Alpenglow.
 - Broad codec and desktop convenience defaults:
   - keep browser-required media support explicit, not remix-style catch-all installs.
 
@@ -213,7 +213,7 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
   - keep EEVDF/default scheduler as fallback
   - no scheduler patch becomes default without QEMU and target-board browser metrics
 - Borrow optimized repository idea for appliance-owned binaries:
-  - build `sold`, `sol-netd`, `solfsctl`, and hot Rust services for target CPU tiers where useful
+  - build `sold`, `sol-netd`, `glowfsctl`, and hot Rust services for target CPU tiers where useful
   - for ARM64 board targets, prefer board-specific `-mcpu`/target-feature builds only after correctness gates pass
   - keep generic baseline artifact for recovery
 - Borrow Arch `mkinitcpio` discipline:
@@ -229,7 +229,7 @@ Soliloquy is not a general desktop distribution. It is a browser appliance on Al
   - optional read-only feature SFS layers
   - easy layer disablement for recovery
 - Add RAM-root as the preferred boot mode where hardware allows it:
-  - load SolFS/EROFS root image into RAM on machines with enough memory
+  - load GlowFS/EROFS root image into RAM on machines with enough memory
   - measure cold boot, first frame, and first remote page load against disk-backed boot
   - fall back to disk-backed boot for low-memory boards or failed RAM-root boots
 - Treat plugin bundles as detachable read-only layers with separate writable state.
@@ -340,9 +340,9 @@ Kernel work is allowed, but it must stay measurable, revertible, and browser-sco
   - protect compositor/input latency with cgroup and scheduler policy
   - add frame pacing telemetry before source-level driver patches
 - Filesystem:
-  - keep SolFS kernel path focused on verified read-only boot
+  - keep GlowFS kernel path focused on verified read-only boot
   - make RAM-root the default where hardware passes 150-tab pressure goals
-  - compare SolFS, EROFS, SquashFS, RAM-root, and disk-backed fallback boot
+  - compare GlowFS, EROFS, SquashFS, RAM-root, and disk-backed fallback boot
   - avoid broad writable filesystem complexity in kernel
 
 ### Kernel Variant Matrix
@@ -498,7 +498,7 @@ Borrow ChromeOS A/B, NixOS generations, Haiku packagefs, and Solaris boot enviro
   - if browser-interactive mark fails after N attempts, roll back
   - if service graph fails, boot safe generation
   - if plugin disables boot, boot with plugin packagefs disabled
-- Make SolFS generation metadata first-class:
+- Make GlowFS generation metadata first-class:
   - generation id
   - content digests
   - build provenance
@@ -692,7 +692,7 @@ Borrow Solaris SMF, MINIX restartable services, QNX supervision, and ChromeOS re
 - Do not replace the active Linux appliance backend to chase theoretical kernel wins.
 - Do not import Vinix code.
 - Do not move browser-engine ownership back into Soliloquy root.
-- Do not add broad package managers beside Wax for system packages.
+- Do not add broad package managers beside Oil for system packages.
 - Do not optimize Rust internals without release-mode measurement.
 - Do not add telemetry that leaves the device by default.
 - Do not ship a custom kernel patch as default until fallback boot, QEMU boot, and target-board browser metrics pass.

@@ -13,13 +13,13 @@ pub struct SolfsDiskHeader {
     flags: u64,
 }
 
-const MAGIC: [u8; 8] = *b"SOLFSV01";
+const MAGIC: [u8; 8] = *b"GLWFSV01";
 const VERSION: u32 = 1;
 const HEADER_LEN: u64 = 56;
 const ENTRY_LEN: u64 = 92;
 
 #[no_mangle]
-pub extern "C" fn solfs_rust_validate_header(header: SolfsDiskHeader) -> i32 {
+pub extern "C" fn glowfs_rust_validate_header(header: SolfsDiskHeader) -> i32 {
     if header.magic != MAGIC {
         return -22;
     }

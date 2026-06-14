@@ -146,7 +146,7 @@ mem_kb="$(awk '/MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || prin
 mem_mb="$((mem_kb / 1024))"
 load_kernel_module virtio_pci
 load_kernel_module virtio_blk
-load_kernel_module_file /usr/local/lib/soliloquy/kernel/solfs.ko
+load_kernel_module_file /usr/local/lib/soliloquy/kernel/glowfs.ko
 
 case "${ram_root_mode}" in
   0|false|off|disk)

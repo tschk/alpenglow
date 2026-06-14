@@ -1,5 +1,5 @@
 [package]
-name = "solfsctl"
+name = "glowfsctl"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
@@ -8,7 +8,7 @@ license-file.workspace = true
 path = "src/lib.rs"
 
 [[bin]]
-name = "solfsctl"
+name = "glowfsctl"
 path = "src/main.rs"
 
 [dependencies]

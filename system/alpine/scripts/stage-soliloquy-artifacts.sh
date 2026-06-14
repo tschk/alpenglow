@@ -14,7 +14,7 @@ SERVO_RUNTIME_DIR="${SERVO_RUNTIME_DIR:-}"
 SOLD_BIN="${SOLD_BIN:-${REPO_ROOT}/target/release/sold}"
 SOL_KERNELCTL_BIN="${SOL_KERNELCTL_BIN:-${REPO_ROOT}/target/release/sol-kernelctl}"
 SOL_NETD_BIN="${SOL_NETD_BIN:-${REPO_ROOT}/target/release/sol-netd}"
-SOLFS_MODULE="${SOLFS_MODULE:-}"
+GLOWFS_MODULE="${GLOWFS_MODULE:-}"
 NATIVE_POLICY_BUILD_SCRIPT="${NATIVE_POLICY_BUILD_SCRIPT:-${REPO_ROOT}/system/alpine/scripts/build-native-policy-modules.sh}"
 NATIVE_POLICY_DIR="${NATIVE_POLICY_DIR:-${REPO_ROOT}/build/alpine/native-policy-v}"
 NATIVE_POLICY_LIB="${NATIVE_POLICY_LIB:-${NATIVE_POLICY_DIR}/libsoliloquy_native_policy_v.so}"
@@ -92,14 +92,14 @@ if [ -f "${SOL_KERNELCTL_BIN}" ]; then
   chmod +x "${ROOTFS}/usr/local/bin/sol-kernelctl"
 fi
 
-if [ -n "${SOLFS_MODULE}" ]; then
-  if [ ! -f "${SOLFS_MODULE}" ]; then
-    echo "SolFS kernel module not found at ${SOLFS_MODULE}" >&2
+if [ -n "${GLOWFS_MODULE}" ]; then
+  if [ ! -f "${GLOWFS_MODULE}" ]; then
+    echo "GlowFS kernel module not found at ${GLOWFS_MODULE}" >&2
     exit 1
   fi
   mkdir -p "${ROOTFS}/usr/local/lib/soliloquy/kernel"
-  cp "${SOLFS_MODULE}" "${ROOTFS}/usr/local/lib/soliloquy/kernel/solfs.ko"
-  chmod 0644 "${ROOTFS}/usr/local/lib/soliloquy/kernel/solfs.ko"
+  cp "${GLOWFS_MODULE}" "${ROOTFS}/usr/local/lib/soliloquy/kernel/glowfs.ko"
+  chmod 0644 "${ROOTFS}/usr/local/lib/soliloquy/kernel/glowfs.ko"
 fi
 
 if [ ! -f "${SOL_NETD_BIN}" ]; then

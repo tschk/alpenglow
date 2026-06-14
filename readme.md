@@ -1,6 +1,6 @@
 # Alpenglow
 
-Alpenglow is the installable operating-system layer for the Soliloquy desktop environment. It owns the immutable Linux appliance image, backend abstraction, kernel policy, SolFS kernel module, rootfs assembly, service graph, local system bridge, and board/runtime install path.
+Alpenglow is the installable operating-system layer for the Soliloquy desktop environment. It owns the immutable Linux appliance image, backend abstraction, kernel policy, GlowFS kernel module, rootfs assembly, service graph, local system bridge, and board/runtime install path.
 
 The active base-system direction is Oasis-style rootfs composition with a Void musl and runit backend, using `../oil` as the installer bridge. Alpine remains the existing reference backend while the Void path reaches full QEMU and board parity.
 
@@ -14,7 +14,7 @@ The root workspace currently contains these Rust packages:
 - `drivers/generic/` - `soliloquy-drivers`
 - `system/kernelctl/` - `sol-kernelctl`
 - `system/netd/` - `sol-netd`
-- `system/solfsctl/` - `solfsctl`
+- `system/glowfsctl/` - `glowfsctl`
 
 Other important top-level areas:
 
@@ -31,8 +31,8 @@ Other important top-level areas:
 - `sold` is a local Axum service that serves bundled UI assets and simple file/settings APIs
 - `system/backends/void` is the active base-system target for the appliance backend abstraction
 - `system/alpine` packages the runtime into the current reference image and boots it under QEMU
-- `system/solfs` carries the SolFS kernel module source and validation
-- `system/alpine/kernel` carries the current appliance kernel package/config, including cgroups, PSI, zram, Rust, seccomp, Landlock, BBR, virtio, DRM, and SolFS integration gates
+- `system/glowfs` carries the GlowFS kernel module source and validation
+- `system/alpine/kernel` carries the current appliance kernel package/config, including cgroups, PSI, zram, Rust, seccomp, Landlock, BBR, virtio, DRM, and GlowFS integration gates
 
 ## Build And Run
 
@@ -57,7 +57,7 @@ cargo test -p sol-kernelctl
 ./install.sh --check
 ```
 
-`install.sh --check` validates the OS policy, SolFS kernel module source, kernel config, and Rust OS crates. The default install path prepares the selected rootfs backend without flashing a device.
+`install.sh --check` validates the OS policy, GlowFS kernel module source, kernel config, and Rust OS crates. The default install path prepares the selected rootfs backend without flashing a device.
 
 ### Appliance backend / QEMU flow
 

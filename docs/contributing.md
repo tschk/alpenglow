@@ -10,7 +10,7 @@ cargo test -p sold
 cargo test -p sold
 cargo test -p sol-netd
 cargo test -p sol-kernelctl
-cargo test -p solfsctl
+cargo test -p glowfsctl
 cd ui/desktop && bun run check && bun run build
 ```
 

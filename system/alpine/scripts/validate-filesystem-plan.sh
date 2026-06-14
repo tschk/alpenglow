@@ -47,7 +47,7 @@ assert_mode() {
 assert_file "${ROOTFS_LAYOUT}"
 assert_file "${STATE_MOUNTS}"
 assert_contains "${ROOTFS_LAYOUT}" '"role": "immutable-system"'
-assert_contains "${ROOTFS_LAYOUT}" '"solfs"'
+assert_contains "${ROOTFS_LAYOUT}" '"glowfs"'
 assert_contains "${ROOTFS_LAYOUT}" '"erofs"'
 assert_contains "${ROOTFS_LAYOUT}" '"squashfs"'
 assert_contains "${ROOTFS_LAYOUT}" '"mountpoint": "/"'
@@ -67,7 +67,7 @@ if [ -n "${ROOTFS}" ]; then
   assert_contains "${ROOTFS}/etc/soliloquy/system.json" '"state_root": "/state"'
   assert_contains "${ROOTFS}/etc/soliloquy/system.json" '"rootfs_layout": "/etc/soliloquy/filesystems/rootfs-layout.json"'
   assert_file "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan"
-  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-root / solfs ro,nodev 0 0$'
+  assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-root / glowfs ro,nodev 0 0$'
   assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-state /state ext4 rw,nosuid,nodev 0 2$'
   assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^/state/home /home none bind 0 0$'
   assert_contains "${ROOTFS}/etc/soliloquy/filesystems/fstab.plan" '^/state/var/lib/soliloquy /var/lib/soliloquy none bind 0 0$'

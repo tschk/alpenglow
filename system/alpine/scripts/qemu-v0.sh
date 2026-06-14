@@ -25,11 +25,11 @@ else
   unset SERVO_RUNTIME_DIR
 fi
 "${ALPINE_SCRIPTS}/fetch-qemu-kernel.sh" "${QEMU_DIR}"
-ROOTFS_FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-solfs}"
-if [ "${ROOTFS_FORMAT}" = "solfs" ] && [ -z "${SOLFS_MODULE:-}" ]; then
-  SOLFS_MODULE="${QEMU_DIR}/solfs.ko"
-  "${ALPINE_SCRIPTS}/build-solfs-module.sh" "${SOLFS_MODULE}"
-  export SOLFS_MODULE
+ROOTFS_FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-glowfs}"
+if [ "${ROOTFS_FORMAT}" = "glowfs" ] && [ -z "${GLOWFS_MODULE:-}" ]; then
+  GLOWFS_MODULE="${QEMU_DIR}/glowfs.ko"
+  "${ALPINE_SCRIPTS}/build-glowfs-module.sh" "${GLOWFS_MODULE}"
+  export GLOWFS_MODULE
 fi
 "${ALPINE_SCRIPTS}/stage-soliloquy-artifacts.sh" "${ROOTFS_DIR}"
 SOLILOQUY_ROOTFS_FORMAT="${ROOTFS_FORMAT}" "${ALPINE_SCRIPTS}/build-rootfs-image.sh" "${ROOTFS_DIR}" "${QEMU_DIR}"

@@ -6,7 +6,7 @@ OUT_DIR="${2:-build/alpine/images}"
 FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-erofs}"
 
 case "${FORMAT}" in
-  solfs|erofs|squashfs)
+  glowfs|erofs|squashfs)
     ;;
   *)
     echo "unsupported rootfs format: ${FORMAT}" >&2
@@ -21,13 +21,13 @@ fi
 
 mkdir -p "${OUT_DIR}"
 
-if [ "${FORMAT}" = "solfs" ]; then
-  OUT_IMG="${OUT_DIR}/soliloquy-rootfs.solfs"
+if [ "${FORMAT}" = "glowfs" ]; then
+  OUT_IMG="${OUT_DIR}/soliloquy-rootfs.glowfs"
   rm -f "${OUT_IMG}"
-  if command -v solfsctl >/dev/null 2>&1; then
-    solfsctl mkfs "${ROOTFS_DIR}" "${OUT_IMG}"
+  if command -v glowfsctl >/dev/null 2>&1; then
+    glowfsctl mkfs "${ROOTFS_DIR}" "${OUT_IMG}"
   else
-    (cd "$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)" && cargo run --package solfsctl --quiet -- mkfs "${ROOTFS_DIR}" "${OUT_IMG}")
+    (cd "$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)" && cargo run --package glowfsctl --quiet -- mkfs "${ROOTFS_DIR}" "${OUT_IMG}")
   fi
 elif [ "${FORMAT}" = "erofs" ]; then
   command -v mkfs.erofs >/dev/null 2>&1 || {

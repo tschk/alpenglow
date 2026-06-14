@@ -5,7 +5,7 @@
     "mountpoint": "/",
     "role": "immutable-system",
     "format_preference": [
-      "solfs",
+      "glowfs",
       "erofs",
       "squashfs"
     ],

@@ -176,7 +176,7 @@ for token in \
   '"seccomp"' \
   '"landlock"' \
   '"bbr_fq"' \
-  '"solfs"' \
+  '"glowfs"' \
   '"erofs"' \
   '"squashfs"' \
   '"damon"' \

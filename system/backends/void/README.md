@@ -9,13 +9,13 @@ Backend properties:
 - base: Void Linux
 - libc: musl
 - init: runit
-- package manager: XBPS during image composition
-- installer bridge: `../oil` through the Wax system package interface
+- package manager: Oil through `../oil`
+- bootstrap fetcher: XBPS during base Void image composition
 - deployed model: immutable rootfs plus `/state`
 
 Use `system/appliance/scripts/select-backend.sh` to resolve the active backend.
 
-`scripts/build-rootfs.sh` bootstraps the base rootfs with XBPS. Set `SOLILOQUY_OIL_SYSTEM_PACKAGES` to a space-separated package list when extra image packages should be installed through the Oil bridge:
+`scripts/build-rootfs.sh` bootstraps the base rootfs with XBPS until Oil has a Void registry backend. Set `SOLILOQUY_OIL_SYSTEM_PACKAGES` to a space-separated package list when extra image packages should be installed through the Oil bridge:
 
 ```sh
 OIL_BUILD=1 SOLILOQUY_OIL_SYSTEM_PACKAGES="ripgrep" ./system/backends/void/scripts/build-rootfs.sh

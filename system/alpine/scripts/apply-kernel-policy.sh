@@ -4,7 +4,7 @@ set -eu
 SOLILOQUY_KERNEL_POLICY_FILE="${SOLILOQUY_KERNEL_POLICY_FILE:-/etc/soliloquy/kernel-policy.json}"
 SOLILOQUY_HYBRID_KERNEL_METADATA="${SOLILOQUY_HYBRID_KERNEL_METADATA:-/usr/share/soliloquy/kernel/hybrid-kernel.json}"
 SOLILOQUY_RUNTIME_STATE_ENV="${SOLILOQUY_RUNTIME_STATE_ENV:-/run/soliloquy/runtime-state.env}"
-SOLILOQUY_SOLFS_MODULE="${SOLILOQUY_SOLFS_MODULE:-/usr/local/lib/soliloquy/kernel/solfs.ko}"
+SOLILOQUY_GLOWFS_MODULE="${SOLILOQUY_GLOWFS_MODULE:-/usr/local/lib/soliloquy/kernel/glowfs.ko}"
 
 if [ -x /usr/local/bin/sol-kernelctl ]; then
   exec /usr/local/bin/sol-kernelctl \
@@ -209,8 +209,8 @@ load_kernel_module virtio_rng
 load_kernel_module virtio_gpu
 load_kernel_module erofs
 load_kernel_module squashfs
-load_kernel_module solfs
-load_kernel_module_file "${SOLILOQUY_SOLFS_MODULE}"
+load_kernel_module glowfs
+load_kernel_module_file "${SOLILOQUY_GLOWFS_MODULE}"
 
 apply_sysctl net.core.somaxconn 4096
 apply_sysctl net.core.default_qdisc fq
@@ -240,7 +240,7 @@ if [ -d /proc/sys/kernel/landlock ] || [ -e /proc/sys/kernel/landlock/restrict_s
 else
   record_runtime_state SOLILOQUY_KERNEL_CAP_LANDLOCK unavailable
 fi
-record_filesystem_capability SOLILOQUY_KERNEL_CAP_SOLFS solfs
+record_filesystem_capability ALPENGLOW_KERNEL_CAP_GLOWFS glowfs
 record_filesystem_capability SOLILOQUY_KERNEL_CAP_EROFS erofs
 record_filesystem_capability SOLILOQUY_KERNEL_CAP_SQUASHFS squashfs
 record_sysctl_value SOLILOQUY_KERNEL_NET_QDISC net.core.default_qdisc

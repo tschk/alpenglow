@@ -13,15 +13,15 @@
 #include <linux/version.h>
 #include <linux/writeback.h>
 
-#include "solfs_format.h"
+#include "glowfs_format.h"
 
-#define SOLFS_MAX_ENTRIES 65536
-#define SOLFS_MAX_NAMES_SIZE (16 * 1024 * 1024)
-#define SOLFS_HAS_FOLIO_WRITE_CALLBACKS (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#define GLOWFS_MAX_ENTRIES 65536
+#define GLOWFS_MAX_NAMES_SIZE (16 * 1024 * 1024)
+#define GLOWFS_HAS_FOLIO_WRITE_CALLBACKS (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
 
-int solfs_rust_validate_header(struct solfs_disk_header header);
+int glowfs_rust_validate_header(struct glowfs_disk_header header);
 
-__weak int solfs_rust_validate_header(struct solfs_disk_header header)
+__weak int glowfs_rust_validate_header(struct glowfs_disk_header header)
 {
 	u32 version = le32_to_cpu(header.version);
 	u32 entry_count = le32_to_cpu(header.entry_count);
@@ -31,15 +31,15 @@ __weak int solfs_rust_validate_header(struct solfs_disk_header header)
 	u64 image_size = le64_to_cpu(header.image_size);
 	u64 entries_len;
 
-	if (memcmp(header.magic, SOLFS_MAGIC_STRING, sizeof(header.magic)))
+	if (memcmp(header.magic, GLOWFS_MAGIC_STRING, sizeof(header.magic)))
 		return -EINVAL;
-	if (version != SOLFS_VERSION)
+	if (version != GLOWFS_VERSION)
 		return -EINVAL;
 	if (!entry_count)
 		return -EINVAL;
-	if (check_mul_overflow((u64)entry_count, (u64)SOLFS_ENTRY_LEN, &entries_len))
+	if (check_mul_overflow((u64)entry_count, (u64)GLOWFS_ENTRY_LEN, &entries_len))
 		return -EINVAL;
-	if (entries_offset != SOLFS_HEADER_LEN)
+	if (entries_offset != GLOWFS_HEADER_LEN)
 		return -EINVAL;
 	if (names_offset < entries_offset + entries_len)
 		return -EINVAL;
@@ -50,7 +50,7 @@ __weak int solfs_rust_validate_header(struct solfs_disk_header header)
 	return 0;
 }
 
-struct solfs_entry {
+struct glowfs_entry {
 	u64 index;
 	u64 inode;
 	u64 parent;
@@ -66,7 +66,7 @@ struct solfs_entry {
 	const char *name;
 };
 
-struct solfs_sb_info {
+struct glowfs_sb_info {
 	u32 entry_count;
 	u64 names_size;
 	u64 flags;
@@ -74,23 +74,23 @@ struct solfs_sb_info {
 	u64 v2_total_blocks;
 	u64 v2_free_blocks;
 	struct mutex allocation_lock;
-	struct solfs_entry *entries;
+	struct glowfs_entry *entries;
 	char *names;
 };
 
-static const struct inode_operations solfs_dir_inode_ops;
-static const struct inode_operations solfs_symlink_inode_ops;
-static const struct file_operations solfs_dir_ops;
-static const struct file_operations solfs_file_ops;
-static const struct address_space_operations solfs_aops;
-static int solfs_write_folio(struct inode *inode, struct folio *folio);
+static const struct inode_operations glowfs_dir_inode_ops;
+static const struct inode_operations glowfs_symlink_inode_ops;
+static const struct file_operations glowfs_dir_ops;
+static const struct file_operations glowfs_file_ops;
+static const struct address_space_operations glowfs_aops;
+static int glowfs_write_folio(struct inode *inode, struct folio *folio);
 
-static struct solfs_sb_info *solfs_sbi(struct super_block *sb)
+static struct glowfs_sb_info *glowfs_sbi(struct super_block *sb)
 {
 	return sb->s_fs_info;
 }
 
-static int solfs_read_bytes(struct super_block *sb, u64 offset, void *dst, size_t len)
+static int glowfs_read_bytes(struct super_block *sb, u64 offset, void *dst, size_t len)
 {
 	u8 *out = dst;
 	u64 block;
@@ -114,7 +114,7 @@ static int solfs_read_bytes(struct super_block *sb, u64 offset, void *dst, size_
 	return 0;
 }
 
-static int solfs_write_bytes(struct super_block *sb, u64 offset, const void *src, size_t len)
+static int glowfs_write_bytes(struct super_block *sb, u64 offset, const void *src, size_t len)
 {
 	const u8 *in = src;
 	u64 block;
@@ -140,27 +140,27 @@ static int solfs_write_bytes(struct super_block *sb, u64 offset, const void *src
 	return 0;
 }
 
-static u64 solfs_align8(u64 value)
+static u64 glowfs_align8(u64 value)
 {
 	return (value + 7) & ~7ULL;
 }
 
-static int solfs_write_header_image_size(struct super_block *sb, u64 image_size)
+static int glowfs_write_header_image_size(struct super_block *sb, u64 image_size)
 {
-	struct solfs_disk_header header;
+	struct glowfs_disk_header header;
 	int ret;
 
-	ret = solfs_read_bytes(sb, 0, &header, sizeof(header));
+	ret = glowfs_read_bytes(sb, 0, &header, sizeof(header));
 	if (ret)
 		return ret;
 	header.image_size = cpu_to_le64(image_size);
-	return solfs_write_bytes(sb, 0, &header, sizeof(header));
+	return glowfs_write_bytes(sb, 0, &header, sizeof(header));
 }
 
-static int solfs_write_disk_entry(struct super_block *sb, struct solfs_entry *entry)
+static int glowfs_write_disk_entry(struct super_block *sb, struct glowfs_entry *entry)
 {
-	struct solfs_disk_entry disk;
-	u64 offset = SOLFS_HEADER_LEN + entry->index * SOLFS_ENTRY_LEN;
+	struct glowfs_disk_entry disk;
+	u64 offset = GLOWFS_HEADER_LEN + entry->index * GLOWFS_ENTRY_LEN;
 
 	disk.inode = cpu_to_le64(entry->inode);
 	disk.parent = cpu_to_le64(entry->parent);
@@ -173,12 +173,12 @@ static int solfs_write_disk_entry(struct super_block *sb, struct solfs_entry *en
 	disk.data_offset = cpu_to_le64(entry->data_offset);
 	disk.size = cpu_to_le64(entry->size);
 	memcpy(disk.digest, entry->digest, sizeof(disk.digest));
-	return solfs_write_bytes(sb, offset, &disk, sizeof(disk));
+	return glowfs_write_bytes(sb, offset, &disk, sizeof(disk));
 }
 
-static struct solfs_entry *solfs_find_inode(struct super_block *sb, u64 inode)
+static struct glowfs_entry *glowfs_find_inode(struct super_block *sb, u64 inode)
 {
-	struct solfs_sb_info *sbi = solfs_sbi(sb);
+	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
 	u32 i;
 
 	for (i = 0; i < sbi->entry_count; i++) {
@@ -188,13 +188,13 @@ static struct solfs_entry *solfs_find_inode(struct super_block *sb, u64 inode)
 	return NULL;
 }
 
-static struct solfs_entry *solfs_find_child(struct super_block *sb, struct solfs_entry *parent, const struct qstr *name)
+static struct glowfs_entry *glowfs_find_child(struct super_block *sb, struct glowfs_entry *parent, const struct qstr *name)
 {
-	struct solfs_sb_info *sbi = solfs_sbi(sb);
+	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
 	u32 i;
 
 	for (i = 0; i < sbi->entry_count; i++) {
-		struct solfs_entry *entry = &sbi->entries[i];
+		struct glowfs_entry *entry = &sbi->entries[i];
 
 		if (entry->parent != parent->inode || entry->inode == parent->inode)
 			continue;
@@ -206,7 +206,7 @@ static struct solfs_entry *solfs_find_child(struct super_block *sb, struct solfs
 	return NULL;
 }
 
-static struct inode *solfs_make_inode(struct super_block *sb, struct solfs_entry *entry)
+static struct inode *glowfs_make_inode(struct super_block *sb, struct glowfs_entry *entry)
 {
 	struct inode *inode = iget_locked(sb, entry->inode);
 	umode_t mode;
@@ -217,9 +217,9 @@ static struct inode *solfs_make_inode(struct super_block *sb, struct solfs_entry
 		return inode;
 
 	mode = entry->mode & 0777;
-	if (entry->kind == SOLFS_KIND_DIR)
+	if (entry->kind == GLOWFS_KIND_DIR)
 		mode |= S_IFDIR;
-	else if (entry->kind == SOLFS_KIND_SYMLINK)
+	else if (entry->kind == GLOWFS_KIND_SYMLINK)
 		mode |= S_IFLNK;
 	else
 		mode |= S_IFREG;
@@ -230,21 +230,21 @@ static struct inode *solfs_make_inode(struct super_block *sb, struct solfs_entry
 	inode->i_gid = make_kgid(&init_user_ns, entry->gid);
 	inode->i_size = entry->size;
 	inode->i_private = entry;
-	inode->i_mapping->a_ops = &solfs_aops;
+	inode->i_mapping->a_ops = &glowfs_aops;
 	inode_set_atime_to_ts(inode, current_time(inode));
 	inode_set_mtime_to_ts(inode, current_time(inode));
 	inode_set_ctime_current(inode);
 
-	if (entry->kind == SOLFS_KIND_DIR) {
-		inode->i_op = &solfs_dir_inode_ops;
-		inode->i_fop = &solfs_dir_ops;
+	if (entry->kind == GLOWFS_KIND_DIR) {
+		inode->i_op = &glowfs_dir_inode_ops;
+		inode->i_fop = &glowfs_dir_ops;
 		set_nlink(inode, 2);
-	} else if (entry->kind == SOLFS_KIND_SYMLINK) {
-		inode->i_op = &solfs_symlink_inode_ops;
+	} else if (entry->kind == GLOWFS_KIND_SYMLINK) {
+		inode->i_op = &glowfs_symlink_inode_ops;
 		inode_nohighmem(inode);
 		set_nlink(inode, 1);
 	} else {
-		inode->i_fop = &solfs_file_ops;
+		inode->i_fop = &glowfs_file_ops;
 		set_nlink(inode, 1);
 	}
 
@@ -252,18 +252,18 @@ static struct inode *solfs_make_inode(struct super_block *sb, struct solfs_entry
 	return inode;
 }
 
-static struct dentry *solfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+static struct dentry *glowfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
-	struct solfs_entry *parent = dir->i_private;
-	struct solfs_entry *entry;
+	struct glowfs_entry *parent = dir->i_private;
+	struct glowfs_entry *entry;
 	struct inode *inode = NULL;
 
 	if (dentry->d_name.len > 255)
 		return ERR_PTR(-ENAMETOOLONG);
 
-	entry = solfs_find_child(dir->i_sb, parent, &dentry->d_name);
+	entry = glowfs_find_child(dir->i_sb, parent, &dentry->d_name);
 	if (entry) {
-		inode = solfs_make_inode(dir->i_sb, entry);
+		inode = glowfs_make_inode(dir->i_sb, entry);
 		if (!inode)
 			return ERR_PTR(-ENOMEM);
 	}
@@ -272,11 +272,11 @@ static struct dentry *solfs_lookup(struct inode *dir, struct dentry *dentry, uns
 	return NULL;
 }
 
-static int solfs_iterate_shared(struct file *file, struct dir_context *ctx)
+static int glowfs_iterate_shared(struct file *file, struct dir_context *ctx)
 {
 	struct inode *inode = file_inode(file);
-	struct solfs_entry *parent = inode->i_private;
-	struct solfs_sb_info *sbi = solfs_sbi(inode->i_sb);
+	struct glowfs_entry *parent = inode->i_private;
+	struct glowfs_sb_info *sbi = glowfs_sbi(inode->i_sb);
 	loff_t emitted = 2;
 	u32 i;
 
@@ -284,7 +284,7 @@ static int solfs_iterate_shared(struct file *file, struct dir_context *ctx)
 		return 0;
 
 	for (i = 0; i < sbi->entry_count; i++) {
-		struct solfs_entry *entry = &sbi->entries[i];
+		struct glowfs_entry *entry = &sbi->entries[i];
 		unsigned int type;
 
 		if (entry->parent != parent->inode || entry->inode == parent->inode)
@@ -293,9 +293,9 @@ static int solfs_iterate_shared(struct file *file, struct dir_context *ctx)
 			emitted++;
 			continue;
 		}
-		if (entry->kind == SOLFS_KIND_DIR)
+		if (entry->kind == GLOWFS_KIND_DIR)
 			type = DT_DIR;
-		else if (entry->kind == SOLFS_KIND_SYMLINK)
+		else if (entry->kind == GLOWFS_KIND_SYMLINK)
 			type = DT_LNK;
 		else
 			type = DT_REG;
@@ -306,9 +306,9 @@ static int solfs_iterate_shared(struct file *file, struct dir_context *ctx)
 	return 0;
 }
 
-static int solfs_fill_folio(struct inode *inode, struct folio *folio)
+static int glowfs_fill_folio(struct inode *inode, struct folio *folio)
 {
-	struct solfs_entry *entry = inode->i_private;
+	struct glowfs_entry *entry = inode->i_private;
 	loff_t pos = folio_pos(folio);
 	size_t size = folio_size(folio);
 	size_t copied = 0;
@@ -321,7 +321,7 @@ static int solfs_fill_folio(struct inode *inode, struct folio *folio)
 		if (entry->data_offset > U64_MAX - pos)
 			ret = -EIO;
 		else
-			ret = solfs_read_bytes(inode->i_sb, entry->data_offset + pos, addr, copied);
+			ret = glowfs_read_bytes(inode->i_sb, entry->data_offset + pos, addr, copied);
 	}
 	if (!ret && copied < size)
 		memset((u8 *)addr + copied, 0, size - copied);
@@ -334,33 +334,33 @@ static int solfs_fill_folio(struct inode *inode, struct folio *folio)
 	return 0;
 }
 
-static int solfs_read_folio(struct file *file, struct folio *folio)
+static int glowfs_read_folio(struct file *file, struct folio *folio)
 {
-	int ret = solfs_fill_folio(folio->mapping->host, folio);
+	int ret = glowfs_fill_folio(folio->mapping->host, folio);
 
 	folio_unlock(folio);
 	return ret;
 }
 
-static void solfs_readahead(struct readahead_control *rac)
+static void glowfs_readahead(struct readahead_control *rac)
 {
 	struct folio *folio;
 
 	while ((folio = readahead_folio(rac))) {
-		if (!solfs_fill_folio(rac->mapping->host, folio))
+		if (!glowfs_fill_folio(rac->mapping->host, folio))
 			folio_mark_uptodate(folio);
 		folio_unlock(folio);
 	}
 }
 
-static void solfs_free_link(void *link)
+static void glowfs_free_link(void *link)
 {
 	kfree(link);
 }
 
-static const char *solfs_get_link(struct dentry *dentry, struct inode *inode, struct delayed_call *done)
+static const char *glowfs_get_link(struct dentry *dentry, struct inode *inode, struct delayed_call *done)
 {
-	struct solfs_entry *entry = inode->i_private;
+	struct glowfs_entry *entry = inode->i_private;
 	char *target;
 	int ret;
 
@@ -371,28 +371,28 @@ static const char *solfs_get_link(struct dentry *dentry, struct inode *inode, st
 	target = kmalloc(entry->size + 1, GFP_KERNEL);
 	if (!target)
 		return ERR_PTR(-ENOMEM);
-	ret = solfs_read_bytes(inode->i_sb, entry->data_offset, target, entry->size);
+	ret = glowfs_read_bytes(inode->i_sb, entry->data_offset, target, entry->size);
 	if (ret) {
 		kfree(target);
 		return ERR_PTR(ret);
 	}
 	target[entry->size] = '\0';
-	set_delayed_call(done, solfs_free_link, target);
+	set_delayed_call(done, glowfs_free_link, target);
 	return target;
 }
 
-static int solfs_write_begin_common(struct address_space *mapping, loff_t pos, unsigned int len, struct folio **foliop)
+static int glowfs_write_begin_common(struct address_space *mapping, loff_t pos, unsigned int len, struct folio **foliop)
 {
 	struct inode *inode = mapping->host;
-	struct solfs_entry *entry = inode->i_private;
-	struct solfs_sb_info *sbi = solfs_sbi(inode->i_sb);
+	struct glowfs_entry *entry = inode->i_private;
+	struct glowfs_sb_info *sbi = glowfs_sbi(inode->i_sb);
 	struct page *page;
 	pgoff_t index = pos >> PAGE_SHIFT;
 	int ret;
 
 	if (pos < 0)
 		return -EINVAL;
-	if (!(sbi->flags & SOLFS_FLAG_MUTABLE))
+	if (!(sbi->flags & GLOWFS_FLAG_MUTABLE))
 		return -EROFS;
 	if (len > U64_MAX - pos)
 		return -EFBIG;
@@ -404,7 +404,7 @@ static int solfs_write_begin_common(struct address_space *mapping, loff_t pos, u
 		return -ENOMEM;
 
 	if (!PageUptodate(page)) {
-		ret = solfs_fill_folio(inode, page_folio(page));
+		ret = glowfs_fill_folio(inode, page_folio(page));
 		if (ret) {
 			unlock_page(page);
 			put_page(page);
@@ -416,11 +416,11 @@ static int solfs_write_begin_common(struct address_space *mapping, loff_t pos, u
 	return 0;
 }
 
-static int solfs_write_end_common(struct address_space *mapping, loff_t pos, unsigned int copied, struct folio *folio)
+static int glowfs_write_end_common(struct address_space *mapping, loff_t pos, unsigned int copied, struct folio *folio)
 {
 	struct inode *inode = mapping->host;
-	struct solfs_entry *entry = inode->i_private;
-	struct solfs_sb_info *sbi = solfs_sbi(inode->i_sb);
+	struct glowfs_entry *entry = inode->i_private;
+	struct glowfs_sb_info *sbi = glowfs_sbi(inode->i_sb);
 	u64 end;
 	u64 old_offset;
 	u64 old_size;
@@ -437,9 +437,9 @@ static int solfs_write_end_common(struct address_space *mapping, loff_t pos, uns
 		mutex_lock(&sbi->allocation_lock);
 		old_offset = entry->data_offset;
 		old_size = entry->size;
-		entry->data_offset = solfs_align8(sbi->image_size);
+		entry->data_offset = glowfs_align8(sbi->image_size);
 		entry->size = end;
-		sbi->image_size = solfs_align8(entry->data_offset + entry->size);
+		sbi->image_size = glowfs_align8(entry->data_offset + entry->size);
 
 		if (old_size > 0) {
 			u8 *copy = kmalloc(PAGE_SIZE, GFP_KERNEL);
@@ -455,9 +455,9 @@ static int solfs_write_end_common(struct address_space *mapping, loff_t pos, uns
 			while (done < old_size) {
 				size_t chunk = min_t(u64, PAGE_SIZE, old_size - done);
 
-				ret = solfs_read_bytes(inode->i_sb, old_offset + done, copy, chunk);
+				ret = glowfs_read_bytes(inode->i_sb, old_offset + done, copy, chunk);
 				if (!ret)
-					ret = solfs_write_bytes(inode->i_sb, entry->data_offset + done, copy, chunk);
+					ret = glowfs_write_bytes(inode->i_sb, entry->data_offset + done, copy, chunk);
 				if (ret) {
 					kfree(copy);
 					entry->data_offset = old_offset;
@@ -471,9 +471,9 @@ static int solfs_write_end_common(struct address_space *mapping, loff_t pos, uns
 			kfree(copy);
 		}
 
-		ret = solfs_write_header_image_size(inode->i_sb, sbi->image_size);
+		ret = glowfs_write_header_image_size(inode->i_sb, sbi->image_size);
 		if (!ret)
-			ret = solfs_write_disk_entry(inode->i_sb, entry);
+			ret = glowfs_write_disk_entry(inode->i_sb, entry);
 		mutex_unlock(&sbi->allocation_lock);
 		if (ret) {
 			entry->data_offset = old_offset;
@@ -485,7 +485,7 @@ static int solfs_write_end_common(struct address_space *mapping, loff_t pos, uns
 		i_size_write(inode, entry->size);
 	}
 
-	ret = solfs_write_folio(inode, folio);
+	ret = glowfs_write_folio(inode, folio);
 	if (ret) {
 		copied = 0;
 		goto out;
@@ -500,38 +500,38 @@ out:
 	return copied;
 }
 
-#if SOLFS_HAS_FOLIO_WRITE_CALLBACKS
-static int solfs_write_begin(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, struct folio **foliop, void **fsdata)
+#if GLOWFS_HAS_FOLIO_WRITE_CALLBACKS
+static int glowfs_write_begin(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, struct folio **foliop, void **fsdata)
 {
-	return solfs_write_begin_common(mapping, pos, len, foliop);
+	return glowfs_write_begin_common(mapping, pos, len, foliop);
 }
 
-static int solfs_write_end(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, unsigned int copied, struct folio *folio, void *fsdata)
+static int glowfs_write_end(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, unsigned int copied, struct folio *folio, void *fsdata)
 {
-	return solfs_write_end_common(mapping, pos, copied, folio);
+	return glowfs_write_end_common(mapping, pos, copied, folio);
 }
 #else
-static int solfs_write_begin(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, struct page **pagep, void **fsdata)
+static int glowfs_write_begin(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, struct page **pagep, void **fsdata)
 {
 	struct folio *folio;
 	int ret;
 
-	ret = solfs_write_begin_common(mapping, pos, len, &folio);
+	ret = glowfs_write_begin_common(mapping, pos, len, &folio);
 	if (ret)
 		return ret;
 	*pagep = folio_page(folio, 0);
 	return 0;
 }
 
-static int solfs_write_end(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, unsigned int copied, struct page *page, void *fsdata)
+static int glowfs_write_end(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, unsigned int copied, struct page *page, void *fsdata)
 {
-	return solfs_write_end_common(mapping, pos, copied, page_folio(page));
+	return glowfs_write_end_common(mapping, pos, copied, page_folio(page));
 }
 #endif
 
-static int solfs_write_folio(struct inode *inode, struct folio *folio)
+static int glowfs_write_folio(struct inode *inode, struct folio *folio)
 {
-	struct solfs_entry *entry = inode->i_private;
+	struct glowfs_entry *entry = inode->i_private;
 	loff_t pos = folio_pos(folio);
 	size_t size = folio_size(folio);
 	size_t written;
@@ -542,39 +542,39 @@ static int solfs_write_folio(struct inode *inode, struct folio *folio)
 		return 0;
 	written = min_t(u64, size, entry->size - pos);
 	addr = kmap_local_folio(folio, 0);
-	ret = solfs_write_bytes(inode->i_sb, entry->data_offset + pos, addr, written);
+	ret = glowfs_write_bytes(inode->i_sb, entry->data_offset + pos, addr, written);
 	kunmap_local(addr);
 	return ret;
 }
 
-static int solfs_writepage(struct page *page, struct writeback_control *wbc)
+static int glowfs_writepage(struct page *page, struct writeback_control *wbc)
 {
 	struct folio *folio = page_folio(page);
 	struct inode *inode = folio->mapping->host;
 	int ret;
 
 	folio_start_writeback(folio);
-	ret = solfs_write_folio(inode, folio);
+	ret = glowfs_write_folio(inode, folio);
 	folio_end_writeback(folio);
 	folio_unlock(folio);
 	return ret;
 }
 
-static const struct inode_operations solfs_dir_inode_ops = {
-	.lookup = solfs_lookup,
+static const struct inode_operations glowfs_dir_inode_ops = {
+	.lookup = glowfs_lookup,
 };
 
-static const struct inode_operations solfs_symlink_inode_ops = {
-	.get_link = solfs_get_link,
+static const struct inode_operations glowfs_symlink_inode_ops = {
+	.get_link = glowfs_get_link,
 };
 
-static const struct file_operations solfs_dir_ops = {
+static const struct file_operations glowfs_dir_ops = {
 	.owner = THIS_MODULE,
-	.iterate_shared = solfs_iterate_shared,
+	.iterate_shared = glowfs_iterate_shared,
 	.llseek = generic_file_llseek,
 };
 
-static const struct file_operations solfs_file_ops = {
+static const struct file_operations glowfs_file_ops = {
 	.owner = THIS_MODULE,
 	.read_iter = generic_file_read_iter,
 	.write_iter = generic_file_write_iter,
@@ -584,18 +584,18 @@ static const struct file_operations solfs_file_ops = {
 	.llseek = generic_file_llseek,
 };
 
-static const struct address_space_operations solfs_aops = {
-	.writepage = solfs_writepage,
-	.read_folio = solfs_read_folio,
-	.readahead = solfs_readahead,
-	.write_begin = solfs_write_begin,
-	.write_end = solfs_write_end,
+static const struct address_space_operations glowfs_aops = {
+	.writepage = glowfs_writepage,
+	.read_folio = glowfs_read_folio,
+	.readahead = glowfs_readahead,
+	.write_begin = glowfs_write_begin,
+	.write_end = glowfs_write_end,
 	.dirty_folio = filemap_dirty_folio,
 };
 
-static int solfs_load_entries(struct super_block *sb, struct solfs_disk_header *header)
+static int glowfs_load_entries(struct super_block *sb, struct glowfs_disk_header *header)
 {
-	struct solfs_sb_info *sbi = solfs_sbi(sb);
+	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
 	u64 entries_offset = le64_to_cpu(header->entries_offset);
 	u64 names_offset = le64_to_cpu(header->names_offset);
 	u64 data_offset = le64_to_cpu(header->data_offset);
@@ -606,10 +606,10 @@ static int solfs_load_entries(struct super_block *sb, struct solfs_disk_header *
 	u32 i;
 	int ret;
 
-	if (entry_count == 0 || entry_count > SOLFS_MAX_ENTRIES)
+	if (entry_count == 0 || entry_count > GLOWFS_MAX_ENTRIES)
 		return -EINVAL;
 	names_size = data_offset - names_offset;
-	if (names_size > SOLFS_MAX_NAMES_SIZE)
+	if (names_size > GLOWFS_MAX_NAMES_SIZE)
 		return -EINVAL;
 
 	sbi->entry_count = entry_count;
@@ -625,16 +625,16 @@ static int solfs_load_entries(struct super_block *sb, struct solfs_disk_header *
 	if (!sbi->names)
 		return -ENOMEM;
 
-	ret = solfs_read_bytes(sb, names_offset, sbi->names, names_size);
+	ret = glowfs_read_bytes(sb, names_offset, sbi->names, names_size);
 	if (ret)
 		return ret;
 	sbi->names[names_size] = '\0';
 
 	for (i = 0; i < entry_count; i++) {
-		struct solfs_disk_entry disk;
-		struct solfs_entry *entry = &sbi->entries[i];
+		struct glowfs_disk_entry disk;
+		struct glowfs_entry *entry = &sbi->entries[i];
 
-		ret = solfs_read_bytes(sb, entries_offset + i * sizeof(disk), &disk, sizeof(disk));
+		ret = glowfs_read_bytes(sb, entries_offset + i * sizeof(disk), &disk, sizeof(disk));
 		if (ret)
 			return ret;
 
@@ -653,20 +653,20 @@ static int solfs_load_entries(struct super_block *sb, struct solfs_disk_header *
 
 		if (entry->name_offset > names_size || entry->name_len > names_size - entry->name_offset)
 			return -EINVAL;
-		if (entry->kind != SOLFS_KIND_DIR && entry->kind != SOLFS_KIND_FILE && entry->kind != SOLFS_KIND_SYMLINK)
+		if (entry->kind != GLOWFS_KIND_DIR && entry->kind != GLOWFS_KIND_FILE && entry->kind != GLOWFS_KIND_SYMLINK)
 			return -EINVAL;
-		if (!(flags & SOLFS_FLAG_MUTABLE) && entry->kind == SOLFS_KIND_FILE && entry->mode & 0222)
+		if (!(flags & GLOWFS_FLAG_MUTABLE) && entry->kind == GLOWFS_KIND_FILE && entry->mode & 0222)
 			return -EINVAL;
-		if (entry->kind == SOLFS_KIND_DIR && (entry->size || entry->data_offset))
+		if (entry->kind == GLOWFS_KIND_DIR && (entry->size || entry->data_offset))
 			return -EINVAL;
-		if (entry->kind != SOLFS_KIND_DIR && (entry->data_offset > image_size || entry->size > image_size - entry->data_offset))
+		if (entry->kind != GLOWFS_KIND_DIR && (entry->data_offset > image_size || entry->size > image_size - entry->data_offset))
 			return -EINVAL;
 		if (entry->name_len && memchr(sbi->names + entry->name_offset, '/', entry->name_len))
 			return -EINVAL;
 		entry->name = sbi->names + entry->name_offset;
 	}
 
-	if (sbi->entries[0].inode != 1 || sbi->entries[0].parent != 1 || sbi->entries[0].kind != SOLFS_KIND_DIR)
+	if (sbi->entries[0].inode != 1 || sbi->entries[0].parent != 1 || sbi->entries[0].kind != GLOWFS_KIND_DIR)
 		return -EINVAL;
 	if (sbi->entries[0].name_len != 0)
 		return -EINVAL;
@@ -688,11 +688,11 @@ static int solfs_load_entries(struct super_block *sb, struct solfs_disk_header *
 	return 0;
 }
 
-static int solfs_load_v2_superblock(struct super_block *sb)
+static int glowfs_load_v2_superblock(struct super_block *sb)
 {
-	struct solfs_sb_info *sbi = solfs_sbi(sb);
-	struct solfs_v2_superblock v2;
-	u64 offset = solfs_align8(sbi->image_size);
+	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
+	struct glowfs_v2_superblock v2;
+	u64 offset = glowfs_align8(sbi->image_size);
 	u64 block_size;
 	u64 bitmap_offset;
 	u64 bitmap_len;
@@ -705,14 +705,14 @@ static int solfs_load_v2_superblock(struct super_block *sb)
 	u64 free_blocks;
 	int ret;
 
-	if (!(sbi->flags & SOLFS_FLAG_V2))
+	if (!(sbi->flags & GLOWFS_FLAG_V2))
 		return 0;
-	ret = solfs_read_bytes(sb, offset, &v2, sizeof(v2));
+	ret = glowfs_read_bytes(sb, offset, &v2, sizeof(v2));
 	if (ret)
 		return ret;
-	if (memcmp(v2.magic, SOLFS_V2_MAGIC_STRING, sizeof(v2.magic)))
+	if (memcmp(v2.magic, GLOWFS_V2_MAGIC_STRING, sizeof(v2.magic)))
 		return -EINVAL;
-	if (le32_to_cpu(v2.version) != SOLFS_V2_VERSION)
+	if (le32_to_cpu(v2.version) != GLOWFS_V2_VERSION)
 		return -EINVAL;
 	block_size = le64_to_cpu(v2.block_size);
 	bitmap_offset = le64_to_cpu(v2.bitmap_offset);
@@ -725,9 +725,9 @@ static int solfs_load_v2_superblock(struct super_block *sb)
 	total_blocks = le64_to_cpu(v2.total_blocks);
 	free_blocks = le64_to_cpu(v2.free_blocks);
 
-	if (block_size != SOLFS_V2_BLOCK_SIZE)
+	if (block_size != GLOWFS_V2_BLOCK_SIZE)
 		return -EINVAL;
-	if (bitmap_offset < offset + SOLFS_V2_SUPERBLOCK_LEN)
+	if (bitmap_offset < offset + GLOWFS_V2_SUPERBLOCK_LEN)
 		return -EINVAL;
 	if (extent_table_offset < bitmap_offset + bitmap_len)
 		return -EINVAL;
@@ -742,9 +742,9 @@ static int solfs_load_v2_superblock(struct super_block *sb)
 	return 0;
 }
 
-static void solfs_put_super(struct super_block *sb)
+static void glowfs_put_super(struct super_block *sb)
 {
-	struct solfs_sb_info *sbi = solfs_sbi(sb);
+	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
 
 	if (!sbi)
 		return;
@@ -754,12 +754,12 @@ static void solfs_put_super(struct super_block *sb)
 	sb->s_fs_info = NULL;
 }
 
-static int solfs_statfs(struct dentry *dentry, struct kstatfs *buf)
+static int glowfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
 	struct super_block *sb = dentry->d_sb;
-	struct solfs_sb_info *sbi = solfs_sbi(sb);
+	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
 
-	buf->f_type = SOLFS_SUPER_MAGIC;
+	buf->f_type = GLOWFS_SUPER_MAGIC;
 	buf->f_bsize = sb->s_blocksize;
 	buf->f_blocks = sbi && sbi->v2_total_blocks ? sbi->v2_total_blocks : 1;
 	buf->f_bfree = sbi && sbi->v2_total_blocks ? sbi->v2_free_blocks : 0;
@@ -770,18 +770,18 @@ static int solfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	return 0;
 }
 
-static const struct super_operations solfs_super_ops = {
-	.statfs = solfs_statfs,
-	.put_super = solfs_put_super,
+static const struct super_operations glowfs_super_ops = {
+	.statfs = glowfs_statfs,
+	.put_super = glowfs_put_super,
 	.drop_inode = generic_delete_inode,
 };
 
-static int solfs_fill_super(struct super_block *sb, void *data, int silent)
+static int glowfs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct buffer_head *bh;
 	struct inode *root_inode;
-	struct solfs_disk_header header;
-	struct solfs_sb_info *sbi;
+	struct glowfs_disk_header header;
+	struct glowfs_sb_info *sbi;
 	u64 image_flags;
 	int ret;
 
@@ -793,7 +793,7 @@ static int solfs_fill_super(struct super_block *sb, void *data, int silent)
 	memcpy(&header, bh->b_data, sizeof(header));
 	brelse(bh);
 
-	ret = solfs_rust_validate_header(header);
+	ret = glowfs_rust_validate_header(header);
 	if (ret)
 		return ret;
 
@@ -802,23 +802,23 @@ static int solfs_fill_super(struct super_block *sb, void *data, int silent)
 		return -ENOMEM;
 
 	sb->s_fs_info = sbi;
-	sb->s_magic = SOLFS_SUPER_MAGIC;
-	sb->s_op = &solfs_super_ops;
+	sb->s_magic = GLOWFS_SUPER_MAGIC;
+	sb->s_op = &glowfs_super_ops;
 	sb->s_maxbytes = MAX_LFS_FILESIZE;
 	image_flags = le64_to_cpu(header.flags);
-	if (!(image_flags & SOLFS_FLAG_MUTABLE))
+	if (!(image_flags & GLOWFS_FLAG_MUTABLE))
 		sb->s_flags |= SB_RDONLY;
 
-	ret = solfs_load_entries(sb, &header);
+	ret = glowfs_load_entries(sb, &header);
 	if (ret)
 		goto err;
-	ret = solfs_load_v2_superblock(sb);
+	ret = glowfs_load_v2_superblock(sb);
 	if (ret)
 		goto err;
-	if (sbi->flags & SOLFS_FLAG_V2)
+	if (sbi->flags & GLOWFS_FLAG_V2)
 		sb->s_flags |= SB_RDONLY;
 
-	root_inode = solfs_make_inode(sb, solfs_find_inode(sb, 1));
+	root_inode = glowfs_make_inode(sb, glowfs_find_inode(sb, 1));
 	if (!root_inode) {
 		ret = -ENOMEM;
 		goto err;
@@ -833,34 +833,34 @@ static int solfs_fill_super(struct super_block *sb, void *data, int silent)
 	return 0;
 
 err:
-	solfs_put_super(sb);
+	glowfs_put_super(sb);
 	return ret;
 }
 
-static struct dentry *solfs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
+static struct dentry *glowfs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
 {
-	return mount_bdev(fs_type, flags, dev_name, data, solfs_fill_super);
+	return mount_bdev(fs_type, flags, dev_name, data, glowfs_fill_super);
 }
 
-static struct file_system_type solfs_fs_type = {
+static struct file_system_type glowfs_fs_type = {
 	.owner = THIS_MODULE,
-	.name = "solfs",
-	.mount = solfs_mount,
+	.name = "glowfs",
+	.mount = glowfs_mount,
 	.kill_sb = kill_block_super,
 	.fs_flags = FS_REQUIRES_DEV,
 };
 
-static int __init solfs_init(void)
+static int __init glowfs_init(void)
 {
-	return register_filesystem(&solfs_fs_type);
+	return register_filesystem(&glowfs_fs_type);
 }
 
-static void __exit solfs_exit(void)
+static void __exit glowfs_exit(void)
 {
-	unregister_filesystem(&solfs_fs_type);
+	unregister_filesystem(&glowfs_fs_type);
 }
 
-module_init(solfs_init);
-module_exit(solfs_exit);
+module_init(glowfs_init);
+module_exit(glowfs_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Soliloquy filesystem VFS shim");

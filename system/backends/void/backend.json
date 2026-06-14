@@ -4,7 +4,8 @@
   "base": "void",
   "libc": "musl",
   "init": "runit",
-  "package_manager": "xbps",
+  "package_manager": "oil",
+  "bootstrap_package_manager": "xbps",
   "installer": "oil",
   "composition_model": "oasis-static",
   "paths": {
@@ -16,8 +17,8 @@
     "installer": "../../appliance/scripts/oil-installer.sh"
   },
   "notes": [
-    "XBPS is used while composing the image, not as mutable runtime state.",
-    "Oil is used as the managed installer bridge for declared additions.",
+    "Oil is the package-manager identity for the composed system.",
+    "XBPS is only the Void base bootstrap fetcher until Oil exposes a Void registry backend.",
     "The deployed runtime follows the shared immutable rootfs and state mount contract.",
     "Oasis remains the composition model for reproducible, inspectable system images."
   ]

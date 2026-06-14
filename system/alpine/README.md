@@ -40,7 +40,7 @@ Output:
 Build a sealed rootfs image from the configured rootfs:
 
 ```sh
-SOLILOQUY_ROOTFS_FORMAT=solfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
+SOLILOQUY_ROOTFS_FORMAT=glowfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
 SOLILOQUY_ROOTFS_FORMAT=erofs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
 SOLILOQUY_ROOTFS_FORMAT=squashfs ./system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images
 ```
@@ -107,11 +107,11 @@ SERVO_BUILD=0 ./system/alpine/scripts/ensure-servo-fork.sh
 LINUX_BIN_DIR="$(./system/alpine/scripts/ensure-linux-runtime-binaries.sh)"
 ./system/alpine/scripts/build-rootfs.sh
 ./system/alpine/scripts/fetch-qemu-kernel.sh build/alpine/qemu
-SOLILOQUY_ROOTFS_FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-solfs}"
-if [ "${SOLILOQUY_ROOTFS_FORMAT}" = "solfs" ]; then
-  SOLFS_MODULE="${SOLFS_MODULE:-build/alpine/qemu/solfs.ko}"
-  ./system/alpine/scripts/build-solfs-module.sh "${SOLFS_MODULE}"
-  export SOLFS_MODULE
+SOLILOQUY_ROOTFS_FORMAT="${SOLILOQUY_ROOTFS_FORMAT:-glowfs}"
+if [ "${SOLILOQUY_ROOTFS_FORMAT}" = "glowfs" ]; then
+  GLOWFS_MODULE="${GLOWFS_MODULE:-build/alpine/qemu/glowfs.ko}"
+  ./system/alpine/scripts/build-glowfs-module.sh "${GLOWFS_MODULE}"
+  export GLOWFS_MODULE
 fi
 export SERVO_BIN="${LINUX_BIN_DIR}/servo"
 export SOLD_BIN="${LINUX_BIN_DIR}/sold"

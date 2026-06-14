@@ -20,7 +20,7 @@ Backends own:
 - distro package manifests,
 - distro-specific kernel packaging.
 
-The installer bridge is `../oil`, currently via its `wax` binary. It is used for managed package additions into a composed rootfs with `WAX_SYSTEM_PREFIX`. Void base bootstrap still uses XBPS until Oil exposes a Void registry backend.
+The package-manager identity is `oil`, sourced from `../oil`. The current sibling checkout still builds a binary named `wax`, so scripts call that binary through the Oil bridge. Void base bootstrap still uses XBPS only as a fetcher until Oil exposes a Void registry backend.
 
 Current backend ranking:
 

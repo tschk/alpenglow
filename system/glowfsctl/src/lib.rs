@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 pub mod v2;
 
-pub const MAGIC: &[u8; 8] = b"SOLFSV01";
+pub const MAGIC: &[u8; 8] = b"GLWFSV01";
 pub const HEADER_LEN: usize = 56;
 pub const ENTRY_LEN: usize = 92;
 pub const KIND_DIR: u32 = 1;
@@ -20,29 +20,29 @@ pub const FLAG_MUTABLE: u64 = 2;
 pub const FLAG_V2: u64 = 4;
 
 #[derive(Debug)]
-pub enum SolfsError {
+pub enum GlowfsError {
     Io(io::Error),
     Invalid(String),
 }
 
-impl fmt::Display for SolfsError {
+impl fmt::Display for GlowfsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SolfsError::Io(error) => write!(f, "{error}"),
-            SolfsError::Invalid(message) => write!(f, "{message}"),
+            GlowfsError::Io(error) => write!(f, "{error}"),
+            GlowfsError::Invalid(message) => write!(f, "{message}"),
         }
     }
 }
 
-impl std::error::Error for SolfsError {}
+impl std::error::Error for GlowfsError {}
 
-impl From<io::Error> for SolfsError {
+impl From<io::Error> for GlowfsError {
     fn from(error: io::Error) -> Self {
-        SolfsError::Io(error)
+        GlowfsError::Io(error)
     }
 }
 
-pub type Result<T> = std::result::Result<T, SolfsError>;
+pub type Result<T> = std::result::Result<T, GlowfsError>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Header {
@@ -92,9 +92,9 @@ impl Image {
         let path = query_path(path);
         let parent = self
             .find_path(&path)
-            .ok_or_else(|| SolfsError::Invalid(format!("directory not found: {path}")))?;
+            .ok_or_else(|| GlowfsError::Invalid(format!("directory not found: {path}")))?;
         if parent.kind != KIND_DIR {
-            return Err(SolfsError::Invalid(format!("not a directory: {path}")));
+            return Err(GlowfsError::Invalid(format!("not a directory: {path}")));
         }
         let mut names = self
             .entries
@@ -131,7 +131,7 @@ pub fn build_image_with_mode(
 ) -> Result<Image> {
     let source = source.as_ref();
     if !source.is_dir() {
-        return Err(SolfsError::Invalid(format!(
+        return Err(GlowfsError::Invalid(format!(
             "source directory not found: {}",
             source.display()
         )));
@@ -152,10 +152,9 @@ pub fn build_image_with_mode(
             entry.inode = next_inode;
             next_inode += 1;
             let parent_path = parent_path(&entry.path);
-            let parent = inode_by_path
-                .get(parent_path)
-                .copied()
-                .ok_or_else(|| SolfsError::Invalid(format!("missing parent for {}", entry.path)))?;
+            let parent = inode_by_path.get(parent_path).copied().ok_or_else(|| {
+                GlowfsError::Invalid(format!("missing parent for {}", entry.path))
+            })?;
             entry.parent = parent;
         }
         inode_by_path.insert(entry.path.clone(), entry.inode);
@@ -265,11 +264,10 @@ pub fn inspect_image(path: impl AsRef<Path>) -> Result<Image> {
         let mut name = vec![0_u8; entry.name_len as usize];
         file.read_exact(&mut name)?;
         let name = String::from_utf8(name)
-            .map_err(|_| SolfsError::Invalid("entry name is not valid utf-8".to_string()))?;
-        let parent_path = path_by_inode
-            .get(&entry.parent)
-            .cloned()
-            .ok_or_else(|| SolfsError::Invalid(format!("missing parent inode {}", entry.parent)))?;
+            .map_err(|_| GlowfsError::Invalid("entry name is not valid utf-8".to_string()))?;
+        let parent_path = path_by_inode.get(&entry.parent).cloned().ok_or_else(|| {
+            GlowfsError::Invalid(format!("missing parent inode {}", entry.parent))
+        })?;
         entry.path = if parent_path.is_empty() {
             name
         } else {
@@ -287,9 +285,9 @@ pub fn read_file(image: impl AsRef<Path>, path: &str) -> Result<Vec<u8>> {
     let image = inspect_image(image_path)?;
     let entry = image
         .find_path(path)
-        .ok_or_else(|| SolfsError::Invalid(format!("file not found: {}", query_path(path))))?;
+        .ok_or_else(|| GlowfsError::Invalid(format!("file not found: {}", query_path(path))))?;
     if entry.kind != KIND_FILE {
-        return Err(SolfsError::Invalid(format!(
+        return Err(GlowfsError::Invalid(format!(
             "not a file: {}",
             query_path(path)
         )));
@@ -299,7 +297,7 @@ pub fn read_file(image: impl AsRef<Path>, path: &str) -> Result<Vec<u8>> {
     let mut bytes = vec![0_u8; entry.size as usize];
     file.read_exact(&mut bytes)?;
     if image.header.flags & FLAG_MUTABLE == 0 && digest_bytes(&bytes) != entry.digest {
-        return Err(SolfsError::Invalid(format!(
+        return Err(GlowfsError::Invalid(format!(
             "digest mismatch: {}",
             query_path(path)
         )));
@@ -312,8 +310,8 @@ pub fn overwrite_file(image: impl AsRef<Path>, path: &str, data: &[u8]) -> Resul
     let image = inspect_image(image_path)?;
     let path = query_path(path);
     if image.header.flags & FLAG_MUTABLE == 0 {
-        return Err(SolfsError::Invalid(format!(
-            "cannot write immutable SolFS image: {path}"
+        return Err(GlowfsError::Invalid(format!(
+            "cannot write immutable GlowFS image: {path}"
         )));
     }
     let (index, entry) = image
@@ -321,9 +319,9 @@ pub fn overwrite_file(image: impl AsRef<Path>, path: &str, data: &[u8]) -> Resul
         .iter()
         .enumerate()
         .find(|(_, entry)| entry.path == path)
-        .ok_or_else(|| SolfsError::Invalid(format!("file not found: {path}")))?;
+        .ok_or_else(|| GlowfsError::Invalid(format!("file not found: {path}")))?;
     if entry.kind != KIND_FILE {
-        return Err(SolfsError::Invalid(format!("not a file: {path}")));
+        return Err(GlowfsError::Invalid(format!("not a file: {path}")));
     }
     let mut updated = entry.clone();
     let old_size = entry.size;
@@ -360,7 +358,7 @@ pub fn overwrite_file(image: impl AsRef<Path>, path: &str, data: &[u8]) -> Resul
 pub fn render_text(image: &Image) -> String {
     let mut lines = Vec::with_capacity(image.entries.len() + 1);
     lines.push(format!(
-        "solfs entries={} size={} flags={}",
+        "glowfs entries={} size={} flags={}",
         image.header.entry_count, image.header.image_size, image.header.flags
     ));
     for entry in &image.entries {
@@ -407,7 +405,7 @@ mod behavior_tests {
         fs::create_dir_all(root.join("usr/bin")).unwrap();
         fs::write(root.join("usr/bin/b"), b"b").unwrap();
         fs::write(root.join("usr/bin/a"), b"a").unwrap();
-        let image_path = root.with_extension("solfs");
+        let image_path = root.with_extension("glowfs");
         build_image(&root, &image_path).unwrap();
         let image = inspect_image(&image_path).unwrap();
 
@@ -423,7 +421,7 @@ mod behavior_tests {
         let root = temp_dir("read");
         fs::create_dir_all(root.join("etc/soliloquy")).unwrap();
         fs::write(root.join("etc/soliloquy/system.json"), b"{\"ok\":true}\n").unwrap();
-        let image_path = root.with_extension("solfs");
+        let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
 
         let bytes = read_file(&image_path, "etc/soliloquy/system.json").unwrap();
@@ -438,7 +436,7 @@ mod behavior_tests {
         let root = temp_dir("write");
         fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
         fs::write(root.join("var/lib/soliloquy/state.env"), b"renderer=old\n").unwrap();
-        let image_path = root.with_extension("solfs");
+        let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
 
         overwrite_file(
@@ -459,7 +457,7 @@ mod behavior_tests {
         let root = temp_dir("write-grow");
         fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
         fs::write(root.join("var/lib/soliloquy/state.env"), b"small").unwrap();
-        let image_path = root.with_extension("solfs");
+        let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
 
         overwrite_file(&image_path, "var/lib/soliloquy/state.env", b"larger-value").unwrap();
@@ -481,7 +479,7 @@ mod behavior_tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!(
-            "solfsctl-behavior-{name}-{}-{stamp}",
+            "glowfsctl-behavior-{name}-{}-{stamp}",
             std::process::id()
         ))
     }
@@ -526,7 +524,7 @@ fn collect_dir(
     for path in children {
         let metadata = fs::symlink_metadata(&path)?;
         let relative = path.strip_prefix(root).map_err(|_| {
-            SolfsError::Invalid(format!("path escaped source root: {}", path.display()))
+            GlowfsError::Invalid(format!("path escaped source root: {}", path.display()))
         })?;
         let relative = normalize_path(relative)?;
         if metadata.file_type().is_symlink() {
@@ -534,7 +532,7 @@ fn collect_dir(
             let target = target
                 .to_str()
                 .ok_or_else(|| {
-                    SolfsError::Invalid(format!(
+                    GlowfsError::Invalid(format!(
                         "symlink target is not valid utf-8: {}",
                         path.display()
                     ))
@@ -600,8 +598,8 @@ fn normalize_path(path: &Path) -> Result<String> {
     for component in path.components() {
         let value = component.as_os_str().to_string_lossy();
         if value.is_empty() || value == "." || value == ".." {
-            return Err(SolfsError::Invalid(format!(
-                "invalid SolFS path component: {value}"
+            return Err(GlowfsError::Invalid(format!(
+                "invalid GlowFS path component: {value}"
             )));
         }
         parts.push(value.to_string());
@@ -611,37 +609,37 @@ fn normalize_path(path: &Path) -> Result<String> {
 
 fn validate_image(header: &Header, entries: &[Entry]) -> Result<()> {
     if header.entries_offset != HEADER_LEN as u64 {
-        return Err(SolfsError::Invalid("bad entries offset".to_string()));
+        return Err(GlowfsError::Invalid("bad entries offset".to_string()));
     }
     if header.names_offset < header.entries_offset + entries.len() as u64 * ENTRY_LEN as u64 {
-        return Err(SolfsError::Invalid("bad names offset".to_string()));
+        return Err(GlowfsError::Invalid("bad names offset".to_string()));
     }
     if header.data_offset < header.names_offset {
-        return Err(SolfsError::Invalid("bad data offset".to_string()));
+        return Err(GlowfsError::Invalid("bad data offset".to_string()));
     }
     if entries
         .first()
         .map(|entry| (entry.inode, entry.parent, entry.kind))
         != Some((1, 1, KIND_DIR))
     {
-        return Err(SolfsError::Invalid("root entry is invalid".to_string()));
+        return Err(GlowfsError::Invalid("root entry is invalid".to_string()));
     }
     let mut inode_by_id = BTreeMap::new();
     for entry in entries {
         if inode_by_id.insert(entry.inode, true).is_some() {
-            return Err(SolfsError::Invalid(format!(
+            return Err(GlowfsError::Invalid(format!(
                 "duplicate inode {}",
                 entry.inode
             )));
         }
         if entry.kind != KIND_DIR && entry.kind != KIND_FILE && entry.kind != KIND_SYMLINK {
-            return Err(SolfsError::Invalid(format!(
+            return Err(GlowfsError::Invalid(format!(
                 "bad entry kind {}",
                 entry.kind
             )));
         }
         if entry.kind == KIND_DIR && (entry.size != 0 || entry.data_offset != 0) {
-            return Err(SolfsError::Invalid(format!(
+            return Err(GlowfsError::Invalid(format!(
                 "directory has file payload: {}",
                 entry.inode
             )));
@@ -652,11 +650,13 @@ fn validate_image(header: &Header, entries: &[Entry]) -> Result<()> {
 
 fn parse_header(bytes: &[u8; HEADER_LEN]) -> Result<Header> {
     if &bytes[0..8] != MAGIC {
-        return Err(SolfsError::Invalid("bad SolFS magic".to_string()));
+        return Err(GlowfsError::Invalid("bad GlowFS magic".to_string()));
     }
     let version = u32_at(bytes, 8);
     if version != 1 {
-        return Err(SolfsError::Invalid(format!("bad SolFS version {version}")));
+        return Err(GlowfsError::Invalid(format!(
+            "bad GlowFS version {version}"
+        )));
     }
     Ok(Header {
         entry_count: u32_at(bytes, 12),
@@ -773,7 +773,7 @@ mod tests {
         let root = temp_dir("round-trip");
         fs::create_dir_all(root.join("etc/soliloquy")).unwrap();
         fs::write(root.join("etc/soliloquy/system.json"), b"{\"ok\":true}\n").unwrap();
-        let image = root.with_extension("solfs");
+        let image = root.with_extension("glowfs");
 
         let built = build_image(&root, &image).unwrap();
         let inspected = inspect_image(&image).unwrap();
@@ -795,7 +795,7 @@ mod tests {
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink("target", root.join("link")).unwrap();
-            let image = root.with_extension("solfs");
+            let image = root.with_extension("glowfs");
             build_image(&root, &image).unwrap();
             let inspected = inspect_image(&image).unwrap();
             let link = inspected.find_path("link").unwrap();
@@ -817,7 +817,7 @@ mod tests {
         fs::write(&init, b"#!/bin/sh\n").unwrap();
         #[cfg(unix)]
         fs::set_permissions(&init, fs::Permissions::from_mode(0o755)).unwrap();
-        let image = root.with_extension("solfs");
+        let image = root.with_extension("glowfs");
 
         build_image(&root, &image).unwrap();
         let inspected = inspect_image(&image).unwrap();
@@ -834,6 +834,6 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("solfsctl-{name}-{}-{stamp}", std::process::id()))
+        std::env::temp_dir().join(format!("glowfsctl-{name}-{}-{stamp}", std::process::id()))
     }
 }

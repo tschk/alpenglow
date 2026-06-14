@@ -3,7 +3,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-pub const V2_MAGIC: &[u8; 8] = b"SOLFSV02";
+pub const V2_MAGIC: &[u8; 8] = b"GLWFSV02";
 pub const V2_BLOCK_SIZE: u64 = 4096;
 pub const V2_SUPERBLOCK_LEN: u64 = 96;
 pub const V2_EXTENT_RECORD_LEN: u64 = 40;
@@ -41,7 +41,7 @@ pub fn plan_v2_layout(
     target_size: u64,
 ) -> crate::Result<V2Layout> {
     if target_size < header.image_size {
-        return Err(crate::SolfsError::Invalid(
+        return Err(crate::GlowfsError::Invalid(
             "v2 target size is smaller than source image".to_string(),
         ));
     }
@@ -60,7 +60,7 @@ pub fn plan_v2_layout(
     let used_file_blocks = extents.iter().map(|extent| extent.block_count).sum::<u64>();
     let used_blocks = metadata_blocks.saturating_add(used_file_blocks);
     if used_blocks > total_blocks {
-        return Err(crate::SolfsError::Invalid(
+        return Err(crate::GlowfsError::Invalid(
             "v2 target size cannot fit metadata and file extents".to_string(),
         ));
     }
@@ -86,8 +86,8 @@ pub fn upgrade_image_to_v2(path: impl AsRef<Path>, target_size: u64) -> crate::R
     let path = path.as_ref();
     let image = crate::inspect_image(path)?;
     if image.header.flags & crate::FLAG_MUTABLE == 0 {
-        return Err(crate::SolfsError::Invalid(
-            "only mutable SolFS images can be upgraded to v2".to_string(),
+        return Err(crate::GlowfsError::Invalid(
+            "only mutable GlowFS images can be upgraded to v2".to_string(),
         ));
     }
     let layout = plan_v2_layout(&image.header, &image.entries, target_size)?;
@@ -101,7 +101,7 @@ pub fn upgrade_image_to_v2(path: impl AsRef<Path>, target_size: u64) -> crate::R
 
     for extent in &layout.extents {
         let entry = entry_map.get(&extent.inode).ok_or_else(|| {
-            crate::SolfsError::Invalid("v2 extent references missing inode".into())
+            crate::GlowfsError::Invalid("v2 extent references missing inode".into())
         })?;
         file.seek(SeekFrom::Start(entry.data_offset))?;
         let mut data = vec![0_u8; entry.size as usize];
@@ -241,7 +241,7 @@ mod tests {
         let root = temp_dir("layout");
         fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
         fs::write(root.join("var/lib/soliloquy/state.env"), vec![7_u8; 8192]).unwrap();
-        let image_path = root.with_extension("solfs");
+        let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
         let image = inspect_image(&image_path).unwrap();
 
@@ -267,7 +267,7 @@ mod tests {
         let root = temp_dir("upgrade");
         fs::create_dir_all(root.join("var/lib/soliloquy")).unwrap();
         fs::write(root.join("var/lib/soliloquy/state.env"), vec![9_u8; 5000]).unwrap();
-        let image_path = root.with_extension("solfs");
+        let image_path = root.with_extension("glowfs");
         build_image_with_mode(&root, &image_path, ImageMode::Mutable).unwrap();
         let before = inspect_image(&image_path).unwrap();
         let target_size = before.header.image_size + 2 * 1024 * 1024;
@@ -314,6 +314,9 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("solfsctl-v2-{name}-{}-{stamp}", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "glowfsctl-v2-{name}-{}-{stamp}",
+            std::process::id()
+        ))
     }
 }

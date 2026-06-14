@@ -16,7 +16,7 @@ The macOS desktop path uses Crepuscularity GPUI chrome with Servo's built-in chr
 - [V0 Architecture](./v0-architecture.md)
 - [Appliance System](./architecture/appliance-system.md)
 - [Browser-Centric OS Optimization](./architecture/browser-centric-os.md)
-- [Soliloquy Alpine OS Optimization Plan](./architecture/os-optimization-plan.md)
+- [Alpenglow OS Optimization Plan](./architecture/os-optimization-plan.md)
 - [API Contract](./api_contract.md)
 - [Browser Chrome](./browser_chrome.md)
 - [RV8 Linkage Roadmap](./rv8_linkage_roadmap.md)

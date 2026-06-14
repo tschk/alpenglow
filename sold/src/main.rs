@@ -470,7 +470,7 @@ struct KernelFeatureStatus {
     landlock_available: bool,
     sched_ext_available: bool,
     preempt_rt_available: bool,
-    solfs_available: bool,
+    glowfs_available: bool,
     erofs_available: bool,
     squashfs_available: bool,
 }
@@ -1596,10 +1596,10 @@ fn kernel_feature_status(
             "SOLILOQUY_KERNEL_CAP_PREEMPT_RT",
             FsPath::new("/sys/kernel/realtime").exists(),
         ),
-        solfs_available: runtime_capability_active(
+        glowfs_available: runtime_capability_active(
             runtime_state,
-            "SOLILOQUY_KERNEL_CAP_SOLFS",
-            filesystem_available("solfs"),
+            "ALPENGLOW_KERNEL_CAP_GLOWFS",
+            filesystem_available("glowfs"),
         ),
         erofs_available: runtime_capability_active(
             runtime_state,
@@ -1945,10 +1945,10 @@ fn default_system_config() -> SystemConfig {
             logs_root: "/var/lib/soliloquy/browser/logs".to_string(),
         },
         package_manager: PackageManagerPolicy {
-            id: "wax".to_string(),
+            id: "oil".to_string(),
             mode: "system-packages".to_string(),
             binary: "/usr/local/bin/wax".to_string(),
-            root: "/var/lib/soliloquy/wax".to_string(),
+            root: "/var/lib/soliloquy/oil".to_string(),
             developer_mode_required: false,
         },
         plugins: vec![PluginConfig {
@@ -1967,11 +1967,11 @@ fn default_system_config() -> SystemConfig {
 
 fn default_package_manager_config() -> PackageManagerConfig {
     PackageManagerConfig {
-        id: "wax".to_string(),
-        display_name: "Wax".to_string(),
+        id: "oil".to_string(),
+        display_name: "Oil".to_string(),
         mode: "system-packages".to_string(),
         binary: "/usr/local/bin/wax".to_string(),
-        state_root: "/var/lib/soliloquy/wax".to_string(),
+        state_root: "/var/lib/soliloquy/oil".to_string(),
         developer_mode_required: false,
         manages: vec![
             "system-packages".to_string(),
@@ -2894,16 +2894,16 @@ mod tests {
     }
 
     #[test]
-    fn package_manager_identity_is_wax() {
+    fn package_manager_identity_is_oil() {
         let package_manager = default_package_manager_config();
-        assert_eq!(package_manager.id, "wax");
+        assert_eq!(package_manager.id, "oil");
         assert_eq!(package_manager.mode, "system-packages");
     }
 
     #[test]
     fn runtime_status_is_honest_about_v8_bridge() {
         let registry = default_service_registry();
-        let state = parse_runtime_state("SOLILOQUY_SESSION_START_UNIX_MS=1000\nSOLILOQUY_BROWSER_LAUNCH_UNIX_MS=1500\nSOLILOQUY_BROWSER_EXIT_UNIX_MS=2500\nSOLILOQUY_RENDERER_PID=42\nSOLILOQUY_RENDERER_RESTARTS=2\nSOLILOQUY_KERNEL_FEATURE_CGROUP_V2=1\nSOLILOQUY_KERNEL_FEATURE_CPU_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_IO_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_MEMORY_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_PIDS_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_BBR=1\nSOLILOQUY_KERNEL_FEATURE_TCP_FASTOPEN=1\nSOLILOQUY_KERNEL_CAP_MGLRU=active\nSOLILOQUY_KERNEL_CAP_ZRAM=active\nSOLILOQUY_KERNEL_CAP_DAMON=unavailable\nSOLILOQUY_KERNEL_CAP_SECCOMP=active\nSOLILOQUY_KERNEL_CAP_LANDLOCK=active\nSOLILOQUY_KERNEL_CAP_SCHED_EXT=unavailable\nSOLILOQUY_KERNEL_CAP_PREEMPT_RT=unavailable\nSOLILOQUY_KERNEL_CAP_SOLFS=active\nSOLILOQUY_KERNEL_CAP_EROFS=active\nSOLILOQUY_KERNEL_CAP_SQUASHFS=active\nSOLILOQUY_KERNEL_SOURCE_MODE=external-or-in-tree\nSOLILOQUY_KERNEL_SOURCE_IN_TREE=system/alpine/kernel/linux\nSOLILOQUY_KERNEL_SOURCE_IN_TREE_PRESENT=0\nSOLILOQUY_KERNEL_PATCH_QUEUE=active\nSOLILOQUY_KERNEL_BORE_LANE=active\nSOLILOQUY_PRESSURE_PSI_CPU=active\nSOLILOQUY_PRESSURE_PSI_MEMORY=active\nSOLILOQUY_PRESSURE_PSI_IO=active\nSOLILOQUY_PRESSURE_LEVEL=observable\nSOLILOQUY_ZRAM_STATE=active\nSOLILOQUY_ZRAM_SIZE=768M\nSOLILOQUY_RAM_ROOT_STATE=active\n");
+        let state = parse_runtime_state("SOLILOQUY_SESSION_START_UNIX_MS=1000\nSOLILOQUY_BROWSER_LAUNCH_UNIX_MS=1500\nSOLILOQUY_BROWSER_EXIT_UNIX_MS=2500\nSOLILOQUY_RENDERER_PID=42\nSOLILOQUY_RENDERER_RESTARTS=2\nSOLILOQUY_KERNEL_FEATURE_CGROUP_V2=1\nSOLILOQUY_KERNEL_FEATURE_CPU_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_IO_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_MEMORY_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_PIDS_CONTROLLER=1\nSOLILOQUY_KERNEL_FEATURE_BBR=1\nSOLILOQUY_KERNEL_FEATURE_TCP_FASTOPEN=1\nSOLILOQUY_KERNEL_CAP_MGLRU=active\nSOLILOQUY_KERNEL_CAP_ZRAM=active\nSOLILOQUY_KERNEL_CAP_DAMON=unavailable\nSOLILOQUY_KERNEL_CAP_SECCOMP=active\nSOLILOQUY_KERNEL_CAP_LANDLOCK=active\nSOLILOQUY_KERNEL_CAP_SCHED_EXT=unavailable\nSOLILOQUY_KERNEL_CAP_PREEMPT_RT=unavailable\nALPENGLOW_KERNEL_CAP_GLOWFS=active\nSOLILOQUY_KERNEL_CAP_EROFS=active\nSOLILOQUY_KERNEL_CAP_SQUASHFS=active\nSOLILOQUY_KERNEL_SOURCE_MODE=external-or-in-tree\nSOLILOQUY_KERNEL_SOURCE_IN_TREE=system/alpine/kernel/linux\nSOLILOQUY_KERNEL_SOURCE_IN_TREE_PRESENT=0\nSOLILOQUY_KERNEL_PATCH_QUEUE=active\nSOLILOQUY_KERNEL_BORE_LANE=active\nSOLILOQUY_PRESSURE_PSI_CPU=active\nSOLILOQUY_PRESSURE_PSI_MEMORY=active\nSOLILOQUY_PRESSURE_PSI_IO=active\nSOLILOQUY_PRESSURE_LEVEL=observable\nSOLILOQUY_ZRAM_STATE=active\nSOLILOQUY_ZRAM_SIZE=768M\nSOLILOQUY_RAM_ROOT_STATE=active\n");
         let runtime = build_runtime_status(&Settings::default(), &registry, &state, Vec::new());
         assert_eq!(runtime.javascript.requested_engine, "v8-experimental");
         assert_eq!(runtime.javascript.active_engine, "mozjs");
@@ -2952,7 +2952,7 @@ mod tests {
         assert!(runtime.kernel_policy.features.landlock_available);
         assert!(!runtime.kernel_policy.features.sched_ext_available);
         assert!(!runtime.kernel_policy.features.preempt_rt_available);
-        assert!(runtime.kernel_policy.features.solfs_available);
+        assert!(runtime.kernel_policy.features.glowfs_available);
         assert!(runtime.kernel_policy.features.erofs_available);
         assert!(runtime.kernel_policy.features.squashfs_available);
         assert_eq!(

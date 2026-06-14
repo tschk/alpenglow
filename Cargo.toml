@@ -8,7 +8,7 @@ members = [
     "drivers/generic",
     "system/kernelctl",
     "system/netd",
-    "system/solfsctl",
+    "system/glowfsctl",
 ]
 
 [workspace.package]

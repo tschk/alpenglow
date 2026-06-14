@@ -61,10 +61,10 @@ for path in \
   system/alpine/scripts/apply-zram-policy.sh \
   system/alpine/scripts/audit-package-budget.sh \
   system/alpine/scripts/build-native-policy-modules.sh \
-  system/alpine/scripts/build-solfs-module.sh \
+  system/alpine/scripts/build-glowfs-module.sh \
   system/alpine/scripts/build-rootfs-image.sh \
   system/alpine/scripts/validate-filesystem-plan.sh \
-  system/solfs/kernel/validate-solfs-kernel.sh \
+  system/glowfs/kernel/validate-glowfs-kernel.sh \
   system/alpine/kernel/validate-kernel-config.sh \
   system/alpine/scripts/sol-session-start \
   system/alpine/scripts/sol-servo-wrapper \
@@ -93,11 +93,13 @@ assert_contains system/appliance/backends.json '"default": "void-musl-runit"'
 assert_contains system/appliance/backends.json '"composition_model": "oasis-static"'
 assert_contains system/appliance/installers/oil.json '"source": "../oil"'
 assert_contains system/appliance/installers/oil.json '"binary": "wax"'
+assert_contains system/backends/void/backend.json '"package_manager": "oil"'
+assert_contains system/backends/void/backend.json '"bootstrap_package_manager": "xbps"'
 assert_contains system/appliance/scripts/oil-installer.sh 'OIL_ROOT'
 assert_contains system/appliance/scripts/oil-installer.sh 'WAX_SYSTEM_PREFIX'
 assert_contains system/appliance/scripts/oil-installer.sh 'system add --no-script'
 assert_contains system/appliance/filesystems/rootfs-layout.json '"role": "immutable-system"'
-assert_contains system/appliance/filesystems/rootfs-layout.json '"solfs"'
+assert_contains system/appliance/filesystems/rootfs-layout.json '"glowfs"'
 assert_contains system/appliance/filesystems/rootfs-layout.json '"erofs"'
 assert_contains system/appliance/filesystems/rootfs-layout.json '"squashfs"'
 assert_contains system/appliance/filesystems/rootfs-layout.json '"/etc/soliloquy/world"'
@@ -108,6 +110,8 @@ assert_contains system/backends/void/backend.json '"id": "void-musl-runit"'
 assert_contains system/backends/void/backend.json '"libc": "musl"'
 assert_contains system/backends/void/backend.json '"init": "runit"'
 assert_contains system/backends/void/backend.json '"installer": "oil"'
+assert_contains system/backends/void/scripts/configure-rootfs.sh '"id": "oil"'
+assert_contains system/backends/void/scripts/configure-rootfs.sh '"bootstrap": "xbps"'
 assert_contains system/backends/void/backend.json '"composition_model": "oasis-static"'
 assert_contains system/backends/void/packages-runtime.txt '^base-minimal$'
 assert_contains system/backends/void/packages-runtime.txt '^runit$'
@@ -131,12 +135,12 @@ assert_executable system/appliance/scripts/select-backend.sh
 [ "$(system/appliance/scripts/select-backend.sh)" = "${REPO_ROOT}/system/backends/void" ] || fail "default backend selector must resolve Void"
 assert_file scripts/ci-qemu-appliance.sh
 sh -n scripts/ci-qemu-appliance.sh
-assert_file scripts/ci-qemu-solfs-disk-root.sh
-sh -n scripts/ci-qemu-solfs-disk-root.sh
-assert_file scripts/ci-solfs-kernel-module.sh
-sh -n scripts/ci-solfs-kernel-module.sh
-assert_contains scripts/ci-qemu-solfs-disk-root.sh 'SOLILOQUY_RAM_ROOT=disk'
-assert_contains scripts/ci-qemu-solfs-disk-root.sh 'switching to disk root /dev/vda'
+assert_file scripts/ci-qemu-glowfs-disk-root.sh
+sh -n scripts/ci-qemu-glowfs-disk-root.sh
+assert_file scripts/ci-glowfs-kernel-module.sh
+sh -n scripts/ci-glowfs-kernel-module.sh
+assert_contains scripts/ci-qemu-glowfs-disk-root.sh 'SOLILOQUY_RAM_ROOT=disk'
+assert_contains scripts/ci-qemu-glowfs-disk-root.sh 'switching to disk root /dev/vda'
 assert_contains scripts/ci-qemu-appliance.sh 'Starting sol-kernel-policy'
 assert_contains scripts/ci-qemu-appliance.sh 'Starting sol-zram'
 assert_contains scripts/ci-qemu-appliance.sh 'Cannot find Xwayland binary'
@@ -145,16 +149,16 @@ assert_file system/alpine/kernel-policy.json
 assert_file system/alpine/filesystems/rootfs-layout.json
 assert_file system/alpine/filesystems/state-mounts.json
 assert_contains system/alpine/filesystems/rootfs-layout.json '"role": "immutable-system"'
-assert_contains system/alpine/filesystems/rootfs-layout.json '"solfs"'
+assert_contains system/alpine/filesystems/rootfs-layout.json '"glowfs"'
 assert_contains system/alpine/filesystems/rootfs-layout.json '"erofs"'
 assert_contains system/alpine/filesystems/rootfs-layout.json '"squashfs"'
 assert_contains system/alpine/filesystems/state-mounts.json '"target": "/var/lib/soliloquy"'
 assert_contains system/alpine/filesystems/state-mounts.json '"target": "/home"'
 assert_contains system/alpine/scripts/build-rootfs-image.sh 'mkfs.erofs'
 assert_contains system/alpine/scripts/build-rootfs-image.sh 'mksquashfs'
-assert_contains system/alpine/scripts/build-rootfs-image.sh 'solfsctl mkfs'
+assert_contains system/alpine/scripts/build-rootfs-image.sh 'glowfsctl mkfs'
 assert_contains system/alpine/scripts/qemu-v0.sh 'build-rootfs-image.sh'
-assert_contains system/alpine/scripts/qemu-v0.sh 'build-solfs-module.sh'
+assert_contains system/alpine/scripts/qemu-v0.sh 'build-glowfs-module.sh'
 assert_contains system/alpine/scripts/qemu-v0.sh 'SOLILOQUY_ROOTFS_FORMAT'
 assert_contains system/alpine/scripts/qemu-v0.sh 'SOLILOQUY_ROOTFS_IMAGE_REQUIRED'
 assert_contains system/alpine/qemu-v0.sh 'exec "\$\{SCRIPT_DIR\}/scripts/qemu-v0.sh" "\$@"'
@@ -164,7 +168,7 @@ assert_contains system/alpine/scripts/run-qemu.sh 'missing required rootfs image
 assert_contains system/alpine/scripts/run-qemu.sh 'virtio-blk-pci'
 assert_contains system/alpine/scripts/build-qemu-initramfs.sh 'fallback_fstype'
 assert_contains system/alpine/rootfs-overlay/init 'load_kernel_module_file'
-assert_contains system/alpine/rootfs-overlay/init 'solfs.ko'
+assert_contains system/alpine/rootfs-overlay/init 'glowfs.ko'
 assert_contains system/alpine/rootfs-overlay/init 'mount --move'
 assert_contains system/alpine/rootfs-overlay/init 'switching to disk root'
 assert_contains system/alpine/rootfs-overlay/init 'disk root mount failed'
@@ -175,14 +179,14 @@ assert_contains system/alpine/rootfs-overlay/init 'var/lib/soliloquy'
 assert_file system/alpine/kernel/APKBUILD
 assert_file system/alpine/kernel/README.md
 assert_file system/alpine/kernel/soliloquy-internet-appliance.config
-assert_file system/solfs/kernel/solfs_vfs.c
-assert_file system/solfs/kernel/solfs_core.rs
-assert_file system/solfs/kernel/solfs_format.h
-assert_contains system/solfs/kernel/solfs_vfs.c 'mount_bdev'
-assert_contains system/solfs/kernel/solfs_vfs.c 'register_filesystem'
-assert_contains system/solfs/kernel/solfs_core.rs '#!\[no_std\]'
-assert_contains system/solfs/kernel/solfs_core.rs 'solfs_rust_validate_header'
-system/solfs/kernel/validate-solfs-kernel.sh
+assert_file system/glowfs/kernel/glowfs_vfs.c
+assert_file system/glowfs/kernel/glowfs_core.rs
+assert_file system/glowfs/kernel/glowfs_format.h
+assert_contains system/glowfs/kernel/glowfs_vfs.c 'mount_bdev'
+assert_contains system/glowfs/kernel/glowfs_vfs.c 'register_filesystem'
+assert_contains system/glowfs/kernel/glowfs_core.rs '#!\[no_std\]'
+assert_contains system/glowfs/kernel/glowfs_core.rs 'glowfs_rust_validate_header'
+system/glowfs/kernel/validate-glowfs-kernel.sh
 assert_file system/native/kernel-policy-v/policy.v
 assert_file system/native/kernel-policy-v/v.mod
 assert_contains system/alpine/kernel-policy.json '"profile": "internet-appliance"'
@@ -206,12 +210,12 @@ assert_contains system/alpine/scripts/build-native-policy-modules.sh '../equilib
 assert_contains system/alpine/scripts/build-native-policy-modules.sh 'libsoliloquy_native_policy_v.so'
 assert_contains system/alpine/scripts/build-native-policy-modules.sh 'native policy userland module'
 assert_not_contains system/alpine/scripts/build-native-policy-modules.sh 'Built V kernel'
-assert_contains system/alpine/scripts/build-solfs-module.sh 'linux-virt-dev'
-assert_contains system/alpine/scripts/build-solfs-module.sh 'kernel-release'
+assert_contains system/alpine/scripts/build-glowfs-module.sh 'linux-virt-dev'
+assert_contains system/alpine/scripts/build-glowfs-module.sh 'kernel-release'
 assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh 'NATIVE_POLICY_REQUIRED'
 assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh '/usr/local/lib/soliloquy/native-policy'
-assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh 'SOLFS_MODULE'
-assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh '/usr/local/lib/soliloquy/kernel/solfs.ko'
+assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh 'GLOWFS_MODULE'
+assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh '/usr/local/lib/soliloquy/kernel/glowfs.ko'
 assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh 'cp -R "\$\{UI_BUILD_DIR\}" "\$\{ROOTFS\}/usr/local/share/soliloquy/bundle"'
 assert_contains system/alpine/scripts/stage-soliloquy-artifacts.sh 'bundle/terminal'
 assert_contains system/alpine/stage-soliloquy-artifacts.sh 'scripts/stage-soliloquy-artifacts.sh'
@@ -245,8 +249,10 @@ assert_contains system/alpine/rootfs-overlay/etc/inittab '^::wait:/sbin/openrc d
 assert_not_contains system/alpine/rootfs-overlay/etc/inittab 'sol-session-start'
 
 assert_contains system/alpine/scripts/apply-kernel-policy.sh 'load_kernel_module virtio_net'
-assert_contains system/alpine/scripts/apply-kernel-policy.sh 'load_kernel_module solfs'
-assert_contains system/alpine/scripts/apply-kernel-policy.sh 'SOLILOQUY_SOLFS_MODULE'
+assert_contains system/alpine/scripts/apply-kernel-policy.sh 'load_kernel_module glowfs'
+assert_contains system/alpine/scripts/apply-kernel-policy.sh 'SOLILOQUY_GLOWFS_MODULE'
+assert_contains system/alpine/scripts/configure-rootfs.sh '"id": "oil"'
+assert_contains system/alpine/scripts/configure-rootfs.sh '"bootstrap": "apk"'
 assert_contains system/alpine/scripts/apply-kernel-policy.sh 'load_kernel_module_file'
 assert_contains system/alpine/scripts/apply-kernel-policy.sh 'sol-kernelctl'
 assert_contains system/alpine/scripts/apply-kernel-policy.sh 'cgroup.subtree_control'
@@ -323,7 +329,7 @@ assert_contains "${tmp_root}/etc/soliloquy/services.json" '"id": "sol-netd"'
 assert_contains "${tmp_root}/etc/soliloquy/services.json" '"id": "sol-zram"'
 assert_contains "${tmp_root}/etc/soliloquy/services.json" '"id": "sol-session"'
 system/alpine/scripts/validate-filesystem-plan.sh "${tmp_root}" >/dev/null
-assert_contains "${tmp_root}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-root / solfs ro,nodev 0 0$'
+assert_contains "${tmp_root}/etc/soliloquy/filesystems/fstab.plan" '^soliloquy-root / glowfs ro,nodev 0 0$'
 [ ! -e "${tmp_root}/etc/runlevels/default/local" ] || fail "local must not block browser appliance boot"
 
 printf 'ci-os-appliance: ok\n'

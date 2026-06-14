@@ -18,7 +18,7 @@ mkdir -p "$(dirname "${OUT_INITRD}")"
 mkdir -p "${ROOTFS_DIR}/etc/soliloquy"
 ROOTFS_BYTES="$(du -sk "${ROOTFS_DIR}" | awk '{ print $1 * 1024 }')"
 SOLILOQUY_ROOT_FALLBACK="${SOLILOQUY_ROOT_FALLBACK:-/dev/vda}"
-SOLILOQUY_ROOT_FALLBACK_FSTYPE="${SOLILOQUY_ROOT_FALLBACK_FSTYPE:-solfs}"
+SOLILOQUY_ROOT_FALLBACK_FSTYPE="${SOLILOQUY_ROOT_FALLBACK_FSTYPE:-glowfs}"
 cat > "${ROOTFS_DIR}/etc/soliloquy/initramfs.json" <<EOF
 {
   "mode": "ram-root",

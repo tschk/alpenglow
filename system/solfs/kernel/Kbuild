@@ -1,2 +1,0 @@
-obj-m += solfs.o
-solfs-y := solfs_vfs.o

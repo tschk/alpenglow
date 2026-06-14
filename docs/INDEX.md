@@ -1,6 +1,6 @@
 # Alpenglow Documentation Index
 
-Alpenglow is currently documented around Cargo, the appliance backend flow, `sold`, kernel policy, SolFS, and Soliloquy desktop staging.
+Alpenglow is currently documented around Cargo, the appliance backend flow, `sold`, kernel policy, GlowFS, and Soliloquy desktop staging.
 
 ## Start Here
 
@@ -12,7 +12,7 @@ Alpenglow is currently documented around Cargo, the appliance backend flow, `sol
 ## Runtime And Appliance
 
 - [Appliance System Architecture](./architecture/appliance-system.md)
-- [Soliloquy Alpine OS Optimization Plan](./architecture/os-optimization-plan.md)
+- [Alpenglow OS Optimization Plan](./architecture/os-optimization-plan.md)
 - [API Contract](./api_contract.md)
 - [RV8 Linkage Roadmap](./rv8_linkage_roadmap.md)
 - [Browser Optimizations](./browser_optimizations.md)

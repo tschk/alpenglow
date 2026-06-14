@@ -2,11 +2,11 @@
   "id": "oil",
   "source": "../oil",
   "binary": "wax",
-  "role": "host installer and managed system package bridge",
+  "role": "package manager, host installer, and managed system package bridge",
   "state_root": "/var/lib/soliloquy/oil",
   "notes": [
     "The sibling oil checkout currently builds the wax binary.",
-    "Void base bootstrap still uses XBPS until oil exposes a Void registry backend.",
+    "Void base bootstrap still uses XBPS only as a fetcher until oil exposes a Void registry backend.",
     "Oil-managed additions use WAX_SYSTEM_PREFIX against the composed rootfs."
   ]
 }

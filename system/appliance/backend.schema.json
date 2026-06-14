@@ -20,6 +20,7 @@
     "libc": { "type": "string" },
     "init": { "type": "string" },
     "package_manager": { "type": "string" },
+    "bootstrap_package_manager": { "type": "string" },
     "installer": { "type": "string" },
     "composition_model": { "type": "string" },
     "paths": {

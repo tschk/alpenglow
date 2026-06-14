@@ -9,7 +9,7 @@ cargo test -p sold
 cargo test -p sold
 cargo test -p sol-netd
 cargo test -p sol-kernelctl
-cargo test -p solfsctl
+cargo test -p glowfsctl
 ```
 
 The sibling RV8 repo is available at `../rv8`:
