@@ -1,5 +1,5 @@
 # Mount persistent state partition
-type = script
+type = scripted
 command = /usr/local/bin/mount-state.sh
 restart = no
 depends-on = glowfs-mount

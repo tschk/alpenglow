@@ -1,5 +1,5 @@
 # Alpenglow desktop session
-type = script
+type = scripted
 command = /usr/local/bin/alpenglow-session-start
 depends-on = sold
 depends-on = seatd

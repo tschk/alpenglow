@@ -1,5 +1,5 @@
 # Compressed swap (zram) — memory pressure relief for diskless mode
-type = script
+type = scripted
 command = /usr/local/bin/apply-zram-policy.sh
 depends-on = alpenglow-kernel-policy
 restart = no

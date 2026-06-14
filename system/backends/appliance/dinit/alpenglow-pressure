@@ -1,5 +1,5 @@
 # Pressure stall policy — PSI monitoring for diskless systems
-type = script
+type = scripted
 command = /usr/local/bin/apply-pressure-policy.sh
 depends-on = alpenglow-kernel-policy
 depends-on = alpenglow-zram
