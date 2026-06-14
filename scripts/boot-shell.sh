@@ -40,37 +40,49 @@ if [ ! -f "${ROOTFS_DIR}/bin/busybox" ]; then
   rm -rf "${ROOTFS_DIR}"
   mkdir -p "${ROOTFS_DIR}"
 
-  if command -v apk >/dev/null 2>&1; then
-    apk --root "${ROOTFS_DIR}" --initdb add \
-      --arch "${ARCH}" \
-      --repository "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main" \
-      alpine-baselayout busybox
-  elif command -v docker >/dev/null 2>&1; then
+  if command -v docker >/dev/null 2>&1; then
     require_cmd docker
-    docker run --rm -v "${ROOTFS_DIR}:/rootfs" "alpine:${ALPINE_VERSION}" sh -c "
-      apk add --root /rootfs --initdb alpine-baselayout busybox
+    echo "  (using docker to bootstrap rootfs)"
+    docker run --rm --platform linux/amd64 -v "${ROOTFS_DIR}:/rootfs" "alpine:${ALPINE_VERSION}" sh -c "
+      mkdir -p /rootfs/etc/apk
+      mkdir -p /rootfs/etc/apk/keys
+      echo 'https://dl-cdn.alpinelinux.org/alpine/v3.21/main' > /rootfs/etc/apk/repositories
+      echo 'https://dl-cdn.alpinelinux.org/alpine/v3.21/community' >> /rootfs/etc/apk/repositories
+      cp -a /etc/apk/keys/. /rootfs/etc/apk/keys/ 2>/dev/null || true
+      cd /rootfs && apk add --root /rootfs --initdb --update-cache alpine-baselayout busybox busybox-openrc 2>&1
     "
+  elif command -v apk >/dev/null 2>&1; then
+    apk --root \"${ROOTFS_DIR}\" --initdb add \\
   else
-    echo "ERROR: need apk or docker to build rootfs" >&2
+    echo "ERROR: need docker or apk to build rootfs" >&2
     exit 1
   fi
 
-  # Remove default init, install our shell launcher
-  rm -f "${ROOTFS_DIR}/sbin/init"
+# Remove default init, install busybox init + shell
+  rm -f "${ROOTFS_DIR}/sbin/init" 2>/dev/null || true
+  # Create /init for the kernel to run
+  cat > "${ROOTFS_DIR}/init" << 'INIT'
+#!/bin/busybox sh
+exec /bin/busybox init
+INIT
+  chmod 755 "${ROOTFS_DIR}/init"
+
   cat > "${ROOTFS_DIR}/etc/inittab" << 'INITTAB'
 ::sysinit:/bin/mount -t proc proc /proc
 ::sysinit:/bin/mount -t sysfs sysfs /sys
 ::sysinit:/bin/mount -t devtmpfs devtmpfs /dev
-::wait:/bin/sh -l
+::sysinit:/bin/hostname -F /etc/hostname 2>/dev/null
+ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100
+tty1::respawn:/sbin/getty 38400 tty1
 ::ctrlaltdel:/sbin/reboot
-::shutdown:/sbin/halt
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
 INITTAB
-
-  # Ensure /dev/console exists for the serial console
-  mkdir -p "${ROOTFS_DIR}/dev"
+  echo "alpenglow" > "${ROOTFS_DIR}/etc/hostname"
+  # Ensure busybox init knows about inittab
+  ln -sf /bin/busybox "${ROOTFS_DIR}/sbin/init" 2>/dev/null || true
+  # Ensure /dev/console exists
   mknod -m 622 "${ROOTFS_DIR}/dev/console" c 5 1 2>/dev/null || true
-
-  rm -f "${ROOTFS_DIR}/init"
 else
   echo "→ Rootfs exists: ${ROOTFS_DIR}"
 fi
@@ -103,7 +115,7 @@ qemu-system-x86_64 \
   -no-reboot \
   -kernel "${KERNEL}" \
   -initrd "${INITRAMFS}" \
-  -append "console=ttyS0 quiet"
+  -append "console=ttyS0 init=/init quiet"
 
 echo ""
 echo "QEMU exited."
