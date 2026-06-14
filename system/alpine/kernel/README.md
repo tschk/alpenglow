@@ -8,7 +8,6 @@ The target profile keeps the browser appliance path narrow:
 - Rust support for GlowFS and other memory-safe appliance kernel components
 - zram swap compression
 - virtio block, network, console, random, and GPU devices for QEMU and VM bring-up
-- DRM/KMS framebuffer support for the fullscreen Servo surface
 - seccomp and Landlock for browser/runtime sandboxing
 - fq plus BBR for the browser-first networking profile
 - GlowFS, ext4, squashfs, overlayfs, tmpfs, procfs, and sysfs as the retained filesystem set

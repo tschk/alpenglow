@@ -17,8 +17,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # Install QEMU
     brew install qemu
 
-    # Install Servo's macOS framework dependencies
-    echo "Installing Servo framework dependencies..."
     brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly
 
     echo "macOS setup complete."
