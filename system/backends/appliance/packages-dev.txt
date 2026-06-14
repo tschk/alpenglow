@@ -1,0 +1,12 @@
+# Alpenglow development packages
+# These are build-host packages, not in the target image
+
+git
+rsync
+samurai
+lua
+curl
+sha256sum
+toybox
+x86_64-linux-musl-cross
+aarch64-linux-musl-cross

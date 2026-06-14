@@ -1,0 +1,5 @@
+# Seat management daemon
+type = process
+command = /usr/bin/seatd -g seat -u seatd
+restart = yes
+run-as = root

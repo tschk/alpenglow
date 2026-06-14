@@ -1,0 +1,75 @@
+# Alpenglow native appliance — runtime world
+# All packages managed by Oil. This file defines the system image.
+
+# Init and supervision
+dinit
+dinit-dbus
+
+# System compiler (LLVM/clang)
+clang
+clang++
+lld
+llvm
+compiler-rt
+libcxx
+libcxxabi
+llvm-ar
+llvm-nm
+llvm-objcopy
+llvm-objdump
+
+# libc
+musl
+
+# Core userland (toybox — minimal BSD-licensed coreutils)
+toybox
+
+# Kernel and firmware
+linux-hardened
+linux-firmware
+
+# Boot/initramfs
+alpenglow-initramfs
+glowfs-tools
+
+# Display and input
+seatd
+velox
+glowfs-wayland
+wayland
+wayland-protocols
+
+# Browser (minimal appliance web)
+netsurf
+
+# Network
+sdhcp
+iproute2
+iptables
+curl
+ca-certificates
+
+# System utilities
+kmod
+eudev
+tzdata
+font-dejavu
+mandoc
+oksh
+byacc
+samurai
+lua
+
+# Filesystem tools
+glowfs-tools
+erofs-utils
+squashfs-tools
+
+# Security
+bearssl
+libtls-bearssl
+libcurl-bearssl
+
+# Platform-independent tooling
+git
+rsync

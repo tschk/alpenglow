@@ -14,13 +14,13 @@
       "nodev"
     ],
     "boot_policy": {
-      "default_mode": "ram-root",
+      "default_mode": "diskless",
       "selection": "auto",
       "minimum_ram_mb": 3072,
       "fallback_mode": "disk-root",
       "fallback_device": "/dev/vda",
       "fallback_fstype": "ext4",
-      "kernel_arg": "alpenglow.ram_root"
+      "kernel_arg": "alpenglow.image"
     },
     "generation_root": "/sysroot/alpenglow",
     "active_generation_link": "/sysroot/alpenglow/current",

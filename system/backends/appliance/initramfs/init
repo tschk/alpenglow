@@ -1,0 +1,101 @@
+#!/bin/sh
+# ──────────────────────────────────────────────────────────────────────
+# Alpenglow diskless initramfs init
+#
+# Combines best ideas from Limine, UEFI stub, and extlinux:
+#   - Kernel cmdline parsing like GRUB
+#   - Module loading like dracut
+#   - Simple shell script like Limine's init
+#   - GlowFS/erofs/squashfs image mounting
+#   - State partition discovery
+#   - Switch_root to the GlowFS root
+# ──────────────────────────────────────────────────────────────────────
+set -eu
+
+# Early setup
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /run /tmp /state /sysroot
+mount -t tmpfs -o mode=0755 tmpfs /run
+mount -t tmpfs -o mode=0755 tmpfs /tmp
+
+# Parse kernel cmdline
+ALPENGLOW_IMAGE=""
+ALPENGLOW_STATE=""
+ALPENGLOW_DEBUG=""
+
+for arg in $(cat /proc/cmdline); do
+  case "${arg}" in
+    alpenglow.image=*)  ALPENGLOW_IMAGE="${arg#alpenglow.image=}" ;;
+    alpenglow.state=*)  ALPENGLOW_STATE="${arg#alpenglow.state=}" ;;
+    alpenglow.debug)    ALPENGLOW_DEBUG="1" ;;
+  esac
+done
+
+[ -n "${ALPENGLOW_DEBUG}" ] && set -x
+
+# Load essential modules
+modprobe glowfs 2>/dev/null || true
+modprobe erofs 2>/dev/null || true
+modprobe squashfs 2>/dev/null || true
+modprobe ext4 2>/dev/null || true
+modprobe virtio-blk 2>/dev/null || true
+modprobe virtio-net 2>/dev/null || true
+
+# Discover rootfs image
+find_image() {
+  # Search order: kernel arg → well-known paths → auto-detect
+  if [ -n "${ALPENGLOW_IMAGE}" ] && [ -f "${ALPENGLOW_IMAGE}" ]; then
+    echo "${ALPENGLOW_IMAGE}"
+    return
+  fi
+  for img in /sysroot/alpenglow/current.{glowfs,erofs,squashfs}; do
+    [ -f "${img}" ] && echo "${img}" && return
+  done
+  # Search block devices for GlowFS images
+  for dev in /dev/vda* /dev/sda* /dev/nvme0n1* /dev/mmcblk0*; do
+    [ -b "${dev}" ] || continue
+    mount -r "${dev}" /mnt 2>/dev/null || continue
+    for img in /mnt/alpenglow/current.{glowfs,erofs,squashfs}; do
+      if [ -f "${img}" ]; then
+        cp "${img}" /sysroot/alpenglow/current.glowfs 2>/dev/null
+        umount /mnt
+        echo "/sysroot/alpenglow/current.glowfs"
+        return
+      fi
+    done
+    umount /mnt 2>/dev/null || true
+  done
+  echo ""
+}
+
+ROOT_IMAGE=$(find_image)
+if [ -z "${ROOT_IMAGE}" ]; then
+  echo "Alpenglow: no root image found. Boot failed." >&2
+  echo "Provide alpenglow.image=<path> on kernel cmdline." >&2
+  exec /bin/sh
+fi
+
+# Mount the root image
+echo "Alpenglow: mounting ${ROOT_IMAGE}..."
+case "${ROOT_IMAGE}" in
+  *.glowfs)    mount -t glowfs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
+  *.erofs)     mount -t erofs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
+  *.squashfs)  mount -t squashfs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
+  *)
+    echo "Unknown image format: ${ROOT_IMAGE}" >&2
+    exec /bin/sh
+    ;;
+esac
+
+# Mount state partition (optional)
+if [ -n "${ALPENGLOW_STATE}" ]; then
+  mount -t ext4 -o rw,nosuid,nodev "${ALPENGLOW_STATE}" /mnt/root/state 2>/dev/null || true
+else
+  # Try by label
+  mount -t ext4 -o rw,nosuid,nodev LABEL=alpenglow-state /mnt/root/state 2>/dev/null || true
+fi
+
+# Switch to real root
+exec switch_root /mnt/root /sbin/init

@@ -1,0 +1,59 @@
+{
+  "id": "alpenglow-native",
+  "status": "active",
+  "base": "alpenglow",
+  "libc": "musl",
+  "init": "dinit",
+  "package_manager": "oil",
+  "bootstrap_package_manager": "oil",
+  "installer": "oil",
+  "composition_model": "oasis-static",
+  "boot_model": "diskless",
+  "hardened": true,
+  "compiler": {
+    "default": "clang",
+    "linker": "lld",
+    "available": ["clang", "clang++", "llvm-ar", "llvm-nm", "llvm-objcopy", "lld"],
+    "future": ["inauguration"]
+  },
+  "userland": {
+    "core": "toybox",
+    "style": "minimal"
+  },
+  "filesystem": {
+    "immutable_root": true,
+    "diskless": true,
+    "root_fs": "glowfs",
+    "generation_model": "git-based",
+    "state_model": "persistent-mount"
+  },
+  "paths": {
+    "packages": "packages-runtime.txt",
+    "packages_dev": "packages-dev.txt",
+    "services": "dinit",
+    "initramfs": "initramfs",
+    "configure_rootfs": "scripts/configure-rootfs.sh",
+    "build_rootfs": "scripts/build-rootfs.sh",
+    "installer": "../../appliance/scripts/oil-installer.sh"
+  },
+  "kernel": {
+    "policy": "hardened",
+    "approach": "minimal-appliance",
+    "sources": ["linux-stable"]
+  },
+  "boot": {
+    "model": "custom-initramfs",
+    "inspiration": ["limine", "uefi-stub", "extlinux"]
+  },
+  "notes": [
+    "Alpenglow native appliance — the unified target OS.",
+    "Diskless boot: rootfs in RAM via GlowFS, state on persistent media.",
+    "Oil native: no distro bootstrap fetcher. Oil fetches and manages everything.",
+    "dinit: fast parallel dependency-graph init system.",
+    "LLVM/Clang: default system compiler. Inauguration as future codegen backend.",
+    "toybox: minimal BSD-licensed coreutils replacement.",
+    "Hardened kernel and system policies throughout.",
+    "Custom initramfs combining best ideas from Limine, UEFI stub, and extlinux.",
+    "Not HW-specific: generic appliance kernel config."
+  ]
+}

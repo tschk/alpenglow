@@ -23,6 +23,25 @@
     "bootstrap_package_manager": { "type": "string" },
     "installer": { "type": "string" },
     "composition_model": { "type": "string" },
+    "compiler": {
+      "type": "object",
+      "properties": {
+        "default": { "type": "string" },
+        "fallback": { "type": "string" },
+        "linker": { "type": "string" },
+        "available": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "userland": {
+      "type": "object",
+      "properties": {
+        "style": { "type": "string" },
+        "core": { "type": "string" },
+        "supplemental": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "paths": {
       "type": "object",
       "required": ["packages", "services", "configure_rootfs", "installer"],
