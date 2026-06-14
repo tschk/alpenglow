@@ -5,7 +5,6 @@
 resolver = "2"
 members = [
     "sold",
-    "drivers/generic",
     "system/kernelctl",
     "system/netd",
     "system/glowfsctl",

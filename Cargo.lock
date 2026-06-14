@@ -24,10 +24,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alpenglow-drivers"
-version = "0.1.0"
-
-[[package]]
 name = "alpenglow-kernelctl"
 version = "0.1.0"
 dependencies = [
