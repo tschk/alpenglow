@@ -1,0 +1,12 @@
+#!/sbin/openrc-run
+
+description="Seat management daemon"
+
+command="/usr/bin/seatd"
+command_args="-u root"
+command_background="yes"
+pidfile="/run/seatd.pid"
+
+depend() {
+    need localmount
+}

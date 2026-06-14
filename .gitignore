@@ -1,0 +1,56 @@
+# Ignore build outputs
+build/
+bazel-*
+out/
+.bazel/
+
+# Ignore large downloads
+sdk/
+fuchsia/
+vendor/servo/
+.build-tools/
+
+# Ignore cache directories
+demo_cache/
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore OS files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.iml
+
+# Ignore temporary files
+tmp/
+*.tmp
+*.log
+
+# Rust
+target/
+src/shell/target/
+.soliloquy/
+**/*.rs.bk
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Build Manager
+tools/build_manager/build_manager_gui/node_modules/
+tools/build_manager/build_manager_gui/dist/
+tools/build_manager/build_manager_gui/src-tauri/target/
+tools/bootloader/
+
+# ghostty WASM build artifacts (large; built at image-assembly time)
+bundle/terminal/ghostty-vt.wasm
+# zig build cache (ghostty submodule)
+third_party/ghostty/.zig-cache/
+third_party/ghostty/zig-out/

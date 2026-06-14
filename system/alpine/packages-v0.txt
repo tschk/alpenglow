@@ -1,0 +1,12 @@
+alpine-baselayout
+busybox
+openrc
+linux-virt
+seatd
+cage
+wayland-libs-egl
+mesa-egl
+mesa-gbm
+mesa-dri-gallium
+libstdc++
+font-dejavu

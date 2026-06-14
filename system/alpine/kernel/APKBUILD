@@ -1,0 +1,65 @@
+pkgname=linux-soliloquy-appliance
+pkgver=6.12.32
+pkgrel=0
+pkgdesc="Soliloquy internet appliance kernel"
+arch="aarch64 x86_64"
+url="https://kernel.org"
+license="GPL-2.0-only"
+makedepends="bash bc bison elfutils-dev flex openssl-dev patch perl xz"
+options="!check"
+source="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${pkgver}.tar.xz
+        soliloquy-internet-appliance.config"
+builddir="${srcdir}/linux-${pkgver}"
+
+kernel_tree() {
+  candidate="${SOLILOQUY_KERNEL_SOURCE:-${startdir}/linux}"
+  if [ -d "${candidate}" ]; then
+    printf '%s\n' "${candidate}"
+  else
+    printf '%s\n' "${srcdir}/linux-${pkgver}"
+  fi
+}
+
+prepare() {
+  default_prepare
+  cd "$(kernel_tree)"
+  cp "${srcdir}/soliloquy-internet-appliance.config" .config
+  if [ -s "${startdir}/patches/series" ]; then
+    while IFS= read -r patch_file; do
+      [ -n "${patch_file}" ] || continue
+      patch -p1 <"${startdir}/patches/${patch_file}"
+    done <"${startdir}/patches/series"
+  fi
+  make olddefconfig
+  "${startdir}/validate-kernel-config.sh" .config
+}
+
+build() {
+  cd "$(kernel_tree)"
+  make all
+}
+
+package() {
+  cd "$(kernel_tree)"
+  install -Dm644 .config "${pkgdir}/boot/config-soliloquy-appliance"
+  install -Dm644 "${startdir}/hybrid-kernel.json" "${pkgdir}/usr/share/soliloquy/kernel/hybrid-kernel.json"
+  install -Dm644 "${startdir}/patch-series/bore-style.json" "${pkgdir}/usr/share/soliloquy/kernel/patch-series/bore-style.json"
+  install -Dm644 "${startdir}/patches/series" "${pkgdir}/usr/share/soliloquy/kernel/patches/series"
+  case "${CARCH}" in
+    aarch64)
+      install -Dm644 arch/arm64/boot/Image "${pkgdir}/boot/vmlinuz-soliloquy-appliance"
+      ;;
+    x86_64)
+      install -Dm644 arch/x86/boot/bzImage "${pkgdir}/boot/vmlinuz-soliloquy-appliance"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  make modules_install INSTALL_MOD_PATH="${pkgdir}"
+  find "${pkgdir}" -name build -type l -delete
+  find "${pkgdir}" -name source -type l -delete
+}
+
+sha256sums="a9b020721778384507010177d3929e7d4058f7f6120f05a99d56b5c5c0346a70  linux-6.12.32.tar.xz
+bb22829b1257f3ecfc8a88032d622631096924f958191fffcc6a48881357b719  soliloquy-internet-appliance.config"

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Soliloquy appliance backend",
+  "type": "object",
+  "required": [
+    "id",
+    "status",
+    "base",
+    "libc",
+    "init",
+    "package_manager",
+    "installer",
+    "composition_model",
+    "paths"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "status": { "type": "string" },
+    "base": { "type": "string" },
+    "libc": { "type": "string" },
+    "init": { "type": "string" },
+    "package_manager": { "type": "string" },
+    "installer": { "type": "string" },
+    "composition_model": { "type": "string" },
+    "paths": {
+      "type": "object",
+      "required": ["packages", "services", "configure_rootfs", "installer"],
+      "properties": {
+        "packages": { "type": "string" },
+        "packages_dev": { "type": "string" },
+        "services": { "type": "string" },
+        "configure_rootfs": { "type": "string" },
+        "build_rootfs": { "type": "string" },
+        "installer": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,19 @@
+[package]
+name = "soliloquy-drivers"
+version = "0.1.0"
+edition = "2021"
+authors = ["Soliloquy Authors"]
+description = "Generic hardware drivers for Soliloquy OS"
+license = "MPL-2.0"
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = []
+allwinner = []
+rockchip = []
+
+[dependencies]
+
+[dev-dependencies]

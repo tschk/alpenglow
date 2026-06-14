@@ -1,0 +1,7 @@
+SOLD_BIND="127.0.0.1:8080"
+SOL_BUNDLE_DIR="/usr/local/share/soliloquy/bundle"
+SOLILOQUY_GENERATION_FILE="/etc/soliloquy/generation.json"
+SOLILOQUY_MARK_GOOD_HOOK="/usr/local/bin/soliloquy-generation-mark-good"
+SOLILOQUY_UPDATE_STATE="/var/lib/soliloquy/system/update-state.json"
+RUST_LOG="warn,sold=info,axum=warn,tower_http=warn"
+RUST_BACKTRACE="1"

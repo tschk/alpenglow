@@ -1,0 +1,813 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Allwinner A527 SoC Device Tree Stub
+ * Base device tree for Radxa Cubie A5E
+ *
+ * Copyright (c) 2024 Soliloquy Authors
+ *
+ * This is a minimal device tree for Soliloquy OS on Allwinner A527.
+ * It defines core peripherals needed for boot and basic operation.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/sun55i-a527-ccu.h>
+#include <dt-bindings/reset/sun55i-a527-ccu.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/sun4i-a10.h>
+
+/ {
+	model = "Radxa Cubie A5E";
+	compatible = "radxa,cubie-a5e", "allwinner,sun55i-a527";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	aliases {
+		serial0 = &uart0;
+		ethernet0 = &emac;
+		mmc0 = &mmc0;
+		mmc2 = &mmc2;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "console=ttyS0,115200 earlycon=sunxi,0x02500000";
+	};
+
+	memory@40000000 {
+		device_type = "memory";
+		/* 4GB LPDDR4X - actual size set by U-Boot */
+		reg = <0x0 0x40000000 0x1 0x00000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* Secure world memory */
+		secmon@48000000 {
+			reg = <0x0 0x48000000 0x0 0x100000>;
+			no-map;
+		};
+
+		/* SCP (System Control Processor) memory */
+		scp@48200000 {
+			reg = <0x0 0x48200000 0x0 0x40000>;
+			no-map;
+		};
+	};
+
+	/* ========================================================================
+	 * CPU Cluster - 4x Cortex-A55 @ 1.8GHz
+	 * ======================================================================== */
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <0>;
+			enable-method = "psci";
+			clocks = <&ccu CLK_CPU>;
+			clock-names = "cpu";
+			operating-points-v2 = <&cpu_opp_table>;
+			#cooling-cells = <2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <1>;
+			enable-method = "psci";
+			clocks = <&ccu CLK_CPU>;
+			clock-names = "cpu";
+			operating-points-v2 = <&cpu_opp_table>;
+			#cooling-cells = <2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <2>;
+			enable-method = "psci";
+			clocks = <&ccu CLK_CPU>;
+			clock-names = "cpu";
+			operating-points-v2 = <&cpu_opp_table>;
+			#cooling-cells = <2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <3>;
+			enable-method = "psci";
+			clocks = <&ccu CLK_CPU>;
+			clock-names = "cpu";
+			operating-points-v2 = <&cpu_opp_table>;
+			#cooling-cells = <2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		idle-states {
+			entry-method = "psci";
+
+			CPU_SLEEP: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0010000>;
+				local-timer-stop;
+				entry-latency-us = <300>;
+				exit-latency-us = <600>;
+				min-residency-us = <10000>;
+			};
+		};
+	};
+
+	cpu_opp_table: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp-480000000 {
+			opp-hz = /bits/ 64 <480000000>;
+			opp-microvolt = <900000>;
+			clock-latency-ns = <244144>;
+		};
+
+		opp-720000000 {
+			opp-hz = /bits/ 64 <720000000>;
+			opp-microvolt = <940000>;
+			clock-latency-ns = <244144>;
+		};
+
+		opp-1008000000 {
+			opp-hz = /bits/ 64 <1008000000>;
+			opp-microvolt = <1000000>;
+			clock-latency-ns = <244144>;
+		};
+
+		opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <1050000>;
+			clock-latency-ns = <244144>;
+		};
+
+		opp-1416000000 {
+			opp-hz = /bits/ 64 <1416000000>;
+			opp-microvolt = <1100000>;
+			clock-latency-ns = <244144>;
+		};
+
+		opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1200000>;
+			clock-latency-ns = <244144>;
+		};
+	};
+
+	/* ========================================================================
+	 * PSCI - Power State Coordination Interface
+	 * ======================================================================== */
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	/* ========================================================================
+	 * Clocks
+	 * ======================================================================== */
+	osc24M: osc24M-clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "osc24M";
+	};
+
+	osc32k: osc32k-clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "osc32k";
+	};
+
+	/* ========================================================================
+	 * Timer
+	 * ======================================================================== */
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
+		arm,no-tick-in-suspend;
+	};
+
+	/* ========================================================================
+	 * SoC Devices
+	 * ======================================================================== */
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x40000000>;
+
+		/* ----------------------------------------------------------------
+		 * Display Engine 3.0
+		 * ---------------------------------------------------------------- */
+		de3: display-engine@1000000 {
+			compatible = "allwinner,sun55i-a527-de3";
+			reg = <0x01000000 0x400000>;
+			interrupts = <GIC_SPI 115 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_DE>, <&ccu CLK_DE>;
+			clock-names = "bus", "mod";
+			resets = <&ccu RST_BUS_DE>;
+			status = "disabled";
+		};
+
+		/* ----------------------------------------------------------------
+		 * Mali-G57 MC1 GPU
+		 * ---------------------------------------------------------------- */
+		gpu: gpu@1800000 {
+			compatible = "allwinner,sun55i-a527-mali", "arm,mali-valhall-jm";
+			reg = <0x01800000 0x100000>;
+			interrupts = <GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "job", "mmu", "gpu";
+			clocks = <&ccu CLK_GPU0>, <&ccu CLK_BUS_GPU>;
+			clock-names = "core", "bus";
+			resets = <&ccu RST_BUS_GPU>;
+			operating-points-v2 = <&gpu_opp_table>;
+			#cooling-cells = <2>;
+			status = "okay";
+		};
+
+		gpu_opp_table: opp-table-gpu {
+			compatible = "operating-points-v2";
+
+			opp-200000000 {
+				opp-hz = /bits/ 64 <200000000>;
+				opp-microvolt = <900000>;
+			};
+
+			opp-400000000 {
+				opp-hz = /bits/ 64 <400000000>;
+				opp-microvolt = <950000>;
+			};
+
+			opp-600000000 {
+				opp-hz = /bits/ 64 <600000000>;
+				opp-microvolt = <1000000>;
+			};
+
+			opp-800000000 {
+				opp-hz = /bits/ 64 <800000000>;
+				opp-microvolt = <1050000>;
+			};
+		};
+
+		/* ----------------------------------------------------------------
+		 * Clock Control Unit
+		 * ---------------------------------------------------------------- */
+		ccu: clock-controller@2001000 {
+			compatible = "allwinner,sun55i-a527-ccu";
+			reg = <0x02001000 0x1000>;
+			clocks = <&osc24M>, <&osc32k>;
+			clock-names = "hosc", "losc";
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+		};
+
+		/* ----------------------------------------------------------------
+		 * R-CCU (RTC domain clock controller)
+		 * ---------------------------------------------------------------- */
+		r_ccu: clock-controller@7010000 {
+			compatible = "allwinner,sun55i-a527-r-ccu";
+			reg = <0x07010000 0x400>;
+			clocks = <&osc24M>, <&osc32k>, <&ccu CLK_PLL_PERIPH0>;
+			clock-names = "hosc", "losc", "pll-periph";
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+		};
+
+		/* ----------------------------------------------------------------
+		 * GIC-600 Interrupt Controller
+		 * ---------------------------------------------------------------- */
+		gic: interrupt-controller@3020000 {
+			compatible = "arm,gic-v3";
+			reg = <0x03020000 0x10000>,	/* GICD */
+			      <0x03060000 0x80000>;	/* GICR */
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <3>;
+		};
+
+		/* ----------------------------------------------------------------
+		 * GPIO / PIO Controller
+		 * ---------------------------------------------------------------- */
+		pio: pinctrl@2000000 {
+			compatible = "allwinner,sun55i-a527-pinctrl";
+			reg = <0x02000000 0x800>;
+			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_APB1>, <&osc24M>, <&osc32k>;
+			clock-names = "apb", "hosc", "losc";
+			gpio-controller;
+			#gpio-cells = <3>;
+			interrupt-controller;
+			#interrupt-cells = <3>;
+
+			/* UART0 pins (debug) */
+			uart0_pb_pins: uart0-pb-pins {
+				pins = "PB8", "PB9";
+				function = "uart0";
+			};
+
+			/* UART1 pins */
+			uart1_pg_pins: uart1-pg-pins {
+				pins = "PG6", "PG7", "PG8", "PG9";
+				function = "uart1";
+			};
+
+			/* MMC0 (SD card) pins */
+			mmc0_pins: mmc0-pins {
+				pins = "PF0", "PF1", "PF2", "PF3", "PF4", "PF5";
+				function = "mmc0";
+				drive-strength = <30>;
+				bias-pull-up;
+			};
+
+			/* MMC1 (SDIO/WiFi) pins */
+			mmc1_pins: mmc1-pins {
+				pins = "PG0", "PG1", "PG2", "PG3", "PG4", "PG5";
+				function = "mmc1";
+				drive-strength = <30>;
+				bias-pull-up;
+			};
+
+			/* MMC2 (eMMC) pins */
+			mmc2_8bit_pins: mmc2-8bit-pins {
+				pins = "PC1", "PC4", "PC5", "PC6", "PC7",
+				       "PC8", "PC9", "PC10", "PC11", "PC12",
+				       "PC13", "PC14", "PC15", "PC16";
+				function = "mmc2";
+				drive-strength = <40>;
+				bias-pull-up;
+			};
+
+			/* I2C0 pins (PMIC) */
+			i2c0_pins: i2c0-pins {
+				pins = "PI5", "PI6";
+				function = "i2c0";
+			};
+
+			/* I2C1 pins */
+			i2c1_pins: i2c1-pins {
+				pins = "PH0", "PH1";
+				function = "i2c1";
+			};
+
+			/* SPI0 pins */
+			spi0_pins: spi0-pins {
+				pins = "PC0", "PC2", "PC3";
+				function = "spi0";
+			};
+
+			/* EMAC pins (RGMII) */
+			emac_rgmii_pins: emac-rgmii-pins {
+				pins = "PI0", "PI1", "PI2", "PI3", "PI4",
+				       "PI7", "PI8", "PI9", "PI10", "PI11",
+				       "PI12", "PI13", "PI14", "PI15", "PI16";
+				function = "emac";
+				drive-strength = <40>;
+			};
+
+			/* HDMI pins */
+			hdmi_pins: hdmi-pins {
+				pins = "PH2", "PH3", "PH4";
+				function = "hdmi";
+			};
+		};
+
+		/* ----------------------------------------------------------------
+		 * UART0 - Debug Console
+		 * ---------------------------------------------------------------- */
+		uart0: serial@2500000 {
+			compatible = "snps,dw-apb-uart";
+			reg = <0x02500000 0x400>;
+			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ccu CLK_BUS_UART0>;
+			resets = <&ccu RST_BUS_UART0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pb_pins>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * UART1
+		 * ---------------------------------------------------------------- */
+		uart1: serial@2500400 {
+			compatible = "snps,dw-apb-uart";
+			reg = <0x02500400 0x400>;
+			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ccu CLK_BUS_UART1>;
+			resets = <&ccu RST_BUS_UART1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pg_pins>;
+			status = "disabled";
+		};
+
+		/* ----------------------------------------------------------------
+		 * I2C Controllers
+		 * ---------------------------------------------------------------- */
+		i2c0: i2c@2502000 {
+			compatible = "allwinner,sun50i-h6-i2c", "allwinner,sun6i-a31-i2c";
+			reg = <0x02502000 0x400>;
+			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_I2C0>;
+			resets = <&ccu RST_BUS_I2C0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_pins>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			/* AXP323 PMIC */
+			pmic@34 {
+				compatible = "x-powers,axp323";
+				reg = <0x34>;
+				interrupt-parent = <&pio>;
+				interrupts = <7 9 IRQ_TYPE_LEVEL_LOW>; /* PH9 */
+
+				regulators {
+					dcdc1: dcdc1 {
+						regulator-name = "vdd-sys";
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-always-on;
+					};
+
+					dcdc2: dcdc2 {
+						regulator-name = "vdd-cpu";
+						regulator-min-microvolt = <900000>;
+						regulator-max-microvolt = <1200000>;
+						regulator-always-on;
+					};
+
+					dcdc3: dcdc3 {
+						regulator-name = "vdd-gpu";
+						regulator-min-microvolt = <900000>;
+						regulator-max-microvolt = <1100000>;
+					};
+
+					ldo1: ldo1 {
+						regulator-name = "vdd-wifi-io";
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+
+					ldo2: ldo2 {
+						regulator-name = "vdd-sdio";
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+					};
+				};
+			};
+		};
+
+		i2c1: i2c@2502400 {
+			compatible = "allwinner,sun50i-h6-i2c", "allwinner,sun6i-a31-i2c";
+			reg = <0x02502400 0x400>;
+			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_I2C1>;
+			resets = <&ccu RST_BUS_I2C1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pins>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		/* ----------------------------------------------------------------
+		 * SPI Controller
+		 * ---------------------------------------------------------------- */
+		spi0: spi@4025000 {
+			compatible = "allwinner,sun55i-a527-spi", "allwinner,sun50i-h6-spi";
+			reg = <0x04025000 0x1000>;
+			interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_SPI0>, <&ccu CLK_SPI0>;
+			clock-names = "ahb", "mod";
+			resets = <&ccu RST_BUS_SPI0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_pins>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		/* ----------------------------------------------------------------
+		 * MMC0 - SD Card
+		 * ---------------------------------------------------------------- */
+		mmc0: mmc@4020000 {
+			compatible = "allwinner,sun55i-a527-mmc", "allwinner,sun50i-a100-mmc";
+			reg = <0x04020000 0x1000>;
+			interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_MMC0>, <&ccu CLK_MMC0>;
+			clock-names = "ahb", "mmc";
+			resets = <&ccu RST_BUS_MMC0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&mmc0_pins>;
+			bus-width = <4>;
+			cd-gpios = <&pio 5 6 GPIO_ACTIVE_LOW>;  /* PF6 */
+			vmmc-supply = <&ldo2>;
+			vqmmc-supply = <&ldo2>;
+			max-frequency = <50000000>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * MMC1 - SDIO (WiFi AIC8800)
+		 * ---------------------------------------------------------------- */
+		mmc1: mmc@4021000 {
+			compatible = "allwinner,sun55i-a527-mmc", "allwinner,sun50i-a100-mmc";
+			reg = <0x04021000 0x1000>;
+			interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_MMC1>, <&ccu CLK_MMC1>;
+			clock-names = "ahb", "mmc";
+			resets = <&ccu RST_BUS_MMC1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&mmc1_pins>;
+			bus-width = <4>;
+			non-removable;
+			vmmc-supply = <&ldo2>;
+			vqmmc-supply = <&ldo1>;
+			mmc-pwrseq = <&wifi_pwrseq>;
+			max-frequency = <50000000>;
+			status = "okay";
+
+			wifi: wifi@1 {
+				compatible = "aicsemi,aic8800";
+				reg = <1>;
+				interrupt-parent = <&pio>;
+				interrupts = <6 10 IRQ_TYPE_EDGE_RISING>;  /* PG10 */
+			};
+		};
+
+		/* ----------------------------------------------------------------
+		 * MMC2 - eMMC
+		 * ---------------------------------------------------------------- */
+		mmc2: mmc@4022000 {
+			compatible = "allwinner,sun55i-a527-emmc", "allwinner,sun50i-a100-emmc";
+			reg = <0x04022000 0x1000>;
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_MMC2>, <&ccu CLK_MMC2>;
+			clock-names = "ahb", "mmc";
+			resets = <&ccu RST_BUS_MMC2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&mmc2_8bit_pins>;
+			bus-width = <8>;
+			non-removable;
+			cap-mmc-hw-reset;
+			mmc-hs200-1_8v;
+			vmmc-supply = <&dcdc1>;
+			vqmmc-supply = <&ldo1>;
+			max-frequency = <150000000>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * Ethernet MAC (EMAC)
+		 * ---------------------------------------------------------------- */
+		emac: ethernet@4500000 {
+			compatible = "allwinner,sun55i-a527-emac";
+			reg = <0x04500000 0x10000>;
+			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			clocks = <&ccu CLK_BUS_EMAC0>;
+			clock-names = "stmmaceth";
+			resets = <&ccu RST_BUS_EMAC0>;
+			reset-names = "stmmaceth";
+			pinctrl-names = "default";
+			pinctrl-0 = <&emac_rgmii_pins>;
+			phy-mode = "rgmii-id";
+			phy-handle = <&ext_rgmii_phy>;
+			status = "okay";
+
+			mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ext_rgmii_phy: ethernet-phy@1 {
+					compatible = "ethernet-phy-ieee802.3-c22";
+					reg = <1>;
+					realtek,led-link-select = <0x003e>;
+				};
+			};
+		};
+
+		/* ----------------------------------------------------------------
+		 * USB2 OTG Controller
+		 * ---------------------------------------------------------------- */
+		usb_otg: usb@4100000 {
+			compatible = "allwinner,sun55i-a527-musb", "allwinner,sun8i-a33-musb";
+			reg = <0x04100000 0x400>;
+			interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_OTG>;
+			resets = <&ccu RST_BUS_OTG>;
+			phys = <&usbphy 0>;
+			phy-names = "usb";
+			extcon = <&usbphy 0>;
+			dr_mode = "otg";
+			status = "okay";
+		};
+
+		usbphy: phy@4100400 {
+			compatible = "allwinner,sun55i-a527-usb-phy";
+			reg = <0x04100400 0x100>,
+			      <0x04101800 0x100>,
+			      <0x04200800 0x100>;
+			reg-names = "phy_ctrl", "pmu0", "pmu1";
+			clocks = <&ccu CLK_USB_PHY0>, <&ccu CLK_USB_PHY1>;
+			clock-names = "usb0_phy", "usb1_phy";
+			resets = <&ccu RST_USB_PHY0>, <&ccu RST_USB_PHY1>;
+			reset-names = "usb0_reset", "usb1_reset";
+			#phy-cells = <1>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * USB3 Host Controller (XHCI)
+		 * ---------------------------------------------------------------- */
+		usb3: usb@4200000 {
+			compatible = "allwinner,sun55i-a527-dwc3";
+			reg = <0x04200000 0x100000>;
+			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_XHCI>;
+			resets = <&ccu RST_BUS_XHCI>;
+			phys = <&usbphy 1>;
+			phy-names = "usb3-phy";
+			dr_mode = "host";
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * HDMI Controller
+		 * ---------------------------------------------------------------- */
+		hdmi: hdmi@6000000 {
+			compatible = "allwinner,sun55i-a527-hdmi";
+			reg = <0x06000000 0x100000>;
+			interrupts = <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_HDMI>, <&ccu CLK_HDMI>,
+				 <&ccu CLK_HDMI_SLOW>, <&ccu CLK_HDMI_CEC>;
+			clock-names = "iahb", "isfr", "slow", "cec";
+			resets = <&ccu RST_BUS_HDMI>, <&ccu RST_BUS_HDMI_SUB>;
+			reset-names = "ctrl", "sub";
+			pinctrl-names = "default";
+			pinctrl-0 = <&hdmi_pins>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * Crypto Engine
+		 * ---------------------------------------------------------------- */
+		crypto: crypto@3040000 {
+			compatible = "allwinner,sun55i-a527-crypto";
+			reg = <0x03040000 0x1000>;
+			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_CE>, <&ccu CLK_CE>;
+			clock-names = "bus", "mod";
+			resets = <&ccu RST_BUS_CE>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * Thermal Sensor
+		 * ---------------------------------------------------------------- */
+		ths: thermal-sensor@2009000 {
+			compatible = "allwinner,sun55i-a527-ths";
+			reg = <0x02009000 0x400>;
+			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_THS>;
+			clock-names = "bus";
+			resets = <&ccu RST_BUS_THS>;
+			#thermal-sensor-cells = <1>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * Watchdog
+		 * ---------------------------------------------------------------- */
+		wdt: watchdog@2050000 {
+			compatible = "allwinner,sun55i-a527-wdt", "allwinner,sun6i-a31-wdt";
+			reg = <0x02050000 0x20>;
+			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&osc24M>;
+			status = "okay";
+		};
+
+		/* ----------------------------------------------------------------
+		 * RTC
+		 * ---------------------------------------------------------------- */
+		rtc: rtc@7090000 {
+			compatible = "allwinner,sun55i-a527-rtc";
+			reg = <0x07090000 0x400>;
+			interrupts = <GIC_SPI 166 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&r_ccu CLK_R_RTC>;
+			clock-output-names = "osc32k-out";
+			#clock-cells = <1>;
+			status = "okay";
+		};
+	};
+
+	/* ========================================================================
+	 * WiFi Power Sequence
+	 * ======================================================================== */
+	wifi_pwrseq: wifi-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&pio 6 11 GPIO_ACTIVE_LOW>;  /* PG11 */
+		post-power-on-delay-ms = <200>;
+	};
+
+	/* ========================================================================
+	 * Thermal Zones
+	 * ======================================================================== */
+	thermal-zones {
+		cpu-thermal {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+			thermal-sensors = <&ths 0>;
+
+			trips {
+				cpu_alert0: cpu-alert0 {
+					temperature = <75000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				cpu_alert1: cpu-alert1 {
+					temperature = <85000>;
+					hysteresis = <2000>;
+					type = "hot";
+				};
+
+				cpu_crit: cpu-crit {
+					temperature = <100000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+
+		gpu-thermal {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+			thermal-sensors = <&ths 1>;
+
+			trips {
+				gpu_alert0: gpu-alert0 {
+					temperature = <80000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				gpu_crit: gpu-crit {
+					temperature = <105000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&gpu_alert0>;
+					cooling-device = <&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+};

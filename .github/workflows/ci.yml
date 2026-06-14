@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  os-appliance:
+    name: Alpenglow OS appliance gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check appliance OS policy
+        run: scripts/ci-os-appliance.sh
+
+  solfs-kernel-module:
+    name: Alpenglow SolFS kernel module compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Compile SolFS module against Linux headers
+        run: scripts/ci-solfs-kernel-module.sh
+
+  rust-core:
+    name: Alpenglow Rust core gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check Rust core
+        run: scripts/ci-rust-core.sh

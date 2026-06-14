@@ -1,0 +1,12 @@
+#!/sbin/openrc-run
+
+description="Soliloquy pressure policy"
+
+command="/usr/local/bin/apply-pressure-policy.sh"
+command_background="yes"
+pidfile="/run/soliloquy/sol-pressure.pid"
+
+depend() {
+    need localmount sol-kernel-policy sol-zram
+    before sold sol-session
+}

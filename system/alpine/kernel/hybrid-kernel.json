@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "id": "soliloquy-hybrid-default",
+  "package": "linux-soliloquy-appliance",
+  "default": true,
+  "end_user_defaults": [
+    "soliloquy-hybrid-default"
+  ],
+  "config": "soliloquy-internet-appliance.config",
+  "kernel_source": {
+    "mode": "external-or-in-tree",
+    "in_tree_path": "system/alpine/kernel/linux",
+    "source_env": "SOLILOQUY_KERNEL_SOURCE",
+    "imported": false
+  },
+  "patch_queue": {
+    "path": "patches/series",
+    "enabled_by_default": false
+  },
+  "runtime_state": "/run/soliloquy/runtime-state.env",
+  "fallback_boot": {
+    "enabled": true,
+    "artifact": "vmlinuz-virt"
+  },
+  "metrics_gates": [
+    "cold_page_load_ms",
+    "warm_page_load_ms",
+    "predicted_navigation_ms",
+    "per_tab_memory_mb",
+    "total_tab_memory_mb"
+  ],
+  "capabilities": {
+    "memory": {
+      "mglru": {
+        "required": true,
+        "config": [
+          "CONFIG_LRU_GEN",
+          "CONFIG_LRU_GEN_ENABLED"
+        ],
+        "runtime_probe": "/sys/kernel/mm/lru_gen/enabled"
+      },
+      "zram": {
+        "required": true,
+        "config": [
+          "CONFIG_ZRAM",
+          "CONFIG_ZSMALLOC",
+          "CONFIG_SWAP"
+        ],
+        "runtime_probe": "/sys/block/zram0"
+      },
+      "damon": {
+        "required": false,
+        "config": [
+          "CONFIG_DAMON",
+          "CONFIG_DAMON_VADDR",
+          "CONFIG_DAMON_SYSFS",
+          "CONFIG_DAMON_RECLAIM"
+        ],
+        "runtime_probe": "/sys/kernel/mm/damon/admin"
+      }
+    },
+    "sandbox": {
+      "seccomp": {
+        "required": true,
+        "config": [
+          "CONFIG_SECCOMP",
+          "CONFIG_SECCOMP_FILTER"
+        ],
+        "runtime_probe": "/proc/sys/kernel/seccomp/actions_avail"
+      },
+      "landlock": {
+        "required": true,
+        "config": [
+          "CONFIG_SECURITY_LANDLOCK"
+        ],
+        "runtime_probe": "/proc/sys/kernel/landlock"
+      }
+    },
+    "network": {
+      "bbr_fq": {
+        "required": true,
+        "config": [
+          "CONFIG_TCP_CONG_BBR",
+          "CONFIG_DEFAULT_BBR",
+          "CONFIG_NET_SCH_FQ"
+        ],
+        "sysctl": {
+          "net.ipv4.tcp_congestion_control": "bbr",
+          "net.core.default_qdisc": "fq"
+        }
+      }
+    },
+    "filesystems": {
+      "solfs": {
+        "required": true,
+        "config": [
+          "CONFIG_RUST"
+        ],
+        "source_lane": "direct-source-edit",
+        "image_format": "solfs",
+        "mount": "solfs"
+      },
+      "erofs": {
+        "required": true,
+        "config": [
+          "CONFIG_EROFS_FS",
+          "CONFIG_EROFS_FS_ZIP"
+        ],
+        "image_format": "erofs",
+        "mount": "erofs"
+      },
+      "squashfs": {
+        "required": true,
+        "config": [
+          "CONFIG_SQUASHFS",
+          "CONFIG_SQUASHFS_ZSTD"
+        ],
+        "image_format": "squashfs",
+        "mount": "squashfs"
+      }
+    },
+    "scheduler": {
+      "sched_ext": {
+        "required": false,
+        "lane": "direct-source-edit-or-patch-queue",
+        "config": [
+          "CONFIG_SCHED_CLASS_EXT"
+        ]
+      },
+      "preempt_rt": {
+        "required": false,
+        "lane": "lab",
+        "config": [
+          "CONFIG_PREEMPT_RT"
+        ]
+      }
+    }
+  },
+  "patch_series": [
+    "patch-series/bore-style.json"
+  ],
+  "selection": {
+    "mode": "single_default",
+    "hardware_adjustment": "runtime_capability_probe"
+  }
+}

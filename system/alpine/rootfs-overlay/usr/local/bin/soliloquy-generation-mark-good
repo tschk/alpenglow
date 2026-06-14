@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+GENERATION_FILE="${SOLILOQUY_GENERATION_FILE:-/etc/soliloquy/generation.json}"
+UPDATE_STATE="${SOLILOQUY_UPDATE_STATE:-/var/lib/soliloquy/system/update-state.json}"
+STATUS_DIR="$(dirname "${UPDATE_STATE}")"
+GENERATION_ID="${1:-}"
+
+if [ -z "${GENERATION_ID}" ] && [ -f "${GENERATION_FILE}" ]; then
+  GENERATION_ID="$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${GENERATION_FILE}" | head -n 1)"
+fi
+
+if [ -z "${GENERATION_ID}" ]; then
+  GENERATION_ID="soliloquy-0001"
+fi
+
+mkdir -p "${STATUS_DIR}"
+cat > "${UPDATE_STATE}" <<EOF
+{
+  "active_generation": "${GENERATION_ID}",
+  "staged_generation": null,
+  "rollback_generation": null,
+  "boot_status": "good",
+  "last_result": "marked-good",
+  "mark_good_source": "browser-interactive"
+}
+EOF
+
+printf '%s\n' "${GENERATION_ID}"

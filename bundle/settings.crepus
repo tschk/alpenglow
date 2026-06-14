@@ -1,0 +1,34 @@
+div max-w-2xl mx-auto py-8
+  h1 text-3xl font-bold mb-8 "Browser Settings"
+
+  div mb-8
+    h3 text-xl font-semibold mb-4 "Appearance"
+    div mb-4
+      label block mb-2 font-medium "Theme:"
+      select w-full p-2 border border-gray-300 rounded id=theme
+        option value=light "Light"
+        option value=dark "Dark"
+        option value=auto "Auto"
+
+  div mb-8
+    h3 text-xl font-semibold mb-4 "Performance"
+    div mb-4
+      label block mb-2 font-medium "Cache Size (MB):"
+      input type=number w-full p-2 border border-gray-300 rounded id=cache-size min=10 max=1000
+
+  div mb-8
+    h3 text-xl font-semibold mb-4 "Security"
+    div mb-4
+      label
+        input type=checkbox id=enable-js mr-2
+        "Enable JavaScript"
+
+  div mb-8
+    h3 text-xl font-semibold mb-4 "General"
+    div mb-4
+      label block mb-2 font-medium "Homepage:"
+      input type=url w-full p-2 border border-gray-300 rounded id=homepage placeholder="https://example.com"
+
+  button bg-blue-500 text-white px-6 py-3 rounded font-medium onclick=saveSettings() "Save Settings"
+
+  div mt-4 id=message

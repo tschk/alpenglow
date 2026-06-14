@@ -1,0 +1,76 @@
+#!/sbin/openrc-run
+
+description="Soliloquy local server"
+
+command="/usr/local/bin/sold"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+export SOL_BUNDLE_DIR="/usr/local/share/soliloquy/bundle"
+export SOLD_BIND="127.0.0.1:8080"
+export SOLILOQUY_SYSTEM_CONFIG="/etc/soliloquy/system.json"
+export SOLILOQUY_PLUGIN_STATE_FILE="/var/lib/soliloquy/system/plugin-state.json"
+export SOLILOQUY_PLUGIN_INSTALL_STATE_FILE="/var/lib/soliloquy/system/plugin-installs.json"
+export SOLILOQUY_PLUGIN_MANIFEST_DIR="/etc/soliloquy/plugins"
+export SOLILOQUY_UPDATE_POLICY_FILE="/etc/soliloquy/update-policy.json"
+export SOLILOQUY_UPDATE_STATE_FILE="/var/lib/soliloquy/system/update-state.json"
+export SOLILOQUY_PACKAGE_MANAGER_FILE="/etc/soliloquy/package-manager.json"
+export SOLILOQUY_RUNTIME_STATE_ENV="${SOLILOQUY_RUNTIME_STATE_ENV:-/run/soliloquy/runtime-state.env}"
+export SOLILOQUY_RUNTIME_EVENTS_FILE="${SOLILOQUY_RUNTIME_EVENTS_FILE:-/run/soliloquy/runtime-events.log}"
+
+now_unix_ms() {
+    printf '%s000\n' "$(date +%s)"
+}
+
+record_runtime_state() {
+    key="$1"
+    value="$2"
+    dir="$(dirname "${SOLILOQUY_RUNTIME_STATE_ENV}")"
+    tmp="${SOLILOQUY_RUNTIME_STATE_ENV}.$$"
+    mkdir -p "${dir}"
+    if [ -f "${SOLILOQUY_RUNTIME_STATE_ENV}" ]; then
+        grep -v "^${key}=" "${SOLILOQUY_RUNTIME_STATE_ENV}" >"${tmp}" || true
+    else
+        : >"${tmp}"
+    fi
+    printf '%s=%s\n' "${key}" "${value}" >>"${tmp}"
+    mv "${tmp}" "${SOLILOQUY_RUNTIME_STATE_ENV}"
+}
+
+record_runtime_event() {
+    kind="$1"
+    source="$2"
+    detail="${3:-}"
+    dir="$(dirname "${SOLILOQUY_RUNTIME_EVENTS_FILE}")"
+    mkdir -p "${dir}"
+    printf '%s\t%s\t%s\t%s\n' "$(now_unix_ms)" "${kind}" "${source}" "${detail}" >>"${SOLILOQUY_RUNTIME_EVENTS_FILE}" 2>/dev/null || true
+}
+
+attach_to_cgroup() {
+    group="$1"
+    pid="$2"
+    if [ -x /usr/local/bin/sol-kernelctl ]; then
+        /usr/local/bin/sol-kernelctl attach --group "${group}" --pid "${pid}" >/dev/null 2>&1 || true
+        return
+    fi
+    path="/sys/fs/cgroup/soliloquy/${group}"
+    if [ -f /sys/fs/cgroup/cgroup.controllers ] && mkdir -p "${path}" 2>/dev/null; then
+        printf '%s\n' "${pid}" >"${path}/cgroup.procs" 2>/dev/null || true
+    fi
+}
+
+start_pre() {
+    record_runtime_state SOLILOQUY_SOLD_START_UNIX_MS "$(now_unix_ms)"
+    record_runtime_event sold_openrc_start openrc sold
+}
+
+start_post() {
+    if [ -f "${pidfile}" ]; then
+        attach_to_cgroup system "$(cat "${pidfile}")"
+    fi
+    record_runtime_event sold_openrc_started openrc sold
+}
+
+depend() {
+    need localmount networking sol-kernel-policy sol-netd sol-zram
+    after seatd
+}

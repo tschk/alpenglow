@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soliloquy Browser</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --progress: 0;
+      --accent: #7cdaff;
+      --panel: rgba(12, 14, 18, 0.76);
+      --line: rgba(255, 255, 255, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #07080a;
+      color: #fff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      position: relative;
+      isolation: isolate;
+    }
+
+    .wash {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 18% 22%, rgba(124, 218, 255, 0.24), transparent 28%),
+        radial-gradient(circle at 82% 12%, rgba(186, 255, 146, 0.18), transparent 30%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 58%);
+      opacity: calc(0.62 + (var(--progress) / 260));
+      z-index: 0;
+    }
+
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px);
+      background-size: 100% 42px;
+      opacity: 0.58;
+      z-index: 1;
+    }
+
+    .frame {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 34px;
+    }
+
+    .browser {
+      width: min(1180px, 100%);
+      min-height: min(760px, calc(100vh - 68px));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 30px 110px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      backdrop-filter: blur(22px);
+    }
+
+    .chrome {
+      height: 58px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.055);
+    }
+
+    .traffic {
+      display: flex;
+      gap: 8px;
+    }
+
+    .traffic span {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .address {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.26);
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .address::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 22px rgba(124, 218, 255, 0.8);
+      flex: 0 0 auto;
+    }
+
+    .status {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.58);
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+    }
+
+    .viewport {
+      min-height: calc(min(760px, calc(100vh - 68px)) - 58px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: clamp(26px, 5vw, 60px);
+    }
+
+    .header {
+      max-width: 920px;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      opacity: 0.72;
+    }
+
+    h1 {
+      margin: 20px 0 14px;
+      font-size: clamp(42px, 7vw, 96px);
+      line-height: 0.94;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .subhead {
+      max-width: 620px;
+      font-size: 15px;
+      line-height: 1.7;
+      opacity: 0.78;
+    }
+
+    .logs {
+      width: min(760px, 100%);
+      margin-top: 28px;
+      display: grid;
+      gap: 8px;
+      font-family: "SF Mono", "IBM Plex Mono", "Cascadia Code", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .log {
+      display: flex;
+      gap: 14px;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .log.visible {
+      opacity: 0.92;
+      transform: translateY(0);
+    }
+
+    .log .stamp {
+      opacity: 0.56;
+      min-width: 68px;
+    }
+
+    .footer {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .progress {
+      font-size: clamp(38px, 10vw, 82px);
+      line-height: 0.9;
+      letter-spacing: 0;
+      font-weight: 650;
+    }
+
+    .meta {
+      text-align: right;
+      opacity: 0.84;
+    }
+  </style>
+</head>
+<body>
+  <div class="wash" aria-hidden="true"></div>
+  <div class="grid" aria-hidden="true"></div>
+  <main class="frame">
+    <section class="browser">
+      <div class="chrome">
+        <div class="traffic"><span></span><span></span><span></span></div>
+        <div class="address" id="address">os://terminal</div>
+        <div class="status">Boot</div>
+      </div>
+      <div class="viewport">
+        <section class="header">
+          <div class="eyebrow">Soliloquy Browser</div>
+          <h1>Starting local<br>workspace</h1>
+          <div class="subhead">Opening shell surface, local service route, input seat, and browser runtime.</div>
+          <div class="logs" id="logs"></div>
+        </section>
+
+        <footer class="footer">
+          <div class="progress" id="progress">000</div>
+          <div class="meta">Runtime v0.1.x</div>
+        </footer>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const progressNode = document.getElementById('progress');
+    const logRoot = document.getElementById('logs');
+    const addressNode = document.getElementById('address');
+    const target = window.location.hash.slice(1) || 'os://terminal';
+    const handoffTarget = `http://127.0.0.1:8080/?url=${encodeURIComponent(target)}`;
+    const start = performance.now();
+    const durationMs = 3800;
+    const handoffMs = 4200;
+    const lines = [
+      'display surface attached',
+      'pointer seat ready',
+      'local service route active',
+      'resolver ready',
+      'browser runtime online',
+      `target queued ${target}`,
+      `handoff route ${handoffTarget}`,
+      'navigation authorized'
+    ];
+
+    addressNode.textContent = target;
+
+    lines.forEach((message, index) => {
+      const row = document.createElement('div');
+      row.className = 'log';
+      row.innerHTML = `<span class="stamp">+${String(index).padStart(2, '0')}.0s</span><span>${message}</span>`;
+      logRoot.appendChild(row);
+      setTimeout(() => row.classList.add('visible'), 220 + index * 320);
+    });
+
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(100, Math.round((elapsed / durationMs) * 100));
+      document.documentElement.style.setProperty('--progress', String(progress));
+      progressNode.textContent = String(progress).padStart(3, '0');
+
+      if (progress < 100) {
+        requestAnimationFrame(tick);
+      }
+    }
+
+    requestAnimationFrame(tick);
+
+    setTimeout(() => {
+      window.location.replace(handoffTarget);
+    }, handoffMs);
+  </script>
+</body>
+</html>

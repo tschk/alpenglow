@@ -1,0 +1,10 @@
+SOL_START_URL="os://terminal"
+SOL_SERVO_NO_BROWSER_CHROME=1
+SOL_SESSION_X11_FALLBACK=0
+SOL_SESSION_HEADLESS_FALLBACK=1
+SOL_KERNEL_POLICY_REQUIRED=1
+SOLILOQUY_GENERATION_FILE="/etc/soliloquy/generation.json"
+SOLILOQUY_MARK_GOOD_HOOK="/usr/local/bin/soliloquy-generation-mark-good"
+SOLILOQUY_UPDATE_STATE="/var/lib/soliloquy/system/update-state.json"
+# Seconds to sleep on non-zero session exit before OpenRC respawns.
+SOL_SESSION_FAILURE_DELAY=8

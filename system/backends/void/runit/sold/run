@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+export SOLD_BIND="${SOLD_BIND:-127.0.0.1:8080}"
+export SOLD_UI_DIR="${SOLD_UI_DIR:-/usr/local/share/soliloquy/bundle}"
+exec /usr/local/bin/sold

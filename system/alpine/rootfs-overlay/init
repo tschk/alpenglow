@@ -1,0 +1,176 @@
+#!/bin/sh
+set -eu
+
+log() {
+  printf '[init] %s\n' "$1" >/dev/console
+}
+
+cmdline_value() {
+  key="$1"
+  for arg in $(cat /proc/cmdline 2>/dev/null || true); do
+    case "${arg}" in
+      "${key}="*) printf '%s\n' "${arg#*=}"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+record_rootfs_state() {
+  mkdir -p /run/soliloquy
+  {
+    printf 'SOLILOQUY_ROOT_MODE=%s\n' "$1"
+    printf 'SOLILOQUY_ROOT_SOURCE=%s\n' "$2"
+    printf 'SOLILOQUY_ROOT_MEM_MB=%s\n' "$3"
+  } >/run/soliloquy/rootfs.env
+}
+
+load_kernel_module_file() {
+  module_path="$1"
+  if [ -f "${module_path}" ] && command -v insmod >/dev/null 2>&1; then
+    if insmod "${module_path}" >/dev/null 2>&1; then
+      log "loaded kernel module ${module_path}"
+    else
+      log "kernel module load failed ${module_path}"
+    fi
+  fi
+}
+
+load_kernel_module() {
+  module="$1"
+  if command -v modprobe >/dev/null 2>&1; then
+    modprobe "${module}" >/dev/null 2>&1 || true
+  fi
+}
+
+wait_for_device() {
+  device="$1"
+  count=0
+  while [ "${count}" -lt 50 ]; do
+    [ -e "${device}" ] && return 0
+    sleep 0.1
+    count=$((count + 1))
+  done
+  return 1
+}
+
+prepare_disk_root_state() {
+  for path in var/lib/soliloquy var/log var/cache home root state; do
+    if [ -d "/sysroot/${path}" ]; then
+      mount -t tmpfs -o mode=755,nosuid,nodev tmpfs "/sysroot/${path}" 2>/dev/null || true
+    fi
+  done
+  if [ -f /sysroot/etc/resolv.conf ]; then
+    mkdir -p /run/soliloquy
+    : >/run/soliloquy/resolv.conf
+    mount --bind /run/soliloquy/resolv.conf /sysroot/etc/resolv.conf 2>/dev/null || true
+  fi
+  if [ -d /sysroot/etc/udhcpc ]; then
+    mkdir -p /run/soliloquy
+  fi
+}
+
+try_disk_root() {
+  device="$1"
+  fstype="$2"
+  mem_mb="$3"
+  mkdir -p /sysroot
+  wait_for_device "${device}" || log "disk root device unavailable ${device}"
+  if mount -t "${fstype}" -o ro "${device}" /sysroot 2>/dev/null; then
+    record_rootfs_state "disk-root" "${device}" "${mem_mb}"
+    prepare_disk_root_state
+    if command -v switch_root >/dev/null 2>&1; then
+      log "switching to disk root ${device}"
+      for mountpoint in proc sys dev run tmp; do
+        if [ -d "/sysroot/${mountpoint}" ]; then
+          mount --move "/${mountpoint}" "/sysroot/${mountpoint}" 2>/dev/null || true
+        fi
+      done
+      exec switch_root /sysroot /sbin/init
+    fi
+    umount /sysroot 2>/dev/null || true
+  fi
+  log "disk root mount failed ${device} ${fstype}"
+  return 1
+}
+
+log "starting early userspace"
+mount -t proc proc /proc || true
+# Larger core socket limits can avoid EMSGSIZE on some Wayland client↔compositor paths
+# (e.g. winit's initial registry roundtrip) when defaults are tight in minimal VMs.
+if [ -w /proc/sys/net/core/rmem_max ]; then
+  echo 67108864 >/proc/sys/net/core/rmem_max 2>/dev/null || true
+fi
+if [ -w /proc/sys/net/core/wmem_max ]; then
+  echo 67108864 >/proc/sys/net/core/wmem_max 2>/dev/null || true
+fi
+if [ -w /proc/sys/net/core/rmem_default ]; then
+  echo 8388608 >/proc/sys/net/core/rmem_default 2>/dev/null || true
+fi
+if [ -w /proc/sys/net/core/wmem_default ]; then
+  echo 8388608 >/proc/sys/net/core/wmem_default 2>/dev/null || true
+fi
+mount -t sysfs sysfs /sys || true
+mkdir -p /sys/fs/cgroup
+mount -t cgroup2 cgroup2 /sys/fs/cgroup 2>/dev/null || true
+mount -t tmpfs tmpfs /run || true
+mount -t tmpfs -o mode=755,nosuid,nodev tmpfs /tmp || true
+
+mkdir -p /run/soliloquy /var/log/soliloquy /var/cache/soliloquy || true
+chmod 755 /tmp || true
+chmod 700 /run/soliloquy /var/log/soliloquy /var/cache/soliloquy || true
+
+if ! mount -t devtmpfs devtmpfs /dev 2>/dev/null; then
+  log "devtmpfs unavailable; falling back to tmpfs /dev"
+  mount -t tmpfs tmpfs /dev
+  mknod -m 600 /dev/console c 5 1 || true
+  mknod -m 666 /dev/null c 1 3 || true
+  mknod -m 666 /dev/tty c 5 0 || true
+  mknod -m 620 /dev/tty1 c 4 1 || true
+  mknod -m 620 /dev/ttyS0 c 4 64 || true
+fi
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+ln -sf pts/ptmx /dev/ptmx 2>/dev/null || true
+
+# wlroots uses shm_open for several allocations (e.g. linux-dmabuf format tables). A missing
+# or undersized /dev/shm breaks the compositor and can surface as client-side Wayland I/O errors.
+mkdir -p /dev/shm
+chmod 1777 /dev/shm 2>/dev/null || true
+mount -t tmpfs -o mode=1777,nosuid,nodev,size=256m tmpfs /dev/shm 2>/dev/null || true
+
+ram_root_mode="$(cmdline_value soliloquy.ram_root || printf '%s\n' auto)"
+ram_root_min_mb="$(cmdline_value soliloquy.ram_root_min_mb || printf '%s\n' 3072)"
+root_fallback="$(cmdline_value soliloquy.root_fallback || printf '%s\n' /dev/vda)"
+root_fallback_fstype="$(cmdline_value soliloquy.root_fallback_fstype || printf '%s\n' ext4)"
+mem_kb="$(awk '/MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || printf '%s\n' 0)"
+mem_mb="$((mem_kb / 1024))"
+load_kernel_module virtio_pci
+load_kernel_module virtio_blk
+load_kernel_module_file /usr/local/lib/soliloquy/kernel/solfs.ko
+
+case "${ram_root_mode}" in
+  0|false|off|disk)
+    try_disk_root "${root_fallback}" "${root_fallback_fstype}" "${mem_mb}" || record_rootfs_state "ram-root" "initramfs-fallback" "${mem_mb}"
+    ;;
+  force|1|true|ram)
+    record_rootfs_state "ram-root" "initramfs-forced" "${mem_mb}"
+    ;;
+  *)
+    if [ "${mem_mb}" -lt "${ram_root_min_mb}" ]; then
+      try_disk_root "${root_fallback}" "${root_fallback_fstype}" "${mem_mb}" || record_rootfs_state "ram-root" "initramfs-low-memory-fallback-missing" "${mem_mb}"
+    else
+      record_rootfs_state "ram-root" "initramfs-auto" "${mem_mb}"
+    fi
+    ;;
+esac
+
+load_kernel_module virtio_pci
+load_kernel_module rng_core
+load_kernel_module virtio_rng
+load_kernel_module jitterentropy_rng
+load_kernel_module virtio_net
+load_kernel_module virtio_input
+load_kernel_module virtio_gpu
+
+log "launching /sbin/init"
+exec /sbin/init
