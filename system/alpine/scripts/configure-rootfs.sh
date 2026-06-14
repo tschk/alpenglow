@@ -113,7 +113,6 @@ cp "${BIN_SRC}/apply-kernel-policy.sh" "${ROOTFS}/usr/local/bin/apply-kernel-pol
 cp "${BIN_SRC}/apply-pressure-policy.sh" "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh"
 cp "${BIN_SRC}/apply-zram-policy.sh" "${ROOTFS}/usr/local/bin/apply-zram-policy.sh"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/alpenglow-session-start"
-cp "${BIN_SRC}/alpenglow-servo-wrapper" "${ROOTFS}/usr/local/bin/alpenglow-servo-wrapper"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/rootfs-layout.json"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/state-mounts.json"
 
@@ -130,7 +129,6 @@ chmod +x \
   "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" \
   "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good" \
   "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
-  "${ROOTFS}/usr/local/bin/alpenglow-servo-wrapper" \
   "${ROOTFS}/init"
 
 if [ -f "${ALPINE_DIR}/packages-v0.txt" ]; then

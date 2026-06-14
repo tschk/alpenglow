@@ -1,4 +1,6 @@
 #!/bin/sh
+# Alpenglow native appliance — configure-rootfs
+# Builds the rootfs directory for the unified appliance target.
 set -eu
 
 ROOTFS="${1:-}"
@@ -24,19 +26,12 @@ if [ ! -d "${ROOTFS}" ]; then
   exit 1
 fi
 
-ensure_group() {
-  name="$1"
-  gid="$2"
+ensure_group() { name="$1"; gid="$2"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/group" 2>/dev/null; then
     printf '%s:x:%s:\n' "${name}" "${gid}" >>"${ROOTFS}/etc/group"
   fi
 }
-
-ensure_user() {
-  name="$1"
-  uid="$2"
-  gid="$3"
-  home="$4"
+ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/passwd" 2>/dev/null; then
     printf '%s:x:%s:%s:%s:%s:/sbin/nologin\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" >>"${ROOTFS}/etc/passwd"
   fi
@@ -47,14 +42,14 @@ ensure_group "sold" "${SOLD_GID}"
 ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow"
 ensure_user "sold" "${SOLD_UID}" "${SOLD_GID}" "/var/lib/alpenglow/system"
 
+# Directory structure
 mkdir -p "${ROOTFS}/etc/alpenglow/filesystems"
 mkdir -p "${ROOTFS}/etc/alpenglow/services"
 mkdir -p "${ROOTFS}/etc/alpenglow/generations"
-mkdir -p "${ROOTFS}/var/lib/alpenglow/oil"
-mkdir -p "${ROOTFS}/etc/runit/runsvdir/default"
-mkdir -p "${ROOTFS}/etc/sv"
+mkdir -p "${ROOTFS}/etc/dinit.d"
 mkdir -p "${ROOTFS}/usr/local/bin"
 mkdir -p "${ROOTFS}/home" "${ROOTFS}/state" "${ROOTFS}/sysroot/alpenglow"
+mkdir -p "${ROOTFS}/var/lib/alpenglow/oil"
 mkdir -p \
   "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
   "${ROOTFS}/var/lib/alpenglow/browser/cache" \
@@ -69,8 +64,7 @@ mkdir -p \
 mkdir -p "${ROOTFS}/var/cache/alpenglow" "${ROOTFS}/var/log/alpenglow"
 
 chmod 700 "${ROOTFS}/state"
-chmod 700 \
-  "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
+chmod 700 "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
   "${ROOTFS}/var/lib/alpenglow/browser/cache" \
   "${ROOTFS}/var/lib/alpenglow/browser/downloads" \
   "${ROOTFS}/var/lib/alpenglow/browser/state" \
@@ -81,64 +75,35 @@ chmod 700 \
   "${ROOTFS}/var/lib/alpenglow/system/plugins" \
   "${ROOTFS}/var/cache/alpenglow" \
   "${ROOTFS}/var/log/alpenglow"
+chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/lib/alpenglow/browser" 2>/dev/null || true
+chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS}/var/lib/alpenglow/system" 2>/dev/null || true
 
-chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/lib/alpenglow/browser" >/dev/null 2>&1 || true
-chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/cache/alpenglow" >/dev/null 2>&1 || true
-chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS}/var/lib/alpenglow/system" >/dev/null 2>&1 || true
-
+# Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
-cp "${BIN_SRC}/apply-kernel-policy.sh" "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh"
-cp "${BIN_SRC}/apply-pressure-policy.sh" "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh"
-cp "${BIN_SRC}/apply-zram-policy.sh" "${ROOTFS}/usr/local/bin/apply-zram-policy.sh"
-cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/alpenglow-session-start"
-cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/rootfs-layout.json"
-cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/state-mounts.json"
+cp "${BIN_SRC}/apply-kernel-policy.sh" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/apply-pressure-policy.sh" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/apply-zram-policy.sh" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
+cp "${SCRIPT_DIR}/mount-glowfs-root.sh" "${ROOTFS}/usr/local/bin/"
+cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
+cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
+cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${BACKEND_DIR}/backend.json" "${ROOTFS}/etc/alpenglow/backend.json"
-cp "${BACKEND_DIR}/packages-runtime.txt" "${ROOTFS}/etc/alpenglow/world.void"
-cp "${BACKEND_DIR}/packages-dev.txt" "${ROOTFS}/etc/alpenglow/world.void.dev"
 cp "${BACKEND_DIR}/packages-runtime.txt" "${ROOTFS}/etc/alpenglow/world"
-cp -R "${BACKEND_DIR}/runit/." "${ROOTFS}/etc/sv/"
-rm -rf "${ROOTFS}/etc/apk"
+cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
+rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
-for service in seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram sold alpenglow-session; do
-  ln -s "/etc/sv/${service}" "${ROOTFS}/etc/runit/runsvdir/default/${service}" 2>/dev/null || true
+# Enable dinit boot services
+mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
+for service in glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure sold alpenglow-session; do
+  ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
 
-chmod +x \
-  "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" \
-  "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh" \
-  "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" \
-  "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good" \
-  "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
-  "${ROOTFS}/init"
-
-find "${ROOTFS}/etc/sv" -name run -exec chmod +x {} \;
-
-cat > "${ROOTFS}/etc/inittab" <<'EOF'
-::sysinit:/etc/runit/1
-::wait:/etc/runit/2
-::ctrlaltdel:/etc/runit/ctrlaltdel
-::shutdown:/etc/runit/3
-EOF
-
-cat > "${ROOTFS}/etc/alpenglow/filesystems/fstab.plan" <<'EOF'
-alpenglow-root / glowfs ro,nodev 0 0
-alpenglow-ram-root / ramfs auto,min_ram_mb=3072,fallback=/dev/vda 0 0
-alpenglow-state /state ext4 rw,nosuid,nodev 0 2
-tmpfs /run tmpfs nosuid,nodev,mode=0755 0 0
-tmpfs /tmp tmpfs nosuid,nodev,mode=0755 0 0
-tmpfs /dev/shm tmpfs nosuid,nodev,mode=1777,size=256m 0 0
-/state/home /home none bind 0 0
-/state/var/lib/alpenglow /var/lib/alpenglow none bind 0 0
-/state/var/cache/alpenglow /var/cache/alpenglow none bind 0 0
-/state/var/log/alpenglow /var/log/alpenglow none bind 0 0
-EOF
-
-# Default system compiler: clang (Option D: LLVM/clang toolchain, Chimera-style)
+# Default compiler: LLVM/Clang (with Inauguration as future path)
 mkdir -p "${ROOTFS}/etc/profile.d"
 cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
-# Alpenglow uses LLVM/clang as the default system compiler
-# Override with CC=gcc for packages that require GCC
+# Alpenglow system compiler: LLVM/Clang (default)
+# Inauguration will be added as a future codegen backend.
 CC=clang
 CXX=clang++
 LD=lld
@@ -146,42 +111,82 @@ AR=llvm-ar
 NM=llvm-nm
 OBJCOPY=llvm-objcopy
 RANLIB=llvm-ranlib
-CFLAGS="-O2 -pipe -fomit-frame-pointer"
-CXXFLAGS="-O2 -pipe -fomit-frame-pointer"
-LDFLAGS="-fuse-ld=lld"
+CFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
+CXXFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
+LDFLAGS="-fuse-ld=lld -Wl,-z,relro,-z,now"
 export CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
 COMPEOF
 chmod 644 "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh"
 
+# Default shell
+if [ ! -f "${ROOTFS}/bin/sh" ]; then
+  ln -s /bin/oksh "${ROOTFS}/bin/sh" 2>/dev/null || true
+fi
+
+# Hardened sysctl defaults
+cat > "${ROOTFS}/etc/sysctl.d/99-hardened.conf" <<'SYSCTL'
+# Kernel hardening
+kernel.kptr_restrict=2
+kernel.dmesg_restrict=1
+kernel.printk=3 3 3 3
+kernel.unprivileged_bpf_disabled=1
+net.core.bpf_jit_harden=2
+net.ipv4.tcp_syncookies=1
+net.ipv4.conf.all.rp_filter=1
+net.ipv4.conf.default.rp_filter=1
+net.ipv4.tcp_rfc1337=1
+vm.unprivileged_userfaultfd=0
+SYSCTL
+
+chmod +x "${ROOTFS}/usr/local/bin/"*.sh
+chmod +x "${ROOTFS}/init" 2>/dev/null || true
+find "${ROOTFS}/etc/dinit.d" -type f -exec chmod +x {} \; 2>/dev/null || true
+
+# System configuration
 cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
 {
-  "backend": "void-musl-runit",
+  "backend": "alpenglow-native",
   "composition_model": "oasis-static",
+  "boot_model": "diskless",
+  "hardened": true,
   "compiler": {
     "default": "clang",
-    "fallback": "gcc",
     "linker": "lld",
-    "policy": "chimera-style"
+    "policy": "llvm-primary",
+    "future": ["inauguration"]
   },
   "filesystem": {
     "immutable_root": true,
+    "diskless": true,
+    "root_fs": "glowfs",
     "rootfs_layout": "/etc/alpenglow/filesystems/rootfs-layout.json",
     "state_mounts": "/etc/alpenglow/filesystems/state-mounts.json",
     "state_root": "/state"
   },
   "service_manager": {
-    "id": "runit",
-    "runsvdir": "/etc/runit/runsvdir/default"
+    "id": "dinit",
+    "dinit_dir": "/etc/dinit.d",
+    "boot_dir": "/etc/dinit.d/boot.d"
   },
   "package_manager": {
     "id": "oil",
-    "mode": "composition-only",
+    "mode": "native",
     "binary": "/usr/local/bin/wax",
     "state_root": "/var/lib/alpenglow/oil",
-    "bootstrap": "xbps",
+    "bootstrap": "oil",
     "runtime_mutation": false
+  },
+  "kernel": {
+    "policy": "hardened",
+    "type": "minimal-appliance"
+  },
+  "userland": {
+    "core": "toybox",
+    "style": "minimal",
+    "shell": "oksh",
+    "crypto": "bearssl"
   }
 }
 EOF
 
-printf 'Configured Void musl runit rootfs at %s\n' "${ROOTFS}"
+printf 'Configured Alpenglow native appliance rootfs at %s\n' "${ROOTFS}"

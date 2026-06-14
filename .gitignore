@@ -7,7 +7,6 @@ out/
 # Ignore large downloads
 sdk/
 fuchsia/
-vendor/servo/
 .build-tools/
 
 # Ignore cache directories

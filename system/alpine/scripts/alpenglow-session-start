@@ -1,11 +1,9 @@
 #!/bin/sh
 set -eu
-
 if [ -f /etc/conf.d/alpenglow-session ]; then
   # shellcheck disable=SC1091
   . /etc/conf.d/alpenglow-session
 fi
-
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export WLR_BACKENDS="${WLR_BACKENDS:-drm,libinput}"
 # Pixman keeps the compositor on a predictable software path in tiny VMs. Override via
@@ -16,11 +14,9 @@ export WLR_RENDERER_ALLOW_SOFTWARE="${WLR_RENDERER_ALLOW_SOFTWARE:-1}"
 export WLR_NO_HARDWARE_CURSORS="${WLR_NO_HARDWARE_CURSORS:-1}"
 export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
-export SERVO_DISPLAY_BACKEND="${SERVO_DISPLAY_BACKEND:-wayland}"
 export WINIT_UNIX_BACKEND="${WINIT_UNIX_BACKEND:-wayland}"
 export EGL_PLATFORM="${EGL_PLATFORM:-wayland}"
 export WLR_XWAYLAND="${WLR_XWAYLAND:-0}"
-
 if [ -z "${ALPENGLOW_TOKEN:-}" ]; then
   TOKEN_FILE="/var/lib/alpenglow/system/api-token"
   if [ ! -f "${TOKEN_FILE}" ] && [ -w "$(dirname "${TOKEN_FILE}")" ]; then
@@ -35,7 +31,6 @@ if [ -z "${ALPENGLOW_TOKEN:-}" ]; then
 else
   export ALPENGLOW_TOKEN="${ALPENGLOW_TOKEN}"
 fi
-
 export ALPENGLOW_HOME="${ALPENGLOW_HOME:-/var/lib/alpenglow}"
 export ALPENGLOW_SYSTEM_CONFIG="${ALPENGLOW_SYSTEM_CONFIG:-/etc/alpenglow/system.json}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-${ALPENGLOW_HOME}/data}"
@@ -51,7 +46,6 @@ export ALPENGLOW_TERMINAL_STATE_DIR="${ALPENGLOW_TERMINAL_STATE_DIR:-${ALPENGLOW
 export ALPENGLOW_RUNTIME_STATE_ENV="${ALPENGLOW_RUNTIME_STATE_ENV:-/run/alpenglow/runtime-state.env}"
 export ALPENGLOW_RUNTIME_EVENTS_FILE="${ALPENGLOW_RUNTIME_EVENTS_FILE:-/run/alpenglow/runtime-events.log}"
 SERIAL_CONSOLE="${SERIAL_CONSOLE:-/dev/ttyS0}"
-
 mkdir -p "${XDG_RUNTIME_DIR}"
 mkdir -p "$(dirname "${ALPENGLOW_RUNTIME_STATE_ENV}")"
 mkdir -p "$(dirname "${ALPENGLOW_RUNTIME_EVENTS_FILE}")"
@@ -78,15 +72,12 @@ chmod 700 \
   "${ALPENGLOW_STATE_DIR}" \
   "${ALPENGLOW_LOG_DIR}" \
   "${ALPENGLOW_TERMINAL_STATE_DIR}"
-
 log() {
   printf '[alpenglow-session] %s\n' "$1" >&2
 }
-
 now_unix_ms() {
   printf '%s000\n' "$(date +%s)"
 }
-
 record_runtime_state() {
   key="$1"
   value="$2"
@@ -99,21 +90,18 @@ record_runtime_state() {
   printf '%s=%s\n' "${key}" "${value}" >>"${tmp}"
   mv "${tmp}" "${ALPENGLOW_RUNTIME_STATE_ENV}"
 }
-
 record_runtime_event() {
   kind="$1"
   source="$2"
   detail="${3:-}"
   printf '%s\t%s\t%s\t%s\n' "$(now_unix_ms)" "${kind}" "${source}" "${detail}" >>"${ALPENGLOW_RUNTIME_EVENTS_FILE}" 2>/dev/null || true
 }
-
 runtime_state_value() {
   key="$1"
   if [ -f "${ALPENGLOW_RUNTIME_STATE_ENV}" ]; then
     grep "^${key}=" "${ALPENGLOW_RUNTIME_STATE_ENV}" | tail -n 1 | cut -d= -f2-
   fi
 }
-
 require_kernel_policy() {
   case "${ALPENGLOW_KERNEL_POLICY_REQUIRED:-0}" in
     1|true|TRUE|yes|YES) ;;
@@ -125,7 +113,6 @@ require_kernel_policy() {
     exit 1
   fi
 }
-
 attach_to_cgroup() {
   group="$1"
   pid="$2"
@@ -138,7 +125,6 @@ attach_to_cgroup() {
     printf '%s\n' "${pid}" >"${path}/cgroup.procs" 2>/dev/null || true
   fi
 }
-
 wait_for_sold() {
   origin="${ALPENGLOW_SOLD_ORIGIN:-http://127.0.0.1:8080}"
   retries="${ALPENGLOW_SOLD_READY_RETRIES:-600}"
@@ -163,19 +149,15 @@ wait_for_sold() {
     record_runtime_event runtime_api_ready alpenglow-session "${origin}/api/runtime"
   fi
 }
-
 has_drm_device() {
   [ -e /dev/dri/card0 ] || [ -e /dev/dri/renderD128 ]
 }
-
 has_input_device() {
   [ -e /dev/input/mice ] || { set -- /dev/input/event*; [ -e "$1" ]; }
 }
-
 has_seatd_socket() {
   [ -S /run/seatd.sock ]
 }
-
 wait_for_seatd_socket() {
   i=0
   while ! has_seatd_socket; do
@@ -187,7 +169,6 @@ wait_for_seatd_socket() {
   done
   return 0
 }
-
 launch_session() {
   backend="$1"
   export WLR_BACKENDS="${backend}"
@@ -197,26 +178,20 @@ launch_session() {
   fi
   log "WLR_BACKENDS=${WLR_BACKENDS}"
   log "WLR_RENDERER=${WLR_RENDERER}"
-  log "SERVO_DISPLAY_BACKEND=${SERVO_DISPLAY_BACKEND}"
   log "XDG_SESSION_TYPE=${XDG_SESSION_TYPE}"
   log "WINIT_UNIX_BACKEND=${WINIT_UNIX_BACKEND}"
   log "EGL_PLATFORM=${EGL_PLATFORM}"
   log "ALPENGLOW_JS_ENGINE=${ALPENGLOW_JS_ENGINE:-v8-experimental}"
-
   if [ -c "${SERIAL_CONSOLE}" ]; then
-    cage -- /usr/local/bin/alpenglow-servo-wrapper >>"${SERIAL_CONSOLE}" 2>&1
   else
-    cage -- /usr/local/bin/alpenglow-servo-wrapper
   fi
 }
-
 log "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
 log "ALPENGLOW_SYSTEM_CONFIG=${ALPENGLOW_SYSTEM_CONFIG}"
 record_runtime_state ALPENGLOW_SESSION_START_UNIX_MS "$(now_unix_ms)"
 record_runtime_event session_start alpenglow-session "${XDG_RUNTIME_DIR}"
 attach_to_cgroup browser "$$"
 require_kernel_policy
-
 if ! has_drm_device; then
   if [ "${ALPENGLOW_SESSION_HEADLESS_FALLBACK:-1}" = "1" ]; then
     export WLR_BACKENDS=headless
@@ -227,7 +202,6 @@ if ! has_drm_device; then
     exit 1
   fi
 fi
-
 if ! wait_for_seatd_socket && [ "${WLR_BACKENDS}" != "headless" ]; then
   if [ "$(id -u)" = "0" ]; then
     export LIBSEAT_BACKEND=direct
@@ -237,12 +211,10 @@ if ! wait_for_seatd_socket && [ "${WLR_BACKENDS}" != "headless" ]; then
     exit 1
   fi
 fi
-
 if ! command -v cage >/dev/null 2>&1; then
   log "cage not found; cannot start Wayland appliance"
   exit 1
 fi
-
 if [ "${WLR_BACKENDS}" = "headless" ]; then
   log "using cage with wlroots headless backend"
   record_runtime_event display_ready alpenglow-session headless
@@ -255,7 +227,6 @@ set +e
 launch_session "${WLR_BACKENDS:-drm,libinput}"
 status=$?
 set -e
-
 # If the session was started with native Wayland winit, retry once with X11 (XWayland).
 if [ "${status}" != 0 ] && [ "${ALPENGLOW_SESSION_X11_FALLBACK:-0}" = "1" ] && [ "${WINIT_UNIX_BACKEND}" != "x11" ]; then
   log "session exited ${status}; retrying with X11 client backend via XWayland (WINIT_UNIX_BACKEND=x11)"
@@ -267,7 +238,6 @@ if [ "${status}" != 0 ] && [ "${ALPENGLOW_SESSION_X11_FALLBACK:-0}" = "1" ] && [
   status=$?
   set -e
 fi
-
 log "Wayland session exited with status ${status}"
 record_runtime_event session_exit alpenglow-session "${status}"
 if [ "${status}" != 0 ]; then

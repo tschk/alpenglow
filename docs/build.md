@@ -23,7 +23,5 @@ This validates the backend contract, GlowFS module source, kernel config policy,
 ## Reference Image
 
 ```bash
-SERVO_DIR=/path/to/alpenglow-servo QEMU_RUN=0 ./system/alpine/scripts/qemu-v0.sh
 ```
 
-The reference image stages `bundle/` at `/usr/local/share/alpenglow/bundle`. A complete boot currently requires a Servo/RV8 build that supports `--no-browser-chrome`; the stock Servo release fallback does not satisfy that gate.

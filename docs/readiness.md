@@ -14,14 +14,11 @@ Alpenglow is not bootable as a complete usable OS yet.
 
 - No full QEMU boot has passed in the current Alpenglow-only shape.
 - No target-board boot has been validated on Radxa Cubie A5E hardware.
-- The default source-build path requires an Alpenglow-owned Servo checkout at `third_party/servo` or `SERVO_DIR`.
-- The release fallback `SERVO_SOURCE_BUILD=0 QEMU_RUN=0 ./system/alpine/scripts/qemu-v0.sh` currently fails because upstream Servo `v0.0.6` lacks the required `--no-browser-chrome` support.
 - The Void backend does not yet have its own QEMU boot path; Alpine remains the reference image flow.
 - Oil is the Alpenglow package-manager identity, but Oil still emits the current `wax` binary name.
 
 ## Next Work
 
-1. Publish or vendor an Alpenglow-compatible Servo/RV8 browser-engine build that supports `--no-browser-chrome`.
 2. Make the Void musl/runit backend produce the same QEMU artifacts as the Alpine reference path.
 3. Add a single `./install.sh --doctor` command that reports missing engine checkout, missing Oil checkout, Docker/QEMU availability, rootfs backend readiness, and board-flash prerequisites.
 4. Add a real image artifact command that emits kernel, initramfs, GlowFS root image, state image, checksums, and install metadata under `build/alpenglow/release`.

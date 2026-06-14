@@ -6,7 +6,6 @@ GlowFS is the Alpenglow root filesystem for internet-appliance images. Its job i
 
 General filesystems optimize for broad POSIX workloads. Alpenglow has a smaller contract:
 
-- `/usr`, `/etc`, OpenRC service graphs, UI bundles, Servo launchers, `sold`, and policy files are immutable generation content.
 - Browser cache is disposable and should not be treated like durable user state.
 - Browser profiles, downloads, terminal state, and Oil state are explicit persistent mounts outside the root image.
 - OS rollback should be a filesystem generation operation rather than a package-manager repair operation.

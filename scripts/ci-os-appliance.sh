@@ -43,7 +43,6 @@ assert_runlevel_service() {
 
 test -L CLAUDE.md || fail "CLAUDE.md must be a symlink"
 [ "$(readlink CLAUDE.md)" = "AGENTS.md" ] || fail "CLAUDE.md must point to AGENTS.md"
-[ ! -e src/rv8 ] || fail "src/rv8 must stay deleted"
 
 for path in \
   system/appliance/scripts/select-backend.sh \
@@ -67,7 +66,6 @@ for path in \
   system/glowfs/kernel/validate-glowfs-kernel.sh \
   system/alpine/kernel/validate-kernel-config.sh \
   system/alpine/scripts/alpenglow-session-start \
-  system/alpine/scripts/alpenglow-servo-wrapper \
   system/alpine/scripts/stage-alpenglow-artifacts.sh \
   system/alpine/openrc/sold \
   system/alpine/openrc/alpenglow-session \
@@ -272,10 +270,6 @@ assert_contains system/alpine/rootfs-overlay/etc/conf.d/alpenglow-session '^ALPE
 assert_contains system/alpine/scripts/alpenglow-session-start 'WLR_XWAYLAND'
 assert_contains system/alpine/scripts/alpenglow-session-start 'alpenglow-kernelctl attach --group'
 assert_contains system/alpine/scripts/alpenglow-session-start 'attach_to_cgroup browser'
-assert_contains system/alpine/scripts/alpenglow-servo-wrapper 'attach_to_cgroup foreground-renderer'
-assert_contains system/alpine/scripts/alpenglow-servo-wrapper 'alpenglow-kernelctl attach --group'
-assert_contains system/alpine/scripts/alpenglow-servo-wrapper 'ALPENGLOW_SERVO_LOG_FILTER'
-assert_contains system/alpine/scripts/alpenglow-servo-wrapper 'filter_servo_logs'
 assert_contains system/alpine/openrc/sold 'attach_to_cgroup system'
 assert_contains system/alpine/openrc/sold 'alpenglow-kernelctl attach --group'
 assert_contains system/alpine/services.json '"id": "networking"'
@@ -283,7 +277,6 @@ assert_contains system/alpine/services.json '"id": "alpenglow-netd"'
 assert_contains system/alpine/services.json '"id": "alpenglow-zram"'
 assert_contains system/alpine/services.json '"id": "sold"'
 assert_contains system/alpine/services.json '"id": "alpenglow-session"'
-assert_not_contains system/alpine/scripts/stage-alpenglow-artifacts.sh 'src/rv8|release/rv8|cargo .*rv8'
 assert_not_contains system/alpine/scripts/configure-rootfs.sh 'dev-signature-placeholder|fake|placeholder signature'
 
 tmp_root="$(mktemp -d)"
@@ -315,7 +308,6 @@ assert_executable "${tmp_root}/etc/init.d/alpenglow-zram"
 assert_executable "${tmp_root}/usr/local/bin/apply-kernel-policy.sh"
 assert_executable "${tmp_root}/usr/local/bin/apply-zram-policy.sh"
 assert_executable "${tmp_root}/usr/local/bin/alpenglow-session-start"
-assert_executable "${tmp_root}/usr/local/bin/alpenglow-servo-wrapper"
 assert_not_contains "${tmp_root}/etc/inittab" 'alpenglow-session-start'
 assert_contains "${tmp_root}/etc/rc.conf" '^rc_parallel="YES"$'
 assert_contains "${tmp_root}/etc/sysctl.d/99-alpenglow-internet-os.conf" '^net.core.somaxconn=4096$'

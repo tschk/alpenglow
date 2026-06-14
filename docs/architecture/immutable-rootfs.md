@@ -22,7 +22,6 @@ The booted filesystem plan is:
 
 | Mount | Type | Options | Purpose |
 | --- | --- | --- | --- |
-| `/` | GlowFS, EROFS fallback, SquashFS fallback | `ro,nodev` | Immutable Alpine, OpenRC, Servo launcher, sold, policy, service registry |
 | `/state` | ext4 | `rw,nosuid,nodev` | Persistent user and system state |
 | `/run` | tmpfs | `nosuid,nodev,mode=0755` | PID files, sockets, runtime telemetry |
 | `/tmp` | tmpfs | `nosuid,nodev,mode=0755` | Short-lived system scratch |

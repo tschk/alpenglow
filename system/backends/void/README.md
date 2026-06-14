@@ -2,7 +2,6 @@
 
 This backend is the active Alpenglow base-system target. It follows the shared appliance contract while using Void musl packages and runit services.
 
-The design borrows from Oasis by treating the deployed system as a composed root filesystem rather than a mutable general-purpose installation. Void provides the practical bootstrap, package repository, and shared-library surface needed by Servo, V8, Wayland, GPU, and media components.
 
 Backend properties:
 

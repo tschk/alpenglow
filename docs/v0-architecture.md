@@ -4,7 +4,6 @@
 
 Deliver a minimal browser-only immutable OS experience on Alpine Linux:
 
-- fullscreen Servo browser surface
 - wlroots kiosk compositor
 - command bar-first UX
 - constrained Rust system bridge
@@ -15,8 +14,6 @@ Deliver a minimal browser-only immutable OS experience on Alpine Linux:
 1. Alpine/OpenRC boots.
 2. OpenRC starts `seatd`, `sold`, and network.
 3. OpenRC starts `alpenglow-session` (no login manager).
-4. `alpenglow-session` runs `cage` and starts Servo fullscreen.
-5. Servo loads the local `bundle/` shell as the primary UI.
 
 The host root filesystem is read-only at runtime; writable state is limited to browser profile, cache, downloads, logs, and terminal/session data.
 

@@ -29,4 +29,3 @@ Current backend ranking:
 3. `chimera-musl-dinit`
 4. `oasis-static`
 
-The `oasis-static` backend is the composition model. It is not the immediate runtime backend because Servo, V8, media, GPU, and Wayland dependencies still need the broader shared-library surface provided by Void or Alpine.
