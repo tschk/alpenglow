@@ -96,6 +96,7 @@ cargo test -p alpenglow-netd
 | Custom kernel build | 🟡 | `KERNEL_BUILD=1` untested |
 | GlowFS kernel module | 🟡 | In-tree, module export issues |
 | Real hardware boot | ❌ | QEMU only for now |
+| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` (native) / `ALPENGLOW_PROFILE=minimal|standard` (Oil) |
 | Interactive installer | 🟡 | Planned |
 | Crepuscularity DE | 📝 | 4-phase GPUI desktop shell plan |
 

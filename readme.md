@@ -89,8 +89,14 @@ docs/               Architecture, build, install docs
 ## Build
 
 ```sh
-# Quick boot (needs Docker + QEMU)
+# Quick boot (needs Docker + QEMU) — standard profile (display, audio, WiFi, dev)
 ./scripts/boot-native.sh
+
+# Minimal profile — headless server (SSH, NTP, logging, cron, DNS, no display)
+BUILD_PROFILE=minimal ./scripts/boot-native.sh
+
+# Oil-based build (uses ALPENGLOW_PROFILE=minimal|standard)
+ALPENGLOW_PROFILE=minimal ./system/backends/appliance/scripts/build-rootfs.sh
 
 # Custom kernel build
 KERNEL_BUILD=1 KERNEL_VERSION=7.0.12 ./scripts/boot-native.sh
@@ -116,6 +122,13 @@ cargo build --release
 | Wayland display (cage+foot) | ✅ |
 | Audio (ALSA+PipeWire) | ✅ dinit services |
 | WiFi (iwd) | ✅ 16+ driver chipsets |
+| SSH server (dropbear) | ✅ dinit-managed |
+| NTP (chrony) | ✅ dinit-managed |
+| Logging (syslogd) | ✅ dinit-managed |
+| Cron (crond) | ✅ dinit-managed |
+| DNS caching (dnsmasq) | ✅ dinit-managed |
+| Editor (vro) | ✅ in-repo binary, replaces vi |
+| Build profiles | ✅ minimal (headless) / standard (desktop) |
 | Power management | ✅ /sys/power, no elogind |
 | Interactive installer | 🟡 Planned |
 | GlowFS kernel module | 🟡 In-tree, export issues |

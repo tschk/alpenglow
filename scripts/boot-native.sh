@@ -13,6 +13,7 @@ TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
 KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
 ARCH="${KERNEL_ARCH:-x86_64}"
+BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 ACCEL="${ACCEL:-tcg}"
 EFI="${EFI:-0}"
@@ -21,10 +22,11 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1;
 mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
 
 echo "=== Alpenglow native boot ==="
-echo "  init:   dinit v${DINIT_VERSION}"
-echo "  shell:  toybox v${TOYBOX_VERSION}"
-echo "  kernel: $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom build"; else echo "pre-built"; fi)"
-echo "  arch:   ${ARCH}"
+echo "  init:    dinit v${DINIT_VERSION}"
+echo "  shell:   toybox v${TOYBOX_VERSION}"
+echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom build"; else echo "pre-built"; fi)"
+echo "  arch:    ${ARCH}"
+echo "  profile: ${BUILD_PROFILE}"
 echo ""
 
 build_toybox() {
@@ -244,7 +246,7 @@ ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/poweroff"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/reboot"
 
 # Vro editor (replaces toybox vi)
-VRO_SRC="${ROOT_DIR}/../vro/vro"
+VRO_SRC="${ROOT_DIR}/system/backends/appliance/vro/vro"
 if [ -f "${VRO_SRC}" ]; then
   cp "${VRO_SRC}" "${ROOTFS_DIR}/usr/local/bin/vro"
   chmod 755 "${ROOTFS_DIR}/usr/local/bin/vro"
@@ -257,30 +259,90 @@ if [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
   cp "${OUT_DIR}/dinit-install/sbin/dinitctl" "${ROOTFS_DIR}/sbin/"
 fi
 
-# Dinit service files
+# Dinit service files — copy all, enable per profile
 mkdir -p "${ROOTFS_DIR}/etc/dinit.d/boot.d"
 for svc in "${BACKEND_DIR}/dinit/"*; do
   name=$(basename "${svc}")
   cp "${svc}" "${ROOTFS_DIR}/etc/dinit.d/${name}"
-  ln -sf "/etc/dinit.d/${name}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${name}" 2>/dev/null || true
 done
 
-# Getty login on serial console (with /etc/passwd support)
+# Define enabled services per profile
+case "${BUILD_PROFILE}" in
+  minimal)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq"
+    ;;
+  standard)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power iwd pipewire wireplumber greetd velox foot"
+    ;;
+esac
+
+# Getty login on serial console
 cat > "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0" << 'SHELL'
 type = process
 command = /bin/toybox getty -L 115200 ttyS0 vt100
 restart = yes
 depends-on = mount-filesystems
 SHELL
-ln -sf /etc/dinit.d/shell-ttyS0 "${ROOTFS_DIR}/etc/dinit.d/boot.d/shell-ttyS0"
 
-# Mount filesystems (runs before other services)
+# Mount filesystems
 cat > "${ROOTFS_DIR}/etc/dinit.d/mount-filesystems" << 'MOUNT'
 type = scripted
 command = /bin/toybox sh -c "/bin/toybox mount -t proc proc /proc; /bin/toybox mount -t sysfs sysfs /sys; /bin/toybox mount -t devtmpfs devtmpfs /dev; /bin/toybox mount -t tmpfs tmpfs /run"
 restart = no
 MOUNT
-ln -sf /etc/dinit.d/mount-filesystems "${ROOTFS_DIR}/etc/dinit.d/boot.d/mount-filesystems"
+
+# Network — DHCP client
+cat > "${ROOTFS_DIR}/etc/dinit.d/networking" << 'NET'
+type = scripted
+command = /bin/toybox udhcpc -i eth0 -s /bin/toybox -q
+restart = yes
+depends-on = mount-filesystems
+NET
+
+# Syslogd — system logging
+cat > "${ROOTFS_DIR}/etc/dinit.d/syslogd" << 'SYSLOG'
+type = process
+command = /bin/toybox syslogd -n
+restart = always
+depends-on = mount-filesystems
+SYSLOG
+
+# Crond — scheduled tasks
+cat > "${ROOTFS_DIR}/etc/dinit.d/crond" << 'CROND'
+type = process
+command = /bin/toybox crond -n
+restart = yes
+depends-on = syslogd
+CROND
+
+# Dropbear — SSH server
+cat > "${ROOTFS_DIR}/etc/dinit.d/dropbear" << 'DROP'
+type = process
+command = /usr/local/sbin/dropbear -F -R
+restart = yes
+depends-on = networking
+DROP
+
+# Chronyd — NTP daemon
+cat > "${ROOTFS_DIR}/etc/dinit.d/chronyd" << 'CHRON'
+type = process
+command = /usr/local/sbin/chronyd -d -s
+restart = yes
+depends-on = networking
+CHRON
+
+# Dnsmasq — local DNS caching resolver
+cat > "${ROOTFS_DIR}/etc/dinit.d/dnsmasq" << 'DNSQ'
+type = process
+command = /usr/sbin/dnsmasq -k
+restart = yes
+depends-on = networking
+DNSQ
+
+# Enable boot services for this profile
+for svc in ${BOOT_SERVICES}; do
+  ln -sf "/etc/dinit.d/${svc}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${svc}" 2>/dev/null || true
+done
 
 # Oil (native package manager)
 OIL_BIN="${ROOT_DIR}/build/native/oil"
@@ -301,60 +363,6 @@ elif [ -d "${OIL_SRC}" ]; then
     echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
   fi
 fi
-
-# Network — DHCP client (toybox udhcpc)
-cat > "${ROOTFS_DIR}/etc/dinit.d/networking" << 'NET'
-type = scripted
-command = /bin/toybox udhcpc -i eth0 -s /bin/toybox -q
-restart = yes
-depends-on = mount-filesystems
-NET
-ln -sf /etc/dinit.d/networking "${ROOTFS_DIR}/etc/dinit.d/boot.d/networking"
-
-# Syslogd — system logging (toybox)
-cat > "${ROOTFS_DIR}/etc/dinit.d/syslogd" << 'SYSLOG'
-type = process
-command = /bin/toybox syslogd -n
-restart = always
-depends-on = mount-filesystems
-SYSLOG
-ln -sf /etc/dinit.d/syslogd "${ROOTFS_DIR}/etc/dinit.d/boot.d/syslogd"
-
-# Crond — scheduled tasks (toybox)
-cat > "${ROOTFS_DIR}/etc/dinit.d/crond" << 'CROND'
-type = process
-command = /bin/toybox crond -n
-restart = yes
-depends-on = syslogd
-CROND
-ln -sf /etc/dinit.d/crond "${ROOTFS_DIR}/etc/dinit.d/boot.d/crond"
-
-# Dropbear — SSH server
-cat > "${ROOTFS_DIR}/etc/dinit.d/dropbear" << 'DROP'
-type = process
-command = /usr/local/sbin/dropbear -F -R
-restart = yes
-depends-on = networking
-DROP
-ln -sf /etc/dinit.d/dropbear "${ROOTFS_DIR}/etc/dinit.d/boot.d/dropbear"
-
-# Chronyd — NTP daemon
-cat > "${ROOTFS_DIR}/etc/dinit.d/chronyd" << 'CHRON'
-type = process
-command = /usr/local/sbin/chronyd -d -s
-restart = yes
-depends-on = networking
-CHRON
-ln -sf /etc/dinit.d/chronyd "${ROOTFS_DIR}/etc/dinit.d/boot.d/chronyd"
-
-# Dnsmasq — local DNS caching resolver
-cat > "${ROOTFS_DIR}/etc/dinit.d/dnsmasq" << 'DNSQ'
-type = process
-command = /usr/sbin/dnsmasq -k
-restart = yes
-depends-on = networking
-DNSQ
-ln -sf /etc/dinit.d/dnsmasq "${ROOTFS_DIR}/etc/dinit.d/boot.d/dnsmasq"
 
 # Default route via DHCP
 mkdir -p "${ROOTFS_DIR}/usr/share/udhcpc"

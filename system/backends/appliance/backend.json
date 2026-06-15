@@ -49,6 +49,16 @@
     "suspend": "loginctl suspend",
     "hibernate": "loginctl hibernate"
   },
+  "profiles": {
+    "minimal": {
+      "description": "Headless appliance — boot, shell, networking, SSH, NTP, logging, cron, DNS",
+      "packages": "packages-minimal.txt"
+    },
+    "standard": {
+      "description": "Full desktop appliance — display, audio, WiFi, browser, dev tools",
+      "packages": "packages-runtime.txt"
+    }
+  },
   "paths": {
     "packages": "packages-runtime.txt",
     "packages_dev": "packages-dev.txt",

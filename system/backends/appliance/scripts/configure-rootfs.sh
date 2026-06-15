@@ -297,8 +297,7 @@ DNSMASQ
 chmod 644 "${ROOTFS}/etc/dnsmasq.conf"
 
 # ── Editor: install vro ────────────────────────────────────────────
-# ponytail: copies prebuilt binary; build-from-source not scripted yet
-VRO_SRC="${BACKEND_DIR}/../../../vro/vro"
+VRO_SRC="${BACKEND_DIR}/vro/vro"
 if [ -f "${VRO_SRC}" ]; then
   cp "${VRO_SRC}" "${ROOTFS}/usr/local/bin/vro"
   chmod 755 "${ROOTFS}/usr/local/bin/vro"
