@@ -1,0 +1,5 @@
+# alpenglow-power — power management (via elogind + sysfs)
+type = scripted
+command = /usr/local/bin/alpenglow-power.sh
+restart = yes
+depends-on = elogind

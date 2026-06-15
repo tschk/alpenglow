@@ -16,9 +16,12 @@ set -eu
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
-mkdir -p /run /tmp /state /sysroot
+mkdir -p /run /tmp /state /sysroot /dev/shm
 mount -t tmpfs -o mode=0755 tmpfs /run
 mount -t tmpfs -o mode=0755 tmpfs /tmp
+mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
+mkdir -p /run/user/0
+chmod 700 /run/user/0
 
 # Parse kernel cmdline
 ALPENGLOW_IMAGE=""
@@ -42,6 +45,30 @@ modprobe squashfs 2>/dev/null || true
 modprobe ext4 2>/dev/null || true
 modprobe virtio-blk 2>/dev/null || true
 modprobe virtio-net 2>/dev/null || true
+
+# Sound modules
+modprobe snd 2>/dev/null || true
+modprobe snd-pcm 2>/dev/null || true
+modprobe snd-hda-intel 2>/dev/null || true
+modprobe snd-usb-audio 2>/dev/null || true
+
+# Wireless modules
+modprobe cfg80211 2>/dev/null || true
+modprobe mac80211 2>/dev/null || true
+modprobe iwlwifi 2>/dev/null || true
+modprobe ath9k 2>/dev/null || true
+modprobe ath10k 2>/dev/null || true
+
+# Input modules
+modprobe hid 2>/dev/null || true
+modprobe hid-multitouch 2>/dev/null || true
+modprobe usbhid 2>/dev/null || true
+modprobe i2c-dev 2>/dev/null || true
+
+# ACPI modules
+modprobe acpi-cpufreq 2>/dev/null || true
+modprobe acpi-button 2>/dev/null || true
+modprobe acpi-battery 2>/dev/null || true
 
 # Discover rootfs image
 find_image() {

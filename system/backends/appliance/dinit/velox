@@ -1,0 +1,5 @@
+# velox — Wayland compositor (Rust wlroots-based)
+type = process
+command = /usr/bin/velox
+restart = yes
+depends-on = seatd

@@ -1,0 +1,5 @@
+# wireplumber — session/policy manager for PipeWire
+type = process
+command = /usr/bin/wireplumber
+restart = yes
+depends-on = pipewire

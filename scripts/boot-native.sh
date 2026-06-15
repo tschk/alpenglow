@@ -88,11 +88,15 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
     grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
 
-    cd "${KERNEL_SRC}"
-    make olddefconfig >/dev/null 2>&1
-    # Enable GlowFS and Rust in config
-    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-    make olddefconfig >/dev/null 2>&1
+configure-kernel() {
+  cd "${KERNEL_SRC}"
+  make olddefconfig >/dev/null 2>&1
+  # Enable GlowFS, Sound, Wireless, ACPI, USB-HID
+  sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
+  sed -i 's/# CONFIG_SOUND is not set/CONFIG_SOUND=y/' .config 2>/dev/null || echo "CONFIG_SOUND=y" >> .config
+  sed -i 's/# CONFIG_ACPI is not set/CONFIG_ACPI=y/' .config 2>/dev/null || echo "CONFIG_ACPI=y" >> .config
+  make olddefconfig >/dev/null 2>&1
+}
     make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" bzImage 2>&1 | tail -5
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
     # Build GlowFS module
@@ -113,6 +117,49 @@ if [ -f "${GLOWFS_KO}" ]; then
   echo "  glowfs: ${GLOWFS_KO}"
 elif [ "${KERNEL_BUILD:-0}" != "1" ]; then
   echo "→ GlowFS requires KERNEL_BUILD=1 (skipping)"
+fi
+
+# Build userspace services
+BUILD_SERVICES="${BUILD_SERVICES:-0}"
+if [ "${BUILD_SERVICES}" = "1" ]; then
+  echo "→ Building userspace services..."
+  # iwd — modern WiFi daemon (static musl)
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+    apk add --no-cache gcc musl-dev make curl tar xz linux-headers pkgconf >/dev/null 2>&1
+    IWD_VERSION="2.18"
+    cd /tmp
+    curl -fsSL "https://www.kernel.org/pub/linux/network/wireless/iwd-${IWD_VERSION}.tar.xz" -o iwd.tar.xz 2>/dev/null
+    tar -xf iwd.tar.xz
+    cd "iwd-${IWD_VERSION}"
+    ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+      --disable-systemd --disable-dbus --enable-static --disable-shared \
+      --enable-wired --enable-tools=no \
+      CC="gcc" CFLAGS="-static -Os -s" >/dev/null 2>&1
+    make -j$(nproc) >/dev/null 2>&1
+    make install DESTDIR=/out/iwd >/dev/null 2>&1
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/iwd/usr/libexec/iwd" ]; then
+    echo "  iwd: ${OUT_DIR}/iwd/usr/libexec/iwd"
+  fi
+
+  # greetd — login greeter (Rust, static musl)
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" -v "${ROOT_DIR}/..:/host" alpine:3.21 sh -c '
+    apk add --no-cache curl tar xz gcc musl-dev rust cargo >/dev/null 2>&1
+    GRETD_VERSION="0.10.3"
+    cd /tmp
+    curl -fsSL "https://gitlab.com/mobian1/greetd/-/archive/v${GRETD_VERSION}/greetd-v${GRETD_VERSION}.tar.gz" -o greetd.tar.gz 2>/dev/null
+    tar -xf greetd.tar.gz
+    cd "greetd-v${GRETD_VERSION}"
+    RUSTFLAGS="-C target-feature=+crt-static -C link-self-contained=yes" \
+    cargo build --release --target x86_64-unknown-linux-musl 2>/dev/null || true
+    if [ -f "target/x86_64-unknown-linux-musl/release/greetd" ]; then
+      mkdir -p /out/greetd/usr/bin
+      cp target/x86_64-unknown-linux-musl/release/greetd /out/greetd/usr/bin/
+    fi
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/greetd/usr/bin/greetd" ]; then
+    echo "  greetd: ${OUT_DIR}/greetd/usr/bin/greetd"
+  fi
 fi
 
 # Compose rootfs
@@ -237,8 +284,12 @@ cdrom:x:24:
 floppy:x:25:
 tape:x:26:
 sudo:x:27:
-audio:x:29:
-video:x:44:
+audio:x:29:pipewire
+video:x:44:seatd
+input:x:777:
+seatd:x:772:
+iwd:x:773:
+pipewire:x:774:
 GROUP
 # root home
 mkdir -p "${ROOTFS_DIR}/root"
@@ -248,6 +299,18 @@ if [ -f "${GLOWFS_KO}" ]; then
   cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
+# Userspace services (if built)
+if [ -d "${OUT_DIR}/iwd" ]; then
+  cp -R "${OUT_DIR}/iwd/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/iwd"
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/iwd/main.conf" "${ROOTFS_DIR}/etc/iwd/" 2>/dev/null || true
+fi
+if [ -d "${OUT_DIR}/greetd" ]; then
+  cp -R "${OUT_DIR}/greetd/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/greetd"
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
+fi
+
 # Init — dinit as primary PID 1, manages all services
 cat > "${ROOTFS_DIR}/init" << 'INIT'
 #!/bin/toybox sh
@@ -255,6 +318,9 @@ cat > "${ROOTFS_DIR}/init" << 'INIT'
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 /bin/toybox mount -t tmpfs tmpfs /run
+/bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
+mkdir -p /run/user/0
+chmod 700 /run/user/0
 mkdir -p /state
 # Try to mount state partition (if available)
 state_dev=""

@@ -1,0 +1,5 @@
+# elogind — session tracking, seat management, power/suspend/logind API
+type = process
+command = /usr/bin/elogind
+restart = yes
+run-as = root

@@ -27,6 +27,28 @@
     "generation_model": "git-based",
     "state_model": "persistent-mount"
   },
+  "display": {
+    "server": "wayland",
+    "compositor": "velox",
+    "session_manager": "greetd",
+    "terminal": "foot",
+    "infrastructure": "seatd"
+  },
+  "audio": {
+    "server": "pipewire",
+    "session_manager": "wireplumber",
+    "backend": "alsa"
+  },
+  "networking": {
+    "dhcp": "sdhcp",
+    "wifi": "iwd"
+  },
+  "power": {
+    "manager": "elogind",
+    "acpi": true,
+    "suspend": "loginctl suspend",
+    "hibernate": "loginctl hibernate"
+  },
   "paths": {
     "packages": "packages-runtime.txt",
     "packages_dev": "packages-dev.txt",
@@ -39,11 +61,58 @@
   "kernel": {
     "policy": "hardened",
     "approach": "minimal-appliance",
-    "sources": ["linux-stable"]
+    "sources": ["linux-stable"],
+    "features": [
+      "rust",
+      "sound",
+      "wireless",
+      "acpi",
+      "usb-hid",
+      "i2c",
+      "glowfs",
+      "erofs",
+      "squashfs",
+      "zram",
+      "damon",
+      "cgroups",
+      "seccomp",
+      "landlock",
+      "namespaces",
+      "bpf"
+    ]
   },
   "boot": {
     "model": "custom-initramfs",
-    "inspiration": ["limine", "uefi-stub", "extlinux"]
+    "inspiration": ["limine", "uefi-stub", "extlinux"],
+    "disk_image": "GPT + Limine + ext4"
+  },
+  "services": {
+    "essential": [
+      "mount-filesystems",
+      "state-mount",
+      "elogind",
+      "seatd",
+      "networking"
+    ],
+    "system": [
+      "alpenglow-kernel-policy",
+      "alpenglow-zram",
+      "alpenglow-pressure",
+      "alpenglow-netd",
+      "sold",
+      "alpenglow-power",
+      "iwd"
+    ],
+    "session": [
+      "pipewire",
+      "wireplumber",
+      "greetd",
+      "velox",
+      "foot"
+    ],
+    "user_init": [
+      "alpenglow-session"
+    ]
   },
   "notes": [
     "Alpenglow native appliance — the unified target OS.",
@@ -54,6 +123,12 @@
     "toybox: minimal BSD-licensed coreutils replacement.",
     "Hardened kernel and system policies throughout.",
     "Custom initramfs combining best ideas from Limine, UEFI stub, and extlinux.",
-    "Not HW-specific: generic appliance kernel config."
+    "Not HW-specific: generic appliance kernel config.",
+    "Wayland + velox compositor for graphical sessions.",
+    "PipeWire audio server with WirePlumber session manager.",
+    "iwd for modern WiFi management.",
+    "elogind for session tracking and power management.",
+    "greetd as login greeter for graphical login.",
+    "Rust kernel support enabled."
   ]
 }

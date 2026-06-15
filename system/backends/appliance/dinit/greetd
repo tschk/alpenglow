@@ -1,0 +1,5 @@
+# greetd — login greeter for graphical sessions
+type = process
+command = /usr/bin/greetd
+restart = yes
+depends-on = seatd

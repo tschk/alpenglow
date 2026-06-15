@@ -35,19 +35,39 @@ glowfs-tools
 # Display and input
 seatd
 velox
-glowfs-wayland
 wayland
 wayland-protocols
+glowfs-wayland
+foot
+
+# Session management
+greetd
+greetd-agreety
+elogind
+libelogind
 
 # Browser (minimal appliance web)
 netsurf
 
 # Network
 sdhcp
+iwd
 iproute2
 iptables
 curl
 ca-certificates
+
+# Audio
+pipewire
+pipewire-pulse
+wireplumber
+alsa-lib
+alsa-utils
+
+# Power management
+elogind
+acpid
+tlp
 
 # System utilities
 kmod

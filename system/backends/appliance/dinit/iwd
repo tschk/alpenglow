@@ -1,0 +1,5 @@
+# iwd — modern WiFi daemon (replaces wpa_supplicant)
+type = process
+command = /usr/libexec/iwd
+restart = yes
+depends-on = networking

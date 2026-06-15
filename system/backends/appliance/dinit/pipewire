@@ -1,0 +1,5 @@
+# pipewire — audio server
+type = process
+command = /usr/bin/pipewire
+restart = yes
+run-as = root

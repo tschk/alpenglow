@@ -1,0 +1,5 @@
+# foot — Wayland terminal emulator
+type = process
+command = /usr/bin/foot
+restart = yes
+depends-on = velox

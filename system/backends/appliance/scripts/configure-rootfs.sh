@@ -20,6 +20,12 @@ ALPENGLOW_UID="770"
 ALPENGLOW_GID="770"
 SOLD_UID="771"
 SOLD_GID="771"
+SEATD_UID="772"
+SEATD_GID="772"
+IWD_UID="773"
+IWD_GID="773"
+PIPEWIRE_UID="774"
+PIPEWIRE_GID="774"
 
 if [ ! -d "${ROOTFS}" ]; then
   echo "rootfs directory not found: ${ROOTFS}" >&2
@@ -39,8 +45,16 @@ ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"
 
 ensure_group "alpenglow" "${ALPENGLOW_GID}"
 ensure_group "sold" "${SOLD_GID}"
+ensure_group "seatd" "${SEATD_GID}"
+ensure_group "iwd" "${IWD_GID}"
+ensure_group "pipewire" "${PIPEWIRE_GID}"
+ensure_group "audio" 777
+ensure_group "video" 778
+ensure_group "input" 779
 ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow"
 ensure_user "sold" "${SOLD_UID}" "${SOLD_GID}" "/var/lib/alpenglow/system"
+ensure_user "seatd" "${SEATD_UID}" "${SEATD_GID}" "/var/empty"
+ensure_user "iwd" "${IWD_UID}" "${IWD_GID}" "/var/empty"
 
 # Directory structure
 mkdir -p "${ROOTFS}/etc/alpenglow/filesystems"
@@ -95,7 +109,7 @@ rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
 # Enable dinit boot services
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
-for service in glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure sold alpenglow-session; do
+for service in glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber sold greetd velox foot alpenglow-session; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
 
@@ -176,15 +190,42 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
     "bootstrap": "oil",
     "runtime_mutation": false
   },
+  "display": {
+    "server": "wayland",
+    "compositor": "velox",
+    "session_manager": "greetd",
+    "terminal": "foot",
+    "infrastructure": "seatd"
+  },
+  "audio": {
+    "server": "pipewire",
+    "session_manager": "wireplumber",
+    "backend": "alsa"
+  },
+  "networking": {
+    "dhcp": "sdhcp",
+    "wifi": "iwd"
+  },
+  "power": {
+    "manager": "elogind",
+    "script": "/usr/local/bin/alpenglow-power.sh"
+  },
   "kernel": {
     "policy": "hardened",
-    "type": "minimal-appliance"
+    "type": "minimal-appliance",
+    "features": ["rust", "sound", "wireless", "acpi", "usb-hid"]
   },
   "userland": {
     "core": "toybox",
     "style": "minimal",
     "shell": "oksh",
     "crypto": "bearssl"
+  },
+  "services": {
+    "essential": ["mount-filesystems", "state-mount", "elogind", "seatd", "networking"],
+    "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "sold", "alpenglow-power", "iwd"],
+    "session": ["pipewire", "wireplumber", "greetd", "velox", "foot"],
+    "user_init": ["alpenglow-session"]
   }
 }
 EOF
