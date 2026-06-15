@@ -576,7 +576,7 @@ if [ "${EFI}" = "1" ]; then
       -bios "${OVMF_CODE}" \
       -kernel "${KERNEL_IMAGE}" \
       -initrd "${INITRAMFS}" \
-      -append "console=ttyS0 init=/init"
+      -append "quiet console=ttyS0 init=/init"
   fi
   echo "  → OVMF not found, falling back to SeaBIOS"
 fi
@@ -586,4 +586,4 @@ exec qemu-system-x86_64 \
   ${QEMU_OPTS} \
   -kernel "${KERNEL_IMAGE}" \
   -initrd "${INITRAMFS}" \
-  -append "console=ttyS0 init=/init"
+  -append "quiet console=ttyS0 init=/init"

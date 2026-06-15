@@ -218,10 +218,10 @@ echo "${BOLD}╠${SEP}╣${NC}"
 printf "  %-20s %7s %9s  %s\n" "System" "Time" "RAM" "Login"
 echo "${BOLD}╠${SEP}╣${NC}"
 
-[ -f "$ALP_MIN" ] && measure "Alpenglow minimal" "$KERNEL" "$ALP_MIN" "console=ttyS0 init=/init" "$TIMEOUT_BOOT"
-[ -f "$ALP_STD" ] && measure "Alpenglow standard" "$KERNEL" "$ALP_STD" "console=ttyS0 init=/init" "$TIMEOUT_BOOT"
+[ -f "$ALP_MIN" ] && measure "Alpenglow minimal" "$KERNEL" "$ALP_MIN" "quiet console=ttyS0 init=/init" "$TIMEOUT_BOOT"
+[ -f "$ALP_STD" ] && measure "Alpenglow standard" "$KERNEL" "$ALP_STD" "quiet console=ttyS0 init=/init" "$TIMEOUT_BOOT"
 if [ -n "$ALPINE_INIT" ] && [ -f "$ALPINE_INIT" ]; then
-  measure "Alpine Linux virt" "$KERNEL" "$ALPINE_INIT" "console=ttyS0" 15
+  measure "Alpine Linux virt" "$KERNEL" "$ALPINE_INIT" "quiet console=ttyS0" 15
 fi
 
 echo "${BOLD}╚${SEP}╝${NC}"
