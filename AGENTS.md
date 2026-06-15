@@ -50,7 +50,7 @@ Build paths currently coexist:
 - **Void reference backend** under `system/backends/void/` (bootstrap path)
 - **Alpine reference backend** under `system/alpine/` (QEMU reference flow)
 - **Cargo**: `cargo build` / `cargo test`
-- **Oil** ([../oil](../oil)): Native package manager, multi-registry support
+- **Oil** ([system/oil](system/oil)): Native package manager, vendored APK-only build
 
 ## Project Layout
 
@@ -91,7 +91,7 @@ cargo test -p glowfsctl
 | User accounts | ✅ | /etc/passwd, /etc/shadow, /etc/group |
 | DHCP networking | ✅ | udhcpc via dinit service |
 | State persistence | ✅ | LABEL=alpenglow-state auto-mount |
-| Oil package manager | ✅ | Built into initramfs from ../oil |
+| Oil package manager | ✅ | Built into initramfs from system/oil (APK-only) |
 | Static toybox (SH + GETTY) | ✅ | Custom Docker build, 905KB static |
 | Static dinit v0.19.2 | ✅ | System manager PID 1, 15MB static |
 | Custom kernel build | 🟡 | `KERNEL_BUILD=1` — untested |

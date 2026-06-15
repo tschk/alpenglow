@@ -215,7 +215,7 @@ ln -sf /etc/dinit.d/mount-filesystems "${ROOTFS_DIR}/etc/dinit.d/boot.d/mount-fi
 
 # Oil (native package manager)
 OIL_BIN="${ROOT_DIR}/build/native/oil"
-OIL_SRC="${ROOT_DIR}/../oil"
+OIL_SRC="${ROOT_DIR}/system/oil"
 if [ -f "${OIL_BIN}" ]; then
   cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
 elif [ -d "${OIL_SRC}" ]; then
@@ -223,7 +223,7 @@ elif [ -d "${OIL_SRC}" ]; then
   docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
     cd /oil-src
-    cargo build --release --no-default-features 2>/dev/null
+    cargo build --release --no-default-features --features system-apk 2>/dev/null
     cp target/release/oil /out/oil 2>/dev/null
   ' 2>&1 | tail -1
   if [ -f "${OUT_DIR}/oil" ]; then

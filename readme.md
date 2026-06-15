@@ -48,8 +48,8 @@ Tested on Apple Silicon Mac via QEMU (TCG emulation), Linux 7.0.12 kernel.
 | Kernel start to init | 0.9s | 1.2s | 1.5s | 2.5s |
 | Init to shell | 0.6s | 1.5s (OpenRC) | 2.0s (runit) | 12s (systemd) |
 | **Total boot** | **~2s** | **~3s** | **~4s** | **~15s** |
-| Initramfs size | 20MB | 8MB | 12MB | 40MB |
-| Kernel size | 7.4MB | 6.5MB | 7.0MB | 12MB |
+| Initramfs size | 14MB gzip / 11MB zstd | 8MB | 12MB | 40MB |
+| Kernel size | 7.4MB full / 4.8MB min | 6.5MB | 7.0MB | 12MB |
 | RAM usage (idle) | ~64MB | ~80MB | ~100MB | ~500MB |
 
 Boot time comparison notes:
@@ -72,14 +72,12 @@ Boot time comparison notes:
 | **USB-HID** | ✅ Done | USB storage, HID multitouch, I2C |
 | **DHCP networking** | ✅ Done | udhcpc via dinit service |
 | **State persistence** | ✅ Done | ext4 partition by label, bind mounts |
-| **Oil package mgr** | ✅ Done | Native binary included in initramfs |
+| **Oil package mgr** | ✅ Done | Vendored in system/oil, APK-only, included in initramfs |
 | **Bootable disk image** | ✅ Done | GPT + Limine bootloader |
 | **dinit services** | ✅ Done | 14 service files, parallel boot |
 | **Wayland compositor** | 🟡 Configured | velox dinit service, needs binary build |
 | **PipeWire audio** | 🟡 Configured | pipewire + wireplumber dinit services |
-| **greetd session mgr** | 🟡 Configured | login greeter config, needs binary |
 | **iwd WiFi** | 🟡 Configured | Requires libell static build |
-| **elogind power** | 🟡 Configured | logind.conf, power script, needs binary |
 | **Interactive installer** | 🟡 Planned | Crepuscularity-based GUI installer |
 | **GlowFS kernel module** | 🟡 In-tree | Works as built-in, module export issues |
 | **Real hardware boot** | ❌ Untested | QEMU only for now |
