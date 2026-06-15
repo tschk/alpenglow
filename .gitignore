@@ -52,6 +52,7 @@ tools/bootloader/
 bundle/terminal/ghostty-vt.wasm
 # zig build cache (ghostty submodule)
 third_party/ghostty/.zig-cache/
+system/kernelctl-zig/.zig-cache/
 third_party/ghostty/zig-out/
 
 # Kernel build artifacts
@@ -66,3 +67,4 @@ third_party/ghostty/zig-out/
 Module.symvers
 *.symvers
 modules.order
+README.md

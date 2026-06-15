@@ -40,3 +40,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Check Rust core
         run: scripts/ci-rust-core.sh
+
+  zig:
+    name: Alpenglow Zig gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+      - name: Check Zig code
+        run: scripts/ci-zig.sh

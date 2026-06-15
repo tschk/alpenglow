@@ -2,81 +2,76 @@
 
 ## What is Alpenglow?
 
-Alpenglow is a **diskless, immutable, hardened Linux appliance**. It runs entirely in RAM with GlowFS as the root filesystem, dinit as the init system, LLVM/Clang as the default compiler, and Oil as the native package manager. It is architecture-agnostic and uses a custom initramfs combining ideas from Limine, UEFI stub, and extlinux.
+Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil native packages, toybox userland. ~2s boot to login.
 
-The system is composed from spec files (Oasis-style philosophy), uses toybox instead of GNU coreutils, and builds toward Inauguration as a future compiler backend.
+Early-stage. Not production-ready.
 
-The project is early-stage and not production-ready.
+## Design
 
-## Design Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Boot model | **Diskless** | Rootfs in RAM via initramfs. State on persistent media. |
-| Root filesystem | **GlowFS** | Custom immutable kernel module. Fallback: erofs, squashfs. |
-| Init system | **dinit** | Fast parallel dependency-graph init (Chimera-style). |
-| Compiler | **LLVM/Clang** | Default system compiler. Inauguration as future codegen backend. |
-| Package manager | **Oil** (native) | No distro bootstrap. Oil fetches and manages all packages via its own registries. |
-| Userland | **toybox** | Minimal BSD-licensed coreutils. |
-| Shell | **oksh** | Minimal Korn shell (Oasis-style). |
-| Crypto | **BearSSL** | Small, well-written TLS library (Oasis-style). |
-| Kernel | **Hardened** | Minimal appliance config with security hardening. |
-| Initramfs | **Custom** | Hybrid of Limine simplicity, UEFI stub speed, extlinux flexibility. |
-| Architecture | **Generic** | Not tied to any specific board. Build for x86_64, aarch64, etc. |
-| Composition | **Oasis-style** | System defined by spec files, built into a git-backed generation store. |
+| Decision | Choice |
+|----------|--------|
+| Boot | Diskless — rootfs in RAM via initramfs |
+| Root FS | GlowFS (kernel module). Fallback: erofs, squashfs |
+| Init | dinit — parallel dependency-graph |
+| Compiler | LLVM/Clang default. Inauguration as future codegen |
+| Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
+| Userland | toybox — minimal BSD coreutils |
+| Shell | oksh |
+| Kernel | Hardened — minimal appliance config. Linux 7.0.12 |
+| Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
+| Display | Wayland + cage+foot |
+| Audio | ALSA + PipeWire |
+| Networking | udhcpc + iwd |
+| Arch | Generic — x86_64, aarch64, etc. |
 
 ## Architecture
 
 ```
-Alpenglow Appliance ─── Diskless, hardened, immutable
-  Initramfs ─────────── Custom boot layer (Limine+UEFI+extlinux ideas)
-  GlowFS ────────────── Kernel module for immutable root filesystem
-  dinit ─────────────── Dependency-graph init system
-  sold ──────────────── Local Axum service bridge + terminal API
-  Oil ───────────────── Native package manager (no distro dependency)
-  toybox ────────────── Minimal core userland
-  velox ─────────────── Minimal Wayland compositor
-  netsurf ───────────── Minimal browser appliance
-  OS Policy ─────────── cgroup v2, PSI, zram, kernel hardening
-  alpenglow-netd ────── Network state daemon
+Initramfs — Custom boot layer (Limine+UEFI+extlinux)
+GlowFS — Kernel module for immutable root FS
+dinit — Dependency-graph init (PID 1)
+Oil — Native APK package manager (Rust)
+toybox — Minimal core userland
+kernelctl — Kernel policy + cgroup tooling (Zig+Rust)
+alpenglow-netd — Network state daemon (Rust)
 ```
-
-## Build Systems
-
-Build paths currently coexist:
-
-- **Native appliance target** under `system/backends/appliance/` (primary)
-- **Oasis-style composition** via spec files
-- **Void reference backend** under `system/backends/void/` (bootstrap path)
-- **Alpine reference backend** under `system/alpine/` (QEMU reference flow)
-- **Cargo**: `cargo build` / `cargo test`
-- **Oil** ([system/oil](system/oil)): Native package manager, vendored APK-only build
 
 ## Project Layout
 
 ```
-sold/               Local system bridge and static bundle service
-system/appliance/   Backend contract, selector, shared metadata
-system/backends/    
-  appliance/        Primary target backend (diskless, dinit, toybox, LLVM, Oil)
-  void/             Void reference backend
-system/alpine/      Alpine reference backend (QEMU boot flow)
-system/glowfs/      GlowFS kernel module source
-system/glowfsctl/   GlowFS image tooling
-system/kernelctl/   cgroup and kernel policy helper
-system/netd/        Runtime network state exporter
-initramfs/          Custom initramfs source (hybrid of Limine/UEFI/extlinux)
-docs/               Architecture, build, install, and testing docs
+system/
+  kernelctl/        Cgroup + kernel policy (Rust)
+  kernelctl-zig/    Same in Zig (89KB static, experiment)
+  netd/             Network state daemon
+  glowfsctl/        GlowFS image tooling
+  oil/              Native package manager (APK-only)
+  backends/
+    appliance/      Primary target (dinit, toybox, LLVM, Oil, diskless)
+    void/           Void reference backend
+  alpine/           Alpine reference backend (QEMU boot flow)
+  glowfs/           GlowFS kernel module source
+initramfs/          Custom boot initramfs
+docs/               Architecture, build, install docs
 ```
+
+## CI
+
+| Gate | Script | What |
+|------|--------|------|
+| Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
+| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig |
+| OS appliance | `scripts/ci-os-appliance.sh` | Policy contract validation |
+| GlowFS module | `scripts/ci-glowfs-kernel-module.sh` | Compile vs Linux headers |
+| Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time measurement |
 
 ## Testing
 
-```
-./install.sh --check
+```sh
+./scripts/ci-rust-core.sh
+./scripts/ci-zig.sh              # skip if no zig
 ./scripts/ci-os-appliance.sh
 ./scripts/ci-glowfs-kernel-module.sh
-./scripts/ci-rust-core.sh
-cargo test -p sold
+./scripts/bench-boot.sh          # needs built disk image
 cargo test -p alpenglow-netd
 cargo test -p alpenglow-kernelctl
 cargo test -p glowfsctl
@@ -84,56 +79,35 @@ cargo test -p glowfsctl
 
 ## Status
 
-| Milestone | Status | How |
-|-----------|--------|-----|
-| Boot to dinit + toybox shell | ✅ | `./scripts/boot-native.sh` |
-| Interactive shell on serial | ✅ | dinit-managed getty with login |
-| User accounts | ✅ | /etc/passwd, /etc/shadow, /etc/group |
-| DHCP networking | ✅ | udhcpc via dinit service |
-| State persistence | ✅ | LABEL=alpenglow-state auto-mount |
-| Oil package manager | ✅ | Built into initramfs from system/oil (APK-only) |
-| Static toybox (SH + GETTY) | ✅ | Custom Docker build, 905KB static |
-| Static dinit v0.19.2 | ✅ | System manager PID 1, 15MB static |
-| Custom kernel build | 🟡 | `KERNEL_BUILD=1` — untested |
-| GlowFS kernel module | 🟡 | Builds with custom kernel |
-| Bootable disk image | ✅ | `./scripts/build-release.sh` |
-| Limine bootloader | ✅ | Installed to GPT disk |
-| HW-specific cleanup | ✅ | boards/drivers removed |
-| Servo/RV8 removed | ✅ | Moved to soliloquy |
-| CI / testing | ✅ | ci-os-appliance + ci-rust-core pass |
-| **Service binaries** | ✅ | seatd (dynamic), pipewire (16K), wireplumber (20K), cage (61K), foot (553K), iwd (2.0M static), greetd (2.1M static) |
-| **Boot to login** | ✅ | ~2s (SeaBIOS → Linux 7.0.12 → dinit → getty) |
-| **Audio** | ✅ | ALSA in kernel + pipewire/wireplumber dinit services |
-| **Wayland display** | ✅ | cage (wlroots kiosk compositor) + foot terminal |
-| **Power management** | ✅ | alpenglow-power.sh via /sys (no elogind) |
-| **All-in-one initramfs** | ✅ | 34MB gzip'd — kernel + all services + shared libs |
-| **Crepuscularity DE plan** | 📝 | docs/crepuscularity-de.md — 4-phase GPUI desktop shell plan |
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| Boot to shell + login | ✅ | ~2s, dinit + getty |
+| DHCP networking | ✅ | udhcpc via dinit |
+| State persistence | ✅ | ext4 by label, bind mounts |
+| Oil package mgr | ✅ | APK-only, in initramfs |
+| Wayland display | ✅ | cage + foot |
+| Audio | ✅ | ALSA + PipeWire dinit services |
+| WiFi | ✅ | iwd daemon, 16+ drivers |
+| Power management | ✅ | /sys/power, no elogind |
+| Bootable disk image | ✅ | GPT + Limine |
+| kernelctl Zig | ✅ | 89KB static, built in CI |
+| Custom kernel build | 🟡 | `KERNEL_BUILD=1` untested |
+| GlowFS kernel module | 🟡 | In-tree, module export issues |
+| Real hardware boot | ❌ | QEMU only for now |
+| Interactive installer | 🟡 | Planned |
+| Crepuscularity DE | 📝 | 4-phase GPUI desktop shell plan |
 
-## Inauguration Integration (Future)
+## SSH Hosts (for cross-compilation testing)
 
-[Inauguration](../inauguration) is a compiler project that will serve as an optional codegen backend. Once it matures:
-- Replace LLVM codegen for select packages
-- Provide faster build times for appliance components
-- Enable deeper compiler-level OS integration
+| Host | IP | OS | Tools |
+|------|-----|----|-------|
+| ultramarine | 192.168.4.134 | Ultramarine (Fedora-like, glibc) | zig 0.14, cargo 1.93 |
+| chimera | 192.168.4.168 | Chimera Linux (musl) | cargo/rustc, no zig |
 
-The current compiler pipeline uses LLVM/Clang as the production backend, with Inauguration as an experimental alternative.
+Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds.
 
-## Service Architecture Changes (Turn 2)
+## Language Tooling Notes
 
-| Component | Replaced by | Rationale |
-|-----------|-------------|-----------|
-| elogind | seatd + alpenglow-power.sh (direct /sys) | elogind is over-engineered for single-user appliance; seatd + /sys/power/state covers everything |
-| pipewire/wireplumber | System-provided dynamic binaries with shared libs in initramfs | Static builds impractical (meson, glib, dbus dep chains); dynamic adds 24MB of .so files |
-| velox (Rust wlroots compositor) | cage (wlroots kiosk compositor) | 61K instead of building from source; cage is simpler, supports fullscreen kiosk mode |
-| foot | cage launches foot inside Wayland session | Already available in Fedora repos; 553K dynamic binary, pulls in fontconfig/pixman/wayland-client |
-
-## Crepuscularity Desktop Environment Roadmap (Phase 3-4)
-
-See `docs/crepuscularity-de.md` for full plan.
-
-1. **Phase A**: GPUI desktop MVP running inside cage (status bar + terminal button)
-2. **Phase B**: Replace cage with smithay-based compositor in same binary
-3. **Phase C**: Settings panel, lock screen, notifications
-4. **Phase D**: Single static binary (compositor + shell + terminal widget), direct DRM/KMS, no separate Wayland compositor
-
-Key insight: One Rust binary replaces the entire velox/foot/waybar/fuzzel/mako/elogind stack, reducing ~25MB of daemons to ~12MB one-binary.
+- **Rust**: daemons (netd, glowfsctl), Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
+- **Zig**: kernelctl (89KB static, 5.6x smaller than Rust). Targets <100KB initramfs helpers.
+- **Equilibrium** (external): Zig/Nim/D/Rust FFI bridge. Not integrated yet.

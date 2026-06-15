@@ -19,7 +19,7 @@ impl SystemInstaller {
             .map_err(|e| OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
 
         use std::io::Read;
-        let mut body = resp.into_body();
+        let body = resp.into_body();
         let mut data = Vec::new();
         body.into_reader().read_to_end(&mut data)
             .map_err(|e| OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;

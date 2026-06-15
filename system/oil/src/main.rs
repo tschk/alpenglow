@@ -1,11 +1,8 @@
+// ponytail: WIP, some unused stubs
+#![allow(dead_code, unused_imports, unused_variables)]
 mod cache;
-mod commands;
-mod deps;
-mod discovery;
 mod error;
 mod install;
-mod lockfile;
-mod package_spec;
 mod signal;
 mod sudo;
 mod system;
@@ -13,7 +10,6 @@ mod timing;
 mod ui;
 mod version;
 
-use cache::Cache;
 use clap::{Parser, Subcommand};
 use error::Result;
 
