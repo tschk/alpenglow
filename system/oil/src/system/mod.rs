@@ -4,3 +4,4 @@ pub mod installer;
 pub mod registry;
 pub mod resolver;
 pub mod state;
+pub mod verifier;

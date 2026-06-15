@@ -129,7 +129,6 @@ static int glowfs_write_bytes(struct super_block *sb, u64 offset, const void *sr
 			return -EIO;
 		memcpy(bh->b_data + block_offset, in, chunk);
 		mark_buffer_dirty(bh);
-		sync_dirty_buffer(bh);
 		brelse(bh);
 		in += chunk;
 		offset += chunk;
@@ -748,9 +747,15 @@ static int glowfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	return 0;
 }
 
+static int glowfs_sync_fs(struct super_block *sb, int wait)
+{
+	return sync_blockdev(sb->s_bdev);
+}
+
 static const struct super_operations glowfs_super_ops = {
 	.statfs = glowfs_statfs,
 	.put_super = glowfs_put_super,
+	.sync_fs = glowfs_sync_fs,
 	.drop_inode = generic_delete_inode,
 };
 

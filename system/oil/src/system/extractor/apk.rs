@@ -1,29 +1,114 @@
 /// Extract an Alpine .apk package to dest_dir.
 ///
 /// .apk files are concatenated gzip streams:
-///   - First stream: signature (skip it)
-///   - Second stream: actual tar archive with the package contents
-use crate::error::Result;
-use flate2::read::MultiGzDecoder;
+///   - Stream 1: tar with signature files (.SIGN.RSA.<key>, etc.)
+///   - Stream 2: tar with control metadata (.PKGINFO, .INSTALL)
+///   - Stream 3: tar with actual package data (what gets installed)
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
-/// Extract an APK package and return (files, dirs) of absolute paths written.
-pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-    std::fs::create_dir_all(dest_dir)?;
-    let data = std::fs::read(path)?;
-    let decoder = MultiGzDecoder::new(&data[..]);
-    untar(decoder, dest_dir)
+use crate::error::{OilError, Result};
+use crate::system::verifier;
+
+/// Try well-known Alpine public key paths. Returns the first PEM found.
+fn find_apk_key(keyname: &str) -> Option<String> {
+    let candidates = [
+        format!("/etc/apk/keys/{keyname}.pub"),
+        format!("/usr/share/apk/keys/{keyname}.pub"),
+        format!("/etc/apk/keys/alpine-devel@lists.alpinelinux.org-{keyname}.pub"),
+        format!("/etc/apk/keys/alpine-devel@lists.alpinelinux.org-{keyname}.pem"),
+    ];
+    for path in &candidates {
+        if let Ok(pem) = std::fs::read_to_string(path) {
+            if pem.contains("BEGIN") {
+                return Some(pem);
+            }
+        }
+    }
+    None
 }
 
-fn untar<R: Read>(reader: R, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-    let mut archive = Archive::new(reader);
+/// Extract an APK package and return (files, dirs) of absolute paths written.
+/// If no trusted key is found verification is skipped (degraded mode).
+pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    let data = std::fs::read(path)?;
+
+    // Split into three gzip streams
+    let streams = split_gzip_streams(&data, 3)?;
+
+    // Try to verify signature from stream 1 against data tar (stream 3)
+    let sig_keyname = extract_signature_info(&streams.0);
+    if let Some((keyname, sig_bytes)) = sig_keyname {
+        if let Some(pubkey_pem) = find_apk_key(&keyname) {
+            eprintln!("Verifying APK signature (key: {keyname})...");
+            verifier::verify_apk_signature(&streams.2, &sig_bytes, &pubkey_pem)
+                .map_err(|e| OilError::Install(format!("signature verification failed: {e}")))?;
+            eprintln!("Signature OK.");
+        } else {
+            eprintln!("Warning: no public key found for '{keyname}', skipping verification");
+        }
+    }
+
+    // Extract data tar (stream 3) — this is what goes on disk
+    std::fs::create_dir_all(dest_dir)?;
+    untar(&streams.2, dest_dir)
+}
+
+/// Split a concatenated-gzip file into up to `count` individually
+/// decompressed streams by scanning for gzip magic bytes.
+fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+    let mut starts: Vec<usize> = Vec::new();
+    for i in 0..data.len().saturating_sub(1) {
+        if data[i] == 0x1f && data[i + 1] == 0x8b {
+            starts.push(i);
+            if starts.len() >= count {
+                break;
+            }
+        }
+    }
+    if starts.len() < count {
+        return Err(OilError::Install(format!(
+            "APK has {} gzip streams, expected {count}",
+            starts.len()
+        )));
+    }
+
+    let mut out = Vec::with_capacity(count);
+    for i in 0..count {
+        let slice = &data[starts[i]..];
+        let mut decoder = flate2::read::GzDecoder::new(slice);
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf)?;
+        out.push(buf);
+    }
+    Ok((out.remove(0), out.remove(0), out.remove(0)))
+}
+
+/// Extract the first `.SIGN.RSA.<keyname>` file from the signature tar
+/// and return (keyname, raw CMS DER bytes).
+fn extract_signature_info(tar_data: &[u8]) -> Option<(String, Vec<u8>)> {
+    let mut archive = Archive::new(tar_data);
+    for entry in archive.entries().ok()? {
+        let mut entry = entry.ok()?;
+        let name = entry.path().ok()?;
+        let name_str = name.to_string_lossy();
+        if let Some(rest) = name_str.strip_prefix(".SIGN.RSA.") {
+            let keyname = rest.trim_end_matches('\0').to_string();
+            let mut sig = Vec::new();
+            entry.read_to_end(&mut sig).ok()?;
+            return Some((keyname, sig));
+        }
+    }
+    None
+}
+
+fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    let mut archive = Archive::new(tar_data);
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     let mut entries_buf: Vec<Vec<u8>> = Vec::new();
 
-    // Collect and sort: regular files first, then symlinks & hardlinks
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
         let entry_path = entry.path()?;
@@ -57,7 +142,6 @@ fn untar<R: Read>(reader: R, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathB
             }
         } else if kind.is_hard_link() {
             // ponytail: sort so regular files unpack first, then hard links
-            // stash entry bytes and process after regular files
             let mut data = Vec::new();
             entry.read_to_end(&mut data)?;
             entries_buf.push(data);
@@ -69,9 +153,8 @@ fn untar<R: Read>(reader: R, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathB
 
     // Now unpack hard links (regular files should already exist)
     for data in &entries_buf {
-        let mut decoder = MultiGzDecoder::new(&data[..]);
-        let mut inner = Archive::new(&mut decoder);
-        for entry_ in inner.entries()? {
+        let mut archive = Archive::new(&data[..]);
+        for entry_ in archive.entries()? {
             let mut entry = entry_?;
             let path = entry.path()?.to_string_lossy().to_string();
             let stripped = path.strip_prefix("./").unwrap_or(&path);
