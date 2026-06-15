@@ -28,6 +28,11 @@ case "${1:-help}" in
     # Boot-time benchmarks (boot phases + size metrics)
     exec "${ROOT_DIR}/scripts/bench-boot.sh"
     ;;
+  bench-all)
+    # Multi-OS comparison benchmark (Alpenglow vs Alpine vs others)
+    # Requires: x86_64 Linux with KVM, Docker, 7z
+    exec "${ROOT_DIR}/scripts/bench-all.sh"
+    ;;
   ci-rust)
     exec "${ROOT_DIR}/scripts/ci-rust-core.sh"
     ;;
@@ -52,6 +57,7 @@ case "${1:-help}" in
     echo "  check       Cargo check all crates"
     echo "  test        Run all cargo tests"
     echo "  bench       Boot time benchmarks (boot phases + size metrics)"
+    echo "  bench-all   Multi-OS comparison (Alpenglow vs Alpine, needs KVM)"
     echo "  ci-rust     Validate Rust crates (CI)"
     echo "  ci-os       Validate OS appliance contract (CI)"
     echo "  ci          Run all CI checks"

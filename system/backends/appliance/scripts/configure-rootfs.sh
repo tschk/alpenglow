@@ -138,7 +138,7 @@ case "${ALPENGLOW_PROFILE}" in
     BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
     ;;
   standard)
-    BOOT_SERVICES="glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber greetd velox foot dropbear chronyd syslogd crond dnsmasq"
+    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq"
     ;;
 esac
 for service in ${BOOT_SERVICES}; do

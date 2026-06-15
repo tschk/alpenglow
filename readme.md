@@ -60,17 +60,17 @@ Boot time: kernel decompress → services → login prompt. zstd-19 initramfs, d
 | State persistence (ext4) | ✅ auto-mount by label |
 | Oil package manager | ✅ APK install/upgrade/remove/pin |
 | kernelctl (cgroups + sysctl) | ✅ 89KB Zig |
-| Wayland compositor | ✅ cage + foot |
-| Audio | ✅ ALSA + PipeWire |
 | WiFi | ✅ iwd (16+ drivers) |
-| SSH server | ✅ dropbear (privilege-separated) |
+| SSH server | ✅ dropbear (drops to dropbear user) |
 | NTP | ✅ chrony (drops to chrony user) |
 | DNS cache | ✅ dnsmasq (drops to dnsmasq user) |
-| System logger | ✅ toybox syslogd |
-| Cron | ✅ toybox crond |
+| System logger | ✅ syslogd |
+| Cron | ✅ crond |
 | APK signature verify | ✅ CMS/RSA PKCS#1 v1.5 |
 | GlowFS kernel module | 🟡 in-tree, export issues |
 | Real hardware boot | ❌ QEMU only |
+
+Desktop services (Wayland, cage, foot, pipewire, elogind) are installable via Oil but not in the base image.
 
 ## Repo Layout
 
@@ -94,6 +94,7 @@ docs/               Architecture, build, install docs
 | Rust core | `scripts/ci-rust-core.sh` — cargo check + test |
 | Zig code | `scripts/ci-zig.sh` — build kernelctl + glowfsctl (0.16, musl) |
 | GlowFS module | `scripts/ci-glowfs-kernel-module.sh` |
+| Multi-OS bench | `scripts/bench-all.sh` — boot time + RAM vs Alpine |
 | Boot benchmark | `scripts/bench-boot.sh` |
 
 ## Build
@@ -104,6 +105,9 @@ docs/               Architecture, build, install docs
 
 # Custom kernel
 KERNEL_BUILD=1 KERNEL_VERSION=7.0.12 ./scripts/boot-native.sh
+
+# Multi-OS benchmark (Alpenglow vs Alpine, needs KVM)
+./scripts/bench-all.sh
 
 # Build components
 cargo build --release
