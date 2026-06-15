@@ -228,6 +228,8 @@ GROUP
 # root home
 mkdir -p "${ROOTFS_DIR}/root"
   mkdir -p "${ROOTFS_DIR}/lib/modules"
+if [ -f "${GLOWFS_KO}" ]; then
+  mkdir -p "${ROOTFS_DIR}/lib/modules"
   cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
