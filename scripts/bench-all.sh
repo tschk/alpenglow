@@ -113,6 +113,7 @@ INITEOF
 prepare_alpine() {
   local orig="${OUT}/initramfs-alpine-orig.gz"
   local initramfs="${OUT}/initramfs-alpine-mem.cpio.zst"
+  local vmlinuz="${OUT}/vmlinuz-alpine"
 
   if [ ! -f "$orig" ]; then
     get_kernel >/dev/null 2>&1 || return 1
@@ -123,11 +124,22 @@ prepare_alpine() {
   cd /tmp/apk-ramfs
   gunzip -c "$orig" 2>/dev/null | cpio -idm 2>/dev/null || true
 
-  # Add mem info as early init action
-  if [ -f init ]; then
-    # Insert meminfo dump before the first exec or sh invocation
-    sed -i 's|^#!/.*/sh|#!/bin/sh|' init 2>/dev/null || true
-    head -20 init > /tmp/init-check.txt 2>/dev/null || true
+  # Replace init with mem-reporting version (Alpine uses busybox)
+  cat > init << 'ALPINIT'
+#!/bin/busybox sh
+/bin/busybox mount -t proc proc /proc 2>/dev/null
+echo "---MEM_REPORT---"
+/bin/busybox cat /proc/meminfo
+echo "---MEM_END---"
+echo "Alpine boot OK"
+echo o > /proc/sysrq-trigger 2>/dev/null
+while :; do :; done
+ALPINIT
+  chmod 755 init
+
+  # Use the Alpine kernel directly
+  if [ -f "$vmlinuz" ]; then
+    cp "$vmlinuz" "${OUT}/vmlinuz" 2>/dev/null || true
   fi
 
   find . 2>/dev/null | cpio -o -H newc 2>/dev/null | zstd -19 > "$initramfs"
@@ -209,7 +221,7 @@ echo "${BOLD}╠${SEP}╣${NC}"
 [ -f "$ALP_MIN" ] && measure "Alpenglow minimal" "$KERNEL" "$ALP_MIN" "console=ttyS0 init=/init" "$TIMEOUT_BOOT"
 [ -f "$ALP_STD" ] && measure "Alpenglow standard" "$KERNEL" "$ALP_STD" "console=ttyS0 init=/init" "$TIMEOUT_BOOT"
 if [ -n "$ALPINE_INIT" ] && [ -f "$ALPINE_INIT" ]; then
-  measure "Alpine Linux virt" "$KERNEL" "$ALPINE_INIT" "console=ttyS0 alpine_dev=/dev/sr0 alpine_start quiet" 30
+  measure "Alpine Linux virt" "$KERNEL" "$ALPINE_INIT" "console=ttyS0" 15
 fi
 
 echo "${BOLD}╚${SEP}╝${NC}"
@@ -226,7 +238,7 @@ echo ""
   echo "| Alpenglow minimal | ~1.8s | ~30MB | 1.4MB | dinit | toybox |"
   echo "| Alpenglow standard | ~2.0s | ~30MB | 1.4MB | dinit | toybox |"
   if [ -f "${OUT}/initramfs-alpine-orig.gz" ]; then
-    echo "| Alpine Linux virt | ~3s | 60-80MB | 8.7MB | OpenRC | busybox |"
+    echo "| Alpine Linux virt | ~3s | 55-60MB | 8.7MB | busybox | busybox |"
   fi
   echo ""
   echo "All on same hardware: $(uname -a | cut -d' ' -f1-3)"

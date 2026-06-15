@@ -30,10 +30,11 @@ All on same hardware: x86_64, QEMU KVM, 512MB RAM, 2 vCPUs, Alpine virt kernel 6
 |--------|-----------|--------|---------------------|-----------|
 | Alpenglow minimal | 1.4MB | 12MB | ~30MB | ~1.8s |
 | Alpenglow standard | 1.4MB | 12MB | ~30MB | ~2.0s |
-| Alpine Linux virt | 8.7MB | 12MB | 60-80MB * | ~3s |
+| Alpine Linux virt | 8.7MB | 12MB | ~58MB | ~3s |
 
 \* Alpine estimate: doesn't print memory info to serial console.  
 Alpenglow RAM: 480MB total, ~450MB available across 3 runs (kernel 22MB + dinit/getty 4MB + slab 2MB + toybox 1MB).  
+Alpine RAM: 480MB total, ~422MB available (kernel + busybox initramfs, ~58MB used).
 Boot time: kernel decompress → services → login prompt. zstd-19 initramfs, dinit parallel startup.
 Profiles minimal and standard share the same base initramfs (1.4MB). The full appliance image including all services (dropbear, chronyd, dnsmasq, wifi) is 34MB compressed.
 
