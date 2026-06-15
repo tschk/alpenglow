@@ -142,7 +142,7 @@ measure() {
 
   local safe=$(echo "$label" | tr ' ' '-')
   local outfile="${OUT}/qemu-${safe}.log"
-  local start=$(date +%s 2>/dev/null || echo 0)
+  local start=$(perl -MTime::HiRes=time -e 'printf "%.3f", time' 2>/dev/null || date +%s)
   # timeout not available on macOS, use perl as fallback
   if command -v timeout >/dev/null 2>&1; then
     timeout "$timeout" qemu-system-x86_64 -machine q35,accel=${ACCEL} \
@@ -153,11 +153,11 @@ measure() {
       -m ${MEM_MB} -smp 2 -nographic -no-reboot \
       -kernel "$kernel" -initrd "$initrd" -append "$append" > "$outfile" 2>&1 || true
   fi
-  local end=$(date +%s 2>/dev/null || echo 0)
+  local end=$(perl -MTime::HiRes=time -e 'printf "%.3f", time' 2>/dev/null || date +%s)
   local out
   out=$(cat "$outfile")
-  local elapsed=0
-  [ "$end" -gt 0 ] && [ "$start" -gt 0 ] && elapsed=$(( (end - start) * 1000 ))
+  local elapsed
+  elapsed=$(perl -e "printf '%.0f', ($end - $start) * 1000" 2>/dev/null || echo 0)
 
   # Parse RAM: try /proc/meminfo (kernel) or free -k (toybox) output
   local memline=$(echo "$out" | grep "^Mem:" | head -1)
