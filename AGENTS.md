@@ -84,19 +84,23 @@ cargo test -p glowfsctl
 
 ## Status
 
-| Milestone | Status |
-|-----------|--------|
-| Boot to dinit + toybox shell | ✅ `./scripts/boot-native.sh` |
-| Interactive shell on serial | ✅ dinit-managed shell service |
-| Static toybox (SH + GETTY) | ✅ Custom build |
-| Static dinit v0.19.2 | ✅ System manager |
-| Custom kernel build | 🟡 `KERNEL_BUILD=1` |
-| GlowFS kernel module | 🟡 Builds with custom kernel |
-| Network services | 📝 DHCP service needed |
-| Hardened sysctl | 🟡 Config staged |
-| Oil package manager | 📝 Oil runs standalone, not integrated |
-| Initramfs build flow | ✅ `scripts/build-initramfs.sh` |
-| dinit service files | ✅ 10 services in `system/backends/appliance/dinit/` |
+| Milestone | Status | How |
+|-----------|--------|-----|
+| Boot to dinit + toybox shell | ✅ | `./scripts/boot-native.sh` |
+| Interactive shell on serial | ✅ | dinit-managed getty with login |
+| User accounts | ✅ | /etc/passwd, /etc/shadow, /etc/group |
+| DHCP networking | ✅ | udhcpc via dinit service |
+| State persistence | ✅ | LABEL=alpenglow-state auto-mount |
+| Oil package manager | ✅ | Built into initramfs from ../oil |
+| Static toybox (SH + GETTY) | ✅ | Custom Docker build |
+| Static dinit v0.19.2 | ✅ | System manager PID 1 |
+| Custom kernel build | 🟡 | `KERNEL_BUILD=1` — untested |
+| GlowFS kernel module | 🟡 | Builds with custom kernel |
+| Bootable disk image | ✅ | `./scripts/build-release.sh` |
+| Limine bootloader | ✅ | Installed to GPT disk |
+| HW-specific cleanup | ✅ | boards/drivers removed |
+| Servo/RV8 removed | ✅ | Moved to soliloquy |
+| CI / testing | 📝 | Stale CI scripts need updating |
 
 ## Inauguration Integration (Future)
 
