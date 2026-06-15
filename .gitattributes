@@ -18,6 +18,10 @@ Dockerfile.*    text eol=lf
 *.rs            text diff=rust
 *.toml          text
 
+# Zig source
+*.zig           text
+*.zon           text
+
 # C source
 *.c             text diff=cpp
 *.h             text diff=cpp

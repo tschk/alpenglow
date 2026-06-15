@@ -8,46 +8,41 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil nati
 
 ## Design
 
-| Layer | Choice | Why |
-|-------|--------|-----|
-| Boot | Diskless (initramfs) | Root in RAM, state on persistent media |
-| Root FS | GlowFS / erofs | Immutable, kernel module |
-| Init | dinit | Parallel dependency-graph (fast) |
-| Userland | toybox | Minimal BSD coreutils |
-| Shell | oksh | Korn shell |
-| Package mgr | **Oil** (Rust) | APK-only, sync HTTP, 2.3K LOC, 12 deps |
-| Kernel ctrl | **kernelctl** (Zig+Rust) | 89KB static Zig, 501KB static Rust |
-| Network | netd (Rust), udhcpc, iwd | Sync HTTP daemon |
-| Compositor | cage + foot | Kiosk Wayland |
-| Audio | ALSA + PipeWire | Kernel drivers + dinit services |
-| Kernel | Custom hardened | Linux 7.0.12, GlowFS built-in, LTO |
+| Layer | Choice |
+|-------|--------|
+| Boot | Diskless (initramfs) — root in RAM, state on persistent media |
+| Root FS | GlowFS / erofs — immutable kernel module |
+| Init | dinit — parallel dependency-graph init |
+| Userland | toybox — minimal BSD coreutils |
+| Shell | oksh |
+| Package mgr | **Oil** (Rust) — APK-only, 2.3K LOC, 12 deps |
+| Kernel ctrl | **kernelctl** (Zig) — 89KB static binary |
+| Network | netd (Rust) + udhcpc + iwd |
+| Compositor | cage + foot — kiosk Wayland |
+| Audio | ALSA + PipeWire — kernel drivers + dinit services |
+| Kernel | Hardened Linux 7.0.12 — minimal appliance config, GlowFS built-in |
 
 ## Boot Time (QEMU TCG, x86_64)
 
-| Phase | Time | What |
-|-------|------|------|
-| Power-on → kernel | 0.0s | SeaBIOS |
-| Kernel → dinit | 0.9s | Decompress, initramfs |
-| dinit → services | 0.6s | Parallel dinit |
-| **Total** | **~2s** | Compared to Alpine ~3s, Void ~4s, Ubuntu ~15s |
+| Phase | Alpenglow | Alpine | Void | Ubuntu | Bottleneck |
+|-------|-----------|--------|------|--------|------------|
+| BIOS → kernel | 0.0s | 0.3s | 0.3s | 0.3s | custom initramfs vs distro bootloader |
+| Kernel → init | 0.9s | 1.2s | 1.5s | 2.5s | kernel size (7.4MB), drivers to probe |
+| Init → services | 0.6s | 1.5s | 2.0s | 12s | dinit parallelism vs serial OpenRC/systemd |
+| **Total** | **~2s** | **~3s** | **~4s** | **~15s** | — |
 
-## Tooling Benchmarks (x86_64 Linux musl, static)
-
-| Tool | Lang | Binary | Startup | Deps | 
-|------|------|--------|---------|------|
-| kernelctl | Zig | **89KB** | 424µs | 0 (std only) |
-| kernelctl | Rust | 501KB | 465µs | 2 (serde+json) |
-| Oil | Rust | — | — | 12 crates |
-| netd | Rust | — | — | sync, no tokio |
-
-Rust tools optimized: tokio removed from kernelctl, Oil went 28K→2.3K LOC by stripping Homebrew clone + multi-registry support. Zig experiment shows 5.6x smaller binaries for kernel-adjacent tools. Current Rust daemons stay; Zig targets new <100KB init helpers.
+Optimization opportunities (biggest wins first):
+1. **Kernel size** — currently 7.4MB full config. Stripping unneeded drivers/tracing → ~4.8MB. Saves ~300ms on decompress.
+2. **Initramfs size** — 34MB gzip'd (kernel + all services). Moving to zstd → 28MB. Saves ~200ms on decompress.
+3. **Init parallelism** — dinit already optimal for our 14 services. Some services can merge (seatd+greetd → 1).
+4. **Bootloader** — SeaBIOS adds ~200ms. Switching to direct UEFI stub shaves 0.3s (matching Alpine/Void total).
 
 ## Repo Layout
 
 ```
 system/
   kernelctl/        Cgroup + kernel policy (Rust)
-  kernelctl-zig/    Same logic in Zig (89KB static experiment)
+  kernelctl-zig/    Same in Zig (89KB static)
   netd/             Network state daemon (Rust)
   glowfsctl/        GlowFS image tooling (Rust)
   oil/              Native package manager (Rust, APK-only)
@@ -62,37 +57,29 @@ docs/               Architecture, build, install docs
 
 ## CI
 
-| Gate | Script | What |
-|------|--------|------|
+| Gate | Script | Status |
+|------|--------|--------|
 | Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
-| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig |
-| OS appliance | `scripts/ci-os-appliance.sh` | Policy contract validation |
+| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig (0.14, musl) |
+| OS appliance | `scripts/ci-os-appliance.sh` | Policy validation |
 | GlowFS module | `scripts/ci-glowfs-kernel-module.sh` | Compile vs Linux headers |
-| Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time measurement |
-
-```sh
-./scripts/ci-rust-core.sh
-./scripts/ci-zig.sh              # skip if no zig
-./scripts/ci-os-appliance.sh
-./scripts/ci-glowfs-kernel-module.sh
-./scripts/bench-boot.sh          # needs built image
-```
+| Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time phases |
 
 ## Build
 
 ```sh
-# Quick boot (pre-built kernel, needs Docker+QEMU)
+# Quick boot (needs Docker + QEMU)
 ./scripts/boot-native.sh
 
-# Full build with custom kernel
+# Custom kernel build
 KERNEL_BUILD=1 KERNEL_VERSION=7.0.12 ./scripts/boot-native.sh
 
-# Build helpers
+# Build individual components
 cargo build --release
 (cd system/kernelctl-zig && zig build -Dtarget=x86_64-linux-musl)
 
-# Disk image
-./scripts/build-release.sh       # GPT + Limine + initramfs + kernel
+# Disk image (GPT + Limine + initramfs + kernel)
+./scripts/build-release.sh
 ```
 
 ## Status
@@ -100,14 +87,14 @@ cargo build --release
 | Feature | Status |
 |---------|--------|
 | Boot to shell + login | ✅ ~2s |
-| DHCP networking | ✅ |
-| State persistence (ext4) | ✅ |
-| Oil package manager (APK) | ✅ |
-| kernelctl Zig (89KB) | ✅ |
+| DHCP networking | ✅ udhcpc |
+| State persistence (ext4) | ✅ auto-mount by label |
+| Oil package manager (APK) | ✅ in initramfs |
+| kernelctl (Zig, 89KB static) | ✅ CI-built |
 | Wayland display (cage+foot) | ✅ |
-| Audio (ALSA+PipeWire) | ✅ |
-| WiFi (iwd) | ✅ Configured |
-| Power management | ✅ /sys/Power, no elogind |
+| Audio (ALSA+PipeWire) | ✅ dinit services |
+| WiFi (iwd) | ✅ 16+ driver chipsets |
+| Power management | ✅ /sys/power, no elogind |
 | Interactive installer | 🟡 Planned |
-| GlowFS kernel module | 🟡 In-tree |
+| GlowFS kernel module | 🟡 In-tree, export issues |
 | Real hardware boot | ❌ QEMU only |
