@@ -66,7 +66,7 @@ build_dinit() {
 # Kernel
 if [ ! -f "${KERNEL_IMAGE}" ]; then
   if [ "${KERNEL_BUILD:-0}" = "1" ]; then
-    echo "→ Building custom kernel..."
+    echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
     KERNEL_SRC="${OUT_DIR}/linux"
     KERNEL_CONFIG="${ROOT_DIR}/system/alpine/kernel/alpenglow-internet-appliance.config"
     [ -d "${KERNEL_SRC}" ] || {
@@ -76,10 +76,28 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       mv "${OUT_DIR}/linux-${KERNEL_VERSION}" "${KERNEL_SRC}"
     }
     cp "${KERNEL_CONFIG}" "${KERNEL_SRC}/.config"
+
+    # In-tree GlowFS source
+    mkdir -p "${KERNEL_SRC}/fs/glowfs"
+    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
+    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
+    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
+    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
+    echo 'glowfs-objs := glowfs_vfs.o glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
+    printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS is Alpenglow'"'"'s immutable root filesystem.\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
+    grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
+    grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
+
     cd "${KERNEL_SRC}"
     make olddefconfig >/dev/null 2>&1
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" bzImage 2>&1 | tail -3
+    # Enable GlowFS and Rust in config
+    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
+    make olddefconfig >/dev/null 2>&1
+    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" bzImage 2>&1 | tail -5
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
+    # Build GlowFS module
+    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" M=fs/glowfs modules 2>&1 | tail -5
+    cp fs/glowfs/glowfs.ko "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
     cd "${ROOT_DIR}"
   else
     echo "→ Fetching pre-built kernel..."
@@ -89,35 +107,12 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
   echo "  kernel: ${KERNEL_IMAGE}"
 fi
 
-# GlowFS module — built in-tree against our kernel source
+# GlowFS module check
 GLOWFS_KO="${OUT_DIR}/glowfs.ko"
-if [ ! -f "${GLOWFS_KO}" ] && [ -d "${ROOT_DIR}/system/glowfs/kernel" ]; then
-  if [ "${KERNEL_BUILD:-0}" = "1" ] && [ -d "${OUT_DIR}/linux" ]; then
-    echo "→ Building GlowFS kernel module (in-tree)..."
-    KERNEL_SRC="${OUT_DIR}/linux"
-    # Copy GlowFS source into kernel tree for in-tree build (bypasses EXPORT_SYMBOL restrictions)
-    mkdir -p "${KERNEL_SRC}/fs/glowfs"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
-    # Update Kconfig and Makefile
-    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'config GLOWFS\ntristate "GlowFS immutable filesystem"\ndefault m\nhelp\n  GlowFS is Alpenglow\\'\''s immutable root filesystem.' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
-    # Add to kernel build
-    echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || true
-    echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || true
-    # Build with KBUILD_MODPOST_WARN for any remaining unresolvable symbols
-    KBUILD_MODPOST_WARN=1 make -C "${KERNEL_SRC}" M="${KERNEL_SRC}/fs/glowfs" modules 2>&1 | tail -5
-    cp "${KERNEL_SRC}/fs/glowfs/glowfs.ko" "${GLOWFS_KO}" 2>/dev/null || true
-    if [ -f "${GLOWFS_KO}" ]; then
-      echo "  glowfs: ${GLOWFS_KO}"
-    else
-      echo "  WARNING: glowfs.ko build failed — module needs kernel API updates for Linux ${KERNEL_VERSION}"
-    fi
-    cd "${ROOT_DIR}"
-  elif [ "${KERNEL_BUILD:-0}" != "1" ]; then
-    echo "→ GlowFS requires KERNEL_BUILD=1 (skipping)"
-  fi
+if [ -f "${GLOWFS_KO}" ]; then
+  echo "  glowfs: ${GLOWFS_KO}"
+elif [ "${KERNEL_BUILD:-0}" != "1" ]; then
+  echo "→ GlowFS requires KERNEL_BUILD=1 (skipping)"
 fi
 
 # Compose rootfs
