@@ -729,7 +729,8 @@ fn digest_bytes(data: &[u8]) -> [u8; 32] {
 fn hex_digest(bytes: &[u8; 32]) -> String {
     let mut out = String::with_capacity(64);
     for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
+        use std::fmt::Write;
+        let _ = write!(out, "{byte:02x}");
     }
     out
 }
@@ -741,7 +742,13 @@ fn align8(value: u64) -> u64 {
 fn write_zeroes_until(file: &mut File, target: u64) -> io::Result<()> {
     let current = file.stream_position()?;
     if current < target {
-        file.write_all(&vec![0_u8; (target - current) as usize])?;
+        let buf = [0_u8; 4096];
+        let mut remaining = target - current;
+        while remaining > 0 {
+            let n = buf.len().min(remaining as usize);
+            file.write_all(&buf[..n])?;
+            remaining -= n as u64;
+        }
     }
     Ok(())
 }

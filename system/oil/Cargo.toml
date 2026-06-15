@@ -3,62 +3,25 @@ name = "oil"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
-description = "Alpenglow native package manager (APK registry, musl-only)"
-authors = ["Oil Contributors"]
-
-[features]
-default = ["system-apk"]
-system-all = ["system-apk"]
-system-apk = []
-platform-linux = []
-platform-macos = []
-platform-windows = []
 
 [[bin]]
 name = "oil"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4", features = ["derive", "cargo"] }
-clap_complete = "4"
-
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "stream", "gzip", "rustls-tls"] }
-futures = "0.3"
-
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "1.1"
-
-indicatif = "0.18"
-console = "0.16"
-inquire = "0.9"
-
-anyhow = "1"
-thiserror = "2"
-
-tracing = "0.1"
-tracing-subscriber = "0.3"
-tracing-appender = "0.2"
-
+ureq = "3"
 tar = "0.4"
 flate2 = "1"
 sha2 = "0.11"
 hex = "0.4"
-tempfile = "3"
-regex = "1"
-libc = "0.2"
-nix = { version = "0.31", features = ["user", "process"] }
-
 dunce = "1"
 ctrlc = "3"
-num_cpus = "1"
+libc = "0.2"
+nix = { version = "0.31", features = ["user"] }
 shellexpand = "3"
 urlencoding = "2"
-zstd = "0.13"
-xz2 = "0.1"
-bzip2 = "0.6"
-quick-xml = { version = "0.40", features = ["async-tokio"] }
-zip = { version = "8", default-features = false, features = ["deflate"] }
-serde_yaml = "0.9"
-rayon = "1"
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+tempfile = "3"

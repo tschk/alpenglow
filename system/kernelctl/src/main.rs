@@ -4,14 +4,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
-use tokio::fs;
-use tokio::process::Command;
-use tokio::task::JoinSet;
 
 const DEFAULT_POLICY: &str = "/etc/alpenglow/kernel-policy.json";
 const DEFAULT_RUNTIME_STATE: &str = "/run/alpenglow/runtime-state.env";
 const DEFAULT_CGROUP_FS: &str = "/sys/fs/cgroup";
-const POLICY_TASK_LIMIT: usize = 8;
 
 #[derive(Debug, Deserialize)]
 struct KernelPolicy {
@@ -46,9 +42,8 @@ enum CommandMode {
     Attach { group: String, pid: u32 },
 }
 
-#[tokio::main]
-async fn main() {
-    if let Err(error) = run(parse_args(env::args().skip(1))).await {
+fn main() {
+    if let Err(error) = run(parse_args(env::args().skip(1))) {
         eprintln!("alpenglow-kernelctl: {error}");
         std::process::exit(1);
     }
@@ -125,182 +120,133 @@ where
     }
 }
 
-async fn run(args: Args) -> Result<(), String> {
+fn run(args: Args) -> Result<(), String> {
     if let CommandMode::Attach { group, pid } = &args.command {
         return attach_to_cgroup(&args.cgroup_fs, group, *pid, args.dry_run)
-            .await
             .map_err(|error| format!("attach {group}/{pid}: {error}"));
     }
-    let policy = read_policy(&args.policy).await?;
-    let (_, _, cgroups_state) = tokio::try_join!(
-        load_kernel_modules(args.dry_run),
-        apply_sysctls(&policy.sysctl, args.dry_run),
-        apply_cgroups(&policy.groups, &args.cgroup_fs, args.dry_run),
-    )?;
+    let policy = read_policy(&args.policy)?;
+    load_kernel_modules(args.dry_run)?;
+    apply_sysctls(&policy.sysctl, args.dry_run)?;
+    let cgroups_state = apply_cgroups(&policy.groups, &args.cgroup_fs, args.dry_run)?;
     record_runtime_state(
         &args.runtime_state,
         "ALPENGLOW_KERNEL_POLICY_FILE",
         args.policy.display(),
     )
-    .await
     .map_err(|error| format!("runtime state: {error}"))?;
     record_runtime_state(
         &args.runtime_state,
         "ALPENGLOW_KERNEL_POLICY_CGROUPS",
         cgroups_state,
     )
-    .await
     .map_err(|error| format!("runtime state: {error}"))?;
     record_runtime_state(
         &args.runtime_state,
         "ALPENGLOW_KERNEL_POLICY_PROFILE",
         &policy.profile,
     )
-    .await
     .map_err(|error| format!("runtime state: {error}"))?;
     Ok(())
 }
 
-async fn read_policy(path: &Path) -> Result<KernelPolicy, String> {
-    let raw = fs::read_to_string(path)
-        .await
+fn read_policy(path: &Path) -> Result<KernelPolicy, String> {
+    let raw = std::fs::read_to_string(path)
         .map_err(|error| format!("read {}: {error}", path.display()))?;
     serde_json::from_str(&raw).map_err(|error| format!("parse {}: {error}", path.display()))
 }
 
-async fn load_kernel_modules(dry_run: bool) -> Result<(), String> {
-    let mut tasks = JoinSet::new();
+fn load_kernel_modules(dry_run: bool) -> Result<(), String> {
     for module in ["virtio_pci", "virtio_net", "virtio_rng", "virtio_gpu"] {
-        tasks.spawn(load_kernel_module(module, dry_run));
-    }
-    while let Some(result) = tasks.join_next().await {
-        result.map_err(|error| format!("module task: {error}"))?;
+        load_kernel_module(module, dry_run);
     }
     Ok(())
 }
 
-async fn load_kernel_module(module: &'static str, dry_run: bool) {
+fn load_kernel_module(module: &str, dry_run: bool) {
     if dry_run {
         return;
     }
-    let _ = Command::new("modprobe").arg(module).status().await;
+    let _ = std::process::Command::new("modprobe").arg(module).status();
 }
 
-async fn apply_sysctls(sysctl: &BTreeMap<String, String>, dry_run: bool) -> Result<(), String> {
-    let mut tasks = JoinSet::new();
+fn apply_sysctls(sysctl: &BTreeMap<String, String>, dry_run: bool) -> Result<(), String> {
     for (key, value) in sysctl {
-        while tasks.len() >= POLICY_TASK_LIMIT {
-            join_policy_task(&mut tasks, "sysctl").await?;
-        }
-        let key = key.clone();
-        let value = value.clone();
-        tasks.spawn(async move {
-            apply_sysctl(&key, &value, dry_run)
-                .await
-                .map_err(|error| format!("{key}: {error}"))
-        });
-    }
-    while let Some(result) = tasks.join_next().await {
-        result.map_err(|error| format!("sysctl task: {error}"))??;
+        apply_sysctl(key, value, dry_run)
+            .map_err(|error| format!("{key}: {error}"))?;
     }
     Ok(())
 }
 
-async fn apply_sysctl(key: &str, value: &str, dry_run: bool) -> io::Result<()> {
+fn apply_sysctl(key: &str, value: &str, dry_run: bool) -> io::Result<()> {
     if dry_run {
         return Ok(());
     }
     let path = Path::new("/proc/sys").join(key.replace('.', "/"));
-    if fs::try_exists(&path).await? {
-        fs::write(path, format!("{value}\n")).await?;
+    if path.try_exists()? {
+        std::fs::write(path, format!("{value}\n"))?;
     }
     Ok(())
 }
 
-async fn apply_cgroups(
+fn apply_cgroups(
     groups: &[CgroupPolicy],
     cgroup_fs: &Path,
     dry_run: bool,
 ) -> Result<&'static str, String> {
-    if !fs::try_exists(cgroup_fs.join("cgroup.controllers"))
-        .await
-        .map_err(|error| format!("cgroup policy: {error}"))?
-    {
+    if !cgroup_fs.join("cgroup.controllers").try_exists().map_err(|error| format!("cgroup policy: {error}"))? {
         return Ok("unavailable");
     }
     if dry_run {
         return Ok("active");
     }
-    fs::create_dir_all(cgroup_fs.join("alpenglow"))
-        .await
+    std::fs::create_dir_all(cgroup_fs.join("alpenglow"))
         .map_err(|error| format!("cgroup policy: {error}"))?;
-    enable_controllers(cgroup_fs).await;
-    let mut tasks = JoinSet::new();
+    enable_controllers(cgroup_fs);
     for group in groups {
-        while tasks.len() >= POLICY_TASK_LIMIT {
-            join_policy_task(&mut tasks, "cgroup").await?;
-        }
-        let cgroup_fs = cgroup_fs.to_path_buf();
-        let group = group.clone();
-        tasks.spawn(async move {
-            apply_group(&cgroup_fs, &group)
-                .await
-                .map_err(|error| format!("{}: {error}", group.id))
-        });
-    }
-    while let Some(result) = tasks.join_next().await {
-        result.map_err(|error| format!("cgroup task: {error}"))??;
+        apply_group(cgroup_fs, group)
+            .map_err(|error| format!("{}: {error}", group.id))?;
     }
     Ok("active")
 }
 
-async fn join_policy_task(
-    tasks: &mut JoinSet<Result<(), String>>,
-    label: &str,
-) -> Result<(), String> {
-    if let Some(result) = tasks.join_next().await {
-        result.map_err(|error| format!("{label} task: {error}"))??;
-    }
-    Ok(())
-}
-
-async fn enable_controllers(cgroup_fs: &Path) {
+fn enable_controllers(cgroup_fs: &Path) {
     let subtree_control = cgroup_fs.join("cgroup.subtree_control");
     for controller in ["cpu", "io", "memory", "pids"] {
-        let _ = fs::write(&subtree_control, format!("+{controller}\n")).await;
+        let _ = std::fs::write(&subtree_control, format!("+{controller}\n"));
     }
 }
 
-async fn apply_group(cgroup_fs: &Path, group: &CgroupPolicy) -> io::Result<()> {
+fn apply_group(cgroup_fs: &Path, group: &CgroupPolicy) -> io::Result<()> {
     let path = cgroup_fs.join(&group.path);
-    fs::create_dir_all(&path).await?;
-    write_optional(&path, "cpu.weight", group.cpu_weight).await?;
-    write_optional(&path, "io.weight", group.io_weight).await?;
-    write_optional_string(&path, "memory.high", group.memory_high.as_deref()).await?;
-    write_optional_string(&path, "memory.max", group.memory_max.as_deref()).await?;
-    write_optional(&path, "pids.max", group.pids_max).await?;
+    std::fs::create_dir_all(&path)?;
+    write_optional(&path, "cpu.weight", group.cpu_weight)?;
+    write_optional(&path, "io.weight", group.io_weight)?;
+    write_optional_string(&path, "memory.high", group.memory_high.as_deref())?;
+    write_optional_string(&path, "memory.max", group.memory_max.as_deref())?;
+    write_optional(&path, "pids.max", group.pids_max)?;
     Ok(())
 }
 
-async fn write_optional(path: &Path, file: &str, value: Option<u64>) -> io::Result<()> {
+fn write_optional(path: &Path, file: &str, value: Option<u64>) -> io::Result<()> {
     if let Some(value) = value {
-        write_optional_string(path, file, Some(&value.to_string())).await?;
+        write_optional_string(path, file, Some(&value.to_string()))?;
     }
     Ok(())
 }
 
-async fn write_optional_string(path: &Path, file: &str, value: Option<&str>) -> io::Result<()> {
+fn write_optional_string(path: &Path, file: &str, value: Option<&str>) -> io::Result<()> {
     let target = path.join(file);
     if let Some(value) = value {
-        if fs::try_exists(&target).await? {
-            write_kernel_file(&target, value).await?;
+        if target.try_exists()? {
+            write_kernel_file(&target, value)?;
         }
     }
     Ok(())
 }
 
-async fn write_kernel_file(path: &Path, value: &str) -> io::Result<()> {
-    match fs::write(path, format!("{value}\n")).await {
+fn write_kernel_file(path: &Path, value: &str) -> io::Result<()> {
+    match std::fs::write(path, format!("{value}\n")) {
         Ok(()) => Ok(()),
         Err(error)
             if matches!(
@@ -316,13 +262,9 @@ async fn write_kernel_file(path: &Path, value: &str) -> io::Result<()> {
     }
 }
 
-async fn record_runtime_state(
-    path: &Path,
-    key: &str,
-    value: impl std::fmt::Display,
-) -> io::Result<()> {
+fn record_runtime_state(path: &Path, key: &str, value: impl std::fmt::Display) -> io::Result<()> {
     let mut values = BTreeMap::new();
-    if let Ok(raw) = fs::read_to_string(path).await {
+    if let Ok(raw) = std::fs::read_to_string(path) {
         for line in raw.lines() {
             if let Some((existing_key, existing_value)) = line.split_once('=') {
                 values.insert(existing_key.to_string(), existing_value.to_string());
@@ -331,7 +273,7 @@ async fn record_runtime_state(
     }
     values.insert(key.to_string(), value.to_string());
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).await?;
+        std::fs::create_dir_all(parent)?;
     }
     let mut rendered = String::new();
     for (key, value) in values {
@@ -340,22 +282,17 @@ async fn record_runtime_state(
         rendered.push_str(&value);
         rendered.push('\n');
     }
-    fs::write(path, rendered).await
+    std::fs::write(path, rendered)
 }
 
-async fn attach_to_cgroup(
-    cgroup_fs: &Path,
-    group: &str,
-    pid: u32,
-    dry_run: bool,
-) -> io::Result<()> {
+fn attach_to_cgroup(cgroup_fs: &Path, group: &str, pid: u32, dry_run: bool) -> io::Result<()> {
     if group.is_empty() || pid == 0 || dry_run {
         return Ok(());
     }
     let path = cgroup_fs.join("alpenglow").join(group);
-    if fs::try_exists(cgroup_fs.join("cgroup.controllers")).await? {
-        fs::create_dir_all(&path).await?;
-        write_kernel_file(&path.join("cgroup.procs"), &pid.to_string()).await?;
+    if cgroup_fs.join("cgroup.controllers").try_exists()? {
+        std::fs::create_dir_all(&path)?;
+        write_kernel_file(&path.join("cgroup.procs"), &pid.to_string())?;
     }
     Ok(())
 }
@@ -363,7 +300,6 @@ async fn attach_to_cgroup(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs as std_fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -384,8 +320,8 @@ mod tests {
         assert!(args.dry_run);
     }
 
-    #[tokio::test]
-    async fn parses_attach_command() {
+    #[test]
+    fn parses_attach_command() {
         let args = parse_args([
             "attach".to_string(),
             "--group".to_string(),
@@ -405,17 +341,17 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn dry_run_records_policy_state() {
+    #[test]
+    fn dry_run_records_policy_state() {
         let root = temp_root("alpenglow-kernelctl-dry-run");
-        std_fs::create_dir_all(root.join("cgroup")).unwrap();
-        std_fs::write(
+        std::fs::create_dir_all(root.join("cgroup")).unwrap();
+        std::fs::write(
             root.join("cgroup/cgroup.controllers"),
             "cpu io memory pids\n",
         )
         .unwrap();
         let policy = root.join("policy.json");
-        std_fs::write(
+        std::fs::write(
             &policy,
             r#"{
               "profile": "internet-appliance",
@@ -432,20 +368,19 @@ mod tests {
             cgroup_fs: root.join("cgroup"),
             dry_run: true,
         })
-        .await
         .unwrap();
-        let state = std_fs::read_to_string(runtime_state).unwrap();
+        let state = std::fs::read_to_string(runtime_state).unwrap();
         assert!(state.contains("ALPENGLOW_KERNEL_POLICY_PROFILE=internet-appliance"));
         assert!(state.contains("ALPENGLOW_KERNEL_POLICY_CGROUPS=active"));
     }
 
-    #[tokio::test]
-    async fn attach_command_writes_pid_to_group() {
+    #[test]
+    fn attach_command_writes_pid_to_group() {
         let root = temp_root("alpenglow-kernelctl-attach");
         let cgroup = root.join("cgroup");
-        std_fs::create_dir_all(cgroup.join("alpenglow/renderer")).unwrap();
-        std_fs::write(cgroup.join("cgroup.controllers"), "cpu io memory pids\n").unwrap();
-        std_fs::write(cgroup.join("alpenglow/renderer/cgroup.procs"), "").unwrap();
+        std::fs::create_dir_all(cgroup.join("alpenglow/renderer")).unwrap();
+        std::fs::write(cgroup.join("cgroup.controllers"), "cpu io memory pids\n").unwrap();
+        std::fs::write(cgroup.join("alpenglow/renderer/cgroup.procs"), "").unwrap();
         run(Args {
             command: CommandMode::Attach {
                 group: "renderer".to_string(),
@@ -456,25 +391,24 @@ mod tests {
             cgroup_fs: cgroup.clone(),
             dry_run: false,
         })
-        .await
         .unwrap();
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("alpenglow/renderer/cgroup.procs")).unwrap(),
+            std::fs::read_to_string(cgroup.join("alpenglow/renderer/cgroup.procs")).unwrap(),
             "42\n"
         );
     }
 
-    #[tokio::test]
-    async fn cgroup_policy_applies_independent_groups() {
+    #[test]
+    fn cgroup_policy_applies_independent_groups() {
         let root = temp_root("alpenglow-kernelctl-cgroups");
         let cgroup = root.join("cgroup");
-        std_fs::create_dir_all(cgroup.join("alpenglow/system")).unwrap();
-        std_fs::create_dir_all(cgroup.join("alpenglow/renderer")).unwrap();
-        std_fs::write(cgroup.join("cgroup.controllers"), "cpu io memory pids\n").unwrap();
-        std_fs::write(cgroup.join("cgroup.subtree_control"), "").unwrap();
-        std_fs::write(cgroup.join("alpenglow/system/cpu.weight"), "").unwrap();
-        std_fs::write(cgroup.join("alpenglow/system/pids.max"), "").unwrap();
-        std_fs::write(cgroup.join("alpenglow/renderer/memory.high"), "").unwrap();
+        std::fs::create_dir_all(cgroup.join("alpenglow/system")).unwrap();
+        std::fs::create_dir_all(cgroup.join("alpenglow/renderer")).unwrap();
+        std::fs::write(cgroup.join("cgroup.controllers"), "cpu io memory pids\n").unwrap();
+        std::fs::write(cgroup.join("cgroup.subtree_control"), "").unwrap();
+        std::fs::write(cgroup.join("alpenglow/system/cpu.weight"), "").unwrap();
+        std::fs::write(cgroup.join("alpenglow/system/pids.max"), "").unwrap();
+        std::fs::write(cgroup.join("alpenglow/renderer/memory.high"), "").unwrap();
         let groups = vec![
             CgroupPolicy {
                 id: "system".to_string(),
@@ -495,28 +429,28 @@ mod tests {
                 pids_max: None,
             },
         ];
-        let state = apply_cgroups(&groups, &cgroup, false).await.unwrap();
+        let state = apply_cgroups(&groups, &cgroup, false).unwrap();
         assert_eq!(state, "active");
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("alpenglow/system/cpu.weight")).unwrap(),
+            std::fs::read_to_string(cgroup.join("alpenglow/system/cpu.weight")).unwrap(),
             "100\n"
         );
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("alpenglow/system/pids.max")).unwrap(),
+            std::fs::read_to_string(cgroup.join("alpenglow/system/pids.max")).unwrap(),
             "128\n"
         );
         assert_eq!(
-            std_fs::read_to_string(cgroup.join("alpenglow/renderer/memory.high")).unwrap(),
+            std::fs::read_to_string(cgroup.join("alpenglow/renderer/memory.high")).unwrap(),
             "1536M\n"
         );
     }
 
-    #[tokio::test]
-    async fn cgroup_policy_reports_unavailable_without_cgroup_v2() {
+    #[test]
+    fn cgroup_policy_reports_unavailable_without_cgroup_v2() {
         let root = temp_root("alpenglow-kernelctl-cgroups-unavailable");
         let cgroup = root.join("cgroup");
-        std_fs::create_dir_all(&cgroup).unwrap();
-        let state = apply_cgroups(&[], &cgroup, false).await.unwrap();
+        std::fs::create_dir_all(&cgroup).unwrap();
+        let state = apply_cgroups(&[], &cgroup, false).unwrap();
         assert_eq!(state, "unavailable");
     }
 
@@ -526,7 +460,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let path = env::temp_dir().join(format!("{name}-{nanos}"));
-        std_fs::create_dir_all(&path).unwrap();
+        std::fs::create_dir_all(&path).unwrap();
         path
     }
 }

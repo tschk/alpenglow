@@ -25,7 +25,8 @@ case "${1:-help}" in
     exec cargo test
     ;;
   bench)
-    exec cargo bench
+    # Boot-time benchmarks (boot phases + size metrics)
+    exec "${ROOT_DIR}/scripts/bench-boot.sh"
     ;;
   ci-rust)
     exec "${ROOT_DIR}/scripts/ci-rust-core.sh"
@@ -50,7 +51,7 @@ case "${1:-help}" in
     echo "  boot [img]  Boot image in QEMU (default: build/native/alpenglow.img)"
     echo "  check       Cargo check all crates"
     echo "  test        Run all cargo tests"
-    echo "  bench       Run all cargo benchmarks"
+    echo "  bench       Boot time benchmarks (boot phases + size metrics)"
     echo "  ci-rust     Validate Rust crates (CI)"
     echo "  ci-os       Validate OS appliance contract (CI)"
     echo "  ci          Run all CI checks"

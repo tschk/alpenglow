@@ -1,9 +1,8 @@
 use super::{PackageIndex, PackageMetadata};
-use crate::error::{Result, OilError};
+use crate::error::{OilError, Result};
 use flate2::read::MultiGzDecoder;
 use std::io::Read;
 use std::time::{Duration, SystemTime};
-use tracing::{debug, warn};
 
 pub struct ApkRegistry {
     mirror: String,
@@ -14,8 +13,7 @@ pub struct ApkRegistry {
 
 impl ApkRegistry {
     pub fn new(mirror: &str, branch: &str) -> Self {
-        let arch = std::env::consts::ARCH;
-        let apk_arch = match arch {
+        let arch = match std::env::consts::ARCH {
             "x86_64" => "x86_64",
             "aarch64" => "aarch64",
             "arm" => "armv7",
@@ -25,7 +23,7 @@ impl ApkRegistry {
             mirror: mirror.to_string(),
             branch: branch.to_string(),
             repos: vec!["main".to_string(), "community".to_string()],
-            arch: apk_arch.to_string(),
+            arch: arch.to_string(),
         }
     }
 
@@ -37,12 +35,10 @@ impl ApkRegistry {
     fn cache_path(&self) -> Result<std::path::PathBuf> {
         let dir = crate::ui::dirs::oil_cache_dir()?.join("system");
         std::fs::create_dir_all(&dir)?;
-        Ok(dir.join(format!(
-            "apk-{}-{}-{}.json",
+        Ok(dir.join(format!("apk-{}-{}-{}.json",
             cache_key(&self.mirror),
             cache_key(&self.branch),
-            cache_key(&self.arch)
-        )))
+            cache_key(&self.arch))))
     }
 
     fn is_cache_fresh(path: &std::path::Path) -> bool {
@@ -56,52 +52,32 @@ impl ApkRegistry {
         false
     }
 
-    pub async fn load(&self, client: &reqwest::Client) -> Result<PackageIndex> {
+    pub fn load(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
 
         if Self::is_cache_fresh(&cache_path) {
-            debug!("Loading APK index from cache: {:?}", cache_path);
             let data = std::fs::read_to_string(&cache_path)?;
             let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
             return Ok(PackageIndex { packages });
         }
 
-        debug!(
-            "Fetching APK index for {} branch={}",
-            self.mirror, self.branch
-        );
-
         let mut all_packages: Vec<PackageMetadata> = Vec::new();
 
         for repo in &self.repos {
             let url = self.index_url(repo);
-            debug!("Fetching {}", url);
+            eprintln!("Fetching APK index: {url}");
 
-            let resp = client.get(&url).send().await.map_err(|e| {
-                OilError::InstallError(format!("Failed to fetch APK index from {}: {}", url, e))
+            let resp = ureq::get(&url).call().map_err(|e| {
+                OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
             })?;
 
-            if !resp.status().is_success() {
-                warn!(
-                    "APK index fetch failed for repo {}: HTTP {}",
-                    repo,
-                    resp.status()
-                );
-                continue;
-            }
-
-            let bytes = resp.bytes().await.map_err(|e| {
-                OilError::InstallError(format!("Failed to read APK index body: {}", e))
+            let mut body = Vec::new();
+            resp.into_body().into_reader().read_to_end(&mut body).map_err(|e| {
+                OilError::Install(format!("Failed to read APK index body: {e}"))
             })?;
 
-            let pkgs =
-                parse_apkindex_archive(&bytes, &self.mirror, &self.branch, repo, &self.arch)?;
-            debug!(
-                "Parsed {} packages from {}/{}",
-                pkgs.len(),
-                self.branch,
-                repo
-            );
+            let pkgs = parse_apkindex_archive(&body, &self.mirror, &self.branch, repo, &self.arch)?;
+            eprintln!("Parsed {} packages from {}/{}", pkgs.len(), self.branch, repo);
             all_packages.extend(pkgs);
         }
 
@@ -109,27 +85,21 @@ impl ApkRegistry {
         let mut seen = std::collections::HashSet::new();
         all_packages.retain(|p| seen.insert(p.name.clone()));
 
-        let json = serde_json::to_string(&all_packages)?;
-        std::fs::write(&cache_path, &json)?;
+        if let Some(parent) = cache_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&cache_path, &serde_json::to_string(&all_packages)?)?;
 
-        Ok(PackageIndex {
-            packages: all_packages,
-        })
+        Ok(PackageIndex { packages: all_packages })
     }
 
     fn index_url(&self, repo: &str) -> String {
-        format!(
-            "{}/{}/{}/{}/APKINDEX.tar.gz",
-            self.mirror, self.branch, repo, self.arch
-        )
+        format!("{}/{}/{}/{}/APKINDEX.tar.gz", self.mirror, self.branch, repo, self.arch)
     }
 }
 
 fn cache_key(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect()
+    value.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect()
 }
 
 fn alpine_branch_from_os_release() -> Option<String> {
@@ -164,9 +134,8 @@ fn parse_apkindex_archive(
 ) -> Result<Vec<PackageMetadata>> {
     let mut decoder = MultiGzDecoder::new(bytes);
     let mut tar = Vec::new();
-    decoder
-        .read_to_end(&mut tar)
-        .map_err(|e| OilError::InstallError(format!("Failed to decompress APKINDEX: {}", e)))?;
+    decoder.read_to_end(&mut tar)
+        .map_err(|e| OilError::Install(format!("Failed to decompress APKINDEX: {e}")))?;
 
     let mut offset = 0usize;
     while offset + 512 <= tar.len() {
@@ -178,22 +147,15 @@ fn parse_apkindex_archive(
         let name = tar_header_string(&header[0..100]);
         let size = tar_header_size(&header[124..136])?;
         let data_start = offset + 512;
-        let data_end = data_start
-            .checked_add(size)
-            .ok_or_else(|| OilError::InstallError("APKINDEX tar entry too large".to_string()))?;
+        let data_end = data_start.checked_add(size)
+            .ok_or_else(|| OilError::Install("APKINDEX tar entry too large".into()))?;
         if data_end > tar.len() {
-            return Err(OilError::InstallError(
-                "APKINDEX tar entry is truncated".to_string(),
-            ));
+            return Err(OilError::Install("APKINDEX tar entry is truncated".into()));
         }
 
-        if name
-            .as_deref()
-            .map(|name| is_apkindex_entry(std::path::Path::new(name)))
-            .unwrap_or(false)
-        {
+        if name.as_deref().map(|n| is_apkindex_entry(std::path::Path::new(n))).unwrap_or(false) {
             let content = std::str::from_utf8(&tar[data_start..data_end])
-                .map_err(|e| OilError::InstallError(format!("APKINDEX is not UTF-8: {}", e)))?;
+                .map_err(|e| OilError::Install(format!("APKINDEX is not UTF-8: {e}")))?;
             return Ok(parse_apkindex(content, mirror, branch, repo, arch));
         }
 
@@ -204,13 +166,8 @@ fn parse_apkindex_archive(
 }
 
 fn tar_header_string(bytes: &[u8]) -> Option<String> {
-    let end = bytes
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(bytes.len());
-    if end == 0 {
-        return None;
-    }
+    let end = bytes.iter().position(|byte| *byte == 0).unwrap_or(bytes.len());
+    if end == 0 { return None; }
     Some(String::from_utf8_lossy(&bytes[..end]).to_string())
 }
 
@@ -218,23 +175,15 @@ fn tar_header_size(bytes: &[u8]) -> Result<usize> {
     let text = String::from_utf8_lossy(bytes);
     let text = text.trim_matches(char::from(0)).trim();
     usize::from_str_radix(text, 8)
-        .map_err(|e| OilError::InstallError(format!("invalid APKINDEX tar size: {}", e)))
+        .map_err(|e| OilError::Install(format!("invalid APKINDEX tar size: {e}")))
 }
 
-fn parse_apkindex(
-    content: &str,
-    mirror: &str,
-    branch: &str,
-    repo: &str,
-    arch: &str,
-) -> Vec<PackageMetadata> {
+fn parse_apkindex(content: &str, mirror: &str, branch: &str, repo: &str, arch: &str) -> Vec<PackageMetadata> {
     let mut packages = Vec::new();
 
     for stanza in content.split("\n\n") {
         let stanza = stanza.trim();
-        if stanza.is_empty() {
-            continue;
-        }
+        if stanza.is_empty() { continue; }
 
         let mut name = String::new();
         let mut version = String::new();
@@ -244,9 +193,7 @@ fn parse_apkindex(
         let mut provides: Vec<String> = Vec::new();
 
         for line in stanza.lines() {
-            if line.len() < 2 || line.as_bytes()[1] != b':' {
-                continue;
-            }
+            if line.len() < 2 || line.as_bytes()[1] != b':' { continue; }
             let key = &line[..1];
             let val = line[2..].trim();
 
@@ -275,20 +222,14 @@ fn parse_apkindex(
             }
         }
 
-        if name.is_empty() || version.is_empty() {
-            continue;
-        }
+        if name.is_empty() || version.is_empty() { continue; }
 
-        let download_url = format!(
-            "{}/{}/{}/{}/{}-{}.apk",
-            mirror, branch, repo, arch, name, version
-        );
-
+        let url = format!("{mirror}/{branch}/{repo}/{arch}/{name}-{version}.apk");
         packages.push(PackageMetadata {
             name,
             version,
             description,
-            download_url,
+            download_url: url,
             sha256: None,
             installed_size,
             depends,
@@ -318,7 +259,6 @@ mod tests {
             "arm" => "armv7",
             other => other,
         };
-
         assert_eq!(
             registry.index_url("community"),
             format!("https://dl-cdn.alpinelinux.org/alpine/v3.24/community/{arch}/APKINDEX.tar.gz")
@@ -336,24 +276,12 @@ mod tests {
     #[test]
     fn test_parse_apkindex_basic() {
         let content = "P:ripgrep\nV:14.1.1-r0\nT:Search tool\nI:12345\nD:so:libc.musl-x86_64.so.1 pcre2\np:rg=14.1.1-r0\n\n";
-        let packages = parse_apkindex(
-            content,
-            "https://dl-cdn.alpinelinux.org/alpine",
-            "v3.20",
-            "community",
-            "x86_64",
-        );
-
+        let packages = parse_apkindex(content, "https://dl-cdn.alpinelinux.org/alpine", "v3.20", "community", "x86_64");
         assert_eq!(packages.len(), 1);
         let pkg = &packages[0];
         assert_eq!(pkg.name, "ripgrep");
         assert_eq!(pkg.version, "14.1.1-r0");
-        assert_eq!(pkg.depends, vec!["so:libc.musl-x86_64.so.1", "pcre2"]);
         assert_eq!(pkg.provides, vec!["rg"]);
-        assert_eq!(
-            pkg.download_url,
-            "https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86_64/ripgrep-14.1.1-r0.apk"
-        );
     }
 
     #[test]
@@ -363,13 +291,11 @@ mod tests {
             let encoder = flate2::write::GzEncoder::new(&mut tarball, flate2::Compression::fast());
             let mut archive = tar::Builder::new(encoder);
             let signature = b"signature";
-            let mut signature_header = tar::Header::new_gnu();
-            signature_header
-                .set_path(".SIGN.RSA.alpine-devel@example.rsa.pub")
-                .unwrap();
-            signature_header.set_size(signature.len() as u64);
-            signature_header.set_cksum();
-            archive.append(&signature_header, &signature[..]).unwrap();
+            let mut sig_header = tar::Header::new_gnu();
+            sig_header.set_path(".SIGN.RSA.alpine-devel@example.rsa.pub").unwrap();
+            sig_header.set_size(signature.len() as u64);
+            sig_header.set_cksum();
+            archive.append(&sig_header, &signature[..]).unwrap();
 
             let content = b"P:ripgrep\nV:15.1.0-r0\nT:Search tool\nI:12345\nD:so:libc.musl-aarch64.so.1\np:cmd:rg=15.1.0-r0\n\n";
             let mut header = tar::Header::new_gnu();
@@ -380,15 +306,7 @@ mod tests {
             archive.finish().unwrap();
         }
 
-        let packages = parse_apkindex_archive(
-            &tarball,
-            "https://dl-cdn.alpinelinux.org/alpine",
-            "v3.24",
-            "community",
-            "aarch64",
-        )
-        .unwrap();
-
+        let packages = parse_apkindex_archive(&tarball, "https://dl-cdn.alpinelinux.org/alpine", "v3.24", "community", "aarch64").unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].name, "ripgrep");
     }

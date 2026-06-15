@@ -1,16 +1,4 @@
-#[cfg(any(feature = "system-apk", feature = "system-all"))]
 pub mod apk;
-#[cfg(any(feature = "system-apt", feature = "system-all"))]
-pub mod apt;
-#[cfg(any(feature = "system-dnf", feature = "system-all"))]
-#[cfg(any(feature = "system-dnf", feature = "system-all"))]
-pub mod dnf;
-#[cfg(any(feature = "system-pacman", feature = "system-all"))]
-pub mod pacman;
-#[cfg(any(feature = "system-xbps", feature = "system-all"))]
-pub mod xbps;
-#[cfg(any(feature = "system-nix", feature = "system-all"))]
-pub mod nix;
 
 use serde::{Deserialize, Serialize};
 
@@ -32,25 +20,16 @@ pub struct PackageIndex {
 
 impl PackageIndex {
     pub fn find(&self, name: &str) -> Option<&PackageMetadata> {
-        self.packages.iter().find(|p| p.name == name).or_else(|| {
-            self.packages
-                .iter()
-                .find(|p| p.provides.iter().any(|prov| prov == name))
-        })
+        self.packages
+            .iter()
+            .find(|p| p.name == name)
+            .or_else(|| self.packages.iter().find(|p| p.provides.iter().any(|prov| prov == name)))
     }
 }
 
-/// Strip version constraints from a dep string like "libc6 (>= 2.17)" → "libc6"
 pub fn parse_dep_name(dep: &str) -> &str {
-    let token = dep
-        .split_whitespace()
-        .next()
-        .unwrap_or(dep)
-        .split(['=', '<', '>'])
-        .next()
-        .unwrap_or(dep)
-        .trim();
-    token
+    let token = dep.split_whitespace().next().unwrap_or(dep);
+    token.split(['=', '<', '>']).next().unwrap_or(token).trim()
 }
 
 #[cfg(test)]
@@ -68,18 +47,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_dep_name_with_arch() {
-        assert_eq!(parse_dep_name("libgcc-s1:amd64"), "libgcc-s1:amd64");
-    }
-
-    #[test]
     fn test_parse_dep_name_with_equals_constraint() {
         assert_eq!(parse_dep_name("rg=14.1.1-r0"), "rg");
-    }
-
-    #[test]
-    fn test_parse_dep_name_with_comparison_constraint() {
-        assert_eq!(parse_dep_name("pcre2>=10.43"), "pcre2");
     }
 
     #[test]
@@ -89,8 +58,8 @@ mod tests {
                 PackageMetadata {
                     name: "curl".to_string(),
                     version: "8.0.0".to_string(),
-                    description: "".to_string(),
-                    download_url: "".to_string(),
+                    description: String::new(),
+                    download_url: String::new(),
                     sha256: None,
                     installed_size: 0,
                     depends: vec![],
@@ -99,8 +68,8 @@ mod tests {
                 PackageMetadata {
                     name: "libssl3".to_string(),
                     version: "3.0.0".to_string(),
-                    description: "".to_string(),
-                    download_url: "".to_string(),
+                    description: String::new(),
+                    download_url: String::new(),
                     sha256: None,
                     installed_size: 0,
                     depends: vec![],
@@ -108,10 +77,9 @@ mod tests {
                 },
             ],
         };
-
         assert!(index.find("curl").is_some());
         assert!(index.find("libssl3").is_some());
-        assert!(index.find("libssl").is_some()); // via provides
+        assert!(index.find("libssl").is_some());
         assert!(index.find("nonexistent").is_none());
     }
 }

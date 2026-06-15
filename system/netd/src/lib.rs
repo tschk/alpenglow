@@ -7,7 +7,7 @@ use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct NetworkSnapshot {
-    pub generated_unix_ms: u128,
+    pub generated_unix_ms: u64,
     pub interfaces: Vec<NetworkInterface>,
 }
 
@@ -180,10 +180,10 @@ fn write_file(path: &Path, contents: &[u8]) -> io::Result<()> {
     fs::write(path, contents)
 }
 
-fn now_unix_ms() -> u128 {
+fn now_unix_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis())
+        .map(|duration| duration.as_millis() as u64)
         .unwrap_or_default()
 }
 
