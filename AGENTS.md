@@ -82,15 +82,21 @@ cargo test -p alpenglow-kernelctl
 cargo test -p glowfsctl
 ```
 
-## Known Issues
+## Status
 
-- The native appliance backend (`system/backends/appliance/`) is scaffolded but needs Oil to have full native registries before it can build independently.
-- The diskless initramfs exists as a design but needs an actual kernel+initramfs build flow.
-- Void and Alpine reference backends still use their respective package managers (XBPS/apk) as bootstrap — the goal is to make Oil self-bootstrapping.
-- LLVM/Clang is the default compiler. Inauguration integration is future work.
-- toybox needs a full port/package for the appliance package set.
-- dinit service files are created but need verification against real dinit versions.
-- GPU, board, and hardware boot validation still require physical hardware.
+| Milestone | Status |
+|-----------|--------|
+| Boot to dinit + toybox shell | ✅ `./scripts/boot-native.sh` |
+| Interactive shell on serial | ✅ dinit-managed shell service |
+| Static toybox (SH + GETTY) | ✅ Custom build |
+| Static dinit v0.19.2 | ✅ System manager |
+| Custom kernel build | 🟡 `KERNEL_BUILD=1` |
+| GlowFS kernel module | 🟡 Builds with custom kernel |
+| Network services | 📝 DHCP service needed |
+| Hardened sysctl | 🟡 Config staged |
+| Oil package manager | 📝 Oil runs standalone, not integrated |
+| Initramfs build flow | ✅ `scripts/build-initramfs.sh` |
+| dinit service files | ✅ 10 services in `system/backends/appliance/dinit/` |
 
 ## Inauguration Integration (Future)
 

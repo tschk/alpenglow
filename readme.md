@@ -4,6 +4,8 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, LLVM/cla
 
 Early-stage. Not production-ready.
 
+**It boots.** Run `./scripts/boot-native.sh` (requires Docker + QEMU).
+
 ## Design
 
 | Layer | Choice |
