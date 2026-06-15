@@ -36,6 +36,7 @@ build_toybox() {
     make defconfig >/dev/null 2>&1
     sed -i "s/# CONFIG_STATIC is not set/CONFIG_STATIC=y/" .config
     sed -i "s/# CONFIG_SH is not set/CONFIG_SH=y/" .config
+    sed -i "s/# CONFIG_GETTY is not set/CONFIG_GETTY=y/" .config
     make -j$(nproc) LDFLAGS="-static" >/dev/null 2>&1
     cp toybox /out/toybox
   ' 2>&1
@@ -133,14 +134,14 @@ for svc in "${BACKEND_DIR}/dinit/"*; do
   ln -sf "/etc/dinit.d/${name}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${name}" 2>/dev/null || true
 done
 
-# Getty on serial console
-cat > "${ROOTFS_DIR}/etc/dinit.d/getty-ttyS0" << 'GETTY'
+# Shell on serial console via /dev/console redirect
+cat > "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0" << 'SHELL'
 type = process
-command = /sbin/getty -L 115200 ttyS0 vt100
+command = /bin/toybox sh -c "exec /bin/toybox sh -i <//dev/console >//dev/console 2>//dev/console"
 restart = yes
 depends-on = mount-filesystems
-GETTY
-ln -sf /etc/dinit.d/getty-ttyS0 "${ROOTFS_DIR}/etc/dinit.d/boot.d/getty-ttyS0"
+SHELL
+ln -sf /etc/dinit.d/shell-ttyS0 "${ROOTFS_DIR}/etc/dinit.d/boot.d/shell-ttyS0"
 
 # Mount filesystems (runs before other services)
 cat > "${ROOTFS_DIR}/etc/dinit.d/mount-filesystems" << 'MOUNT'
@@ -156,16 +157,19 @@ if [ -f "${GLOWFS_KO}" ]; then
   cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
-# Init — minimal shell script to start dinit
+# Init — start dinit + shell on console
 cat > "${ROOTFS_DIR}/init" << 'INIT'
 #!/bin/toybox sh
-# Mount essential filesystems
 /bin/toybox mount -t proc proc /proc
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 /bin/toybox mount -t tmpfs tmpfs /run
-# Start dinit as system manager
-exec /sbin/dinit -d /etc/dinit.d -s -t mount-filesystems
+echo ""
+echo "Alpenglow native boot"
+echo ""
+/sbin/dinit -d /etc/dinit.d &
+sleep 1
+exec /bin/toybox sh -i 0<//dev/console 1>//dev/console 2>//dev/console
 INIT
 chmod 755 "${ROOTFS_DIR}/init"
 
