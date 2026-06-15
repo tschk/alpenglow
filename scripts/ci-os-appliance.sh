@@ -70,7 +70,7 @@ assert_contains system/alpine/kernel/alpenglow-internet-appliance.config '^CONFI
 # GlowFS kernel module
 assert_file system/glowfs/kernel/glowfs_vfs.c
 assert_file system/glowfs/kernel/glowfs_core.rs
-assert_contains system/glowfs/kernel/glowfs_vfs.c 'mount_bdev'
+assert_contains system/glowfs/kernel/glowfs_vfs.c 'get_tree_bdev'
 assert_contains system/glowfs/kernel/glowfs_core.rs '#!\[no_std\]'
 
 # Build scripts
