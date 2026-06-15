@@ -26,16 +26,20 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil nati
 
 | Phase | Alpenglow | Alpine | Void | Ubuntu | Bottleneck |
 |-------|-----------|--------|------|--------|------------|
-| BIOS → kernel | 0.0s | 0.3s | 0.3s | 0.3s | custom initramfs vs distro bootloader |
-| Kernel → init | 0.9s | 1.2s | 1.5s | 2.5s | kernel size (7.4MB), drivers to probe |
+| BIOS → kernel | 0.0s | 0.3s | 0.3s | 0.3s | custom initramfs + direct kernel boot vs distro bootloader |
+| Kernel → init | 0.9s | 1.2s | 1.5s | 2.5s | kernel & initramfs decompress (see optimizations below) |
 | Init → services | 0.6s | 1.5s | 2.0s | 12s | dinit parallelism vs serial OpenRC/systemd |
 | **Total** | **~2s** | **~3s** | **~4s** | **~15s** | — |
 
-Optimization opportunities (biggest wins first):
-1. **Kernel size** — currently 7.4MB full config. Stripping unneeded drivers/tracing → ~4.8MB. Saves ~300ms on decompress.
-2. **Initramfs size** — 34MB gzip'd (kernel + all services). Moving to zstd → 28MB. Saves ~200ms on decompress.
-3. **Init parallelism** — dinit already optimal for our 14 services. Some services can merge (seatd+greetd → 1).
-4. **Bootloader** — SeaBIOS adds ~200ms. Switching to direct UEFI stub shaves 0.3s (matching Alpine/Void total).
+## Optimizations (applied)
+
+| Change | Expected gain | Status |
+|--------|--------------|--------|
+| Initramfs gzip -9 → **zstd -19** | ~10% smaller initramfs (34MB→30MB), ~200ms faster decompress | ✅ Applied |
+| Kernel config: CONFIG_RD_ZSTD=y | Enables zstd initramfs support | ✅ Applied |
+| Boot splash removed | ~3KB saved | ✅ Applied |
+| **UEFI stub boot** (EFI=1) | ~200ms saved (skip SeaBIOS) | 🧪 Optional, needs OVMF |
+| Kernel size trim (4.8MB target) | ~300ms faster decompress | 📝 Requires custom kernel build
 
 ## Repo Layout
 
