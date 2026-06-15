@@ -1,0 +1,5 @@
+# Cron daemon — scheduled tasks
+type = process
+command = /sbin/crond -n
+restart = yes
+depends-on = syslogd

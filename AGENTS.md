@@ -85,6 +85,12 @@ cargo test -p alpenglow-netd
 | Audio | ✅ | ALSA + PipeWire dinit services |
 | WiFi | ✅ | iwd daemon, 16+ drivers |
 | Power management | ✅ | /sys/power, no elogind |
+| SSH server | ✅ | dropbear, dinit-managed |
+| NTP (chrony) | ✅ | chronyd, dinit-managed |
+| Logging (syslogd) | ✅ | toybox syslogd, dinit-managed |
+| Cron (crond) | ✅ | toybox crond, dinit-managed |
+| DNS caching (dnsmasq) | ✅ | dnsmasq, dinit-managed |
+| Editor (vro) | ✅ | replaces toybox vi |
 | Bootable disk image | ✅ | GPT + Limine |
 | kernelctl Zig | ✅ | 89KB static, built in CI |
 | Custom kernel build | 🟡 | `KERNEL_BUILD=1` untested |

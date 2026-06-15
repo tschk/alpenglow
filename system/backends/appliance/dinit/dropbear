@@ -1,0 +1,5 @@
+# SSH server — remote administration
+type = process
+command = /usr/sbin/dropbear -F -R
+restart = yes
+depends-on = networking

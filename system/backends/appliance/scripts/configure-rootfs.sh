@@ -26,6 +26,12 @@ IWD_UID="773"
 IWD_GID="773"
 PIPEWIRE_UID="774"
 PIPEWIRE_GID="774"
+DROPBEAR_UID="775"
+DROPBEAR_GID="775"
+CHRONY_UID="776"
+CHRONY_GID="776"
+DNSMASQ_UID="777"
+DNSMASQ_GID="777"
 
 if [ ! -d "${ROOTFS}" ]; then
   echo "rootfs directory not found: ${ROOTFS}" >&2
@@ -55,6 +61,12 @@ ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglo
 
 ensure_user "seatd" "${SEATD_UID}" "${SEATD_GID}" "/var/empty"
 ensure_user "iwd" "${IWD_UID}" "${IWD_GID}" "/var/empty"
+ensure_group "dropbear" "${DROPBEAR_GID}"
+ensure_user "dropbear" "${DROPBEAR_UID}" "${DROPBEAR_GID}" "/var/empty"
+ensure_group "chrony" "${CHRONY_GID}"
+ensure_user "chrony" "${CHRONY_UID}" "${CHRONY_GID}" "/var/empty"
+ensure_group "dnsmasq" "${DNSMASQ_GID}"
+ensure_user "dnsmasq" "${DNSMASQ_UID}" "${DNSMASQ_GID}" "/var/empty"
 
 # Directory structure
 mkdir -p "${ROOTFS}/etc/alpenglow/filesystems"
@@ -78,6 +90,17 @@ mkdir -p \
 mkdir -p "${ROOTFS}/var/cache/alpenglow" "${ROOTFS}/var/log/alpenglow"
 
 chmod 700 "${ROOTFS}/state"
+
+# Dropbear SSH — host key directory
+mkdir -p "${ROOTFS}/etc/dropbear"
+chmod 755 "${ROOTFS}/etc/dropbear"
+
+# Chrony config dir
+mkdir -p "${ROOTFS}/etc/chrony"
+
+# Dnsmasq config dir
+mkdir -p "${ROOTFS}/etc/dnsmasq.d"
+
 chmod 700 "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
   "${ROOTFS}/var/lib/alpenglow/browser/cache" \
   "${ROOTFS}/var/lib/alpenglow/browser/downloads" \
@@ -109,7 +132,7 @@ rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
 # Enable dinit boot services
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
-for service in glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber greetd velox foot; do
+for service in glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber greetd velox foot dropbear chronyd syslogd crond dnsmasq; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
 
@@ -223,11 +246,83 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
   },
   "services": {
     "essential": ["mount-filesystems", "state-mount", "elogind", "seatd", "networking"],
-    "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "alpenglow-power", "iwd"],
+    "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "alpenglow-power", "iwd", "syslogd", "crond"],
     "session": ["pipewire", "wireplumber", "greetd", "velox", "foot"],
+    "network_services": ["dropbear", "chronyd", "dnsmasq"],
     "user_init": ["alpenglow-session"]
   }
 }
 EOF
+
+# ── Early boot setup: /etc/hosts + /etc/resolv.conf ───────────────
+cat > "${ROOTFS}/etc/hosts" <<'HOSTS'
+127.0.0.1 localhost
+127.0.1.1 alpenglow
+::1       localhost ip6-localhost ip6-loopback
+ff02::1   ip6-allnodes
+ff02::2   ip6-allrouters
+HOSTS
+chmod 644 "${ROOTFS}/etc/hosts"
+
+# ── SSH: dropbear config ────────────────────────────────────────────
+# Host keys auto-generated on first start; no config file needed.
+# Authorized keys directory for root
+mkdir -p "${ROOTFS}/root/.ssh"
+chmod 700 "${ROOTFS}/root/.ssh"
+
+# ── NTP: chrony config ─────────────────────────────────────────────
+cat > "${ROOTFS}/etc/chrony/chrony.conf" <<'CHRONY'
+# Chrony NTP configuration
+pool pool.ntp.org iburst
+makestep 1.0 3
+rtcsync
+cmdport 0
+bindcmdaddress 127.0.0.1
+bindcmdaddress ::1
+CHRONY
+chmod 644 "${ROOTFS}/etc/chrony/chrony.conf"
+
+# ── DNS: dnsmasq config ────────────────────────────────────────────
+cat > "${ROOTFS}/etc/dnsmasq.conf" <<'DNSMASQ'
+# Dnsmasq: local DNS caching resolver
+port=53
+domain-needed
+bogus-priv
+no-resolv
+no-poll
+server=1.1.1.1
+server=8.8.8.8
+cache-size=1000
+DNSMASQ
+chmod 644 "${ROOTFS}/etc/dnsmasq.conf"
+
+# ── Editor: install vro ────────────────────────────────────────────
+# ponytail: copies prebuilt binary; build-from-source not scripted yet
+VRO_SRC="${BACKEND_DIR}/../../../vro/vro"
+if [ -f "${VRO_SRC}" ]; then
+  cp "${VRO_SRC}" "${ROOTFS}/usr/local/bin/vro"
+  chmod 755 "${ROOTFS}/usr/local/bin/vro"
+  ln -sf /usr/local/bin/vro "${ROOTFS}/usr/local/bin/vi" 2>/dev/null || true
+fi
+
+# ── User management basics ──────────────────────────────────────────
+# toybox passwd enabled; root password managed via chpasswd on state
+mkdir -p "${ROOTFS}/etc/crontabs"
+cat > "${ROOTFS}/etc/crontabs/root" <<'CRONTAB'
+# Root cron jobs
+0 0 * * * /usr/local/bin/logrotate.sh >/dev/null 2>&1
+CRONTAB
+chmod 600 "${ROOTFS}/etc/crontabs/root"
+
+# ── Rotate logs daily ──────────────────────────────────────────────
+cat > "${ROOTFS}/usr/local/bin/logrotate.sh" <<'LOGX'
+#!/bin/toybox sh
+# ponytail: naive logrotate, mv + signal
+for log in /var/log/alpenglow/*.log; do
+  [ -f "${log}" ] || continue
+  mv "${log}" "${log}.old" 2>/dev/null || true
+done
+LOGX
+chmod 755 "${ROOTFS}/usr/local/bin/logrotate.sh"
 
 printf 'Configured Alpenglow native appliance rootfs at %s\n' "${ROOTFS}"
