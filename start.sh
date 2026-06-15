@@ -30,7 +30,7 @@ case "${1:-help}" in
     ;;
   bench-all)
     # Multi-OS comparison benchmark (Alpenglow vs Alpine vs others)
-    # Requires: x86_64 Linux with KVM, Docker, 7z
+    # Requires: x86_64 Linux with KVM. Use ssh ultramarine for meaningful numbers.
     exec "${ROOT_DIR}/scripts/bench-all.sh"
     ;;
   ci-rust)

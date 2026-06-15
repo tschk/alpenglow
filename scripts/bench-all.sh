@@ -53,10 +53,17 @@ SEP="─────────────────────────
 # ── Step 1: Build or find Alpine kernel ──────────────────────
 
 get_kernel() {
+  # Prefer native kernel (already built)
+  if [ -f "${REPO_ROOT}/build/native/vmlinuz" ]; then
+    cp "${REPO_ROOT}/build/native/vmlinuz" "${OUT}/vmlinuz"
+    pass "  Using native kernel ($(ls -lh "${OUT}/vmlinuz" | awk '{print $5}'))"
+    return 0
+  fi
+  # Fall back to Alpine kernel
   local iso="${OUT}/alpine-virt-x86_64.iso"
   if [ ! -f "$iso" ]; then
     info "  Downloading Alpine virt ISO..."
-    curl -fsSL "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/x86_64/alpine-virt-3.21.3-x86_64.iso" -o "$iso" || return 1
+    curl -fsSL "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/x86_64/alpine-virt-3.21.3-x86_64.iso" -o "$iso" || { fail "  Download failed"; return 1; }
   fi
   rm -rf /tmp/apk-extract
   mkdir -p /tmp/apk-extract
@@ -64,6 +71,7 @@ get_kernel() {
   7z x "$iso" -o/tmp/apk-extract boot/vmlinuz-virt boot/initramfs-virt >/dev/null 2>&1
   cp /tmp/apk-extract/boot/vmlinuz-virt "${OUT}/vmlinuz"
   cp /tmp/apk-extract/boot/initramfs-virt "${OUT}/initramfs-alpine-orig.gz"
+  pass "  Using Alpine kernel ($(ls -lh "${OUT}/vmlinuz" | awk '{print $5}'))"
   echo "OK"
 }
 
@@ -132,7 +140,8 @@ measure() {
   local label="$1" kernel="$2" initrd="$3" append="$4" timeout="$5"
   local memtotal="" memavail="" booted="no"
 
-  local outfile="${OUT}/qemu-${label}.log"
+  local safe=$(echo "$label" | tr ' ' '-')
+  local outfile="${OUT}/qemu-${safe}.log"
   local start=$(date +%s 2>/dev/null || echo 0)
   # timeout not available on macOS, use perl as fallback
   if command -v timeout >/dev/null 2>&1; then
@@ -150,13 +159,19 @@ measure() {
   local elapsed=0
   [ "$end" -gt 0 ] && [ "$start" -gt 0 ] && elapsed=$(( (end - start) * 1000 ))
 
-  memtotal=$(echo "$out" | grep "MemTotal" | awk '{print $2}' | head -1)
-  memfree=$(echo "$out" | grep "MemFree" | awk '{print $2}' | head -1)
-  memavail=$(echo "$out" | grep "MemAvailable" | awk '{print $2}' | head -1)
-  if [ -n "$memavail" ] && [ -n "$memtotal" ]; then
-    used=$((memtotal - memavail))
+  # Parse RAM: try /proc/meminfo (kernel) or free -k (toybox) output
+  local memline=$(echo "$out" | grep "^Mem:" | head -1)
+  if [ -n "$memline" ]; then
+    # toybox free -k: "Mem: total used free shared buffers"
+    used=$(echo "$memline" | awk '{print $3}')
   else
-    used="--"
+    memtotal=$(echo "$out" | grep "^MemTotal:" | awk '{print $2}' | head -1)
+    memavail=$(echo "$out" | grep "^MemAvailable:" | awk '{print $2}' | head -1)
+    if [ -n "$memavail" ] && [ -n "$memtotal" ]; then
+      used=$((memtotal - memavail))
+    else
+      used="--"
+    fi
   fi
   echo "$out" | grep -q "login:\|poweroff\|MEM_REPORT" && booted="yes"
 
@@ -177,7 +192,9 @@ echo ""
 echo "${BOLD}Preparing Alpine Linux...${NC}"
 ALPINE_INIT=""
 if [ -f "${OUT}/initramfs-alpine-orig.gz" ]; then
-  ALPINE_INIT=$(prepare_alpine) && pass "  Alpine initramfs ($(ls -lh "$ALPINE_INIT" | awk '{print $5}'))" || info "  Alpine prep failed"
+  ALPINE_INIT=$(prepare_alpine) && pass "  Alpine initramfs ($(ls -lh "$ALPINE_INIT" | awk '{print $5}'))" || true
+else
+  info "  Alpine initramfs not available (no kernel download)"
 fi
 
 KERNEL="${OUT}/vmlinuz"
