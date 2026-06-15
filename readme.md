@@ -65,7 +65,6 @@ Measured: MemTotal 480MB, MemAvailable 451MB on 512MB QEMU VM = ~30MB used.
 system/
   kernelctl-zig/    Cgroup + kernel policy (Zig, 89KB static)
   netd/             Network state daemon (Rust)
-  glowfsctl/        GlowFS image tooling (Rust, 501KB)
   glowfsctl-zig/    GlowFS image tooling (Zig, 164KB static)
   oil/              Native package manager (Rust, APK-only)
   backends/

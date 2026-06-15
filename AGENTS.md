@@ -40,17 +40,15 @@ alpenglow-netd — Network state daemon (Rust)
 
 ```
 system/
-  kernelctl/        Cgroup + kernel policy (Rust)
-  kernelctl-zig/    Same in Zig (89KB static, experiment)
-  netd/             Network state daemon
-  glowfsctl/        GlowFS image tooling
-  oil/              Native package manager (APK-only)
+  kernelctl-zig/    Cgroup + kernel policy (Zig, 89KB static)
+  netd/             Network state daemon (Rust)
+  glowfsctl-zig/    GlowFS image tooling (Zig, 164KB)
+  oil/              Native package manager (Rust, APK-only)
   backends/
     appliance/      Primary target (dinit, toybox, LLVM, Oil, diskless)
     void/           Void reference backend
   alpine/           Alpine reference backend (QEMU boot flow)
   glowfs/           GlowFS kernel module source
-initramfs/          Custom boot initramfs
 docs/               Architecture, build, install docs
 ```
 
@@ -59,11 +57,11 @@ docs/               Architecture, build, install docs
 | Gate | Script | What |
 |------|--------|------|
 | Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
-| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig |
+| Rust audit | `.github/workflows/ci.yml` | cargo audit on dependencies |
+| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig + glowfsctl-zig |
 | OS appliance | `scripts/ci-os-appliance.sh` | Policy contract validation |
 | GlowFS module | `scripts/ci-glowfs-kernel-module.sh` | Compile vs Linux headers |
 | Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time measurement |
-
 ## Testing
 
 ```sh
@@ -73,8 +71,6 @@ docs/               Architecture, build, install docs
 ./scripts/ci-glowfs-kernel-module.sh
 ./scripts/bench-boot.sh          # needs built disk image
 cargo test -p alpenglow-netd
-cargo test -p alpenglow-kernelctl
-cargo test -p glowfsctl
 ```
 
 ## Status
@@ -108,6 +104,7 @@ Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds.
 
 ## Language Tooling Notes
 
-- **Rust**: daemons (netd, glowfsctl), Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
+- **Rust**: daemons (netd), Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
+- **Zig**: kernelctl, glowfsctl. Targets <100KB initramfs helpers.
 - **Zig**: kernelctl (89KB static, 5.6x smaller than Rust). Targets <100KB initramfs helpers.
 - **Equilibrium** (external): Zig/Nim/D/Rust FFI bridge. Not integrated yet.

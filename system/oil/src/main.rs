@@ -1,6 +1,3 @@
-// ponytail: WIP, some unused stubs
-#![allow(dead_code, unused_imports, unused_variables)]
-mod cache;
 mod error;
 mod install;
 mod signal;
@@ -231,13 +228,13 @@ fn run_command(cmd: Commands) -> Result<()> {
                 packages
             };
             for name in &names {
-                if let Some(pkg) = state.get(name) {
+                if let Some(_pkg) = state.get(name) {
                     let registry = system::registry::apk::ApkRegistry::alpine_default();
                     let index = registry.load()?;
-                    if let Some(latest) = index.find(name) {
+                    if let Some(latest) = index.find(&name) {
                         let dest = std::path::PathBuf::from("/usr/local");
                         system::installer::SystemInstaller::install_package(latest, &dest)?;
-                        state.mark_installed(name, Some(latest.version.clone()), true);
+                        state.mark_installed(&name, Some(latest.version.clone()), true);
                         println!("Reinstalled {name} {}", latest.version);
                     }
                 }
@@ -246,11 +243,11 @@ fn run_command(cmd: Commands) -> Result<()> {
             Ok(())
         }
         Commands::Upgrade { packages, dry_run } => {
-            let state = install::InstallState::new()?;
+            let mut state = install::InstallState::new()?;
             let installed = state.load()?;
             let registry = system::registry::apk::ApkRegistry::alpine_default();
             let index = registry.load()?;
-            let targets: Vec<_> = if packages.is_empty() {
+            let targets: Vec<String> = if packages.is_empty() {
                 installed.keys().cloned().collect()
             } else {
                 packages
@@ -264,12 +261,14 @@ fn run_command(cmd: Commands) -> Result<()> {
                             } else {
                                 let dest = std::path::PathBuf::from("/usr/local");
                                 system::installer::SystemInstaller::install_package(latest, &dest)?;
+                                state.mark_installed(name, Some(latest.version.clone()), true);
                                 println!("Upgraded {name}: {} → {}", current.version, latest.version);
                             }
                         }
                     }
                 }
             }
+            state.save()?;
             Ok(())
         }
         Commands::Outdated => {
@@ -327,7 +326,7 @@ fn run_command(cmd: Commands) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Uses { formula, installed } => {
+        Commands::Uses { formula: _, installed } => {
             let state = install::InstallState::new()?;
             let _ = installed;
             // Check dependency tree

@@ -29,7 +29,7 @@ impl ApkRegistry {
 
     pub fn alpine_default() -> Self {
         let branch = alpine_branch_from_os_release().unwrap_or_else(|| "v3.20".to_string());
-        Self::new("http://dl-cdn.alpinelinux.org/alpine", &branch)
+        Self::new("https://dl-cdn.alpinelinux.org/alpine", &branch)
     }
 
     fn cache_path(&self) -> Result<std::path::PathBuf> {

@@ -124,11 +124,13 @@ fn wStr(io: std.Io, dir: []const u8, f: []const u8, v: ?[]const u8) !void {
 
 fn writeKernelFile(io: std.Io, dir: []const u8, file: []const u8, val: []const u8) void {
     var b: [512]u8 = undefined;
+    const path_len = dir.len + 1 + file.len;
+    if (path_len > b.len) return;
     @memcpy(b[0..dir.len], dir);
     b[dir.len] = '/';
     const rest = b[dir.len + 1 ..];
     @memcpy(rest[0..file.len], file);
-    const combined = b[0 .. dir.len + 1 + file.len];
+    const combined = b[0..path_len];
     var buf: [4096]u8 = undefined;
     @memcpy(buf[0..val.len], val);
     if (val.len == 0 or val[val.len - 1] != '\n') { buf[val.len] = '\n'; }

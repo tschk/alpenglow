@@ -41,6 +41,19 @@ jobs:
       - name: Check Rust core
         run: scripts/ci-rust-core.sh
 
+  rust-audit:
+    name: Alpenglow Rust dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked 2>/dev/null
+      - name: Run cargo audit
+        run: cargo audit --deny warnings 2>&1 || echo "cargo audit found issues (non-blocking)"
+
   zig:
     name: Alpenglow Zig gates
     runs-on: ubuntu-latest

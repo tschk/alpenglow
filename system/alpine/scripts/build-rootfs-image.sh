@@ -24,10 +24,12 @@ mkdir -p "${OUT_DIR}"
 if [ "${FORMAT}" = "glowfs" ]; then
   OUT_IMG="${OUT_DIR}/alpenglow-rootfs.glowfs"
   rm -f "${OUT_IMG}"
-  if command -v glowfsctl >/dev/null 2>&1; then
-    glowfsctl mkfs "${ROOTFS_DIR}" "${OUT_IMG}"
+  GLOWFSCTL="$(command -v glowfsctl 2>/dev/null || echo "${ROOT_DIR}/system/glowfsctl-zig/zig-out/bin/glowfsctl")"
+  if [ -x "${GLOWFSCTL}" ]; then
+    "${GLOWFSCTL}" mkfs "${ROOTFS_DIR}" "${OUT_IMG}"
   else
-    (cd "$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)" && cargo run --package glowfsctl --quiet -- mkfs "${ROOTFS_DIR}" "${OUT_IMG}")
+    echo "glowfsctl not found; build the Zig binary first" >&2
+    exit 1
   fi
 elif [ "${FORMAT}" = "erofs" ]; then
   command -v mkfs.erofs >/dev/null 2>&1 || {
