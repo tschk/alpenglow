@@ -6,7 +6,11 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 IMG="${1:-${ROOT_DIR}/build/native/alpenglow.img}"
 KERNEL="${ROOT_DIR}/build/native/vmlinuz"
-INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
+INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
+# Fallback to gz
+if [ ! -f "${INITRAMFS}" ]; then
+  INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
+fi
 OUT_DIR="${ROOT_DIR}/build/native"
 
 fail() { echo "bench: $1" >&2; exit 1; }
