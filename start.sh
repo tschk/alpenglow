@@ -24,6 +24,20 @@ case "${1:-help}" in
   test)
     exec cargo test
     ;;
+  bench)
+    exec cargo bench
+    ;;
+  ci-rust)
+    exec "${ROOT_DIR}/scripts/ci-rust-core.sh"
+    ;;
+  ci-os)
+    exec "${ROOT_DIR}/scripts/ci-os-appliance.sh"
+    ;;
+  ci)
+    "${ROOT_DIR}/scripts/ci-rust-core.sh"
+    "${ROOT_DIR}/scripts/ci-os-appliance.sh"
+    echo "ci: ok"
+    ;;
   clean)
     cargo clean
     rm -rf "${ROOT_DIR}/build"
@@ -36,6 +50,10 @@ case "${1:-help}" in
     echo "  boot [img]  Boot image in QEMU (default: build/native/alpenglow.img)"
     echo "  check       Cargo check all crates"
     echo "  test        Run all cargo tests"
+    echo "  bench       Run all cargo benchmarks"
+    echo "  ci-rust     Validate Rust crates (CI)"
+    echo "  ci-os       Validate OS appliance contract (CI)"
+    echo "  ci          Run all CI checks"
     echo "  clean       Clean build artifacts"
     exit 1
     ;;
