@@ -53,3 +53,16 @@ bundle/terminal/ghostty-vt.wasm
 # zig build cache (ghostty submodule)
 third_party/ghostty/.zig-cache/
 third_party/ghostty/zig-out/
+
+# Kernel build artifacts
+*.o
+*.o.cmd
+*.ko
+*.ko.cmd
+*.mod
+*.mod.cmd
+*.mod.o
+*.mod.o.cmd
+Module.symvers
+*.symvers
+modules.order
