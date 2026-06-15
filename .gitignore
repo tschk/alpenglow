@@ -68,3 +68,4 @@ Module.symvers
 *.symvers
 modules.order
 README.md
+.agents/
