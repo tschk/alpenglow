@@ -38,58 +38,42 @@ done
 
 [ -n "${ALPENGLOW_DEBUG}" ] && set -x
 
-# Load essential modules
-modprobe glowfs 2>/dev/null || true
-modprobe erofs 2>/dev/null || true
-modprobe squashfs 2>/dev/null || true
-modprobe ext4 2>/dev/null || true
-modprobe virtio-blk 2>/dev/null || true
-modprobe virtio-net 2>/dev/null || true
-
-# Sound modules
-modprobe snd 2>/dev/null || true
-modprobe snd-pcm 2>/dev/null || true
-modprobe snd-hda-intel 2>/dev/null || true
-modprobe snd-usb-audio 2>/dev/null || true
-
-# Wireless modules
-modprobe cfg80211 2>/dev/null || true
-modprobe mac80211 2>/dev/null || true
-modprobe iwlwifi 2>/dev/null || true
-modprobe ath9k 2>/dev/null || true
-modprobe ath10k 2>/dev/null || true
-
-# Input modules
-modprobe hid 2>/dev/null || true
-modprobe hid-multitouch 2>/dev/null || true
-modprobe usbhid 2>/dev/null || true
-modprobe i2c-dev 2>/dev/null || true
-
-# ACPI modules
-modprobe acpi-cpufreq 2>/dev/null || true
-modprobe acpi-button 2>/dev/null || true
-modprobe acpi-battery 2>/dev/null || true
+# Load essential modules (parallel — each modprobe is ~2-5ms)
+for m in glowfs erofs squashfs ext4 virtio-blk virtio-net snd snd-pcm \
+         snd-hda-intel snd-usb-audio cfg80211 mac80211 iwlwifi ath9k \
+         ath10k hid hid-multitouch usbhid i2c-dev \
+         acpi-cpufreq acpi-button acpi-battery; do
+  (modprobe "$m" 2>/dev/null || true) &
+done
+wait
 
 # Discover rootfs image
 find_image() {
-  # Search order: kernel arg → well-known paths → auto-detect
+  # Search order: kernel arg → well-known paths → by-partlabel → block scan
   if [ -n "${ALPENGLOW_IMAGE}" ] && [ -f "${ALPENGLOW_IMAGE}" ]; then
-    echo "${ALPENGLOW_IMAGE}"
-    return
+    echo "${ALPENGLOW_IMAGE}"; return
   fi
   for img in /sysroot/alpenglow/current.{glowfs,erofs,squashfs}; do
     [ -f "${img}" ] && echo "${img}" && return
   done
-  # Search block devices for GlowFS images
+  # Try by partition label first (avoids scanning all devices)
+  local found
+  found=$(blkid -L alpenglow-root 2>/dev/null || true)
+  if [ -n "${found}" ]; then
+    mount -r "${found}" /mnt 2>/dev/null || true
+    for img in /mnt/alpenglow/current.{glowfs,erofs,squashfs}; do
+      if [ -f "${img}" ]; then cp "${img}" /sysroot/alpenglow/current.glowfs 2>/dev/null; umount /mnt; echo "/sysroot/alpenglow/current.glowfs"; return; fi
+    done
+    umount /mnt 2>/dev/null || true
+  fi
+  # Fallback: scan known block devices
   for dev in /dev/vda* /dev/sda* /dev/nvme0n1* /dev/mmcblk0*; do
     [ -b "${dev}" ] || continue
     mount -r "${dev}" /mnt 2>/dev/null || continue
     for img in /mnt/alpenglow/current.{glowfs,erofs,squashfs}; do
       if [ -f "${img}" ]; then
         cp "${img}" /sysroot/alpenglow/current.glowfs 2>/dev/null
-        umount /mnt
-        echo "/sysroot/alpenglow/current.glowfs"
-        return
+        umount /mnt; echo "/sysroot/alpenglow/current.glowfs"; return
       fi
     done
     umount /mnt 2>/dev/null || true

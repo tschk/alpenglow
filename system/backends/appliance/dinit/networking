@@ -1,4 +1,4 @@
 # Network — lightweight DHCP (sdhcp)
 type = scripted
 command = /sbin/sdhcp -e eth0
-restart = yes
+restart = no

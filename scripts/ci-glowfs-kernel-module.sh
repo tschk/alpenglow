@@ -17,11 +17,13 @@ docker run --rm \
     set -eu
     apk add --no-cache build-base linux-headers curl tar xz bash >/dev/null
 
-    # Download and extract kernel source matching our config
+    KERNEL_VERSION="7.0.12"
+    KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
+
     cd /tmp
-    curl -fsSL https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz -o linux.tar.xz
+    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o linux.tar.xz
     tar -xf linux.tar.xz
-    cd /tmp/linux-6.12
+    cd "/tmp/linux-${KERNEL_VERSION}"
 
     # Use our config
     cp /alpenglow/system/alpine/kernel/alpenglow-internet-appliance.config .config
@@ -30,7 +32,7 @@ docker run --rm \
 
     # Build GlowFS module
     cd /alpenglow/system/glowfs/kernel
-    make KERNEL_SRC=/tmp/linux-6.12 V=0
+    make KERNEL_SRC="/tmp/linux-${KERNEL_VERSION}" V=0
     test -f glowfs.ko
     echo "glowfs.ko built: $(ls -la glowfs.ko)"
     make clean >/dev/null 2>&1
