@@ -15,7 +15,17 @@ KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
 ARCH="${KERNEL_ARCH:-x86_64}"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
-ACCEL="${ACCEL:-tcg}"
+# Auto-detect acceleration: prefer KVM, then HVF (macOS), fall back TCG
+ACCEL="${ACCEL:-}"
+if [ -z "$ACCEL" ]; then
+  if qemu-system-x86_64 -machine q35,accel=kvm -M none </dev/null 2>/dev/null; then
+    ACCEL=kvm
+  elif qemu-system-x86_64 -machine q35,accel=hvf -M none </dev/null 2>/dev/null; then
+    ACCEL=hvf
+  else
+    ACCEL=tcg
+  fi
+fi
 EFI="${EFI:-0}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }

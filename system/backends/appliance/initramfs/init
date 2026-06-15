@@ -1,27 +1,16 @@
 #!/bin/sh
 # ──────────────────────────────────────────────────────────────────────
 # Alpenglow diskless initramfs init
-#
-# Combines best ideas from Limine, UEFI stub, and extlinux:
-#   - Kernel cmdline parsing like GRUB
-#   - Module loading like dracut
-#   - Simple shell script like Limine's init
-#   - GlowFS/erofs/squashfs image mounting
-#   - State partition discovery
-#   - Switch_root to the GlowFS root
 # ──────────────────────────────────────────────────────────────────────
 set -eu
 
-# Early setup
+# ponytail: /init does minimum — proc, sys, dev, then dinit owns the rest
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
-mkdir -p /run /tmp /state /sysroot /dev/shm
-mount -t tmpfs -o mode=0755 tmpfs /run
-mount -t tmpfs -o mode=0755 tmpfs /tmp
+mkdir -p /dev/shm /run /tmp /state /sysroot
 mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
-mkdir -p /run/user/0
-chmod 700 /run/user/0
+mkdir -p /run/user/0 /tmp
 
 # Parse kernel cmdline
 ALPENGLOW_IMAGE=""
