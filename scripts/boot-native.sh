@@ -134,10 +134,10 @@ for svc in "${BACKEND_DIR}/dinit/"*; do
   ln -sf "/etc/dinit.d/${name}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${name}" 2>/dev/null || true
 done
 
-# Shell on serial console via /dev/console
+# Getty login on serial console (with /etc/passwd support)
 cat > "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0" << 'SHELL'
 type = process
-command = /bin/toybox sh -c "exec /bin/toybox sh -i 0<//dev/console 1>//dev/console 2>//dev/console"
+command = /bin/toybox getty -L 115200 ttyS0 vt100
 restart = yes
 depends-on = mount-filesystems
 SHELL
@@ -151,21 +151,110 @@ restart = no
 MOUNT
 ln -sf /etc/dinit.d/mount-filesystems "${ROOTFS_DIR}/etc/dinit.d/boot.d/mount-filesystems"
 
-# GlowFS
-if [ -f "${GLOWFS_KO}" ]; then
+# Oil (native package manager)
+OIL_BIN="${ROOT_DIR}/build/native/oil"
+OIL_SRC="${ROOT_DIR}/../oil"
+if [ -f "${OIL_BIN}" ]; then
+  cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
+elif [ -d "${OIL_SRC}" ]; then
+  echo "→ Building Oil (native package manager)..."
+  docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+    apk add --no-cache rust cargo make gcc musl-dev >/dev/null
+    cd /oil-src
+    cargo build --release --no-default-features 2>/dev/null
+    cp target/release/oil /out/oil 2>/dev/null
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/oil" ]; then
+    cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+    echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
+  fi
+fi
+
+# Network — DHCP client (toybox udhcpc)
+cat > "${ROOTFS_DIR}/etc/dinit.d/networking" << 'NET'
+type = scripted
+command = /bin/toybox udhcpc -i eth0 -s /bin/toybox -q
+restart = yes
+depends-on = mount-filesystems
+NET
+ln -sf /etc/dinit.d/networking "${ROOTFS_DIR}/etc/dinit.d/boot.d/networking"
+
+# Default route via DHCP
+mkdir -p "${ROOTFS_DIR}/usr/share/udhcpc"
+cat > "${ROOTFS_DIR}/usr/share/udhcpc/default.script" << 'SCRIPT'
+#!/bin/toybox sh
+case "$1" in
+  bound|renew) /sbin/ifconfig $interface $ip netmask $subnet; route add default gw $router 2>/dev/null;;
+  deconfig) /sbin/ifconfig $interface 0.0.0.0;;
+esac
+SCRIPT
+chmod 755 "${ROOTFS_DIR}/usr/share/udhcpc/default.script"
+
+# User management — root with no password (can login via getty)
+mkdir -p "${ROOTFS_DIR}/etc"
+cat > "${ROOTFS_DIR}/etc/passwd" << 'PASSWD'
+root:x:0:0:root:/root:/bin/toybox sh
+PASSWD
+cat > "${ROOTFS_DIR}/etc/shadow" << 'SHADOW'
+root::19999:0:99999:7:::
+SHADOW
+cat > "${ROOTFS_DIR}/etc/group" << 'GROUP'
+root:x:0:
+wheel:x:10:
+daemon:x:1:
+bin:x:2:
+sys:x:3:
+adm:x:4:
+tty:x:5:
+disk:x:6:
+lp:x:7:
+mail:x:8:
+news:x:9:
+uucp:x:10:
+man:x:12:
+proxy:x:13:
+kmem:x:15:
+dialout:x:20:
+fax:x:21:
+voice:x:22:
+cdrom:x:24:
+floppy:x:25:
+tape:x:26:
+sudo:x:27:
+audio:x:29:
+video:x:44:
+GROUP
+# root home
+mkdir -p "${ROOTFS_DIR}/root"
   mkdir -p "${ROOTFS_DIR}/lib/modules"
   cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
-# Init — dinit as primary PID 1, manages shell service
+# Init — dinit as primary PID 1, manages all services
 cat > "${ROOTFS_DIR}/init" << 'INIT'
 #!/bin/toybox sh
 /bin/toybox mount -t proc proc /proc
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 /bin/toybox mount -t tmpfs tmpfs /run
+mkdir -p /state
+# Try to mount state partition (if available)
+state_dev=""
+for arg in $(cat /proc/cmdline); do
+  case "$arg" in
+    alpenglow.state=LABEL=*) state_dev="/dev/disk/by-label/${arg#alpenglow.state=LABEL=}" ;;
+    alpenglow.state=*) state_dev="${arg#alpenglow.state=}" ;;
+  esac
+done
+if [ -z "$state_dev" ]; then
+  state_dev="/dev/disk/by-label/alpenglow-state"
+fi
+if [ -b "$state_dev" ]; then
+  /bin/toybox mount -t ext4 -o rw,nosuid,nodev "$state_dev" /state 2>/dev/null && echo "Mounted state: $state_dev"
+fi
 echo ""
-echo "Alpenglow native boot"
+echo "Alpenglow boot"
 echo ""
 exec /sbin/dinit -d /etc/dinit.d -s -t shell-ttyS0
 INIT
