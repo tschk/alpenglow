@@ -7,8 +7,6 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-pub mod v2;
-
 pub const MAGIC: &[u8; 8] = b"GLWFSV01";
 pub const HEADER_LEN: usize = 56;
 pub const ENTRY_LEN: usize = 92;
@@ -17,7 +15,6 @@ pub const KIND_FILE: u32 = 2;
 pub const KIND_SYMLINK: u32 = 3;
 pub const FLAG_READONLY: u64 = 1;
 pub const FLAG_MUTABLE: u64 = 2;
-pub const FLAG_V2: u64 = 4;
 
 #[derive(Debug)]
 pub enum GlowfsError {

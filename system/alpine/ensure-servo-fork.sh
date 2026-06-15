@@ -13,7 +13,4 @@ cd "${PROJECT_ROOT}"
 echo "Building alpenglow_shell..."
 cargo build --release --target x86_64-unknown-linux-musl --bin alpenglow_shell
 
-echo "Building sold..."
-cargo build --release --target x86_64-unknown-linux-musl --bin sold
-
 echo "Rust binaries built successfully."

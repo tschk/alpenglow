@@ -78,17 +78,17 @@
     },
     {
       "path": "/state/var/lib/alpenglow/files",
-      "owner": "sold:sold",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
       "path": "/state/var/lib/alpenglow/system",
-      "owner": "sold:sold",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {
       "path": "/state/var/lib/alpenglow/system/plugins",
-      "owner": "sold:sold",
+      "owner": "alpenglow:alpenglow",
       "mode": "0700"
     },
     {

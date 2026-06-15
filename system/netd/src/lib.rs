@@ -105,16 +105,10 @@ pub fn write_snapshot(
     state_json: impl AsRef<Path>,
     runtime_env: impl AsRef<Path>,
 ) -> io::Result<()> {
-    write_atomic(
-        state_json.as_ref(),
-        serde_json::to_string_pretty(snapshot)
-            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?
-            .as_bytes(),
-    )?;
-    write_atomic(
-        runtime_env.as_ref(),
-        render_runtime_env(snapshot).as_bytes(),
-    )
+    let json = serde_json::to_string_pretty(snapshot)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    write_file(state_json.as_ref(), json.as_bytes())?;
+    write_file(runtime_env.as_ref(), render_runtime_env(snapshot).as_bytes())
 }
 
 fn read_interface(name: &str, path: &Path) -> io::Result<NetworkInterface> {
@@ -179,13 +173,11 @@ fn read_trimmed(path: PathBuf) -> io::Result<Option<String>> {
     }
 }
 
-fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
+fn write_file(path: &Path, contents: &[u8]) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
-    fs::write(&tmp, contents)?;
-    fs::rename(tmp, path)
+    fs::write(path, contents)
 }
 
 fn now_unix_ms() -> u128 {

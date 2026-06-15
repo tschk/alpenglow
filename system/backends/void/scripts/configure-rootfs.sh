@@ -43,9 +43,9 @@ ensure_user() {
 }
 
 ensure_group "alpenglow" "${ALPENGLOW_GID}"
-ensure_group "sold" "${SOLD_GID}"
+# sold group moved to soliloquy
 ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow"
-ensure_user "sold" "${SOLD_UID}" "${SOLD_GID}" "/var/lib/alpenglow/system"
+
 
 mkdir -p "${ROOTFS}/etc/alpenglow/filesystems"
 mkdir -p "${ROOTFS}/etc/alpenglow/services"
@@ -100,7 +100,7 @@ cp "${BACKEND_DIR}/packages-runtime.txt" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/runit/." "${ROOTFS}/etc/sv/"
 rm -rf "${ROOTFS}/etc/apk"
 
-for service in seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram sold alpenglow-session; do
+for service in seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram; do
   ln -s "/etc/sv/${service}" "${ROOTFS}/etc/runit/runsvdir/default/${service}" 2>/dev/null || true
 done
 

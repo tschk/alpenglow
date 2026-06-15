@@ -44,7 +44,7 @@ ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"
 }
 
 ensure_group "alpenglow" "${ALPENGLOW_GID}"
-ensure_group "sold" "${SOLD_GID}"
+# sold group moved to soliloquy
 ensure_group "seatd" "${SEATD_GID}"
 ensure_group "iwd" "${IWD_GID}"
 ensure_group "pipewire" "${PIPEWIRE_GID}"
@@ -52,7 +52,7 @@ ensure_group "audio" 777
 ensure_group "video" 778
 ensure_group "input" 779
 ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow"
-ensure_user "sold" "${SOLD_UID}" "${SOLD_GID}" "/var/lib/alpenglow/system"
+
 ensure_user "seatd" "${SEATD_UID}" "${SEATD_GID}" "/var/empty"
 ensure_user "iwd" "${IWD_UID}" "${IWD_GID}" "/var/empty"
 
@@ -109,7 +109,7 @@ rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
 # Enable dinit boot services
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
-for service in glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber sold greetd velox foot alpenglow-session; do
+for service in glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber greetd velox foot; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
 
@@ -223,7 +223,7 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
   },
   "services": {
     "essential": ["mount-filesystems", "state-mount", "elogind", "seatd", "networking"],
-    "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "sold", "alpenglow-power", "iwd"],
+    "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "alpenglow-power", "iwd"],
     "session": ["pipewire", "wireplumber", "greetd", "velox", "foot"],
     "user_init": ["alpenglow-session"]
   }

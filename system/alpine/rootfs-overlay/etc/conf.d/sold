@@ -1,7 +1,0 @@
-SOLD_BIND="127.0.0.1:8080"
-ALPENGLOW_BUNDLE_DIR="/usr/local/share/alpenglow/bundle"
-ALPENGLOW_GENERATION_FILE="/etc/alpenglow/generation.json"
-ALPENGLOW_MARK_GOOD_HOOK="/usr/local/bin/alpenglow-generation-mark-good"
-ALPENGLOW_UPDATE_STATE="/var/lib/alpenglow/system/update-state.json"
-RUST_LOG="warn,sold=info,axum=warn,tower_http=warn"
-RUST_BACKTRACE="1"

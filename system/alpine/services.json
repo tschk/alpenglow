@@ -44,9 +44,9 @@
       ]
     },
     {
-      "id": "sold",
-      "display_name": "Alpenglow Local Server",
-      "run_as": "sold",
+      "id": "alpd",
+      "display_name": "Alpine Appliance Daemon",
+      "run_as": "alpd",
       "restart": "always",
       "dependencies": [
         "networking",
@@ -56,24 +56,7 @@
         "alpenglow-pressure"
       ],
       "state_paths": [
-        "/var/lib/alpenglow/system",
-        "/var/log/alpenglow"
-      ]
-    },
-    {
-      "id": "alpenglow-session",
-      "display_name": "Alpenglow Session",
-      "run_as": "root",
-      "restart": "always",
-      "dependencies": [
-        "sold",
-        "seatd",
-        "alpenglow-zram",
-        "alpenglow-pressure"
-      ],
-      "state_paths": [
-        "/run/user/0",
-        "/var/lib/alpenglow/browser"
+        "/run/alpenglow"
       ]
     },
     {
@@ -108,10 +91,10 @@
     {
       "id": "remote-sync",
       "display_name": "Remote Sync Plugin",
-      "run_as": "sold",
+      "run_as": "alpd",
       "restart": "on-failure",
       "dependencies": [
-        "sold"
+        "alpd"
       ],
       "optional": true,
       "state_paths": [

@@ -51,11 +51,11 @@ ensure_shadow() {
 }
 
 ensure_group "alpenglow" "${ALPENGLOW_GID}"
-ensure_group "sold" "${SOLD_GID}"
+# sold group moved to soliloquy
 ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow"
-ensure_user "sold" "${SOLD_UID}" "${SOLD_GID}" "/var/lib/alpenglow/system"
+# sold user moved to soliloquy
 ensure_shadow "alpenglow"
-ensure_shadow "sold"
+
 
 mkdir -p "${ROOTFS}/etc/init.d" "${ROOTFS}/usr/local/bin"
 mkdir -p "${ROOTFS}/etc/local.d"
@@ -105,14 +105,11 @@ cp "${OPENRC_DIR}/alpenglow-kernel-policy" "${ROOTFS}/etc/init.d/alpenglow-kerne
 cp "${OPENRC_DIR}/alpenglow-netd" "${ROOTFS}/etc/init.d/alpenglow-netd"
 cp "${OPENRC_DIR}/alpenglow-pressure" "${ROOTFS}/etc/init.d/alpenglow-pressure"
 cp "${OPENRC_DIR}/alpenglow-zram" "${ROOTFS}/etc/init.d/alpenglow-zram"
-cp "${OPENRC_DIR}/alpenglow-session" "${ROOTFS}/etc/init.d/alpenglow-session"
-if [ -f "${OPENRC_DIR}/sold" ]; then
-  cp "${OPENRC_DIR}/sold" "${ROOTFS}/etc/init.d/sold"
-fi
+# sold + alpenglow-session moved to soliloquy
 cp "${BIN_SRC}/apply-kernel-policy.sh" "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh"
 cp "${BIN_SRC}/apply-pressure-policy.sh" "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh"
 cp "${BIN_SRC}/apply-zram-policy.sh" "${ROOTFS}/usr/local/bin/apply-zram-policy.sh"
-cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/alpenglow-session-start"
+
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/rootfs-layout.json"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/state-mounts.json"
 
@@ -123,12 +120,12 @@ chmod +x \
   "${ROOTFS}/etc/init.d/alpenglow-pressure" \
   "${ROOTFS}/etc/init.d/alpenglow-zram" \
   "${ROOTFS}/etc/init.d/alpenglow-session" \
-  "${ROOTFS}/etc/init.d/sold" \
+
   "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" \
   "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh" \
   "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" \
   "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good" \
-  "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
+
   "${ROOTFS}/init"
 
 if [ -f "${ALPINE_DIR}/packages-v0.txt" ]; then
@@ -367,8 +364,7 @@ cat > "${ROOTFS}/etc/local.d/alpenglow-firstboot.start" <<'EOF'
 set -eu
 
 chown -R alpenglow:alpenglow /var/lib/alpenglow/browser >/dev/null 2>&1 || true
-chown -R sold:sold /var/lib/alpenglow/files >/dev/null 2>&1 || true
-chown -R sold:sold /var/lib/alpenglow/system >/dev/null 2>&1 || true
+
 
 if command -v rc-update >/dev/null 2>&1; then
   # Keep the service graph minimal for browser appliance mode.
@@ -388,7 +384,7 @@ chmod +x "${ROOTFS}/etc/local.d/alpenglow-firstboot.start"
 # Make default runlevel explicit and minimal.
 mkdir -p "${ROOTFS}/etc/runlevels/default"
 find "${ROOTFS}/etc/runlevels/default" -mindepth 1 -maxdepth 1 -exec rm -f {} +
-for svc in networking seatd alpenglow-kernel-policy alpenglow-zram alpenglow-pressure alpenglow-netd sold alpenglow-session; do
+for svc in networking seatd alpenglow-kernel-policy alpenglow-zram alpenglow-pressure alpenglow-netd; do
   if [ -f "${ROOTFS}/etc/init.d/${svc}" ]; then
     ln -sf "/etc/init.d/${svc}" "${ROOTFS}/etc/runlevels/default/${svc}"
   fi

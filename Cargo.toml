@@ -4,7 +4,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "sold",
     "system/kernelctl",
     "system/netd",
     "system/glowfsctl",

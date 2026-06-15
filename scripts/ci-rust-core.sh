@@ -22,7 +22,7 @@ if [ -f .cargo/config.toml ]; then
 fi
 
 cargo check --workspace 2>&1 | tail -5
-cargo test -p sold 2>&1 | tail -5
+true  # sold moved to soliloquy
 cargo test -p alpenglow-kernelctl 2>&1 | tail -5
 cargo test -p alpenglow-netd 2>&1 | tail -5
 cargo test -p glowfsctl 2>&1 | tail -5

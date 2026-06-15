@@ -87,7 +87,7 @@ step_swap_init() {
       dinit)
         # Install dinit, configure service symlinks
         mkdir -p /etc/dinit.d/boot.d
-        for svc in seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure sold alpenglow-session networking; do
+        for svc in seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure networking; do
           if [ -f "/etc/dinit.d/${svc}" ]; then
             ln -sf "/etc/dinit.d/${svc}" "/etc/dinit.d/boot.d/${svc}"
           fi

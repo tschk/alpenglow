@@ -25,15 +25,11 @@ rc-update del acpid default || true
 rc-update del crond default || true
 
 # Add Alpenglow services
-cp "${SCRIPT_DIR}/openrc/ seatd" etc/init.d/
-cp "${SCRIPT_DIR}/openrc/sold" etc/init.d/
-cp "${SCRIPT_DIR}/openrc/alpenglow-session" etc/init.d/
+cp "${SCRIPT_DIR}/openrc/seatd" etc/init.d/
 
-chmod +x etc/init.d/seatd etc/init.d/sold etc/init.d/alpenglow-session
+chmod +x etc/init.d/seatd
 
 rc-update add seatd default
-rc-update add sold default
-rc-update add alpenglow-session default
 
 # Configure networking (static)
 cat > etc/network/interfaces << 'EOF'
