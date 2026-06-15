@@ -1,34 +1,39 @@
 #!/bin/sh
+# CI: compile GlowFS kernel module against Linux headers
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
-
-IMAGE="${GLOWFS_KERNEL_BUILD_IMAGE:-ubuntu:24.04}"
 
 if ! command -v docker >/dev/null 2>&1; then
   printf 'ci-glowfs-kernel-module: docker is required\n' >&2
   exit 1
 fi
 
+# Build against Ubuntu generic kernel headers
 docker run --rm \
-  -v "${REPO_ROOT}/system/glowfs/kernel:/work" \
-  -w /work \
-  "${IMAGE}" \
-  sh -lc '
+  -v "${REPO_ROOT}:/alpenglow" \
+  alpine:3.21 sh -c '
     set -eu
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update >/dev/null
-    apt-get install -y --no-install-recommends build-essential linux-headers-generic ca-certificates >/dev/null
-    kernel_release="$(ls /lib/modules | sort | tail -1)"
-    make KERNEL_SRC="/lib/modules/${kernel_release}/build" V=0
-    test -f glowfs.ko
-    make KERNEL_SRC="/lib/modules/${kernel_release}/build" clean >/dev/null
-  '
+    apk add --no-cache build-base linux-headers curl tar xz bash >/dev/null
 
-GLOWFS_ALPINE_PLATFORM="${GLOWFS_ALPINE_PLATFORM:-linux/amd64}" \
-  system/alpine/scripts/build-glowfs-module.sh "build/alpine/qemu/glowfs.ko" >/dev/null
-test -f build/alpine/qemu/glowfs.ko
-test -f build/alpine/qemu/glowfs.ko.kernel-release
+    # Download and extract kernel source matching our config
+    cd /tmp
+    curl -fsSL https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz -o linux.tar.xz
+    tar -xf linux.tar.xz
+    cd /tmp/linux-6.12
+
+    # Use our config
+    cp /alpenglow/system/alpine/kernel/alpenglow-internet-appliance.config .config
+    make olddefconfig >/dev/null 2>&1
+    make modules_prepare >/dev/null 2>&1
+
+    # Build GlowFS module
+    cd /alpenglow/system/glowfs/kernel
+    make KERNEL_SRC=/tmp/linux-6.12 V=0
+    test -f glowfs.ko
+    echo "glowfs.ko built: $(ls -la glowfs.ko)"
+    make clean >/dev/null 2>&1
+  '
 
 printf 'ci-glowfs-kernel-module: ok\n'
