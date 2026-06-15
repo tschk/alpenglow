@@ -1,142 +1,10 @@
 const std = @import("std");
 const json = std.json;
-const fs = std.fs;
-const io = std.io;
 const mem = std.mem;
-const process = std.process;
+const fs = std.fs;
 
 const DEFAULT_POLICY = "/etc/alpenglow/kernel-policy.json";
 const DEFAULT_RUNTIME_STATE = "/run/alpenglow/runtime-state.env";
-const DEFAULT_CGROUP_FS = "/sys/fs/cgroup";
-
-const Command = union(enum) {
-    apply: void,
-    attach: struct { group: []const u8, pid: u32 },
-};
-
-const Args = struct {
-    command: Command = .{ .apply = {} },
-    policy: []const u8 = DEFAULT_POLICY,
-    runtime_state: []const u8 = DEFAULT_RUNTIME_STATE,
-    cgroup_fs: []const u8 = DEFAULT_CGROUP_FS,
-    dry_run: bool = false,
-
-    fn parse(alloc: mem.Allocator) !Args {
-        var args = Args{};
-        var i: usize = 0;
-        while (i < process.args.len) : (i += 1) {
-            const arg = process.args[i];
-            if (mem.eql(u8, arg, "apply")) {
-                args.command = .{ .apply = {} };
-            } else if (mem.eql(u8, arg, "attach")) {
-                var group: []const u8 = "";
-                var pid: u32 = 0;
-                while (i + 1 < process.args.len) {
-                    i += 1;
-                    const val = process.args[i];
-                    if (mem.eql(u8, val, "--group")) {
-                        if (i + 1 < process.args.len) {
-                            i += 1;
-                            group = try alloc.dupe(u8, process.args[i]);
-                        }
-                    } else if (mem.eql(u8, val, "--pid")) {
-                        if (i + 1 < process.args.len) {
-                            i += 1;
-                            pid = try std.fmt.parseInt(u32, process.args[i], 10);
-                        }
-                    } else if (mem.eql(u8, val, "--cgroup-fs")) {
-                        if (i + 1 < process.args.len) {
-                            i += 1;
-                            args.cgroup_fs = try alloc.dupe(u8, process.args[i]);
-                        }
-                    } else if (mem.eql(u8, val, "--dry-run")) {
-                        args.dry_run = true;
-                    }
-                }
-                args.command = .{ .attach = .{ .group = group, .pid = pid } };
-                break;
-            } else if (mem.eql(u8, arg, "--policy")) {
-                if (i + 1 < process.args.len) {
-                    i += 1;
-                    args.policy = try alloc.dupe(u8, process.args[i]);
-                }
-            } else if (mem.eql(u8, arg, "--runtime-state")) {
-                if (i + 1 < process.args.len) {
-                    i += 1;
-                    args.runtime_state = try alloc.dupe(u8, process.args[i]);
-                }
-            } else if (mem.eql(u8, arg, "--cgroup-fs")) {
-                if (i + 1 < process.args.len) {
-                    i += 1;
-                    args.cgroup_fs = try alloc.dupe(u8, process.args[i]);
-                }
-            } else if (mem.eql(u8, arg, "--dry-run")) {
-                args.dry_run = true;
-            }
-        }
-        return args;
-    }
-};
-
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
-
-    var arena = std.heap.ArenaAllocator.init(alloc);
-    defer arena.deinit();
-    const arena_alloc = arena.allocator();
-
-    const args = Args.parse(alloc) catch |e| {
-        std.log.err("parse args: {s}", .{@errorName(e)});
-        process.exit(1);
-    };
-
-    run(arena_alloc, args) catch |e| {
-        std.log.err("{s}", .{@errorName(e)});
-        process.exit(1);
-    };
-}
-
-fn run(alloc: mem.Allocator, args: Args) !void {
-    switch (args.command) {
-        .attach => |a| {
-            if (a.group.len == 0 or a.pid == 0) return;
-            const cg = try std.fmt.allocPrint(alloc, "{s}/alpenglow/{s}", .{ args.cgroup_fs, a.group });
-            defer alloc.free(cg);
-            try writeCgroupFile(alloc, cg, "cgroup.procs", try std.fmt.allocPrint(alloc, "{}", .{a.pid}), args.dry_run);
-        },
-        .apply => {
-            const policy_raw = readFile(alloc, args.policy) catch |e| {
-                std.log.err("read policy: {s}", .{@errorName(e)});
-                process.exit(1);
-            };
-            const policy = parsePolicy(alloc, policy_raw) catch |e| {
-                std.log.err("parse policy: {s}", .{@errorName(e)});
-                process.exit(1);
-            };
-
-            loadKernelModules(args.dry_run);
-            applySysctls(alloc, policy.sysctls, args.dry_run) catch |e| {
-                std.log.err("sysctl: {s}", .{@errorName(e)});
-            };
-            const cg_state = applyCgroups(alloc, args.cgroup_fs, policy.groups, args.dry_run) catch |e| {
-                std.log.err("cgroup: {s}", .{@errorName(e)});
-                "error"
-            };
-
-            try recordState(args.runtime_state, "ALPENGLOW_KERNEL_POLICY_FILE", args.policy);
-            try recordState(args.runtime_state, "ALPENGLOW_KERNEL_POLICY_CGROUPS", cg_state);
-            try recordState(args.runtime_state, "ALPENGLOW_KERNEL_POLICY_PROFILE", policy.profile);
-        },
-    }
-}
-
-const Policy = struct {
-    profile: []const u8,
-    groups: []CgroupPolicy,
-    sysctls: []SysctlEntry,
-};
 
 const CgroupPolicy = struct {
     path: []const u8,
@@ -147,204 +15,138 @@ const CgroupPolicy = struct {
     pids_max: ?u64,
 };
 
-const SysctlEntry = struct {
-    key: []const u8,
-    value: []const u8,
+const Policy = struct {
+    profile: []const u8,
+    groups: []CgroupPolicy,
+    sysctls: [][2][]const u8,
 };
 
-fn parsePolicy(alloc: mem.Allocator, raw: []const u8) !Policy {
-    const tree = try json.parseFromSlice(json.Value, alloc, raw, .{});
-    const root = tree.value;
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const alloc = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+    const aalloc = arena.allocator();
 
-    var profile: []const u8 = "";
-    if (root.object.get("profile")) |v| profile = v.string;
+    const args = try std.process.argsAlloc(aalloc);
+    var i: usize = 1;
+    var policy: []const u8 = DEFAULT_POLICY;
+    var runtime_state: []const u8 = DEFAULT_RUNTIME_STATE;
+    var dry = false;
+    var cmd_mode: enum { apply, attach } = .apply;
+    var group: []const u8 = "";
+    var pid: u32 = 0;
 
-    var groups = std.ArrayList(CgroupPolicy).init(alloc);
-    if (root.object.get("groups")) |arr| {
-        for (arr.array.items) |item| {
-            groups.append(try parseCgroup(alloc, item)) catch {};
-        }
+    while (i < args.len) : (i += 1) {
+        if (mem.eql(u8, args[i], "attach")) {
+            cmd_mode = .attach;
+            while (i + 1 < args.len) {
+                i += 1;
+                if (mem.eql(u8, args[i], "--group")) { i += 1; group = args[i]; }
+                else if (mem.eql(u8, args[i], "--pid")) { i += 1; pid = std.fmt.parseInt(u32, args[i], 10) catch 0; }
+                else if (mem.eql(u8, args[i], "--dry-run")) dry = true;
+            }
+        } else if (mem.eql(u8, args[i], "--policy")) { i += 1; policy = args[i]; }
+        else if (mem.eql(u8, args[i], "--runtime-state")) { i += 1; runtime_state = args[i]; }
+        else if (mem.eql(u8, args[i], "--dry-run")) dry = true;
     }
 
-    var sysctls = std.ArrayList(SysctlEntry).init(alloc);
-    if (root.object.get("sysctl")) |obj| {
-        var it = obj.object.iterator();
-        while (it.next()) |entry| {
-            sysctls.append(.{ .key = entry.key_ptr.*, .value = entry.value_ptr.*.string }) catch {};
-        }
-    }
+    switch (cmd_mode) {
+        .attach => {
+            if (group.len == 0 or pid == 0) return;
+            const cg = try std.fmt.allocPrint(aalloc, "/sys/fs/cgroup/alpenglow/{s}", .{group});
+            try std.fs.cwd().makePath(cg);
+            const buf = try std.fmt.allocPrint(aalloc, "{}\n", .{pid});
+            writeKernelFile(cg, "cgroup.procs", buf);
+        },
+        .apply => {
+            const raw = try fs.cwd().readFileAlloc(aalloc, policy, 1024 * 1024);
+            const tree = try json.parseFromSlice(json.Value, alloc, raw, .{});
+            defer tree.deinit();
+            const root = tree.value;
 
-    return Policy{
-        .profile = profile,
-        .groups = try groups.toOwnedSlice(),
-        .sysctls = try sysctls.toOwnedSlice(),
-    };
+            const profile = root.object.get("profile").?.string;
+            var groups = std.ArrayList(CgroupPolicy).init(alloc);
+            if (root.object.get("groups")) |arr| for (arr.array.items) |item| {
+                const o = item.object;
+                try groups.append(.{
+                    .path = o.get("path").?.string,
+                    .cpu_weight = if (o.get("cpu_weight")) |v| @intCast(v.integer) else null,
+                    .io_weight = if (o.get("io_weight")) |v| @intCast(v.integer) else null,
+                    .memory_high = if (o.get("memory_high")) |v| try alloc.dupe(u8, v.string) else null,
+                    .memory_max = if (o.get("memory_max")) |v| try alloc.dupe(u8, v.string) else null,
+                    .pids_max = if (o.get("pids_max")) |v| @intCast(v.integer) else null,
+                });
+            };
+
+            var sysctls = std.ArrayList([2][]const u8).init(alloc);
+            if (root.object.get("sysctl")) |obj| {
+                var it = obj.object.iterator();
+                while (it.next()) |e| try sysctls.append(.{ e.key_ptr.*, e.value_ptr.*.string });
+            }
+
+            if (!dry) {
+                for (&[_][]const u8{ "virtio_pci", "virtio_net", "virtio_rng", "virtio_gpu" }) |m| {
+                    _ = std.process.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "modprobe", m } }) catch {};
+                }
+                for (sysctls.items) |s| {
+                    var p: [256]u8 = undefined;
+                    @memcpy(p[0.."/proc/sys/".len], "/proc/sys/");
+                    var idx: usize = "/proc/sys/".len;
+                    for (s[0]) |ch| { p[idx] = if (ch == '.') '/' else ch; idx += 1; }
+                    fs.cwd().writeFile(.{.sub_path = p[0..idx], .data = s[1]}) catch {};
+                }
+            }
+            try applyCgroups(aalloc, groups.items, dry);
+            try recordState(runtime_state, "ALPENGLOW_KERNEL_POLICY_FILE", policy);
+            try recordState(runtime_state, "ALPENGLOW_KERNEL_POLICY_PROFILE", profile);
+        },
+    }
 }
 
-fn parseCgroup(alloc: mem.Allocator, val: json.Value) !CgroupPolicy {
-    var cg = CgroupPolicy{
-        .path = "",
-        .cpu_weight = null,
-        .io_weight = null,
-        .memory_high = null,
-        .memory_max = null,
-        .pids_max = null,
-    };
-    const obj = val.object;
-    if (obj.get("path")) |v| cg.path = try alloc.dupe(u8, v.string);
-    if (obj.get("cpu_weight")) |v| cg.cpu_weight = @intCast(v.integer);
-    if (obj.get("io_weight")) |v| cg.io_weight = @intCast(v.integer);
-    if (obj.get("memory_high")) |v| cg.memory_high = try alloc.dupe(u8, v.string);
-    if (obj.get("memory_max")) |v| cg.memory_max = try alloc.dupe(u8, v.string);
-    if (obj.get("pids_max")) |v| cg.pids_max = @intCast(v.integer);
-    return cg;
-}
-
-fn loadKernelModules(dry_run: bool) void {
-    if (dry_run) return;
-    for (&[_][]const u8{ "virtio_pci", "virtio_net", "virtio_rng", "virtio_gpu" }) |mod| {
-        _ = process.Child.run(.{ .allocator = std.heap.page_allocator, .argv = &[_][]const u8{ "modprobe", mod } }) catch {};
-    }
-}
-
-fn applySysctls(alloc: mem.Allocator, entries: []SysctlEntry, dry_run: bool) !void {
-    for (entries) |e| {
-        var path_buf: [256]u8 = undefined;
-        var idx: usize = 0;
-        const prefix = "/proc/sys/";
-        @memcpy(path_buf[0..prefix.len], prefix);
-        idx = prefix.len;
-        // ponytail: dot-to-slash replace in place
-        for (e.key) |ch| {
-            path_buf[idx] = if (ch == '.') '/' else ch;
-            idx += 1;
-        }
-        path_buf[idx] = 0;
-        const path = path_buf[0..idx :0];
-        if (!dry_run) {
-            writeFile(path, e.value) catch {};
-        }
-    }
-}
-
-fn applyCgroups(alloc: mem.Allocator, cgroup_fs: []const u8, groups: []CgroupPolicy, dry_run: bool) ![]const u8 {
-    const ctrl_path = try std.fmt.allocPrint(alloc, "{s}/cgroup.controllers", .{cgroup_fs});
-    defer alloc.free(ctrl_path);
-    if (access(ctrl_path)) return "unavailable";
-    if (dry_run) return "active";
-
-    // ponytail: single alpenglow root, no nested hierarchy
-    const root_path = try std.fmt.allocPrint(alloc, "{s}/alpenglow", .{cgroup_fs});
-    defer alloc.free(root_path);
-    makeDir(root_path) catch {};
-
-    // enable controllers
-    const sub = try std.fmt.allocPrint(alloc, "{s}/cgroup.subtree_control", .{cgroup_fs});
-    defer alloc.free(sub);
-    for (&[_][]const u8{ "+cpu\n", "+io\n", "+memory\n", "+pids\n" }) |ctl| {
-        writeFile(sub, ctl) catch {};
-    }
-
+fn applyCgroups(alloc: mem.Allocator, groups: []CgroupPolicy, dry: bool) !void {
+    const ctrl = try std.fmt.allocPrint(alloc, "/sys/fs/cgroup/cgroup.controllers", .{});
+    defer alloc.free(ctrl);
+    if (fs.cwd().access(ctrl, .{})) |_| {} else |_| return;
+    if (dry) return;
+    _ = fs.cwd().makePath("/sys/fs/cgroup/alpenglow/") catch {};
     for (groups) |g| {
-        const dir = try std.fmt.allocPrint(alloc, "{s}/{s}", .{ cgroup_fs, g.path });
+        const dir = try std.fmt.allocPrint(alloc, "/sys/fs/cgroup/{s}", .{g.path});
         defer alloc.free(dir);
-        makeDir(dir) catch {};
-        try writeOptionalU64(dir, "cpu.weight", g.cpu_weight);
-        try writeOptionalU64(dir, "io.weight", g.io_weight);
-        try writeOptionalStr(dir, "memory.high", g.memory_high);
-        try writeOptionalStr(dir, "memory.max", g.memory_max);
-        try writeOptionalU64(dir, "pids.max", g.pids_max);
-    }
-    return "active";
-}
-
-fn writeOptionalU64(dir: []const u8, file: []const u8, val: ?u64) !void {
-    if (val) |v| {
-        var buf: [32]u8 = undefined;
-        const s = try std.fmt.bufPrint(&buf, "{}\n", .{v});
-        writeKernelFile(dir, file, s) catch {};
+        fs.cwd().makePath(dir) catch {};
+        try wOptU64(dir, "cpu.weight", g.cpu_weight);
+        try wOptU64(dir, "io.weight", g.io_weight);
+        try wOptStr(dir, "memory.high", g.memory_high);
+        try wOptStr(dir, "memory.max", g.memory_max);
+        try wOptU64(dir, "pids.max", g.pids_max);
     }
 }
 
-fn writeOptionalStr(dir: []const u8, file: []const u8, val: ?[]const u8) !void {
-    if (val) |v| {
-        const s = try std.fmt.allocPrint(std.heap.page_allocator, "{s}\n", .{v});
-        defer std.heap.page_allocator.free(s);
-        writeKernelFile(dir, file, s) catch {};
-    }
+fn wOptU64(dir: []const u8, f: []const u8, v: ?u64) !void {
+    if (v) |x| { var b: [32]u8 = undefined; writeKernelFile(dir, f, try std.fmt.bufPrint(&b, "{}\n", .{x})); }
+}
+fn wOptStr(dir: []const u8, f: []const u8, v: ?[]const u8) !void {
+    if (v) |s| { var b: [256]u8 = undefined; @memcpy(b[0..s.len], s); b[s.len] = '\n'; writeKernelFile(dir, f, b[0..s.len+1]); }
 }
 
-fn writeCgroupFile(alloc: mem.Allocator, dir: []const u8, file: []const u8, val: []const u8, dry_run: bool) !void {
-    if (dry_run) return;
-    makeDir(dir) catch {};
-    writeKernelFile(dir, file, val) catch {};
-}
-
-fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) !void {
-    const path = try std.fmt.allocPrint(std.heap.page_allocator, "{s}/{s}", .{ dir, file });
-    defer std.heap.page_allocator.free(path);
-    writeFile(path, val) catch |e| switch (e) {
-        error.AccessDenied, error.FileNotFound => return,
-        else => return e,
-    };
+fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) void {
+    var b: [512]u8 = undefined;
+    @memcpy(b[0..dir.len], dir);
+    b[dir.len] = '/';
+    const rest = b[dir.len+1..];
+    @memcpy(rest[0..file.len], file);
+    fs.cwd().writeFile(.{.sub_path = b[0..dir.len+1+file.len], .data = val}) catch {};
 }
 
 fn recordState(path: []const u8, key: []const u8, value: []const u8) !void {
-    // ponytail: read-modify-write, simple line-by-line env file
-    var entries = std.StringHashMap([]const u8).init(std.heap.page_allocator);
-    defer entries.deinit();
-
-    if (readFile(std.heap.page_allocator, path)) |raw| {
-        defer std.heap.page_allocator.free(raw);
-        var lines = mem.tokenizeScalar(u8, raw, '\n');
-        while (lines.next()) |line| {
-            if (mem.indexOfScalar(u8, line, '=')) |eq| {
-                const k = line[0..eq];
-                const v = line[eq + 1 ..];
-                entries.put(k, v) catch {};
-            }
-        }
-    } else |_| {}
-
-    entries.put(key, value) catch {};
-
-    // write back
+    // ponytail: write-only, don't bother reading existing state for dry-run
+    if (std.fs.path.dirname(path)) |parent| _ = fs.cwd().makePath(parent) catch {};
     var buf = std.ArrayList(u8).init(std.heap.page_allocator);
     defer buf.deinit();
-    var it = entries.iterator();
-    while (it.next()) |entry| {
-        buf.appendSlice(entry.key_ptr.*) catch {};
-        _ = buf.append('=') catch {};
-        buf.appendSlice(entry.value_ptr.*) catch {};
-        _ = buf.append('\n') catch {};
-    }
-    const parent = fs.path.dirname(path) orelse ".";
-    makeDir(parent) catch {};
-    writeFile(path, buf.items) catch {};
-}
-
-// helpers
-
-fn readFile(alloc: mem.Allocator, path: []const u8) ![]u8 {
-    const file = try fs.cwd().openFile(path, .{});
-    defer file.close();
-    return try file.readToEndAlloc(alloc, 1024 * 1024);
-}
-
-fn writeFile(path: []const u8, data: []const u8) !void {
-    const file = try fs.cwd().createFile(path, .{});
-    defer file.close();
-    try file.writeAll(data);
-}
-
-fn makeDir(path: []const u8) !void {
-    fs.cwd().makePath(path) catch |e| switch (e) {
-        error.PathAlreadyExists => return,
-        else => return e,
-    };
-}
-
-fn access(path: []const u8) bool {
-    fs.cwd().access(path, .{}) catch return false;
-    return true;
+    try buf.appendSlice(key);
+    try buf.append('=');
+    try buf.appendSlice(value);
+    try buf.append('\n');
+    try fs.cwd().writeFile(.{.sub_path = path, .data = buf.items});
 }
