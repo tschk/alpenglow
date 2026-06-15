@@ -17,7 +17,6 @@
 
 #define GLOWFS_MAX_ENTRIES 65536
 #define GLOWFS_MAX_NAMES_SIZE (16 * 1024 * 1024)
-#define GLOWFS_HAS_FOLIO_WRITE_CALLBACKS (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
 
 int glowfs_rust_validate_header(struct glowfs_disk_header header);
 
@@ -83,7 +82,6 @@ static const struct inode_operations glowfs_symlink_inode_ops;
 static const struct file_operations glowfs_dir_ops;
 static const struct file_operations glowfs_file_ops;
 static const struct address_space_operations glowfs_aops;
-static int glowfs_write_folio(struct inode *inode, struct folio *folio);
 
 static struct glowfs_sb_info *glowfs_sbi(struct super_block *sb)
 {
@@ -226,8 +224,8 @@ static struct inode *glowfs_make_inode(struct super_block *sb, struct glowfs_ent
 
 	inode->i_ino = entry->inode;
 	inode->i_mode = mode;
-	inode->i_uid = make_kuid(&init_user_ns, entry->uid);
-	inode->i_gid = make_kgid(&init_user_ns, entry->gid);
+	inode->i_uid = KUIDT_INIT(entry->uid);
+	inode->i_gid = KGIDT_INIT(entry->gid);
 	inode->i_size = entry->size;
 	inode->i_private = entry;
 	inode->i_mapping->a_ops = &glowfs_aops;
@@ -241,7 +239,6 @@ static struct inode *glowfs_make_inode(struct super_block *sb, struct glowfs_ent
 		set_nlink(inode, 2);
 	} else if (entry->kind == GLOWFS_KIND_SYMLINK) {
 		inode->i_op = &glowfs_symlink_inode_ops;
-		inode_nohighmem(inode);
 		set_nlink(inode, 1);
 	} else {
 		inode->i_fop = &glowfs_file_ops;
@@ -381,13 +378,16 @@ static const char *glowfs_get_link(struct dentry *dentry, struct inode *inode, s
 	return target;
 }
 
-static int glowfs_write_begin_common(struct address_space *mapping, loff_t pos, unsigned int len, struct folio **foliop)
+/* Modern kernel: use filemap helpers directly */
+static int glowfs_write_begin(struct file *file, struct address_space *mapping,
+				loff_t pos, unsigned int len, struct folio **foliop,
+				void **fsdata)
 {
 	struct inode *inode = mapping->host;
 	struct glowfs_entry *entry = inode->i_private;
 	struct glowfs_sb_info *sbi = glowfs_sbi(inode->i_sb);
-	struct page *page;
 	pgoff_t index = pos >> PAGE_SHIFT;
+	struct folio *folio;
 	int ret;
 
 	if (pos < 0)
@@ -399,24 +399,27 @@ static int glowfs_write_begin_common(struct address_space *mapping, loff_t pos, 
 	if ((u64)pos + len > entry->size && pos != entry->size)
 		return -EFBIG;
 
-	page = grab_cache_page_write_begin(mapping, index);
-	if (!page)
-		return -ENOMEM;
+	folio = __filemap_get_folio(mapping, index, FGP_WRITEBEGIN,
+				    mapping_gfp_mask(mapping));
+	if (IS_ERR(folio))
+		return PTR_ERR(folio);
 
-	if (!PageUptodate(page)) {
-		ret = glowfs_fill_folio(inode, page_folio(page));
+	if (!folio_test_uptodate(folio)) {
+		ret = glowfs_fill_folio(inode, folio);
 		if (ret) {
-			unlock_page(page);
-			put_page(page);
+			folio_unlock(folio);
+			folio_put(folio);
 			return ret;
 		}
 	}
 
-	*foliop = page_folio(page);
+	*foliop = folio;
 	return 0;
 }
 
-static int glowfs_write_end_common(struct address_space *mapping, loff_t pos, unsigned int copied, struct folio *folio)
+static int glowfs_write_end(struct file *file, struct address_space *mapping,
+			    loff_t pos, unsigned int len, unsigned int copied,
+			    struct folio *folio, void *fsdata)
 {
 	struct inode *inode = mapping->host;
 	struct glowfs_entry *entry = inode->i_private;
@@ -485,14 +488,28 @@ static int glowfs_write_end_common(struct address_space *mapping, loff_t pos, un
 		i_size_write(inode, entry->size);
 	}
 
-	ret = glowfs_write_folio(inode, folio);
-	if (ret) {
-		copied = 0;
-		goto out;
+	/* Write folio contents to disk */
+	{
+		loff_t wpos = folio_pos(folio);
+		size_t wsize = folio_size(folio);
+		size_t written;
+		void *addr;
+
+		if (wpos < entry->size) {
+			written = min_t(u64, wsize, entry->size - wpos);
+			addr = kmap_local_folio(folio, 0);
+			ret = glowfs_write_bytes(inode->i_sb, entry->data_offset + wpos, addr, written);
+			if (ret)
+				copied = 0;
+			kunmap_local(addr);
+		}
 	}
-	folio_mark_dirty(folio);
-	folio_mark_uptodate(folio);
-	mark_inode_dirty(inode);
+
+	if (!ret) {
+		filemap_dirty_folio(mapping, folio);
+		folio_mark_uptodate(folio);
+		mark_inode_dirty(inode);
+	}
 
 out:
 	folio_unlock(folio);
@@ -500,37 +517,10 @@ out:
 	return copied;
 }
 
-#if GLOWFS_HAS_FOLIO_WRITE_CALLBACKS
-static int glowfs_write_begin(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, struct folio **foliop, void **fsdata)
+static int glowfs_writepage(struct page *page, struct writeback_control *wbc)
 {
-	return glowfs_write_begin_common(mapping, pos, len, foliop);
-}
-
-static int glowfs_write_end(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, unsigned int copied, struct folio *folio, void *fsdata)
-{
-	return glowfs_write_end_common(mapping, pos, copied, folio);
-}
-#else
-static int glowfs_write_begin(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, struct page **pagep, void **fsdata)
-{
-	struct folio *folio;
-	int ret;
-
-	ret = glowfs_write_begin_common(mapping, pos, len, &folio);
-	if (ret)
-		return ret;
-	*pagep = folio_page(folio, 0);
-	return 0;
-}
-
-static int glowfs_write_end(struct file *file, struct address_space *mapping, loff_t pos, unsigned int len, unsigned int copied, struct page *page, void *fsdata)
-{
-	return glowfs_write_end_common(mapping, pos, copied, page_folio(page));
-}
-#endif
-
-static int glowfs_write_folio(struct inode *inode, struct folio *folio)
-{
+	struct folio *folio = page_folio(page);
+	struct inode *inode = folio->mapping->host;
 	struct glowfs_entry *entry = inode->i_private;
 	loff_t pos = folio_pos(folio);
 	size_t size = folio_size(folio);
@@ -544,18 +534,6 @@ static int glowfs_write_folio(struct inode *inode, struct folio *folio)
 	addr = kmap_local_folio(folio, 0);
 	ret = glowfs_write_bytes(inode->i_sb, entry->data_offset + pos, addr, written);
 	kunmap_local(addr);
-	return ret;
-}
-
-static int glowfs_writepage(struct page *page, struct writeback_control *wbc)
-{
-	struct folio *folio = page_folio(page);
-	struct inode *inode = folio->mapping->host;
-	int ret;
-
-	folio_start_writeback(folio);
-	ret = glowfs_write_folio(inode, folio);
-	folio_end_writeback(folio);
 	folio_unlock(folio);
 	return ret;
 }
@@ -778,7 +756,6 @@ static const struct super_operations glowfs_super_ops = {
 
 static int glowfs_fill_super(struct super_block *sb, void *data, int silent)
 {
-	struct buffer_head *bh;
 	struct inode *root_inode;
 	struct glowfs_disk_header header;
 	struct glowfs_sb_info *sbi;
@@ -786,12 +763,9 @@ static int glowfs_fill_super(struct super_block *sb, void *data, int silent)
 	int ret;
 
 	sb_set_blocksize(sb, 4096);
-	bh = sb_bread(sb, 0);
-	if (!bh)
-		return -EINVAL;
-
-	memcpy(&header, bh->b_data, sizeof(header));
-	brelse(bh);
+	ret = glowfs_read_bytes(sb, 0, &header, sizeof(header));
+	if (ret)
+		return ret;
 
 	ret = glowfs_rust_validate_header(header);
 	if (ret)
@@ -837,15 +811,26 @@ err:
 	return ret;
 }
 
-static struct dentry *glowfs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
+/* Modern mount API using get_tree_bdev */
+static int glowfs_get_tree(struct fs_context *fc)
 {
-	return mount_bdev(fs_type, flags, dev_name, data, glowfs_fill_super);
+	return get_tree_bdev(fc, glowfs_fill_super);
+}
+
+static const struct fs_context_operations glowfs_context_ops = {
+	.get_tree = glowfs_get_tree,
+};
+
+static int glowfs_init_fs_context(struct fs_context *fc)
+{
+	fc->ops = &glowfs_context_ops;
+	return 0;
 }
 
 static struct file_system_type glowfs_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "glowfs",
-	.mount = glowfs_mount,
+	.init_fs_context = glowfs_init_fs_context,
 	.kill_sb = kill_block_super,
 	.fs_flags = FS_REQUIRES_DEV,
 };
@@ -863,4 +848,4 @@ static void __exit glowfs_exit(void)
 module_init(glowfs_init);
 module_exit(glowfs_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Alpenglow filesystem VFS shim");
+MODULE_DESCRIPTION("Alpenglow GlowFS — immutable root filesystem VFS shim");
