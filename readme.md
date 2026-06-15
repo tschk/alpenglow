@@ -1,166 +1,113 @@
 # Alpenglow
 
-Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, LLVM/clang, Oil native packages, toybox userland. Runs from disk but loads entirely into RAM at boot.
+Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil native packages, toybox userland. ~2s boot to login.
 
-**Boot time: ~2 seconds** from power-on to shell prompt.
-
+```sh
+./scripts/boot-native.sh   # needs Docker + QEMU
 ```
-Power-on → kernel decompress:    0.0s
-Init (dinit) starts:             0.9s
-mount-filesystems service OK:    1.5s
-shell-ttyS0 (getty) ready:       1.5s
-Login prompt:                    2.0s
-```
-
-Early-stage. Not production-ready.
-
-**It boots.** Run `./scripts/boot-native.sh` (requires Docker + QEMU).
 
 ## Design
 
-| Layer | Choice |
-|-------|--------|
-| Boot model | **Diskless** — rootfs in RAM via initramfs. State on persistent media. |
-| Root FS | **GlowFS** — custom kernel module. Fallback: erofs, squashfs. |
-| Init | **dinit** — fast parallel dependency-graph init. |
-| Compiler | **LLVM/Clang** default. Inauguration as future codegen. |
-| Package mgr | **Oil** — native. No distro bootstrap. |
-| Userland | **toybox** — minimal BSD-licensed coreutils. |
-| Shell | **oksh** |
-| Crypto | **BearSSL** |
-| Kernel | **Hardened** — minimal appliance config. Linux 7.0.12. |
-| Initramfs | **Custom** — best of Limine + UEFI stub + extlinux. |
-| Display | **Wayland** + velox compositor (Rust, wlroots-based). |
-| Audio | **PipeWire** + WirePlumber session manager. |
-| Networking | **sdhcp** (DHCP) + **iwd** (WiFi). |
-| Session | **greetd** login greeter + **elogind** power management. |
-| Terminal | **foot** (Wayland). |
-| Arch | **Generic** — x86_64, aarch64, etc. |
+| Layer | Choice | Why |
+|-------|--------|-----|
+| Boot | Diskless (initramfs) | Root in RAM, state on persistent media |
+| Root FS | GlowFS / erofs | Immutable, kernel module |
+| Init | dinit | Parallel dependency-graph (fast) |
+| Userland | toybox | Minimal BSD coreutils |
+| Shell | oksh | Korn shell |
+| Package mgr | **Oil** (Rust) | APK-only, sync HTTP, 2.3K LOC, 12 deps |
+| Kernel ctrl | **kernelctl** (Zig+Rust) | 89KB static Zig, 501KB static Rust |
+| Network | netd (Rust), udhcpc, iwd | Sync HTTP daemon |
+| Compositor | cage + foot | Kiosk Wayland |
+| Audio | ALSA + PipeWire | Kernel drivers + dinit services |
+| Kernel | Custom hardened | Linux 7.0.12, GlowFS built-in, LTO |
 
-## Benchmarks
+## Boot Time (QEMU TCG, x86_64)
 
-All times measured from QEMU power-on (SeaBIOS) to prompt on serial console.
-Tested on Apple Silicon Mac via QEMU (TCG emulation), Linux 7.0.12 kernel.
+| Phase | Time | What |
+|-------|------|------|
+| Power-on → kernel | 0.0s | SeaBIOS |
+| Kernel → dinit | 0.9s | Decompress, initramfs |
+| dinit → services | 0.6s | Parallel dinit |
+| **Total** | **~2s** | Compared to Alpine ~3s, Void ~4s, Ubuntu ~15s |
 
-| Metric | Alpenglow | Alpine Linux | Void Linux | Ubuntu 24.04 |
-|--------|-----------|-------------|------------|--------------|
-| BIOS to kernel start | 0.0s | 0.3s | 0.3s | 0.3s |
-| Kernel start to init | 0.9s | 1.2s | 1.5s | 2.5s |
-| Init to shell | 0.6s | 1.5s (OpenRC) | 2.0s (runit) | 12s (systemd) |
-| **Total boot** | **~2s** | **~3s** | **~4s** | **~15s** |
-| Initramfs size | 14MB gzip / 11MB zstd | 8MB | 12MB | 40MB |
-| Kernel size | 7.4MB full / 4.8MB min | 6.5MB | 7.0MB | 12MB |
-| RAM usage (idle) | ~64MB | ~80MB | ~100MB | ~500MB |
+## Tooling Benchmarks (x86_64 Linux musl, static)
 
-### Language Tooling
+| Tool | Lang | Binary | Startup | Deps | 
+|------|------|--------|---------|------|
+| kernelctl | Zig | **89KB** | 424µs | 0 (std only) |
+| kernelctl | Rust | 501KB | 465µs | 2 (serde+json) |
+| Oil | Rust | — | — | 12 crates |
+| netd | Rust | — | — | sync, no tokio |
 
-Rust system tools were optimized for appliance use (musl, initramfs, RAM boot).
+Rust tools optimized: tokio removed from kernelctl, Oil went 28K→2.3K LOC by stripping Homebrew clone + multi-registry support. Zig experiment shows 5.6x smaller binaries for kernel-adjacent tools. Current Rust daemons stay; Zig targets new <100KB init helpers.
 
-| Tool | Before | After | Δ |
-|------|--------|-------|---|
-| **kernelctl** | 40 deps (tokio, JoinSet) | 2 deps (serde, serde_json) | 95% fewer crates |
-| **netd** | tokio + axum | sync HTTP | removed major deps |
-| **Oil** | 28K LOC, tokio, reqwest, tracing, indicatif, rayon | 2.3K LOC, ureq sync | 92% fewer lines |
-| **Release profile** | default | `opt-level=z`, `lto=fat`, `strip` | 50-70% smaller bins |
-
-Zig experiment (kernelctl reimplementation): 89KB static Zig vs 501KB static Rust — 5.6x smaller binary. Comparable startup (~425µs both). For initramfs-adjacent tools where every KB counts, Zig via equilibrium bridge beats Rust. Current Rust tools stay; Zig targets new <100KB init helpers.
-
-Boot time comparison notes:
-- **Alpenglow** uses dinit (parallel dependency-graph) with minimal services → ~2s
-- **Alpine** uses OpenRC (serial) with modular services → ~3s
-- **Void** uses runit (parallel but heavier service scripts) → ~4s
-- **Ubuntu** uses systemd (comprehensive but boot-heavy) → ~15s
-
-## Features
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| **Boot to shell** | ✅ Done | Static toybox + dinit, getty login |
-| **Custom kernel** | ✅ Done | Linux 7.0.12, GlowFS built-in |
-| **Rust in kernel** | ✅ Done | CONFIG_RUST=y, glowfs_core.rs compiled |
-| **Kernel hardening** | ✅ Done | Landlock, Yama, seccomp, cgroups, namespaces |
-| **Sound** | ✅ Done | ALSA + HDA Intel + USB audio kernel drivers |
-| **Wireless** | ✅ Done | 16+ driver chipsets, iwd daemon config |
-| **ACPI power mgmt** | ✅ Done | Suspend/hibernate via elogind or loginctl |
-| **USB-HID** | ✅ Done | USB storage, HID multitouch, I2C |
-| **DHCP networking** | ✅ Done | udhcpc via dinit service |
-| **State persistence** | ✅ Done | ext4 partition by label, bind mounts |
-| **Oil package mgr** | ✅ Done | Vendored in system/oil, APK-only, included in initramfs |
-| **Bootable disk image** | ✅ Done | GPT + Limine bootloader |
-| **dinit services** | ✅ Done | 14 service files, parallel boot |
-| **Wayland compositor** | 🟡 Configured | velox dinit service, needs binary build |
-| **PipeWire audio** | 🟡 Configured | pipewire + wireplumber dinit services |
-| **iwd WiFi** | 🟡 Configured | Requires libell static build |
-| **Interactive installer** | 🟡 Planned | Crepuscularity-based GUI installer |
-| **GlowFS kernel module** | 🟡 In-tree | Works as built-in, module export issues |
-| **Real hardware boot** | ❌ Untested | QEMU only for now |
-
-## Build from source
-
-### Quick boot test (pre-built Alpine kernel)
-
-Requires Docker + QEMU on macOS/Linux:
-
-```sh
-./scripts/boot-native.sh
-```
-
-### Full custom kernel build
-
-Requires musl-gcc, g++, rustc, and QEMU. On native x86_64 Linux:
-
-```sh
-KERNEL_BUILD=1 KERNEL_VERSION=7.0.12 ./scripts/boot-native.sh
-```
-
-### Build on remote machine
-
-```sh
-# Clone repo
-ssh user@host "git clone https://github.com/tschk/alpenglow.git"
-
-# Build kernel and services
-ssh user@host "cd alpenglow && bash build-native.sh"
-
-# Copy artifacts back
-scp user@host:alpenglow/build/native/alpenglow-build.tar.gz .
-```
-
-### Individual service builds
-
-```sh
-# Build all services as static musl binaries
-./system/backends/appliance/scripts/build-all-services.sh
-```
-
-## Repo layout
+## Repo Layout
 
 ```
 system/
-  appliance/         Backend contract, selector, metadata
+  kernelctl/        Cgroup + kernel policy (Rust)
+  kernelctl-zig/    Same logic in Zig (89KB static experiment)
+  netd/             Network state daemon (Rust)
+  glowfsctl/        GlowFS image tooling (Rust)
+  oil/              Native package manager (Rust, APK-only)
   backends/
-    appliance/       Primary target (dinit, toybox, LLVM, Oil, diskless)
-    void/            Void reference backend
-  alpine/            Alpine reference backend (QEMU flow)
-  glowfs/            GlowFS kernel module
-  glowfsctl/         GlowFS image tooling
-  kernelctl/         cgroup + kernel policy helpers (Rust)
-  kernelctl-zig/     Zig reimplementation experiment (89KB static)
-  netd/              Network state daemon
-initramfs/           Custom boot initramfs
-docs/                Architecture, build, install docs
-plans/               Build-out roadmap (4 phases)
+    appliance/      Primary target (dinit, toybox, LLVM)
+    void/           Void reference backend
+  alpine/           Alpine reference / QEMU boot flow
+  glowfs/           GlowFS kernel module
+initramfs/          Custom boot initramfs
+docs/               Architecture, build, install docs
 ```
 
-## Testing
+## CI
 
-```
-./install.sh --check
+| Gate | Script | What |
+|------|--------|------|
+| Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
+| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig |
+| OS appliance | `scripts/ci-os-appliance.sh` | Policy contract validation |
+| GlowFS module | `scripts/ci-glowfs-kernel-module.sh` | Compile vs Linux headers |
+| Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time measurement |
+
+```sh
+./scripts/ci-rust-core.sh
+./scripts/ci-zig.sh              # skip if no zig
 ./scripts/ci-os-appliance.sh
 ./scripts/ci-glowfs-kernel-module.sh
-./scripts/ci-rust-core.sh
-cargo test -p sold
-cargo test -p alpenglow-netd
-cargo test -p alpenglow-kernelctl
-cargo test -p glowfsctl
+./scripts/bench-boot.sh          # needs built image
 ```
+
+## Build
+
+```sh
+# Quick boot (pre-built kernel, needs Docker+QEMU)
+./scripts/boot-native.sh
+
+# Full build with custom kernel
+KERNEL_BUILD=1 KERNEL_VERSION=7.0.12 ./scripts/boot-native.sh
+
+# Build helpers
+cargo build --release
+(cd system/kernelctl-zig && zig build -Dtarget=x86_64-linux-musl)
+
+# Disk image
+./scripts/build-release.sh       # GPT + Limine + initramfs + kernel
+```
+
+## Status
+
+| Feature | Status |
+|---------|--------|
+| Boot to shell + login | ✅ ~2s |
+| DHCP networking | ✅ |
+| State persistence (ext4) | ✅ |
+| Oil package manager (APK) | ✅ |
+| kernelctl Zig (89KB) | ✅ |
+| Wayland display (cage+foot) | ✅ |
+| Audio (ALSA+PipeWire) | ✅ |
+| WiFi (iwd) | ✅ Configured |
+| Power management | ✅ /sys/Power, no elogind |
+| Interactive installer | 🟡 Planned |
+| GlowFS kernel module | 🟡 In-tree |
+| Real hardware boot | ❌ QEMU only |
