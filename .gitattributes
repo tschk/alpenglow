@@ -1,9 +1,10 @@
 # Alpenglow .gitattributes
 
 # Shell scripts — LF line endings, diff as shell
-*.sh            text eol=lf diff=shell
-*.bash          text eol=lf diff=shell
-*.zsh           text eol=lf diff=shell
+# ponytail: vendored so linguist doesn't count build infra as project lang
+*.sh            text eol=lf diff=shell linguist-vendored
+*.bash          text eol=lf diff=shell linguist-vendored
+*.zsh           text eol=lf diff=shell linguist-vendored
 
 # Makefiles — LF line endings
 Makefile        text eol=lf

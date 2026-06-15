@@ -1,5 +1,5 @@
 # NTP daemon — clock synchronization
 type = process
-command = /usr/sbin/chronyd -d -s
+command = /usr/sbin/chronyd -d -s -u chrony
 restart = yes
 depends-on = networking
