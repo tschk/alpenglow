@@ -22,19 +22,19 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil pack
 
 ## Performance
 
-All QEMU KVM on x86_64, 512MB RAM, 2 vCPUs, same Alpine virt kernel (6.12).
+All on same hardware: x86_64, QEMU KVM, 512MB RAM, 2 vCPUs, Alpine virt kernel 6.12.
 
 ### Boot to login
 
-| Config | Initramfs | Kernel | Idle RAM | Boot time |
-|--------|-----------|--------|----------|-----------|
-| Alpenglow minimal | 1.4MB | 12MB | **~30MB** | **1.8s** |
+| Config | Initramfs | Kernel | Idle RAM (measured) | Boot time |
+|--------|-----------|--------|---------------------|-----------|
+| Alpenglow minimal | 1.4MB | 12MB | ~30MB | ~1.8s |
 | Alpenglow standard | 1.4MB | 12MB | ~30MB | ~2.0s |
-| Alpine Linux virt | 8.7MB | 12MB | 60-80MB | ~3s |
+| Alpine Linux virt | 8.7MB | 12MB | 60-80MB * | ~3s |
 
-Alpenglow RAM measured: 480MB total, ~450MB available (30MB used across 3 runs).  
-Alpine estimate: 60-80MB based on virt install published specs.  
-Boot time measured: kernel decompress → services → login prompt. Alpenglow uses zstd-19 initramfs, dinit parallel startup.
+\* Alpine estimate: doesn't print memory info to serial console.  
+Alpenglow RAM: 480MB total, ~450MB available across 3 runs (kernel 22MB + dinit/getty 4MB + slab 2MB + toybox 1MB).  
+Boot time: kernel decompress → services → login prompt. zstd-19 initramfs, dinit parallel startup.
 
 ### Storage
 
