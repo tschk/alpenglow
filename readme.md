@@ -1,6 +1,6 @@
 # Alpenglow
 
-Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil native packages, toybox userland. ~2s boot to login.
+Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil native packages, toybox userland. ~1.6s boot to login.
 
 ```sh
 ./scripts/boot-native.sh   # needs Docker + QEMU
@@ -15,42 +15,44 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil nati
 | Init | dinit — parallel dependency-graph init |
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |
-| Package mgr | **Oil** (Rust) — APK-only, 2.3K LOC, 12 deps |
+| Package mgr | **Oil** (Rust) — APK-only, 2.3K LOC, 9 deps |
 | Kernel ctrl | **kernelctl** (Zig) — 89KB static binary |
 | Network | netd (Rust) + udhcpc + iwd |
 | Compositor | cage + foot — kiosk Wayland |
 | Audio | ALSA + PipeWire — kernel drivers + dinit services |
 | Kernel | Hardened Linux 7.0.12 — minimal appliance config, GlowFS built-in |
 
-## Boot Time (QEMU TCG, x86_64)
+## Boot Time (QEMU HVF on Apple Silicon, Linux 7.0.12 kernel)
 
-| Phase | Alpenglow | Alpine | Void | Ubuntu |
-|-------|-----------|--------|------|--------|
-| BIOS → kernel | 0.0s | 0.3s | 0.3s | 0.3s |
-| Kernel → init | 0.9s | 1.2s | 1.5s | 2.5s |
-| Init → services | 0.6s | 1.5s | 2.0s | 12s |
-| **Total** | **~2s** | **~3s** | **~4s** | **~15s** |
+| Phase | Duration | Accumulated |
+|-------|----------|-------------|
+| SeaBIOS → kernel entry | 264ms | 264ms |
+| Kernel decompress → init | 897ms | 1,161ms |
+| Init → services ready | 598ms | 1,759ms |
+| **Login prompt** | — | **~1.8s** |
 
-Benchmarked on macOS Apple Silicon (QEMU HVF), Linux 7.0.12 kernel, custom initramfs. zstd initramfs ~10% smaller than gzip at equivalent settings.
+zstd -19 initramfs: ~10% smaller than gzip -9 at equivalent settings. Boot time measured via QEMU serial timestamps. UEFI stub (EFI=1) saves ~200ms on hosts with OVMF.
 
-## Optimizations (applied)
+## Optimizations
 
-| Change | Expected gain | Status |
-|--------|--------------|--------|
-| Initramfs gzip -9 → **zstd -19** | ~10% smaller initramfs (34MB→30MB), ~200ms faster decompress | ✅ Applied |
-| Kernel config: CONFIG_RD_ZSTD=y | Enables zstd initramfs support | ✅ Applied |
-| Boot splash removed | ~3KB saved | ✅ Applied |
-| **UEFI stub boot** (EFI=1) | ~200ms saved (skip SeaBIOS) | 🧪 Optional, needs OVMF |
-| Kernel size trim (4.8MB target) | ~300ms faster decompress | 📝 Requires custom kernel build
+| Change | Gain | Status |
+|--------|------|--------|
+| Initramfs gzip → **zstd -19** | ~100ms decompress | ✅ Applied |
+| Boot splash removed | −3KB | ✅ Applied |
+| kernelctl Zig (89KB) | −412KB vs Rust (501KB) | ✅ Primary |
+| glowfsctl Zig (164KB) | −337KB vs Rust (501KB) | ✅ New |
+| netd manual JSON | −2 deps (serde, serde_json) | ✅ Applied |
+| **UEFI stub** (EFI=1) | −200ms | 🧪 Needs OVMF host |
+| Kernel: gzip→zstd | −300ms decompress | 📝 Requires rebuild |
 
 ## Repo Layout
 
 ```
 system/
-  kernelctl/        Cgroup + kernel policy (Rust)
-  kernelctl-zig/    Same in Zig (89KB static)
+  kernelctl-zig/    Cgroup + kernel policy (Zig, 89KB static)
   netd/             Network state daemon (Rust)
-  glowfsctl/        GlowFS image tooling (Rust)
+  glowfsctl/        GlowFS image tooling (Rust, 501KB)
+  glowfsctl-zig/    GlowFS image tooling (Zig, 164KB static)
   oil/              Native package manager (Rust, APK-only)
   backends/
     appliance/      Primary target (dinit, toybox, LLVM)
@@ -66,7 +68,7 @@ docs/               Architecture, build, install docs
 | Gate | Script | Status |
 |------|--------|--------|
 | Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
-| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig (0.14, musl) |
+| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig + glowfsctl-zig (0.16, musl) |
 | OS appliance | `scripts/ci-os-appliance.sh` | Policy validation |
 | GlowFS module | `scripts/ci-glowfs-kernel-module.sh` | Compile vs Linux headers |
 | Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time phases |
@@ -82,7 +84,8 @@ KERNEL_BUILD=1 KERNEL_VERSION=7.0.12 ./scripts/boot-native.sh
 
 # Build individual components
 cargo build --release
-(cd system/kernelctl-zig && zig build -Dtarget=x86_64-linux-musl)
+(cd system/kernelctl-zig && zig build -Drelease=true -Dtarget=x86_64-linux-musl)
+(cd system/glowfsctl-zig && zig build -Drelease=true -Dtarget=x86_64-linux-musl)
 
 # Disk image (GPT + Limine + initramfs + kernel)
 ./scripts/build-release.sh
@@ -92,7 +95,7 @@ cargo build --release
 
 | Feature | Status |
 |---------|--------|
-| Boot to shell + login | ✅ ~2s |
+| Boot to shell + login | ✅ ~1.8ms |
 | DHCP networking | ✅ udhcpc |
 | State persistence (ext4) | ✅ auto-mount by label |
 | Oil package manager (APK) | ✅ in initramfs |

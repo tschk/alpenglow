@@ -10,7 +10,3 @@ path = "src/lib.rs"
 [[bin]]
 name = "alpenglow-netd"
 path = "src/main.rs"
-
-[dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }

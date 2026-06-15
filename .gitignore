@@ -53,6 +53,9 @@ bundle/terminal/ghostty-vt.wasm
 # zig build cache (ghostty submodule)
 third_party/ghostty/.zig-cache/
 system/kernelctl-zig/.zig-cache/
+system/kernelctl-zig/zig-out/
+system/glowfsctl-zig/.zig-cache/
+system/glowfsctl-zig/zig-out/
 third_party/ghostty/zig-out/
 
 # Kernel build artifacts

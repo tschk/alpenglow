@@ -18,20 +18,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "alpenglow-kernelctl"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "alpenglow-netd"
 version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "anstream"

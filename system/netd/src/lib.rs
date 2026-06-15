@@ -3,15 +3,13 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NetworkSnapshot {
     pub generated_unix_ms: u64,
     pub interfaces: Vec<NetworkInterface>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NetworkInterface {
     pub name: String,
     pub index: Option<u32>,
@@ -26,8 +24,7 @@ pub struct NetworkInterface {
     pub flags_hex: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InterfaceKind {
     Loopback,
     Ethernet,
@@ -36,8 +33,7 @@ pub enum InterfaceKind {
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
 pub enum OperState {
     Up,
     Down,
@@ -73,6 +69,89 @@ pub fn read_snapshot(sys_class_net: impl AsRef<Path>) -> io::Result<NetworkSnaps
     })
 }
 
+pub fn render_json(snapshot: &NetworkSnapshot) -> String {
+    let mut buf = String::with_capacity(1024);
+    buf.push_str("{\n  \"generated_unix_ms\": ");
+    buf.push_str(&snapshot.generated_unix_ms.to_string());
+    buf.push_str(",\n  \"interfaces\": [\n");
+    for (i, iface) in snapshot.interfaces.iter().enumerate() {
+        if i > 0 { buf.push_str(",\n"); }
+        buf.push_str("    {\n      \"name\": \"");
+        buf.push_str(&json_escape(&iface.name));
+        buf.push_str("\",\n      \"index\": ");
+        json_opt(&mut buf, iface.index);
+        buf.push_str(",\n      \"kind\": \"");
+        buf.push_str(kind_name(&iface.kind));
+        buf.push_str("\",\n      \"mac-address\": ");
+        json_opt_str(&mut buf, iface.mac_address.as_deref());
+        buf.push_str(",\n      \"operstate\": \"");
+        buf.push_str(state_name(&iface.operstate));
+        buf.push_str("\",\n      \"mtu\": ");
+        json_opt(&mut buf, iface.mtu);
+        buf.push_str(",\n      \"carrier\": ");
+        json_opt_bool(&mut buf, iface.carrier);
+        buf.push_str(",\n      \"speed-mbps\": ");
+        json_opt(&mut buf, iface.speed_mbps);
+        buf.push_str(",\n      \"rx-bytes\": ");
+        json_opt(&mut buf, iface.rx_bytes);
+        buf.push_str(",\n      \"tx-bytes\": ");
+        json_opt(&mut buf, iface.tx_bytes);
+        buf.push_str(",\n      \"flags-hex\": ");
+        json_opt_str(&mut buf, iface.flags_hex.as_deref());
+        buf.push_str("\n    }");
+    }
+    buf.push_str("\n  ]\n}\n");
+    buf
+}
+
+fn json_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+}
+
+fn json_opt(buf: &mut String, v: Option<impl std::fmt::Display>) {
+    match v {
+        Some(x) => buf.push_str(&x.to_string()),
+        None => buf.push_str("null"),
+    }
+}
+
+fn json_opt_str(buf: &mut String, v: Option<&str>) {
+    match v {
+        Some(s) => { buf.push('"'); buf.push_str(&json_escape(s)); buf.push('"'); }
+        None => buf.push_str("null"),
+    }
+}
+
+fn json_opt_bool(buf: &mut String, v: Option<bool>) {
+    match v {
+        Some(true) => buf.push_str("true"),
+        Some(false) => buf.push_str("false"),
+        None => buf.push_str("null"),
+    }
+}
+
+fn kind_name(kind: &InterfaceKind) -> &'static str {
+    match kind {
+        InterfaceKind::Loopback => "loopback",
+        InterfaceKind::Ethernet => "ethernet",
+        InterfaceKind::Wireless => "wireless",
+        InterfaceKind::Other(_) => "other",
+        InterfaceKind::Unknown => "unknown",
+    }
+}
+
+fn state_name(state: &OperState) -> &'static str {
+    match state {
+        OperState::Up => "up",
+        OperState::Down => "down",
+        OperState::Dormant => "dormant",
+        OperState::LowerLayerDown => "lower-layer-down",
+        OperState::NotPresent => "not-present",
+        OperState::Testing => "testing",
+        OperState::Unknown => "unknown",
+    }
+}
+
 pub fn render_runtime_env(snapshot: &NetworkSnapshot) -> String {
     let default = snapshot
         .interfaces
@@ -105,8 +184,7 @@ pub fn write_snapshot(
     state_json: impl AsRef<Path>,
     runtime_env: impl AsRef<Path>,
 ) -> io::Result<()> {
-    let json = serde_json::to_string_pretty(snapshot)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let json = render_json(snapshot);
     write_file(state_json.as_ref(), json.as_bytes())?;
     write_file(runtime_env.as_ref(), render_runtime_env(snapshot).as_bytes())
 }
@@ -270,6 +348,35 @@ mod tests {
             render_runtime_env(&snapshot),
             "ALPENGLOW_NETD_INTERFACES=2\nALPENGLOW_NETD_UP_INTERFACES=2\nALPENGLOW_NETD_DEFAULT_INTERFACE=eth0\nALPENGLOW_NETD_GENERATED_UNIX_MS=123\n"
         );
+    }
+
+    #[test]
+    fn renders_json_with_kebab_case() {
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![
+                NetworkInterface {
+                    name: "eth0".to_owned(),
+                    index: Some(2),
+                    kind: InterfaceKind::Ethernet,
+                    mac_address: Some("02:00:00:00:00:01".to_owned()),
+                    operstate: OperState::Up,
+                    mtu: Some(1500),
+                    carrier: Some(true),
+                    speed_mbps: Some(1000),
+                    rx_bytes: Some(42),
+                    tx_bytes: Some(84),
+                    flags_hex: Some("0x1003".to_owned()),
+                },
+            ],
+        };
+        let json = render_json(&snapshot);
+        assert!(json.contains("\"name\": \"eth0\""));
+        assert!(json.contains("\"kind\": \"ethernet\""));
+        assert!(json.contains("\"mac-address\": \"02:00:00:00:00:01\""));
+        assert!(json.contains("\"carrier\": true"));
+        assert!(json.contains("\"generated_unix_ms\": 123"));
+        assert!(json.contains("\"interfaces\": ["));
     }
 
     struct TestSysfs {

@@ -4,7 +4,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "system/kernelctl",
     "system/netd",
     "system/glowfsctl",
     "system/oil",
@@ -22,20 +21,5 @@ strip = true
 codegen-units = 1
 
 [workspace.dependencies]
-tokio = { version = "1.40", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-axum = { version = "0.8", features = ["ws", "json"] }
-uuid = { version = "1.11", features = ["v4", "serde"] }
-portable-pty = "0.8"
-futures-util = "0.3"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-anyhow = "1.0"
-tower-http = { version = "0.6", features = ["cors", "fs"] }
-async-trait = "0.1"
-log = "0.4"
-futures = "0.3"
-rusty_v8 = "0.32"
-tokio-test = "0.4"
-env_logger = "0.11"

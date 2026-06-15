@@ -19,7 +19,7 @@ Dockerfile.*    text eol=lf
 *.toml          text
 
 # Zig source
-*.zig           text
+*.zig           text diff=zig
 *.zon           text
 
 # C source
