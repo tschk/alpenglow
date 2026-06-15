@@ -1,0 +1,42 @@
+#!/bin/sh
+# Alpenglow — quick start
+set -eu
+
+ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+
+case "${1:-help}" in
+  build)
+    echo "==> Build native boot image..."
+    "${ROOT_DIR}/scripts/boot-native.sh"
+    ;;
+  boot)
+    IMG="${2:-${ROOT_DIR}/build/native/alpenglow.img}"
+    if [ ! -f "${IMG}" ]; then
+      echo "Image not found at ${IMG}. Run ./start.sh build first." >&2
+      exit 1
+    fi
+    echo "==> Boot ${IMG} in QEMU..."
+    exec qemu-system-x86_64 -m 512 -smp 2 -drive "file=${IMG},format=raw" -nographic
+    ;;
+  check)
+    exec cargo check
+    ;;
+  test)
+    exec cargo test
+    ;;
+  clean)
+    cargo clean
+    rm -rf "${ROOT_DIR}/build"
+    echo "cleaned"
+    ;;
+  *)
+    echo "Usage: $0 <command>"
+    echo ""
+    echo "  build       Build native boot image (initramfs + kernel)"
+    echo "  boot [img]  Boot image in QEMU (default: build/native/alpenglow.img)"
+    echo "  check       Cargo check all crates"
+    echo "  test        Run all cargo tests"
+    echo "  clean       Clean build artifacts"
+    exit 1
+    ;;
+esac

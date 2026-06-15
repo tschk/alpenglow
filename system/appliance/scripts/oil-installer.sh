@@ -2,8 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
-OIL_REPO_URL="${OIL_REPO_URL:-https://github.com/tschk/oil}"
-OIL_ROOT="${OIL_ROOT:-${ROOT_DIR}/third_party/oil}"
+OIL_ROOT="${ROOT_DIR}/system/oil"
 OIL_BIN="${OIL_BIN:-}"
 ACTION="${1:-bin}"
 
@@ -17,18 +16,18 @@ resolve_oil_bin() {
     return
   fi
 
-  if [ -x "${OIL_ROOT}/target/release/wax" ]; then
-    printf '%s\n' "${OIL_ROOT}/target/release/wax"
+  if [ -x "${OIL_ROOT}/target/release/oil" ]; then
+    printf '%s\n' "${OIL_ROOT}/target/release/oil"
     return
   fi
 
   if [ "${OIL_BUILD:-0}" = "1" ]; then
-    cargo build --release --manifest-path "${OIL_ROOT}/Cargo.toml"
-    printf '%s\n' "${OIL_ROOT}/target/release/wax"
+    cargo build --release --no-default-features --features system-apk --manifest-path "${OIL_ROOT}/Cargo.toml"
+    printf '%s\n' "${OIL_ROOT}/target/release/oil"
     return
   fi
 
-  echo "oil installer binary not found; set OIL_BIN, set OIL_ROOT, or clone ${OIL_REPO_URL} into ${OIL_ROOT} and set OIL_BUILD=1" >&2
+  echo "oil binary not found; set OIL_BIN or build with OIL_BUILD=1" >&2
   exit 1
 }
 
@@ -46,7 +45,7 @@ case "${ACTION}" in
     OIL="$(resolve_oil_bin)"
     mkdir -p "${ROOTFS}/var/lib/alpenglow/oil"
     HOME="${ROOTFS}/var/lib/alpenglow/oil" \
-      WAX_SYSTEM_PREFIX="${ROOTFS}" \
+      OIL_SYSTEM_PREFIX="${ROOTFS}" \
       "${OIL}" system add --no-script "$@"
     ;;
   system-sync)
@@ -58,7 +57,7 @@ case "${ACTION}" in
     OIL="$(resolve_oil_bin)"
     mkdir -p "${ROOTFS}/var/lib/alpenglow/oil"
     HOME="${ROOTFS}/var/lib/alpenglow/oil" \
-      WAX_SYSTEM_PREFIX="${ROOTFS}" \
+      OIL_SYSTEM_PREFIX="${ROOTFS}" \
       "${OIL}" system sync
     ;;
   *)
