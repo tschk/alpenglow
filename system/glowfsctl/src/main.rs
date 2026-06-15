@@ -66,54 +66,7 @@ fn run() -> glowfsctl::Result<()> {
                 .ok_or_else(|| glowfsctl::GlowfsError::Invalid("missing value".into()))?;
             glowfsctl::overwrite_file(image, &path, value.as_bytes())?;
         }
-        Some("plan-v2") => {
-            let image = args
-                .next()
-                .ok_or_else(|| glowfsctl::GlowfsError::Invalid("missing image path".into()))?;
-            let target_size = args
-                .next()
-                .ok_or_else(|| glowfsctl::GlowfsError::Invalid("missing target size".into()))?
-                .parse::<u64>()
-                .map_err(|_| glowfsctl::GlowfsError::Invalid("bad target size".into()))?;
-            let image = glowfsctl::inspect_image(image)?;
-            let layout = glowfsctl::v2::plan_v2_layout(&image.header, &image.entries, target_size)?;
-            println!(
-                "glowfs-v2 block_size={} bitmap={}+{} extents={}+{} journal={}+{} data_start={} free_blocks={}",
-                layout.block_size,
-                layout.bitmap_offset,
-                layout.bitmap_len,
-                layout.extent_table_offset,
-                layout.extent_table_len,
-                layout.journal_offset,
-                layout.journal_len,
-                layout.data_start,
-                layout.free_blocks
-            );
-        }
-        Some("upgrade-v2") => {
-            let image = args
-                .next()
-                .ok_or_else(|| glowfsctl::GlowfsError::Invalid("missing image path".into()))?;
-            let target_size = args
-                .next()
-                .ok_or_else(|| glowfsctl::GlowfsError::Invalid("missing target size".into()))?
-                .parse::<u64>()
-                .map_err(|_| glowfsctl::GlowfsError::Invalid("bad target size".into()))?;
-            let layout = glowfsctl::v2::upgrade_image_to_v2(image, target_size)?;
-            println!(
-                "glowfs-v2 upgraded block_size={} superblock={} bitmap={}+{} extents={}+{} journal={}+{} data_start={} free_blocks={}",
-                layout.block_size,
-                layout.superblock_offset,
-                layout.bitmap_offset,
-                layout.bitmap_len,
-                layout.extent_table_offset,
-                layout.extent_table_len,
-                layout.journal_offset,
-                layout.journal_len,
-                layout.data_start,
-                layout.free_blocks
-            );
-        }
+
         Some(command) => {
             return Err(glowfsctl::GlowfsError::Invalid(format!(
                 "unknown command: {command}"
@@ -121,7 +74,7 @@ fn run() -> glowfsctl::Result<()> {
         }
         None => {
             return Err(glowfsctl::GlowfsError::Invalid(
-                "usage: glowfsctl mkfs [--mutable] <source-dir> <image> | glowfsctl inspect <image> | glowfsctl read <image> <path> | glowfsctl write <image> <path> <value> | glowfsctl plan-v2 <image> <target-size> | glowfsctl upgrade-v2 <image> <target-size>".into(),
+                "usage: glowfsctl mkfs [--mutable] <source-dir> <image> | glowfsctl inspect <image> | glowfsctl read <image> <path> | glowfsctl write <image> <path> <value>".into(),
             ));
         }
     }
