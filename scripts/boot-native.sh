@@ -13,6 +13,7 @@ TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
 KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
 ARCH="${KERNEL_ARCH:-x86_64}"
+BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 ACCEL="${ACCEL:-tcg}"
 EFI="${EFI:-0}"
@@ -21,10 +22,11 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1;
 mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
 
 echo "=== Alpenglow native boot ==="
-echo "  init:   dinit v${DINIT_VERSION}"
-echo "  shell:  toybox v${TOYBOX_VERSION}"
-echo "  kernel: $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom build"; else echo "pre-built"; fi)"
-echo "  arch:   ${ARCH}"
+echo "  init:    dinit v${DINIT_VERSION}"
+echo "  shell:   toybox v${TOYBOX_VERSION}"
+echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom build"; else echo "pre-built"; fi)"
+echo "  arch:    ${ARCH}"
+echo "  profile: ${BUILD_PROFILE}"
 echo ""
 
 build_toybox() {
@@ -39,6 +41,7 @@ build_toybox() {
     sed -i "s/# CONFIG_STATIC is not set/CONFIG_STATIC=y/" .config
     sed -i "s/# CONFIG_SH is not set/CONFIG_SH=y/" .config
     sed -i "s/# CONFIG_GETTY is not set/CONFIG_GETTY=y/" .config
+    sed -i "s/CONFIG_VI=y/# CONFIG_VI is not set/" .config 2>/dev/null || true
     make -j$(nproc) LDFLAGS="-static" >/dev/null 2>&1
     cp toybox /out/toybox
   ' 2>&1
@@ -161,6 +164,65 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   if [ -f "${OUT_DIR}/greetd/usr/bin/greetd" ]; then
     echo "  greetd: ${OUT_DIR}/greetd/usr/bin/greetd"
   fi
+
+  # dropbear — SSH server (static musl)
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+    apk add --no-cache gcc musl-dev make curl tar xz linux-headers >/dev/null 2>&1
+    DROPBEAR_VERSION="2024.85"
+    cd /tmp
+    curl -fsSL "https://matt.ucc.asn.au/dropbear/releases/dropbear-${DROPBEAR_VERSION}.tar.xz" -o dropbear.tar.xz 2>/dev/null || \
+      curl -fsSL "https://github.com/mkj/dropbear/archive/refs/tags/DROPBEAR_${DROPBEAR_VERSION}.tar.gz" -o dropbear.tar.gz 2>/dev/null
+    if [ -f dropbear.tar.xz ]; then
+      tar -xf dropbear.tar.xz
+      cd "dropbear-${DROPBEAR_VERSION}"
+    elif [ -f dropbear.tar.gz ]; then
+      tar -xf dropbear.tar.gz
+      cd "dropbear-DROPBEAR_${DROPBEAR_VERSION}"
+    else
+      echo "dropbear download failed" >&2
+      exit 1
+    fi
+    ./configure --prefix=/usr --disable-zlib --enable-static \
+      CC="gcc" CFLAGS="-static -Os -s" >/dev/null 2>&1
+    make -j$(nproc) PROGRAMS="dropbear dropbearkey dropbearconvert" >/dev/null 2>&1
+    make install DESTDIR=/out/dropbear >/dev/null 2>&1
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/dropbear/usr/bin/dropbear" ]; then
+    echo "  dropbear: ${OUT_DIR}/dropbear/usr/bin/dropbear"
+  fi
+
+  # chrony — NTP daemon (static musl)
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+    apk add --no-cache gcc musl-dev make curl tar xz >/dev/null 2>&1
+    CHRONY_VERSION="4.5"
+    cd /tmp
+    curl -fsSL "https://chrony-project.org/releases/chrony-${CHRONY_VERSION}.tar.gz" -o chrony.tar.gz 2>/dev/null || exit 0
+    tar -xf chrony.tar.gz
+    cd "chrony-${CHRONY_VERSION}"
+    ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+      --disable-ntp-signd --disable-sechash \
+      CC="gcc" CFLAGS="-static -Os -s" >/dev/null 2>&1
+    make -j$(nproc) >/dev/null 2>&1
+    make install DESTDIR=/out/chrony >/dev/null 2>&1
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/chrony/usr/sbin/chronyd" ]; then
+    echo "  chronyd: ${OUT_DIR}/chrony/usr/sbin/chronyd"
+  fi
+
+  # dnsmasq — local DNS caching resolver (static musl)
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+    apk add --no-cache gcc musl-dev make curl tar xz linux-headers >/dev/null 2>&1
+    DNSMASQ_VERSION="2.90"
+    cd /tmp
+    curl -fsSL "https://thekelleys.org.uk/dnsmasq/dnsmasq-${DNSMASQ_VERSION}.tar.xz" -o dnsmasq.tar.xz 2>/dev/null || exit 0
+    tar -xf dnsmasq.tar.xz
+    cd "dnsmasq-${DNSMASQ_VERSION}"
+    make -j$(nproc) CC="gcc" CFLAGS="-static -Os -s" PREFIX=/usr >/dev/null 2>&1
+    make install DESTDIR=/out/dnsmasq PREFIX=/usr >/dev/null 2>&1
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/dnsmasq/usr/sbin/dnsmasq" ]; then
+    echo "  dnsmasq: ${OUT_DIR}/dnsmasq/usr/sbin/dnsmasq"
+  fi
 fi
 
 # Compose rootfs
@@ -173,8 +235,8 @@ cp "${OUT_DIR}/toybox" "${ROOTFS_DIR}/bin/toybox"
 for applet in sh ls cat cp mv rm mkdir rmdir ln mount umount ps kill sleep echo test \
   basename dirname chmod chown touch clear printf yes false true head tail sort wc cut \
   tr od strings uniq diff sed grep find xargs dd df du stat id whoami hostname \
-  dmesg modprobe insmod switch_root getty login vi more less tar gzip gunzip zcat bzcat \
-  date cal reboot halt poweroff; do
+  dmesg modprobe insmod switch_root getty login more less tar gzip gunzip zcat bzcat \
+  date cal reboot halt poweroff passwd syslogd crond logger; do
   ln -sf /bin/toybox "${ROOTFS_DIR}/bin/${applet}" 2>/dev/null || true
 done
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/init"
@@ -183,36 +245,104 @@ ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/modprobe"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/poweroff"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/reboot"
 
+# Vro editor (replaces toybox vi)
+VRO_SRC="${ROOT_DIR}/system/backends/appliance/vro/vro"
+if [ -f "${VRO_SRC}" ]; then
+  cp "${VRO_SRC}" "${ROOTFS_DIR}/usr/local/bin/vro"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/vro"
+  ln -sf /usr/local/bin/vro "${ROOTFS_DIR}/usr/local/bin/vi" 2>/dev/null || true
+fi
+
 # Dinit
 cp "${OUT_DIR}/dinit" "${ROOTFS_DIR}/sbin/dinit"
 if [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
   cp "${OUT_DIR}/dinit-install/sbin/dinitctl" "${ROOTFS_DIR}/sbin/"
 fi
 
-# Dinit service files
+# Dinit service files — copy all, enable per profile
 mkdir -p "${ROOTFS_DIR}/etc/dinit.d/boot.d"
 for svc in "${BACKEND_DIR}/dinit/"*; do
   name=$(basename "${svc}")
   cp "${svc}" "${ROOTFS_DIR}/etc/dinit.d/${name}"
-  ln -sf "/etc/dinit.d/${name}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${name}" 2>/dev/null || true
 done
 
-# Getty login on serial console (with /etc/passwd support)
+# Define enabled services per profile
+case "${BUILD_PROFILE}" in
+  minimal)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq"
+    ;;
+  standard)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power iwd pipewire wireplumber greetd velox foot"
+    ;;
+esac
+
+# Getty login on serial console
 cat > "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0" << 'SHELL'
 type = process
 command = /bin/toybox getty -L 115200 ttyS0 vt100
 restart = yes
 depends-on = mount-filesystems
 SHELL
-ln -sf /etc/dinit.d/shell-ttyS0 "${ROOTFS_DIR}/etc/dinit.d/boot.d/shell-ttyS0"
 
-# Mount filesystems (runs before other services)
+# Mount filesystems
 cat > "${ROOTFS_DIR}/etc/dinit.d/mount-filesystems" << 'MOUNT'
 type = scripted
 command = /bin/toybox sh -c "/bin/toybox mount -t proc proc /proc; /bin/toybox mount -t sysfs sysfs /sys; /bin/toybox mount -t devtmpfs devtmpfs /dev; /bin/toybox mount -t tmpfs tmpfs /run"
 restart = no
 MOUNT
-ln -sf /etc/dinit.d/mount-filesystems "${ROOTFS_DIR}/etc/dinit.d/boot.d/mount-filesystems"
+
+# Network — DHCP client
+cat > "${ROOTFS_DIR}/etc/dinit.d/networking" << 'NET'
+type = scripted
+command = /bin/toybox udhcpc -i eth0 -s /bin/toybox -q
+restart = yes
+depends-on = mount-filesystems
+NET
+
+# Syslogd — system logging
+cat > "${ROOTFS_DIR}/etc/dinit.d/syslogd" << 'SYSLOG'
+type = process
+command = /bin/toybox syslogd -n
+restart = always
+depends-on = mount-filesystems
+SYSLOG
+
+# Crond — scheduled tasks
+cat > "${ROOTFS_DIR}/etc/dinit.d/crond" << 'CROND'
+type = process
+command = /bin/toybox crond -n
+restart = yes
+depends-on = syslogd
+CROND
+
+# Dropbear — SSH server
+cat > "${ROOTFS_DIR}/etc/dinit.d/dropbear" << 'DROP'
+type = process
+command = /usr/bin/dropbear -F -R
+restart = yes
+depends-on = networking
+DROP
+
+# Chronyd — NTP daemon
+cat > "${ROOTFS_DIR}/etc/dinit.d/chronyd" << 'CHRON'
+type = process
+command = /usr/sbin/chronyd -d -s
+restart = yes
+depends-on = networking
+CHRON
+
+# Dnsmasq — local DNS caching resolver
+cat > "${ROOTFS_DIR}/etc/dinit.d/dnsmasq" << 'DNSQ'
+type = process
+command = /usr/sbin/dnsmasq -k
+restart = yes
+depends-on = networking
+DNSQ
+
+# Enable boot services for this profile
+for svc in ${BOOT_SERVICES}; do
+  ln -sf "/etc/dinit.d/${svc}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${svc}" 2>/dev/null || true
+done
 
 # Oil (native package manager)
 OIL_BIN="${ROOT_DIR}/build/native/oil"
@@ -233,15 +363,6 @@ elif [ -d "${OIL_SRC}" ]; then
     echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
   fi
 fi
-
-# Network — DHCP client (toybox udhcpc)
-cat > "${ROOTFS_DIR}/etc/dinit.d/networking" << 'NET'
-type = scripted
-command = /bin/toybox udhcpc -i eth0 -s /bin/toybox -q
-restart = yes
-depends-on = mount-filesystems
-NET
-ln -sf /etc/dinit.d/networking "${ROOTFS_DIR}/etc/dinit.d/boot.d/networking"
 
 # Default route via DHCP
 mkdir -p "${ROOTFS_DIR}/usr/share/udhcpc"
@@ -311,6 +432,17 @@ if [ -d "${OUT_DIR}/greetd" ]; then
   mkdir -p "${ROOTFS_DIR}/etc/greetd"
   cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
 fi
+if [ -d "${OUT_DIR}/dropbear" ]; then
+  cp -R "${OUT_DIR}/dropbear/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/dropbear"
+fi
+if [ -d "${OUT_DIR}/chrony" ]; then
+  cp -R "${OUT_DIR}/chrony/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/chrony"
+fi
+if [ -d "${OUT_DIR}/dnsmasq" ]; then
+  cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
+fi
 
 # Init — dinit as primary PID 1, manages all services
 cat > "${ROOTFS_DIR}/init" << 'INIT'
@@ -352,6 +484,58 @@ mknod -m 444 "${ROOTFS_DIR}/dev/random" c 1 8 2>/dev/null || true
 mknod -m 444 "${ROOTFS_DIR}/dev/urandom" c 1 9 2>/dev/null || true
 
 echo "alpenglow" > "${ROOTFS_DIR}/etc/hostname"
+
+# /etc/hosts
+cat > "${ROOTFS_DIR}/etc/hosts" << 'HOSTS'
+127.0.0.1 localhost
+127.0.1.1 alpenglow
+::1       localhost ip6-localhost ip6-loopback
+ff02::1   ip6-allnodes
+ff02::2   ip6-allrouters
+HOSTS
+
+# Chrony config
+mkdir -p "${ROOTFS_DIR}/etc/chrony"
+cat > "${ROOTFS_DIR}/etc/chrony/chrony.conf" << 'CHRONY'
+pool pool.ntp.org iburst
+makestep 1.0 3
+rtcsync
+cmdport 0
+bindcmdaddress 127.0.0.1
+bindcmdaddress ::1
+CHRONY
+
+# Dnsmasq config
+cat > "${ROOTFS_DIR}/etc/dnsmasq.conf" << 'DNSMASQ'
+port=53
+domain-needed
+bogus-priv
+no-resolv
+server=1.1.1.1
+server=8.8.8.8
+cache-size=1000
+DNSMASQ
+
+# User cron
+mkdir -p "${ROOTFS_DIR}/etc/crontabs"
+cat > "${ROOTFS_DIR}/etc/crontabs/root" << 'CRONT'
+0 0 * * * /usr/local/bin/logrotate.sh >/dev/null 2>&1
+CRONT
+chmod 600 "${ROOTFS_DIR}/etc/crontabs/root"
+
+# Naive logrotate
+cat > "${ROOTFS_DIR}/usr/local/bin/logrotate.sh" << 'LOGX'
+#!/bin/toybox sh
+for log in /var/log/alpenglow/*.log; do
+  [ -f "${log}" ] || continue
+  mv "${log}" "${log}.old" 2>/dev/null || true
+done
+LOGX
+chmod 755 "${ROOTFS_DIR}/usr/local/bin/logrotate.sh"
+
+# Root SSH authorized_keys placeholder
+mkdir -p "${ROOTFS_DIR}/root/.ssh"
+chmod 700 "${ROOTFS_DIR}/root/.ssh"
 
 # Build initramfs
 echo "→ Building initramfs..."

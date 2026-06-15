@@ -49,6 +49,16 @@
     "suspend": "loginctl suspend",
     "hibernate": "loginctl hibernate"
   },
+  "profiles": {
+    "minimal": {
+      "description": "Headless appliance — boot, shell, networking, SSH, NTP, logging, cron, DNS",
+      "packages": "packages-minimal.txt"
+    },
+    "standard": {
+      "description": "Full desktop appliance — display, audio, WiFi, browser, dev tools",
+      "packages": "packages-runtime.txt"
+    }
+  },
   "paths": {
     "packages": "packages-runtime.txt",
     "packages_dev": "packages-dev.txt",
@@ -100,7 +110,9 @@
       "alpenglow-pressure",
       "alpenglow-netd",
       "alpenglow-power",
-      "iwd"
+      "iwd",
+      "syslogd",
+      "crond"
     ],
     "session": [
       "pipewire",
@@ -108,6 +120,11 @@
       "greetd",
       "velox",
       "foot"
+    ],
+    "network_services": [
+      "dropbear",
+      "chronyd",
+      "dnsmasq"
     ],
     "user_init": [
       "alpenglow-session"
@@ -128,6 +145,12 @@
     "iwd for modern WiFi management.",
     "elogind for session tracking and power management.",
     "greetd as login greeter for graphical login.",
-    "Rust kernel support enabled."
+    "Rust kernel support enabled.",
+    "SSH: dropbear for remote administration.",
+    "NTP: chrony for clock synchronization.",
+    "Logging: toybox syslogd.",
+    "Cron: toybox crond.",
+    "DNS cache: dnsmasq local caching resolver.",
+    "Editor: vro (V-based micro-inspired editor), replaces toybox vi."
   ]
 }

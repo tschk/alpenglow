@@ -1,0 +1,5 @@
+# Local DNS caching resolver
+type = process
+command = /usr/sbin/dnsmasq -k
+restart = yes
+depends-on = networking

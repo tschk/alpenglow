@@ -93,3 +93,12 @@ libcurl-bearssl
 # Platform-independent tooling
 git
 rsync
+
+# SSH server
+dropbear
+
+# NTP (time synchronization)
+chrony
+
+# Local DNS caching
+dnsmasq

@@ -12,15 +12,24 @@ GENERATION_DIR="${OUT_DIR}/generations"
 GLOWFS_IMAGE="${OUT_DIR}/alpenglow-root.glowfs"
 
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
+ALPENGLOW_PROFILE="${ALPENGLOW_PROFILE:-standard}"
 OIL_CMD="${OIL_CMD:-wax}"
+
+case "${ALPENGLOW_PROFILE}" in
+  minimal) PKG_LIST="${BACKEND_DIR}/packages-minimal.txt" ;;
+  standard) PKG_LIST="${BACKEND_DIR}/packages-runtime.txt" ;;
+  *) echo "Unknown profile: ${ALPENGLOW_PROFILE}. Use minimal or standard." >&2; exit 1 ;;
+esac
 
 mkdir -p "${OUT_DIR}" "${GENERATION_DIR}"
 rm -rf "${ROOTFS_DIR}"
 mkdir -p "${ROOTFS_DIR}"
 
 echo "Alpenglow native appliance build"
-echo "  arch: ${ALPENGLOW_ARCH}"
-echo "  oil:  ${OIL_CMD}"
+echo "  arch:   ${ALPENGLOW_ARCH}"
+echo "  oil:    ${OIL_CMD}"
+echo "  profile: ${ALPENGLOW_PROFILE}"
+echo "  pkg:    ${PKG_LIST}"
 echo ""
 
 # ── Phase 1: Bootstrap rootfs via Oil ──────────────────────────────
@@ -42,7 +51,7 @@ while IFS= read -r pkg || [ -n "${pkg}" ]; do
   esac
   echo "  + ${pkg}"
   "${OIL_CMD}" system add "${pkg}" --prefix "${ROOTFS_DIR}"
-done < "${BACKEND_DIR}/packages-runtime.txt"
+done < "${PKG_LIST}"
 
 # ── Phase 2: Configure rootfs ───────────────────────────────────────
 "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
@@ -69,7 +78,7 @@ cat > "${GENERATION_FILE}" <<EOF
   "arch": "${ALPENGLOW_ARCH}",
   "backend": "alpenglow-native",
   "image": "${GLOWFS_IMAGE}",
-  "packages": $(wc -l < "${BACKEND_DIR}/packages-runtime.txt")
+  "packages": $(wc -l < "${PKG_LIST}")
 }
 EOF
 ln -sf "${GLOWFS_IMAGE}" "${OUT_DIR}/current.glowfs"

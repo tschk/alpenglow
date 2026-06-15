@@ -1,0 +1,41 @@
+# Alpenglow native appliance — minimal runtime world
+# Just enough to boot, connect, and manage. No display/audio/WiFi/dev.
+
+# Init and supervision
+dinit
+
+# libc
+musl
+
+# Core userland (toybox — minimal BSD-licensed coreutils)
+toybox
+
+# Kernel and firmware
+linux-hardened
+linux-firmware
+
+# Boot/initramfs
+alpenglow-initramfs
+
+# Network
+sdhcp
+dropbear
+ca-certificates
+
+# System utilities
+kmod
+eudev
+tzdata
+oksh
+
+# Filesystem tools
+erofs-utils
+
+# Security
+bearssl
+
+# NTP (time synchronization)
+chrony
+
+# Local DNS caching
+dnsmasq
