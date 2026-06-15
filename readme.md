@@ -31,7 +31,7 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil nati
 | Init → services ready | 598ms | 1,759ms |
 | **Login prompt** | — | **~1.8s** |
 
-zstd -19 initramfs: ~10% smaller than gzip -9 at equivalent settings. Boot time measured via QEMU serial timestamps. UEFI stub (EFI=1) saves ~200ms on hosts with OVMF.
+zstd -19 initramfs: ~10% smaller than gzip -9 at equivalent settings. Boot time measured via QEMU serial timestamps. UEFI direct boot (EFI=1) saves ~200ms on hosts with OVMF.
 
 ## Optimizations
 
@@ -42,7 +42,7 @@ zstd -19 initramfs: ~10% smaller than gzip -9 at equivalent settings. Boot time 
 | kernelctl Zig (89KB) | −412KB vs Rust (501KB) | ✅ Primary |
 | glowfsctl Zig (164KB) | −337KB vs Rust (501KB) | ✅ New |
 | netd manual JSON | −2 deps (serde, serde_json) | ✅ Applied |
-| **UEFI stub** (EFI=1) | −200ms | 🧪 Needs OVMF host |
+| **UEFI direct boot** (EFI=1) | −200ms | 🧪 Needs OVMF host |
 | Kernel: gzip→zstd | −300ms decompress | 📝 Requires rebuild |
 
 ## Repo Layout
