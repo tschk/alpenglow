@@ -134,10 +134,10 @@ for svc in "${BACKEND_DIR}/dinit/"*; do
   ln -sf "/etc/dinit.d/${name}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${name}" 2>/dev/null || true
 done
 
-# Shell on serial console via /dev/console redirect
+# Shell on serial console via /dev/console
 cat > "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0" << 'SHELL'
 type = process
-command = /bin/toybox sh -c "exec /bin/toybox sh -i <//dev/console >//dev/console 2>//dev/console"
+command = /bin/toybox sh -c "exec /bin/toybox sh -i 0<//dev/console 1>//dev/console 2>//dev/console"
 restart = yes
 depends-on = mount-filesystems
 SHELL
@@ -157,7 +157,7 @@ if [ -f "${GLOWFS_KO}" ]; then
   cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
-# Init — start dinit + shell on console
+# Init — dinit as primary PID 1, manages shell service
 cat > "${ROOTFS_DIR}/init" << 'INIT'
 #!/bin/toybox sh
 /bin/toybox mount -t proc proc /proc
@@ -167,9 +167,7 @@ cat > "${ROOTFS_DIR}/init" << 'INIT'
 echo ""
 echo "Alpenglow native boot"
 echo ""
-/sbin/dinit -d /etc/dinit.d &
-sleep 1
-exec /bin/toybox sh -i 0<//dev/console 1>//dev/console 2>//dev/console
+exec /sbin/dinit -d /etc/dinit.d -s -t shell-ttyS0
 INIT
 chmod 755 "${ROOTFS_DIR}/init"
 
