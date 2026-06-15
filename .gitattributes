@@ -1,15 +1,15 @@
 # Alpenglow .gitattributes
 
-# Shell scripts — LF line endings, diff as shell
-# ponytail: vendored so linguist doesn't count build infra as project lang
-*.sh            text eol=lf diff=shell linguist-vendored
-*.bash          text eol=lf diff=shell linguist-vendored
-*.zsh           text eol=lf diff=shell linguist-vendored
+# Shell scripts — LF line endings
+# ponytail: linguist-detectable=false so CI scaffolding doesn't dominate lang stats
+*.sh            text eol=lf linguist-detectable=false
+*.bash          text eol=lf linguist-detectable=false
+*.zsh           text eol=lf linguist-detectable=false
 
 # Makefiles — LF line endings
-Makefile        text eol=lf
-Makefile.*      text eol=lf
-*.mk            text eol=lf
+Makefile        text eol=lf linguist-detectable=false
+Makefile.*      text eol=lf linguist-detectable=false
+*.mk            text eol=lf linguist-detectable=false
 
 # Dockerfiles
 Dockerfile      text eol=lf
@@ -45,10 +45,22 @@ Dockerfile.*    text eol=lf
 *.conf          text
 
 # Dinit service files (text with key=value)
-dinit/*         text eol=lf
+dinit/*         text eol=lf linguist-detectable=false
 
-# Run scripts in runit
-run             text eol=lf
+# Run scripts in runit — shell, not project lang
+run             text eol=lf linguist-detectable=false
+
+# Init scripts — shell, not project lang
+init            text eol=lf linguist-detectable=false
+
+# OpenRC service scripts — shell, not project lang
+system/alpine/openrc/*  text eol=lf linguist-detectable=false
+
+# Root overlay scripts — shell, not project lang
+system/alpine/rootfs-overlay/usr/local/bin/* text eol=lf linguist-detectable=false
+
+# Appliance scripts
+system/backends/appliance/scripts/* text eol=lf linguist-detectable=false
 
 # Git files
 .gitattributes  text eol=lf
