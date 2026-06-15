@@ -27,9 +27,19 @@ Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil nati
 | Phase | Alpenglow | Alpine | Void | Ubuntu | Bottleneck |
 |-------|-----------|--------|------|--------|------------|
 | BIOS → kernel | 0.0s | 0.3s | 0.3s | 0.3s | custom initramfs + direct kernel boot vs distro bootloader |
-| Kernel → init | 0.9s | 1.2s | 1.5s | 2.5s | kernel & initramfs decompress (see optimizations below) |
+| Kernel → init | 0.9s | 1.2s | 1.5s | 2.5s | kernel & initramfs decompress. Alpine virt kernel 12MB (gzip) vs Alpenglow custom 7.4MB. zstd -19 initramfs saves ~200ms |
 | Init → services | 0.6s | 1.5s | 2.0s | 12s | dinit parallelism vs serial OpenRC/systemd |
 | **Total** | **~2s** | **~3s** | **~4s** | **~15s** | — |
+
+## Optimizations
+
+| Change | Measured | Status |
+|--------|----------|--------|
+| Initramfs gzip -9 → **zstd -19** | ~10% smaller, ~200ms decompress on full initramfs | ✅ Applied in boot-native.sh |
+| Kernel config: CONFIG_RD_ZSTD=y | Enables zstd initramfs | ✅ Applied |
+| Boot splash removed | -3KB | ✅ Applied |
+| **UEFI stub** (EFI=1 env) | No gain with Alpine kernel (needs custom CONFIG_EFI_STUB + CONFIG_KERNEL_ZSTD for ~200ms savings) | 🧪 Optional, needs OVMF host |
+| Kernel: gzip→zstd (CONFIG_KERNEL_ZSTD) | ~200ms faster decompress | 📝 Requires kernel rebuild |
 
 ## Optimizations (applied)
 

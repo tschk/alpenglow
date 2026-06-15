@@ -371,28 +371,24 @@ echo ""
 QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
 
 if [ "${EFI}" = "1" ]; then
-  # UEFI boot via kernel EFI stub (needs OVMF)
-  require_cmd qemu-system-x86_64
+  # UEFI boot via kernel EFI stub (saves ~200ms vs SeaBIOS)
   OVMF_CODE=""
-  for p in /usr/share/ovmf/OVMF.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd; do
+  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd; do
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
   done
-  if [ -z "${OVMF_CODE}" ]; then
-    echo "  → OVMF not found, falling back to SeaBIOS"
-    EFI=0
-  else
-    # Kernel with EFI stub boots directly; initramfs is embedded via kernel
-    qemu-system-x86_64 ${QEMU_OPTS} \
+  if [ -n "${OVMF_CODE}" ]; then
+    exec qemu-system-x86_64 \
+      ${QEMU_OPTS} \
       -bios "${OVMF_CODE}" \
       -kernel "${KERNEL_IMAGE}" \
       -initrd "${INITRAMFS}" \
       -append "console=ttyS0 init=/init"
-    exit $?
   fi
+  echo "  → OVMF not found, falling back to SeaBIOS"
 fi
 
 # Legacy BIOS boot
-qemu-system-x86_64 \
+exec qemu-system-x86_64 \
   ${QEMU_OPTS} \
   -kernel "${KERNEL_IMAGE}" \
   -initrd "${INITRAMFS}" \
