@@ -24,6 +24,20 @@ Early-stage. Not production-ready.
 | Networking | udhcpc + iwd |
 | Arch | Generic — x86_64, aarch64, etc. |
 
+### What's not in the base (by design)
+
+Diskless appliance — rootfs lives in RAM, no disk to encrypt.
+VPN, Tailscale, WireGuard, custom firewall rules — users install
+via Oil or drop a binary in /usr/local. No need to bloat the base
+image with something only some deployments use. Same logic applies
+to any userspace service: base provides SSH + networking + package
+manager, user adds what they need.
+
+Build profile system (minimal vs standard) keeps the line clear:
+minimal = what you need to boot, connect SSH, and have time+logs.
+standard = adds display/audio/WiFi/dev for a desktop experience.
+Everything else is `oil install <pkg>` away.
+
 ## Architecture
 
 ```
