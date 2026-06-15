@@ -92,15 +92,22 @@ cargo test -p glowfsctl
 | DHCP networking | ✅ | udhcpc via dinit service |
 | State persistence | ✅ | LABEL=alpenglow-state auto-mount |
 | Oil package manager | ✅ | Built into initramfs from ../oil |
-| Static toybox (SH + GETTY) | ✅ | Custom Docker build |
-| Static dinit v0.19.2 | ✅ | System manager PID 1 |
+| Static toybox (SH + GETTY) | ✅ | Custom Docker build, 905KB static |
+| Static dinit v0.19.2 | ✅ | System manager PID 1, 15MB static |
 | Custom kernel build | 🟡 | `KERNEL_BUILD=1` — untested |
 | GlowFS kernel module | 🟡 | Builds with custom kernel |
 | Bootable disk image | ✅ | `./scripts/build-release.sh` |
 | Limine bootloader | ✅ | Installed to GPT disk |
 | HW-specific cleanup | ✅ | boards/drivers removed |
 | Servo/RV8 removed | ✅ | Moved to soliloquy |
-| CI / testing | 📝 | Stale CI scripts need updating |
+| CI / testing | ✅ | ci-os-appliance + ci-rust-core pass |
+| **Service binaries** | ✅ | seatd (dynamic), pipewire (16K), wireplumber (20K), cage (61K), foot (553K), iwd (2.0M static), greetd (2.1M static) |
+| **Boot to login** | ✅ | ~2s (SeaBIOS → Linux 7.0.12 → dinit → getty) |
+| **Audio** | ✅ | ALSA in kernel + pipewire/wireplumber dinit services |
+| **Wayland display** | ✅ | cage (wlroots kiosk compositor) + foot terminal |
+| **Power management** | ✅ | alpenglow-power.sh via /sys (no elogind) |
+| **All-in-one initramfs** | ✅ | 34MB gzip'd — kernel + all services + shared libs |
+| **Crepuscularity DE plan** | 📝 | docs/crepuscularity-de.md — 4-phase GPUI desktop shell plan |
 
 ## Inauguration Integration (Future)
 
@@ -110,3 +117,23 @@ cargo test -p glowfsctl
 - Enable deeper compiler-level OS integration
 
 The current compiler pipeline uses LLVM/Clang as the production backend, with Inauguration as an experimental alternative.
+
+## Service Architecture Changes (Turn 2)
+
+| Component | Replaced by | Rationale |
+|-----------|-------------|-----------|
+| elogind | seatd + alpenglow-power.sh (direct /sys) | elogind is over-engineered for single-user appliance; seatd + /sys/power/state covers everything |
+| pipewire/wireplumber | System-provided dynamic binaries with shared libs in initramfs | Static builds impractical (meson, glib, dbus dep chains); dynamic adds 24MB of .so files |
+| velox (Rust wlroots compositor) | cage (wlroots kiosk compositor) | 61K instead of building from source; cage is simpler, supports fullscreen kiosk mode |
+| foot | cage launches foot inside Wayland session | Already available in Fedora repos; 553K dynamic binary, pulls in fontconfig/pixman/wayland-client |
+
+## Crepuscularity Desktop Environment Roadmap (Phase 3-4)
+
+See `docs/crepuscularity-de.md` for full plan.
+
+1. **Phase A**: GPUI desktop MVP running inside cage (status bar + terminal button)
+2. **Phase B**: Replace cage with smithay-based compositor in same binary
+3. **Phase C**: Settings panel, lock screen, notifications
+4. **Phase D**: Single static binary (compositor + shell + terminal widget), direct DRM/KMS, no separate Wayland compositor
+
+Key insight: One Rust binary replaces the entire velox/foot/waybar/fuzzel/mako/elogind stack, reducing ~25MB of daemons to ~12MB one-binary.
