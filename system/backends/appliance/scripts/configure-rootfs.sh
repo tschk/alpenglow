@@ -130,9 +130,18 @@ cp "${BACKEND_DIR}/packages-runtime.txt" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
 rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
-# Enable dinit boot services
+# Enable dinit boot services (profile-aware)
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
-for service in glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber greetd velox foot dropbear chronyd syslogd crond dnsmasq; do
+ALPENGLOW_PROFILE="${ALPENGLOW_PROFILE:-standard}"
+case "${ALPENGLOW_PROFILE}" in
+  minimal)
+    BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
+    ;;
+  standard)
+    BOOT_SERVICES="glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd pipewire wireplumber greetd velox foot dropbear chronyd syslogd crond dnsmasq"
+    ;;
+esac
+for service in ${BOOT_SERVICES}; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
 

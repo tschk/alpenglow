@@ -96,7 +96,6 @@ rsync
 
 # SSH server
 dropbear
-dropbear-ssh
 
 # NTP (time synchronization)
 chrony

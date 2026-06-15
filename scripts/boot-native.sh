@@ -318,7 +318,7 @@ CROND
 # Dropbear — SSH server
 cat > "${ROOTFS_DIR}/etc/dinit.d/dropbear" << 'DROP'
 type = process
-command = /usr/local/sbin/dropbear -F -R
+command = /usr/bin/dropbear -F -R
 restart = yes
 depends-on = networking
 DROP
@@ -326,7 +326,7 @@ DROP
 # Chronyd — NTP daemon
 cat > "${ROOTFS_DIR}/etc/dinit.d/chronyd" << 'CHRON'
 type = process
-command = /usr/local/sbin/chronyd -d -s
+command = /usr/sbin/chronyd -d -s
 restart = yes
 depends-on = networking
 CHRON
