@@ -52,6 +52,19 @@ Tested on Apple Silicon Mac via QEMU (TCG emulation), Linux 7.0.12 kernel.
 | Kernel size | 7.4MB full / 4.8MB min | 6.5MB | 7.0MB | 12MB |
 | RAM usage (idle) | ~64MB | ~80MB | ~100MB | ~500MB |
 
+### Language Tooling
+
+Rust system tools were optimized for appliance use (musl, initramfs, RAM boot).
+
+| Tool | Before | After | Δ |
+|------|--------|-------|---|
+| **kernelctl** | 40 deps (tokio, JoinSet) | 2 deps (serde, serde_json) | 95% fewer crates |
+| **netd** | tokio + axum | sync HTTP | removed major deps |
+| **Oil** | 28K LOC, tokio, reqwest, tracing, indicatif, rayon | 2.3K LOC, ureq sync | 92% fewer lines |
+| **Release profile** | default | `opt-level=z`, `lto=fat`, `strip` | 50-70% smaller bins |
+
+Zig experiment (kernelctl reimplementation): 89KB static Zig vs 501KB static Rust — 5.6x smaller binary. Comparable startup (~425µs both). For initramfs-adjacent tools where every KB counts, Zig via equilibrium bridge beats Rust. Current Rust tools stay; Zig targets new <100KB init helpers.
+
 Boot time comparison notes:
 - **Alpenglow** uses dinit (parallel dependency-graph) with minimal services → ~2s
 - **Alpine** uses OpenRC (serial) with modular services → ~3s
@@ -131,9 +144,9 @@ system/
   alpine/            Alpine reference backend (QEMU flow)
   glowfs/            GlowFS kernel module
   glowfsctl/         GlowFS image tooling
-  kernelctl/         cgroup + kernel policy helpers
+  kernelctl/         cgroup + kernel policy helpers (Rust)
+  kernelctl-zig/     Zig reimplementation experiment (89KB static)
   netd/              Network state daemon
-sold/                Local Axum system bridge
 initramfs/           Custom boot initramfs
 docs/                Architecture, build, install docs
 plans/               Build-out roadmap (4 phases)

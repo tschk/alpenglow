@@ -35,7 +35,6 @@
 
 ### High priority
 - [ ] Verify release binaries boot in initramfs (`cargo build --release` → `scripts/boot-native.sh`)
-- [ ] Check initramfs size impact (Rust static binaries <-> gzip'd initramfs size)
 
 ### Medium
 - [ ] Oil: replace remaining `serde_json` with `miniserde` or manual JSON (saves ~15 crates)
@@ -46,6 +45,5 @@
 
 ### Low priority / Future
 - [ ] Remove `tempfile` dependency from all crates (use `/tmp/` + `std::fs::rename` directly)
-- [ ] Investigate `sold` removal (referenced in AGENTS.md, dir doesn't exist)
-- [ ] Investigate Zig for new initramfs helpers (see zig-experiment branch)
-- [ ] netd: remove tracing entirely (already sync, just need log rotation story)
+- [ ] netd: investigate tracing removal (already sync, need log rotation story)
+- [ ] Zig via equilibrium: new <100KB initramfs helpers (kernel-adjacent, syscall wrappers)
