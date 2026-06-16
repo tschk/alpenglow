@@ -3,17 +3,16 @@
 # Expects build/native/{vmlinuz,initramfs.cpio.zst}.
 set -eu
 
-ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)"
+ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 
 # Accept QEMU_DIR as optional arg for compatibility with Alpine runner interface
 QEMU_DIR="${1:-${ROOT_DIR}/build/native}"
 KERNEL="${QEMU_DIR}/vmlinuz"
 INITRAMFS="${QEMU_DIR}/initramfs.cpio.zst"
-# Also try .gz
 [ -f "${INITRAMFS}" ] || INITRAMFS="${QEMU_DIR}/initramfs.cpio.gz"
-MEMORY_MB="${MEMORY_MB:-2048}"
-ACCEL="${ACCEL:-tcg}"
-HEADLESS="${HEADLESS:-0}"
+MEMORY_MB="${QEMU_MEMORY_MB:-${MEMORY_MB:-2048}}"
+ACCEL="${QEMU_ACCEL:-${ACCEL:-tcg}}"
+HEADLESS="${QEMU_HEADLESS:-${HEADLESS:-0}}"
 KERNEL_CMDLINE="${KERNEL_CMDLINE:-quiet console=ttyS0 init=/init}"
 
 command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86_64"; exit 1; }

@@ -509,6 +509,7 @@ cat > "${ROOTFS_DIR}/init" << 'INIT'
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 /bin/toybox mount -t tmpfs tmpfs /run
+/bin/toybox mkdir -p /dev/shm 2>/dev/null
 /bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
 mkdir -p /run/user/0
 chmod 700 /run/user/0
