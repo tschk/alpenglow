@@ -27,7 +27,7 @@ docker run --rm \
     cd "/tmp/linux-${KERNEL_VERSION}"
 
     # Use our config
-    cp /alpenglow/system/alpine/kernel/alpenglow-internet-appliance.config .config
+    cp /alpenglow/system/backends/appliance/kernel/alpenglow-internet-appliance.config .config
     make olddefconfig >/dev/null 2>&1
     make modules_prepare >/dev/null 2>&1
 

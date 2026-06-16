@@ -41,21 +41,18 @@ rm -f "${QEMU_LOG}"
 set +e
 if command -v timeout >/dev/null 2>&1; then
   QEMU_HEADLESS=1 QEMU_ACCEL="${QEMU_ACCEL:-tcg}" ALPENGLOW_RAM_ROOT=disk \
-    ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE}" ALPENGLOW_ROOTFS_IMAGE_REQUIRED=1 \
-    ALPENGLOW_ROOT_FALLBACK_FSTYPE=glowfs timeout "${QEMU_TIMEOUT}" \
-    system/alpine/scripts/run-qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1
+    ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE}" timeout "${QEMU_TIMEOUT}" \
+    system/backends/appliance/scripts/qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1
   status=$?
 elif command -v gtimeout >/dev/null 2>&1; then
   QEMU_HEADLESS=1 QEMU_ACCEL="${QEMU_ACCEL:-tcg}" ALPENGLOW_RAM_ROOT=disk \
-    ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE}" ALPENGLOW_ROOTFS_IMAGE_REQUIRED=1 \
-    ALPENGLOW_ROOT_FALLBACK_FSTYPE=glowfs gtimeout "${QEMU_TIMEOUT}" \
-    system/alpine/scripts/run-qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1
+    ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE}" gtimeout "${QEMU_TIMEOUT}" \
+    system/backends/appliance/scripts/qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1
   status=$?
 else
   QEMU_HEADLESS=1 QEMU_ACCEL="${QEMU_ACCEL:-tcg}" ALPENGLOW_RAM_ROOT=disk \
-    ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE}" ALPENGLOW_ROOTFS_IMAGE_REQUIRED=1 \
-    ALPENGLOW_ROOT_FALLBACK_FSTYPE=glowfs \
-    system/alpine/scripts/run-qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1 &
+    ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE}" \
+    system/backends/appliance/scripts/qemu.sh "${QEMU_DIR}" >"${QEMU_LOG}" 2>&1 &
   qemu_pid=$!
   (
     sleep "${QEMU_TIMEOUT}"

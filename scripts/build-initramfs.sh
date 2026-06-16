@@ -12,7 +12,7 @@ KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 UKI_IMAGE="${OUT_DIR}/alpenglow.efi"
 
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
-KERNEL_SRC="${KERNEL_SRC:-${ROOT_DIR}/system/alpine/kernel}"
+KERNEL_SRC="${KERNEL_SRC:-${ROOT_DIR}/system/backends/appliance/kernel}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-${KERNEL_SRC}/alpenglow-internet-appliance.config}"
 GLOWFS_IMAGE="${GLOWFS_IMAGE:-${OUT_DIR}/alpenglow-root.glowfs}"
 
