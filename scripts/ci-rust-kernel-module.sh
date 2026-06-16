@@ -25,15 +25,15 @@ cd "linux-${KERNEL_VER}"
 make ARCH=x86_64 defconfig 2>/dev/null
 make ARCH=x86_64 kvm_guest.config 2>/dev/null
 make ARCH=x86_64 rust.config 2>/dev/null
-scripts_config \
-  --disable MODULE_SIG_FORMAT MODULE_SIG MODULE_SIG_ALL \
-  --disable MODULE_COMPRESS MODULE_COMPRESS_GZIP MODULE_COMPRESS_ALL
+scripts/config \
+  --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
+  --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL
 
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
-RUSTC=rustc BINDGEN=bindgen make -j$(nproc) ARCH=x86_64 modules_prepare 2>&1 | tail -3
+RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 modules_prepare 2>&1 | tail -3
 
 # Build Alpenglow core module
 cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
-make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" 2>&1 | tail -5
+RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" 2>&1 | tail -5
 test -f /tmp/alpenglow-kmod/alpenglow_core.ko && echo "Rust kernel module OK"
 echo "ci-rust-kernel-module: ok"
