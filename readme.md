@@ -3,8 +3,10 @@
 Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil packages. ~2s boot to login (KVM).
 
 ```sh
-scripts/boot-native.sh   # needs Docker + QEMU
-system/backends/appliance/scripts/qemu.sh   # boot existing build
+scripts/boot-native.sh                      # x86_64: build + boot (needs Docker)
+scripts/build-aarch64.sh                    # aarch64: cross-compile + fetch kernel
+scripts/qemu-boot-aarch64.sh                # aarch64: boot with HVF (fast on macOS)
+system/backends/appliance/scripts/qemu.sh   # boot existing x86_64 build
 ```
 
 ## Quick Start
@@ -62,15 +64,15 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Performance
 
-Measured on x86_64 with KVM. On macOS arm64 with TCG emulation expect ~60s.
+### Boot to login
 
-### Boot to login (QEMU KVM, 512MB RAM, 2 vCPUs)
+| Platform | Config | Initramfs | Kernel | Boot time |
+|----------|--------|-----------|--------|-----------|
+| x86_64 KVM | Alpenglow | 1.7MB | 11MB | ~1.3s |
+| aarch64 HVF (macOS) | Alpenglow Zig init | 1.4K | 9.2MB | **~0.6s** |
+| x86_64 TCG (macOS) | Alpenglow | 1.7MB | 11MB | ~60s |
 
-| Config | Initramfs | Kernel | Boot time |
-|--------|-----------|--------|-----------|
-| Alpenglow minimal | 1.4MB | 12MB | ~1.3s |
-| Alpenglow standard | 2.0MB | 12MB | ~1.3s |
-| Alpine Linux virt | 8.7MB | 12MB | ~1.3s |
+On macOS, boot aarch64 (HVF native) for near-instant boot. x86_64 TCG is software emulation and 50x slower.
 
 ### Binary size (static musl, x86_64)
 
