@@ -118,12 +118,12 @@ cargo test -p alpenglow-netd
 
 ## SSH Hosts (for cross-compilation testing)
 
-| Host | IP | OS | Tools |
-|------|-----|----|-------|
-| ultramarine | 192.168.4.134 | Ultramarine (Fedora-like, glibc) | zig 0.14, cargo 1.93 |
-| chimera | 192.168.4.168 | Chimera Linux (musl) | cargo/rustc, no zig |
+| Host | IP | User | OS | Tools |
+|------|-----|------|----|-------|
+| ultramarine | 192.168.4.134 | undivisible | Ultramarine (Fedora-like, glibc), WSL2, x86_64 | zig 0.14, cargo 1.93, docker, qemu+kvm |
+| chimera | 192.168.4.168 | undivisible | Chimera Linux (musl), kernel 7.0.12, x86_64 | cargo/rustc, /dev/kvm, no zig/docker/qemu |
 
-Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds.
+Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds and QEMU boot testing (has docker, qemu+kvm).
 
 ## Language Tooling Notes
 
