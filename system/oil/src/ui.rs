@@ -1,23 +1,3 @@
-use crate::error::Result;
-use std::path::Path;
-
-pub fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-
-        if ty.is_dir() {
-            copy_dir_all(&src_path, &dst_path)?;
-        } else {
-            let _ = std::fs::copy(&src_path, &dst_path);
-        }
-    }
-    Ok(())
-}
-
 pub mod dirs {
     use crate::error::{OilError, Result};
     use std::path::PathBuf;

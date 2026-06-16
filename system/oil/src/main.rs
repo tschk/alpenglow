@@ -1,9 +1,7 @@
 mod error;
 mod install;
 mod signal;
-mod sudo;
 mod system;
-mod timing;
 mod ui;
 mod version;
 
@@ -198,7 +196,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                     println!("Would install {} {}", pkg.name, pkg.version);
                 } else {
                     let dest = std::path::PathBuf::from("/usr/local");
-                    system::installer::SystemInstaller::install_package(pkg, &dest)?;
+                    system::installer::install_package(pkg, &dest)?;
                     state.mark_installed(&pkg.name, Some(pkg.version.clone()), true);
                     println!("Installed {} {}", pkg.name, pkg.version);
                 }
@@ -233,7 +231,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                     let index = registry.load()?;
                     if let Some(latest) = index.find(&name) {
                         let dest = std::path::PathBuf::from("/usr/local");
-                        system::installer::SystemInstaller::install_package(latest, &dest)?;
+                        system::installer::install_package(latest, &dest)?;
                         state.mark_installed(&name, Some(latest.version.clone()), true);
                         println!("Reinstalled {name} {}", latest.version);
                     }
@@ -260,7 +258,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                                 println!("Would upgrade {name}: {} → {}", &current.version, &latest.version);
                             } else {
                                 let dest = std::path::PathBuf::from("/usr/local");
-                                system::installer::SystemInstaller::install_package(latest, &dest)?;
+                                system::installer::install_package(latest, &dest)?;
                                 state.mark_installed(name, Some(latest.version.clone()), true);
                                 println!("Upgraded {name}: {} → {}", current.version, latest.version);
                             }
