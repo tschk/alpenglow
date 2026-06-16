@@ -127,7 +127,7 @@ rustup target add riscv64gc-unknown-linux-musl
 scripts/build-riscv64.sh
 
 # Boot test
-scripts/test-riscv64.sh
+scripts/qemu-boot-riscv64.sh
 ```
 
 ### Boards
