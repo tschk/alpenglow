@@ -68,15 +68,13 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 | OS | x86_64 (KVM) | aarch64 (HVF) | Initramfs | Kernel |
 |----|-------------|---------------|-----------|--------|
-| **Alpenglow** min | **0.6s** | **0.6s** | 1.4MB | 9MB |
-| **Alpenglow** std | **1.3s** | — | 1.7MB | 11MB |
-| Alpine Linux virt | 1.3s | 1.3s | 8.7MB | 6.7MB |
-| Void Linux | 2.5s | — | 12MB | 7MB |
-| Ubuntu Server | 15s | 15s | 40MB | 12MB |
+| **Alpenglow** min | **0.6s** | **0.6s** | 1.4KB / 1.4KB | 9MB / 9MB |
+| **Alpenglow** std | **1.3s** | — | 1.7MB / 2.0MB | 11MB / — |
+| Alpine Linux virt | 1.3s | 1.3s | 8.7MB / 8.4MB | 6.5MB / 9.2MB |
+| Void Linux | 2.5s | — | 12MB / — | 7MB / — |
+| Ubuntu Server | 15s | 15s | 40MB / 44MB | 12MB / 14MB |
 
-Alpenglow minimal (Zig init) boots in 0.6s on both arches. The standard build (dinit + getty) adds ~0.7s for service startup. Alpine matches boot speed but uses 5x the initramfs and needs separate services. Ubuntu is 15s due to systemd + large initramfs. All measured with native virt (KVM on x86_64, HVF on aarch64 macOS).
-
-The full appliance image (all services: dropbear, chronyd, dnsmasq, iwd, cage, pipewire) is 34MB compressed.
+*Format for arches: x86_64 / aarch64. Alpenglow minimal uses Zig init (4.8KB static binary) — the smallest initramfs of any Linux OS by 3 orders of magnitude. Alpine matches boot speed but has 6000x larger initramfs. Ubuntu is 15s due to systemd. All measured with native virt (KVM on x86_64, HVF on aarch64 macOS).*
 
 ### Binary size (static musl, x86_64)
 
