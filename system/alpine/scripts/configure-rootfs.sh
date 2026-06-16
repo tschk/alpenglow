@@ -119,13 +119,10 @@ chmod +x \
   "${ROOTFS}/etc/init.d/alpenglow-netd" \
   "${ROOTFS}/etc/init.d/alpenglow-pressure" \
   "${ROOTFS}/etc/init.d/alpenglow-zram" \
-  "${ROOTFS}/etc/init.d/alpenglow-session" \
-
   "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" \
   "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh" \
   "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" \
   "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good" \
-
   "${ROOTFS}/init"
 
 if [ -f "${ALPINE_DIR}/packages-v0.txt" ]; then

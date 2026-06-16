@@ -10,15 +10,7 @@ FORCE_ROOTFS_REBUILD="${FORCE_ROOTFS_REBUILD:-0}"
 
 rootfs_manifest_changed() {
   [ ! -f "${ROOTFS_TAR}" ] && return 1
-  for manifest in \
-    "${ALPINE_DIR}/packages-v0.txt" \
-    "${ALPINE_DIR}/docker/rootfs.Dockerfile" \
-    "${ALPINE_DIR}/filesystems/rootfs-layout.json" \
-    "${ALPINE_DIR}/filesystems/state-mounts.json" \
-    "${ALPINE_DIR}/rootfs-overlay/init" \
-    "${ALPINE_DIR}/scripts/configure-rootfs.sh" \
-    "${ALPINE_DIR}/scripts/alpenglow-session-start" \
-  do
+  for manifest in "${ALPINE_DIR}/packages-v0.txt" "${ALPINE_DIR}/docker/rootfs.Dockerfile" "${ALPINE_DIR}/filesystems/rootfs-layout.json" "${ALPINE_DIR}/filesystems/state-mounts.json" "${ALPINE_DIR}/rootfs-overlay/init" "${ALPINE_DIR}/scripts/configure-rootfs.sh" "${ALPINE_DIR}/scripts/alpenglow-session-start"; do
     [ "${manifest}" -nt "${ROOTFS_TAR}" ] && return 0
   done
   return 1
