@@ -106,7 +106,6 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
     make ARCH=x86_64 olddefconfig 2>/dev/null
     make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
@@ -145,7 +144,6 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
     make olddefconfig >/dev/null 2>&1
     cd "${ROOT_DIR}"
     # Build kernel (GlowFS module needs 6.12 API - built separately for 7.0)

@@ -7,7 +7,15 @@ scripts/boot-native.sh                      # x86_64: build + boot (needs Docker
 scripts/build-aarch64.sh                    # aarch64: cross-compile + fetch kernel
 scripts/qemu-boot-aarch64.sh                # aarch64: boot with HVF (fast on macOS)
 system/backends/appliance/scripts/qemu.sh   # boot existing x86_64 build
+scripts/build-aarch64.sh                     # aarch64: cross-compile + boot
+scripts/qemu-boot-aarch64.sh                 # boots in ~0.6s with HVF (macOS)
 ```
+
+Platform support:
+- x86_64 — main branch (primary target)
+- aarch64 — `arch/aarch64` branch, boots on QEMU virt and Apple Silicon (HVF)
+- riscv64 — `arch/riscv64` branch, boots on QEMU with OpenSBI
+- Rockchip RK3566 — `board/rk3566` branch, boots on PINE64 Quartz64
 
 ## Quick Start
 
