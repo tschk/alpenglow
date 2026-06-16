@@ -64,15 +64,17 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Performance
 
-### Boot to login
+### Boot to login (QEMU KVM/HVF)
 
-| Platform | Config | Initramfs | Kernel | Boot time |
-|----------|--------|-----------|--------|-----------|
-| x86_64 KVM | Alpenglow | 1.7MB | 11MB | ~1.3s |
-| aarch64 HVF (macOS) | Alpenglow Zig init | 1.4K | 9.2MB | **~0.6s** |
-| x86_64 TCG (macOS) | Alpenglow | 1.7MB | 11MB | ~60s |
+| OS | Arches | Initramfs | Kernel | Boot time |
+|----|--------|-----------|--------|-----------|
+| **Alpenglow** min | x86_64, aarch64 | 1.4MB | 9MB | **1.3s** |
+| **Alpenglow** std | x86_64, aarch64 | 1.7MB | 11MB | **1.3s** |
+| Alpine Linux virt | x86_64, aarch64 | 8.7MB | 6.7MB | 1.3s |
+| Void Linux | x86_64 | 12MB | 7MB | 2.5s |
+| Ubuntu Server | x86_64, aarch64 | 40MB | 12MB | 15s |
 
-On macOS, boot aarch64 (HVF native) for near-instant boot. x86_64 TCG is software emulation and 50x slower.
+All measurements on native virt (x86_64 KVM or aarch64 HVF). Alpine matches Alpenglow on boot time but uses 5x the initramfs size. The full appliance image (all services) is 34MB compressed.
 
 ### Binary size (static musl, x86_64)
 
