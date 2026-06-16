@@ -1,6 +1,6 @@
 # Alpenglow
 
-Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil packages. ~2s boot to login (KVM).
+Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil packages. **Boots to login in &lt;1s** on native virt (x86_64 KVM or aarch64 HVF).
 
 ```sh
 scripts/boot-native.sh                      # x86_64: build + boot (needs Docker)
@@ -68,7 +68,7 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 | OS | x86_64 (KVM) | aarch64 (HVF) | Initramfs | Kernel |
 |----|-------------|---------------|-----------|--------|
-| **Alpenglow** min | **0.6s** | **0.6s** | 1.4KB / 1.4KB | 9MB / 9MB |
+| **Alpenglow** min | **0.6s** | **0.6s** | 1.4K / 1.4K | 9MB / 9MB |
 | **Alpenglow** std | **1.3s** | — | 1.7MB / 2.0MB | 11MB / — |
 | Alpine Linux virt | 1.3s | 1.3s | 8.7MB / 8.4MB | 6.5MB / 9.2MB |
 | Void Linux | 2.5s | — | 12MB / — | 7MB / — |

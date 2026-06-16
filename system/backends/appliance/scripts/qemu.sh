@@ -35,7 +35,11 @@ fi
 QEMU_CMD="qemu-system-x86_64 -machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot ${DISPLAY}"
 
 if [ -n "${OVMF}" ]; then
-  exec ${QEMU_CMD} -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"
+  # OVMF + kernel EFI stub (check if kernel has stub via grep)
+  if grep -q 'CONFIG_EFI_STUB=y' "${KERNEL}" 2>/dev/null || strings "${KERNEL}" 2>/dev/null | grep -q 'stub'; then
+    exec ${QEMU_CMD} -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"
+  fi
 fi
 
+# SeaBIOS / direct kernel boot (no EFI stub)
 exec ${QEMU_CMD} -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"

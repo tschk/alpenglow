@@ -11,10 +11,10 @@ INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
-KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
-KERNEL_BUILD="${KERNEL_BUILD:-1}"  # 1=build kernel from config, 0=fetch Alpine pre-built
-KERNEL_7="${KERNEL_7:-0}"  # 1=Linux 7.0 defconfig+rust (alternative to KERNEL_BUILD)
-KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"  # config name: alpenglow-qemu-minimal or alpenglow-internet-appliance
+KERNEL_VERSION="${KERNEL_VERSION:-6.12}"
+KERNEL_BUILD="${KERNEL_BUILD:-0}"  # 1=build kernel from config, 0=fetch Alpine pre-built
+KERNEL_7="${KERNEL_7:-0}"  # 1=Linux 7.0 defconfig+rust (alternative, overrides KERNEL_BUILD)
+KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
@@ -102,13 +102,13 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
     # Enable GlowFS in config
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-    # LZ4 compression overrides (Clear Linux: faster decompress)
+    # LZ4 + EFI + virt config overrides
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
     make ARCH=x86_64 olddefconfig 2>/dev/null
     make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
-    make -j"$(nproc)" ARCH=x86_64 M=fs/glowfs modules 2>&1 | tail -3
-    cp fs/glowfs/glowfs.ko "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
     cd "${ROOT_DIR}"
 
     # Build alpenglow_core Rust module
@@ -140,8 +140,10 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     # Apply config overrides for the target system
     cd "${KERNEL_SRC}"
     make olddefconfig >/dev/null 2>&1
-    # LZ4 compression overrides (Clear Linux: faster decompress)
+    # LZ4 + EFI + virt config overrides
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
     make olddefconfig >/dev/null 2>&1
     cd "${ROOT_DIR}"
     # Build kernel (GlowFS module needs 6.12 API - built separately for 7.0)
