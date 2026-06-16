@@ -127,7 +127,7 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
   elif [ "${KERNEL_BUILD:-0}" = "1" ]; then
     echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
     KERNEL_SRC="${OUT_DIR}/linux"
-    KERNEL_CONFIG="${ROOT_DIR}/system/alpine/kernel/alpenglow-internet-appliance.config"
+    KERNEL_CONFIG="${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-internet-appliance.config"
     [ -d "${KERNEL_SRC}" ] || {
       KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
       curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz"
@@ -509,6 +509,7 @@ cat > "${ROOTFS_DIR}/init" << 'INIT'
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 /bin/toybox mount -t tmpfs tmpfs /run
+/bin/toybox mkdir -p /dev/shm 2>/dev/null
 /bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
 mkdir -p /run/user/0
 chmod 700 /run/user/0
