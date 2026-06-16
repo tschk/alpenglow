@@ -4,8 +4,8 @@ set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 KERNEL="${ROOT_DIR}/build/native/vmlinuz"
-INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
-[ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
+INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
 OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"

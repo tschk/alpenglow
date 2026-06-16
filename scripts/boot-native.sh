@@ -7,7 +7,7 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/native"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
@@ -598,7 +598,7 @@ chmod 700 "${ROOTFS_DIR}/root/.ssh"
 
 # Build initramfs
 echo "→ Building initramfs..."
-(cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -19 > "${INITRAMFS}")
+(cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
@@ -616,7 +616,7 @@ QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reb
 if [ "${EFI}" = "1" ]; then
   # UEFI boot via kernel EFI stub (saves ~200ms vs SeaBIOS)
   OVMF_CODE=""
-  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd; do
+  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /opt/homebrew/Cellar/qemu/11.0.1/share/qemu/edk2-i386-code.fd; do
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
   done
   if [ -n "${OVMF_CODE}" ]; then
