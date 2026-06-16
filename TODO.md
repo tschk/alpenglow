@@ -1,49 +1,42 @@
-# Alpenglow — Rust Optimization TODO
+# Alpenglow — TODO
 
-## ✅ Done (this branch)
+## ✅ Done
 
-### kernelctl — sync rewrite
-- [x] Removed tokio (full → nothing)
-- [x] Replaced JoinSet parallelism with sequential loops
-- [x] tokio::fs → std::fs, tokio::process → std::process
-- [x] Tests pass (6/6)
+### Ponytail audit (June 2026)
+- [x] Delete 5 dead modules (state.rs, resolver.rs, timing.rs, sudo.rs, distro.rs)
+- [x] netd: hand-rolled JSON → serde derives (352 LOC, -72)
+- [x] error.rs: 14 variants → 6
+- [x] signal.rs: 64 lines → 13
+- [x] installer.rs: zero-field struct → free function
+- [x] version.rs: 139 lines → 1 (dead code)
+- [x] ui.rs: remove dead copy_dir_all
+- [x] Remove 6 unused deps (shellexpand, urlencoding, regex, dunce, nix, libc)
+- [x] Net: -551 LOC, -4 deps
 
-### netd — type fix
-- [x] `generated_unix_ms: u128` → `u64` (correct for unix ms)
+### Kernel build + GlowFS
+- [x] Fix KERNEL_BUILD=1 path (configure-kernel was never called)
+- [x] GlowFS in-tree building in Linux 7.0 path
+- [x] GlowFS in-tree building in custom kernel path
+- [x] GlowFS Kconfig + CONFIG_GLOWFS=m enable
 
-### glowfsctl — buffer & hex fixes
-- [x] `write_zeroes_until` uses fixed 4KB buffer loop (no `vec![0; n]` for large gaps)
-- [x] `hex_digest` uses `write!` into pre-allocated String
+### Move kernel configs out of system/alpine/
+- [x] Move kernel configs to system/backends/appliance/kernel/
+- [x] Create appliance QEMU runner
+- [x] Update all CI script references
+- [x] CI qemu-appliance test passing
 
-### Oil — purpose-built APK manager
-- [x] Removed 26 source files (Homebrew, non-APK registries, etc.)
-- [x] tokio+reqwest → ureq (sync)
-- [x] tracing → eprintln
-- [x] indicatif/console/inquire → plain stdout
-- [x] rayon → sequential
-- [x] thiserror → manual Display impls
-- [x] Delete non-APK archive formats (zstd, xz, bzip2, rpm, deb, pacman, xbps, nar)
-- [x] Delete multi-registry support (apt, dnf, pacman, xbps, nix)
-- [x] Delete Homebrew clone (api, bottle, builder, cask, formula, tap, services, bundle, doctor, etc.)
-- [x] APK-only CLI: search, info, list, install, uninstall, upgrade, outdated, pin, etc.
-- [x] Tests pass (16/16)
-
-### Release profile
-- [x] `opt-level = "z"`, `lto = "fat"`, `strip = true`, `codegen-units = 1`
-
-## 📋 To Do
+## 📋 Remaining
 
 ### High priority
-- [ ] Verify release binaries boot in initramfs (`cargo build --release` → `scripts/boot-native.sh`)
+- [ ] Real hardware boot (USB/SD card on x86_64 hardware)
+- [ ] Full appliance QEMU boot with all services (display, audio, wifi)
+- [ ] Build custom Linux 7.0 kernel with GlowFS end-to-end
 
 ### Medium
-- [ ] Oil: replace remaining `serde_json` with `miniserde` or manual JSON (saves ~15 crates)
-- [ ] kernelctl: remove `serde_json` dependency, parse JSON with `miniserde` or manual
-- [ ] netd: remove `axum` dependency, use `std::net::TcpListener` + manual HTTP
-- [ ] netd: remove `serde_json`, inline JSON rendering
-- [ ] kernelctl: replace `std::process::Command::new("modprobe")` with direct syscall via `libc::syscall`
+- [ ] Oil: support additional musl APK repos (Chimera, postmarketOS)
+- [ ] Drop legacy Alpine reference backend once appliance reaches parity
+- [ ] Cross-build for aarch64 from x86_64
 
-### Low priority / Future
-- [ ] Remove `tempfile` dependency from all crates (use `/tmp/` + `std::fs::rename` directly)
-- [ ] netd: investigate tracing removal (already sync, need log rotation story)
-- [ ] Zig via equilibrium: new <100KB initramfs helpers (kernel-adjacent, syscall wrappers)
+### Low
+- [ ] Real hardware boot documentation
+- [ ] Automated release image builds (GitHub Actions)
