@@ -60,13 +60,23 @@ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-musl- defconfig
 ```
 
 ### Alpenglow Porting
-- [ ] Kernel: aarch64 defconfig + rockchip + rust
-- [ ] Initramfs: aarch64 static binaries (Zig cross-compiles)
-- [ ] Toybox: CROSS_COMPILE=aarch64-linux-musl-
+- [x] Kernel: aarch64 defconfig + rockchip + rust
+- [x] Initramfs: aarch64 static binaries (Zig cross-compiles)
+- [x] Zig components: init, kernelctl, glowfsctl for aarch64-linux-musl
+- [x] Toybox: CROSS_COMPILE=aarch64-linux-musl- (via musl-cross-make)
 - [ ] Dinit: CXX=aarch64-linux-musl-g++
-- [ ] Boot: U-Boot script or Limine aarch64
+- [x] Boot: U-Boot script or Limine aarch64
 - [ ] Devices: UART, SD/eMMC, Ethernet, USB
-- [ ] Testing: QEMU system emulation of virt+rockchip boards
+- [x] Testing: QEMU virt (verified boot to Zig init: 0.5s to reboot)
+
+### Quick Start (aarch64)
+```sh
+# Cross-compile Zig components + build initramfs + boot in QEMU
+scripts/build-aarch64.sh
+
+# Boot test
+scripts/qemu-boot-aarch64.sh
+```
 
 ## Target: riscv64
 
@@ -103,10 +113,50 @@ make ARCH=riscv CROSS_COMPILE=riscv64-linux-musl- defconfig
 rustup target add riscv64gc-unknown-linux-musl
 ```
 
+### Alpenglow Porting
+- [x] Kernel: riscv64 defconfig + SBI + virt
+- [x] Zig components: init, kernelctl, glowfsctl for riscv64-linux-musl
+- [ ] Toybox: CROSS_COMPILE=riscv64-linux-musl-
+- [ ] Dinit: CXX=riscv64-linux-musl-g++
+- [x] Boot: OpenSBI + U-Boot script for riscv64
+- [x] Testing: QEMU virt with OpenSBI (verified boot to Zig init)
+
+### Quick Start (riscv64)
+```sh
+# Cross-compile Zig components + build initramfs + boot in QEMU
+scripts/build-riscv64.sh
+
+# Boot test
+scripts/test-riscv64.sh
+```
+
 ### Boards
 - SiFive HiFive Unmatched (FU740)
 - StarFive VisionFive 2 (JH7110)
 - QEMU virt (for testing)
+
+## Rockchip RK3566 / PINE64 Quartz64
+
+### Alpenglow Porting
+- [x] Kernel: aarch64 defconfig with Rockchip RK3566 support
+- [x] Boot: U-Boot boot script (boot.cmd)
+- [x] U-Boot build: rk3566_quartz64_defconfig build script
+- [ ] Hardware: flash and boot on Quartz64 Model A (real hardware)
+
+### Build U-Boot
+```sh
+scripts/build-uboot-rk3566.sh
+```
+
+### Flash to SD
+```sh
+scripts/flash-rk3566.sh /dev/sdX
+```
+
+### Required DTBs
+- `rk3566-quartz64-a.dtb` (PINE64 Quartz64 Model A)
+- `rk3566-soquartz.dtb` (PINE64 SOQuartz)
+- `rk3566-roc-pc.dtb` (Firefly ROC-RK3566-PC)
 
 ## Chimera Linux Reference
 
