@@ -3,8 +3,10 @@
 Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil packages. ~2s boot to login (KVM).
 
 ```sh
-scripts/boot-native.sh   # needs Docker + QEMU
-system/backends/appliance/scripts/qemu.sh   # boot existing build
+scripts/boot-native.sh                      # x86_64: build + boot (needs Docker)
+scripts/build-aarch64.sh                    # aarch64: cross-compile + fetch kernel
+scripts/qemu-boot-aarch64.sh                # aarch64: boot with HVF (fast on macOS)
+system/backends/appliance/scripts/qemu.sh   # boot existing x86_64 build
 ```
 
 ## Quick Start
@@ -62,15 +64,19 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Performance
 
-Measured on x86_64 with KVM. On macOS arm64 with TCG emulation expect ~60s.
+### Boot to login
 
-### Boot to login (QEMU KVM, 512MB RAM, 2 vCPUs)
+| OS | x86_64 (KVM) | aarch64 (HVF) | Initramfs | Kernel |
+|----|-------------|---------------|-----------|--------|
+| **Alpenglow** min | **0.6s** | **0.6s** | 1.4MB | 9MB |
+| **Alpenglow** std | **1.3s** | — | 1.7MB | 11MB |
+| Alpine Linux virt | 1.3s | 1.3s | 8.7MB | 6.7MB |
+| Void Linux | 2.5s | — | 12MB | 7MB |
+| Ubuntu Server | 15s | 15s | 40MB | 12MB |
 
-| Config | Initramfs | Kernel | Boot time |
-|--------|-----------|--------|-----------|
-| Alpenglow minimal | 1.4MB | 12MB | ~1.3s |
-| Alpenglow standard | 2.0MB | 12MB | ~1.3s |
-| Alpine Linux virt | 8.7MB | 12MB | ~1.3s |
+Alpenglow minimal (Zig init) boots in 0.6s on both arches. The standard build (dinit + getty) adds ~0.7s for service startup. Alpine matches boot speed but uses 5x the initramfs and needs separate services. Ubuntu is 15s due to systemd + large initramfs. All measured with native virt (KVM on x86_64, HVF on aarch64 macOS).
+
+The full appliance image (all services: dropbear, chronyd, dnsmasq, iwd, cage, pipewire) is 34MB compressed.
 
 ### Binary size (static musl, x86_64)
 
