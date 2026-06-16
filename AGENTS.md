@@ -107,8 +107,8 @@ cargo test -p alpenglow-netd
 | Editor (vro) | ✅ | replaces toybox vi |
 | Bootable disk image | ✅ | GPT + Limine |
 | kernelctl Zig | ✅ | 89KB static, built in CI |
-| Custom kernel build | 🟡 | `KERNEL_BUILD=1` untested |
-| GlowFS kernel module | 🟡 | In-tree, module export issues |
+| Custom kernel build | ✅ | `KERNEL_BUILD=1` works, GlowFS in-tree |
+| GlowFS kernel module | ✅ | In-tree, weak C fallback for Rust |
 | Real hardware boot | ❌ | QEMU only for now |
 | Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` (native) / `ALPENGLOW_PROFILE=minimal|standard` (Oil) |
 | Interactive installer | 🟡 | Planned |
