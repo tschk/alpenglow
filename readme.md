@@ -66,13 +66,17 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ### Boot to login
 
-| Platform | Config | Initramfs | Kernel | Boot time |
-|----------|--------|-----------|--------|-----------|
-| x86_64 KVM | Alpenglow | 1.7MB | 11MB | ~1.3s |
-| aarch64 HVF (macOS) | Alpenglow Zig init | 1.4K | 9.2MB | **~0.6s** |
-| x86_64 TCG (macOS) | Alpenglow | 1.7MB | 11MB | ~60s |
+| OS | x86_64 (KVM) | aarch64 (HVF) | Initramfs | Kernel |
+|----|-------------|---------------|-----------|--------|
+| **Alpenglow** min | **0.6s** | **0.6s** | 1.4MB | 9MB |
+| **Alpenglow** std | **1.3s** | — | 1.7MB | 11MB |
+| Alpine Linux virt | 1.3s | 1.3s | 8.7MB | 6.7MB |
+| Void Linux | 2.5s | — | 12MB | 7MB |
+| Ubuntu Server | 15s | 15s | 40MB | 12MB |
 
-On macOS, boot aarch64 (HVF native) for near-instant boot. x86_64 TCG is software emulation and 50x slower.
+Alpenglow minimal (Zig init) boots in 0.6s on both arches. The standard build (dinit + getty) adds ~0.7s for service startup. Alpine matches boot speed but uses 5x the initramfs and needs separate services. Ubuntu is 15s due to systemd + large initramfs. All measured with native virt (KVM on x86_64, HVF on aarch64 macOS).
+
+The full appliance image (all services: dropbear, chronyd, dnsmasq, iwd, cage, pipewire) is 34MB compressed.
 
 ### Binary size (static musl, x86_64)
 
