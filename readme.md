@@ -76,8 +76,8 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 | OS | Boot | Initramfs | Kernel | Idle RAM |
 |----|------|-----------|--------|----------|
-| **Alpenglow** min | **0.6s** | **1.4K** | **6MB** | **~8MB** |
-| **Alpenglow** std | **1.3s** | 1.7MB | 11MB | ~12MB |
+| **Alpenglow** min | **0.6s** | **1.4K** | **5.4MB** | **~31MB** |
+| **Alpenglow** std | **1.3s** | 1.7MB | 11MB | ~31MB |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |

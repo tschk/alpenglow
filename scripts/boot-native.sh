@@ -11,7 +11,7 @@ INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
-KERNEL_VERSION="${KERNEL_VERSION:-6.12}"
+KERNEL_VERSION="${KERNEL_VERSION:-6.12.93}"
 KERNEL_BUILD="${KERNEL_BUILD:-0}"  # 1=build kernel from config, 0=fetch Alpine pre-built
 KERNEL_7="${KERNEL_7:-0}"  # 1=Linux 7.0 defconfig+rust (alternative, overrides KERNEL_BUILD)
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
@@ -102,10 +102,10 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
     # Enable GlowFS in config
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-    # LZ4 + EFI + virt config overrides
+    # Config overrides: LZ4 + virt drivers + gzip decompress
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
     make ARCH=x86_64 olddefconfig 2>/dev/null
     make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
@@ -121,33 +121,21 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       cp "${MOD_SRC}/alpenglow_core.ko" "${OUT_DIR}/alpenglow_core.ko" 2>/dev/null || echo "  alpenglow_core: build failed (not fatal)"
     fi
   elif [ "${KERNEL_BUILD:-0}" = "1" ]; then
-    echo "→ Building custom kernel (Linux ${KERNEL_VERSION}, config: ${KERNEL_CONFIG})..."
+    echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
     KERNEL_SRC="${OUT_DIR}/linux"
-    KERNEL_CONFIG_FILE="${ROOT_DIR}/system/backends/appliance/kernel/${KERNEL_CONFIG}.config"
     [ -d "${KERNEL_SRC}" ] || {
       KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
       curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz"
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
       mv "${OUT_DIR}/linux-${KERNEL_VERSION}" "${KERNEL_SRC}"
     }
-    cp "${KERNEL_CONFIG_FILE}" "${KERNEL_SRC}/.config"
-
-    # In-tree GlowFS source
-    mkdir -p "${KERNEL_SRC}/fs/glowfs"
-    # GlowFS not in-tree for 7.0 kernel (needs 6.12 API)\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS is Alpenglow'"'"'s immutable root filesystem.\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
-    # ponytail: GlowFS not in-tree for 7.0 kernel API (needs 6.12). Build via ci-glowfs.
-
-    # Apply config overrides for the target system
-    cd "${KERNEL_SRC}"
-    make olddefconfig >/dev/null 2>&1
-    # LZ4 + EFI + virt config overrides
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
-    make olddefconfig >/dev/null 2>&1
-    cd "${ROOT_DIR}"
-    # Build kernel (GlowFS module needs 6.12 API - built separately for 7.0)
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" bzImage 2>&1 | tail -5
+    # Base stripped config (from 7.0.12, auto-adapted to whatever kernel version)
+    cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    make -C "${KERNEL_SRC}" ARCH=x86_64 olddefconfig >/dev/null 2>&1
+    # Build kernel
+    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage 2>&1 | tail -5
     cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}" 2>/dev/null || true
   else
     echo "→ Fetching pre-built kernel..."
@@ -522,8 +510,7 @@ echo "Alpenglow boot"
 echo ""
 # Log memory at boot for benchmark
 if [ -f /proc/meminfo ]; then
-  echo "MemTotal: $(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print \$2" "\$3}')"
-  echo "MemFree:  $(grep MemFree /proc/meminfo 2>/dev/null | awk '{print \$2" "\$3}')"
+  grep -E 'MemTotal|MemFree' /proc/meminfo 2>/dev/null
 fi
 exec /sbin/dinit -d /etc/dinit.d -s -t shell-ttyS0
 INIT
