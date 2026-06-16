@@ -92,17 +92,7 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-7.0.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
-    # In-tree GlowFS source
-    mkdir -p "${KERNEL_SRC}/fs/glowfs"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
-    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o
-glowfs-$(CONFIG_RUST) += glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
-    printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS immutable root filesystem\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
-    grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
-    grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
+    # GlowFS needs Linux 6.12 API — not in-tree for 7.0, built separately via ci-glowfs
     make ARCH=x86_64 defconfig 2>/dev/null
     make ARCH=x86_64 kvm_guest.config 2>/dev/null
     make ARCH=x86_64 rust.config 2>/dev/null
@@ -144,31 +134,19 @@ glowfs-$(CONFIG_RUST) += glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
 
     # In-tree GlowFS source
     mkdir -p "${KERNEL_SRC}/fs/glowfs"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
-    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o
-glowfs-$(CONFIG_RUST) += glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
-    printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS is Alpenglow'"'"'s immutable root filesystem.\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
-    grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
-    grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
+    # GlowFS not in-tree for 7.0 kernel (needs 6.12 API)\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS is Alpenglow'"'"'s immutable root filesystem.\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
+    # ponytail: GlowFS not in-tree for 7.0 kernel API (needs 6.12). Build via ci-glowfs.
 
-    # Enable GlowFS, Sound, Wireless, ACPI, USB-HID in config
+    # Apply config overrides for the target system
     cd "${KERNEL_SRC}"
     make olddefconfig >/dev/null 2>&1
-    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-    sed -i 's/# CONFIG_SOUND is not set/CONFIG_SOUND=y/' .config 2>/dev/null || echo "CONFIG_SOUND=y" >> .config
-    sed -i 's/# CONFIG_ACPI is not set/CONFIG_ACPI=y/' .config 2>/dev/null || echo "CONFIG_ACPI=y" >> .config
     # LZ4 compression overrides (Clear Linux: faster decompress)
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     make olddefconfig >/dev/null 2>&1
     cd "${ROOT_DIR}"
-    # Build kernel + GlowFS module
+    # Build kernel (GlowFS module needs 6.12 API - built separately for 7.0)
     make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" bzImage 2>&1 | tail -5
-    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}"
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" M=fs/glowfs modules 2>&1 | tail -5
-    cp "${KERNEL_SRC}/fs/glowfs/glowfs.ko" "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
+    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}" 2>/dev/null || true
   else
     echo "→ Fetching pre-built kernel..."
     ALPINE_VERSION="${ALPINE_VERSION:-3.21}"
