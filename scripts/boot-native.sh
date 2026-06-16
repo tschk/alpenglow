@@ -98,7 +98,8 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
     cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
     echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
+    echo 'glowfs-objs := glowfs_vfs.o
+glowfs-$(CONFIG_RUST) += glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
     printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS immutable root filesystem\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
     grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
     grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
@@ -147,7 +148,8 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
     cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
     echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
+    echo 'glowfs-objs := glowfs_vfs.o
+glowfs-$(CONFIG_RUST) += glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
     printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS is Alpenglow'"'"'s immutable root filesystem.\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
     grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
     grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
