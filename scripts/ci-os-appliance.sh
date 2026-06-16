@@ -60,12 +60,12 @@ for runit_svc in system/backends/void/runit/*/run; do
 done
 
 # Kernel config
-assert_file system/alpine/kernel/alpenglow-internet-appliance.config
-assert_contains system/alpine/kernel/alpenglow-internet-appliance.config '^CONFIG_CGROUPS=y$'
-assert_contains system/alpine/kernel/alpenglow-internet-appliance.config '^CONFIG_ZRAM=y$'
-assert_contains system/alpine/kernel/alpenglow-internet-appliance.config '^CONFIG_VIRTIO_NET=y$'
-assert_contains system/alpine/kernel/alpenglow-internet-appliance.config '^CONFIG_SECCOMP_FILTER=y$'
-assert_contains system/alpine/kernel/alpenglow-internet-appliance.config '^CONFIG_SECURITY_LANDLOCK=y$'
+assert_file system/backends/appliance/kernel/alpenglow-internet-appliance.config
+assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_CGROUPS=y$'
+assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_ZRAM=y$'
+assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_VIRTIO_NET=y$'
+assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECCOMP_FILTER=y$'
+assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECURITY_LANDLOCK=y$'
 
 # GlowFS kernel module
 assert_file system/glowfs/kernel/glowfs_vfs.c

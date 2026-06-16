@@ -127,7 +127,7 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
   elif [ "${KERNEL_BUILD:-0}" = "1" ]; then
     echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
     KERNEL_SRC="${OUT_DIR}/linux"
-    KERNEL_CONFIG="${ROOT_DIR}/system/alpine/kernel/alpenglow-internet-appliance.config"
+    KERNEL_CONFIG="${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-internet-appliance.config"
     [ -d "${KERNEL_SRC}" ] || {
       KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
       curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz"
