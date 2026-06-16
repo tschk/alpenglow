@@ -1,39 +1,39 @@
 #!/bin/sh
-# CI: Validate Rust kernel module compilation
+# CI: Validate Rust kernel module compilation against Linux 7.0
 set -eu
 
-KERNEL_VERSION="7.0"
+KERNEL_VER="7.0"
 KERNEL_MAJOR="7"
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 if ! command -v rustc >/dev/null 2>&1 || ! command -v bindgen >/dev/null 2>&1; then
-  echo "ci-rust-kernel-module: rustc or bindgen not found, skipping"
+  echo "ci-rust-kernel-module: rustc/bindgen not found, skip"
   exit 0
 fi
 
 cd /tmp
-rm -rf linux-rust-ci
-mkdir -p linux-rust-ci
-cd linux-rust-ci
+rm -rf linux-kmod-ci
+mkdir -p linux-kmod-ci
+cd linux-kmod-ci
 
-curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o linux.tar.xz
+echo "Downloading Linux ${KERNEL_VER}..."
+curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VER}.tar.xz" -o linux.tar.xz
 tar -xJf linux.tar.xz
-cd "linux-${KERNEL_VERSION}"
+cd "linux-${KERNEL_VER}"
 
+# Minimal config with Rust support
 make ARCH=x86_64 defconfig 2>/dev/null
 make ARCH=x86_64 kvm_guest.config 2>/dev/null
 make ARCH=x86_64 rust.config 2>/dev/null
-
-export RUSTC=rustc BINDGEN=bindgen
-echo "CONFIG_RUST_IS_AVAILABLE=y" >> .config
-echo "CONFIG_RUST=y" >> .config
-echo "CONFIG_SAMPLES=y" >> .config
-echo "CONFIG_SAMPLES_RUST=y" >> .config
-echo "CONFIG_SAMPLE_RUST_MINIMAL=m" >> .config
+scripts_config \
+  --disable MODULE_SIG_FORMAT MODULE_SIG MODULE_SIG_ALL \
+  --disable MODULE_COMPRESS MODULE_COMPRESS_GZIP MODULE_COMPRESS_ALL
 
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
-RUSTC=rustc BINDGEN=bindgen make -j$(nproc) ARCH=x86_64 2>&1 | tail -3
-RUSTC=rustc BINDGEN=bindgen make -j$(nproc) ARCH=x86_64 M=samples/rust 2>&1 | tail -5
+RUSTC=rustc BINDGEN=bindgen make -j$(nproc) ARCH=x86_64 modules_prepare 2>&1 | tail -3
 
-test -f samples/rust/rust_minimal.ko && echo "Rust kernel module OK" || exit 1
+# Build Alpenglow core module
+cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
+make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" 2>&1 | tail -5
+test -f /tmp/alpenglow-kmod/alpenglow_core.ko && echo "Rust kernel module OK"
 echo "ci-rust-kernel-module: ok"

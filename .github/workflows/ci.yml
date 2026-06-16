@@ -53,6 +53,9 @@ jobs:
         run: cargo install bindgen-cli --locked 2>/dev/null
       - name: Build Rust kernel module
         run: scripts/ci-rust-kernel-module.sh
+
+  rust-audit:
+    name: Alpenglow Rust dependency audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
