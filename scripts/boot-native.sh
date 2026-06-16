@@ -89,6 +89,16 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-7.0.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
+    # In-tree GlowFS source
+    mkdir -p "${KERNEL_SRC}/fs/glowfs"
+    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
+    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
+    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
+    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
+    echo 'glowfs-objs := glowfs_vfs.o glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
+    printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS immutable root filesystem\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
+    grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
+    grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
     make ARCH=x86_64 defconfig 2>/dev/null
     make ARCH=x86_64 kvm_guest.config 2>/dev/null
     make ARCH=x86_64 rust.config 2>/dev/null
@@ -96,9 +106,13 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
       --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
+    # Enable GlowFS in config
+    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
     make ARCH=x86_64 olddefconfig 2>/dev/null
     make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
+    make -j"$(nproc)" ARCH=x86_64 M=fs/glowfs modules 2>&1 | tail -3
+    cp fs/glowfs/glowfs.ko "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
     cd "${ROOT_DIR}"
 
     # Build alpenglow_core Rust module
@@ -133,21 +147,19 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
     grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
 
-configure-kernel() {
-  cd "${KERNEL_SRC}"
-  make olddefconfig >/dev/null 2>&1
-  # Enable GlowFS, Sound, Wireless, ACPI, USB-HID
-  sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-  sed -i 's/# CONFIG_SOUND is not set/CONFIG_SOUND=y/' .config 2>/dev/null || echo "CONFIG_SOUND=y" >> .config
-  sed -i 's/# CONFIG_ACPI is not set/CONFIG_ACPI=y/' .config 2>/dev/null || echo "CONFIG_ACPI=y" >> .config
-  make olddefconfig >/dev/null 2>&1
-}
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" bzImage 2>&1 | tail -5
-    cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
-    # Build GlowFS module
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" M=fs/glowfs modules 2>&1 | tail -5
-    cp fs/glowfs/glowfs.ko "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
+    # Enable GlowFS, Sound, Wireless, ACPI, USB-HID in config
+    cd "${KERNEL_SRC}"
+    make olddefconfig >/dev/null 2>&1
+    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
+    sed -i 's/# CONFIG_SOUND is not set/CONFIG_SOUND=y/' .config 2>/dev/null || echo "CONFIG_SOUND=y" >> .config
+    sed -i 's/# CONFIG_ACPI is not set/CONFIG_ACPI=y/' .config 2>/dev/null || echo "CONFIG_ACPI=y" >> .config
+    make olddefconfig >/dev/null 2>&1
     cd "${ROOT_DIR}"
+    # Build kernel + GlowFS module
+    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" bzImage 2>&1 | tail -5
+    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}"
+    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" M=fs/glowfs modules 2>&1 | tail -5
+    cp "${KERNEL_SRC}/fs/glowfs/glowfs.ko" "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
   else
     echo "→ Fetching pre-built kernel..."
     ALPINE_VERSION="${ALPINE_VERSION:-3.21}"
