@@ -11,8 +11,10 @@ INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
-KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
+KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
+KERNEL_7="${KERNEL_7:-1}"  # 1=Linux 7.0 defconfig+rust, 0=Alpine stock
 ARCH="${KERNEL_ARCH:-x86_64}"
+ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 # Auto-detect acceleration: prefer KVM, then HVF (macOS), fall back TCG
@@ -79,7 +81,36 @@ build_dinit() {
 
 # Kernel
 if [ ! -f "${KERNEL_IMAGE}" ]; then
-  if [ "${KERNEL_BUILD:-0}" = "1" ]; then
+  if [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+    echo "→ Building Linux 7.0 + CONFIG_RUST=y kernel..."
+    KERNEL_SRC="${OUT_DIR}/linux-7.0"
+    [ -d "${KERNEL_SRC}" ] || {
+      curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.0.tar.xz" -o "${OUT_DIR}/linux-7.0.tar.xz"
+      tar -xf "${OUT_DIR}/linux-7.0.tar.xz" -C "${OUT_DIR}"
+    }
+    cd "${KERNEL_SRC}"
+    make ARCH=x86_64 defconfig 2>/dev/null
+    make ARCH=x86_64 kvm_guest.config 2>/dev/null
+    make ARCH=x86_64 rust.config 2>/dev/null
+    scripts/config \
+      --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
+      --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
+      --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
+    make ARCH=x86_64 olddefconfig 2>/dev/null
+    make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
+    cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
+    cd "${ROOT_DIR}"
+
+    # Build alpenglow_core Rust module
+    if command -v rustc >/dev/null 2>&1 && command -v bindgen >/dev/null 2>&1; then
+      echo "→ Building alpenglow_core Rust kernel module..."
+      MOD_SRC="${ROOT_DIR}/system/kernel-modules/alpenglow_core"
+      export RUSTC=rustc BINDGEN=bindgen
+      make -C "${KERNEL_SRC}" modules_prepare 2>/dev/null
+      make -C "${MOD_SRC}" KERNEL_SRC="${KERNEL_SRC}" 2>&1 | tail -3
+      cp "${MOD_SRC}/alpenglow_core.ko" "${OUT_DIR}/alpenglow_core.ko" 2>/dev/null || echo "  alpenglow_core: build failed (not fatal)"
+    fi
+  elif [ "${KERNEL_BUILD:-0}" = "1" ]; then
     echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
     KERNEL_SRC="${OUT_DIR}/linux"
     KERNEL_CONFIG="${ROOT_DIR}/system/alpine/kernel/alpenglow-internet-appliance.config"
@@ -131,6 +162,9 @@ if [ -f "${GLOWFS_KO}" ]; then
   echo "  glowfs: ${GLOWFS_KO}"
 elif [ "${KERNEL_BUILD:-0}" != "1" ]; then
   echo "→ GlowFS requires KERNEL_BUILD=1 (skipping)"
+fi
+if [ -f "${ALPENGLOW_MODULE}" ]; then
+  echo "  alpenglow-core: ${ALPENGLOW_MODULE}"
 fi
 
 # Build userspace services
@@ -425,10 +459,12 @@ pipewire:x:774:
 GROUP
 # root home
 mkdir -p "${ROOTFS_DIR}/root"
-  mkdir -p "${ROOTFS_DIR}/lib/modules"
+mkdir -p "${ROOTFS_DIR}/lib/modules"
 if [ -f "${GLOWFS_KO}" ]; then
-  mkdir -p "${ROOTFS_DIR}/lib/modules"
   cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
+fi
+if [ -f "${ALPENGLOW_MODULE}" ]; then
+  cp "${ALPENGLOW_MODULE}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
 # Userspace services (if built)
