@@ -4,9 +4,9 @@ set -eu
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-QEMU_TIMEOUT="${QEMU_TIMEOUT:-180}"
+QEMU_TIMEOUT="${QEMU_TIMEOUT:-60}"
 QEMU_LOG="${QEMU_LOG:-${TMPDIR:-/tmp}/alpenglow-qemu-appliance.log}"
-QEMU_DIR="${QEMU_DIR:-build/alpine/qemu}"
+QEMU_DIR="${QEMU_DIR:-build/native}"
 
 fail() {
   printf 'ci-qemu-appliance: %s\n' "$1" >&2
@@ -19,20 +19,20 @@ require_tool() {
 
 require_log() {
   pattern="$1"
-  grep -Eq "${pattern}" "${QEMU_LOG}" || fail "missing QEMU log pattern: ${pattern}"
+  grep -Eq "${pattern}" "${QEMU_LOG}" || fail "missing log pattern: ${pattern}"
 }
 
 reject_log() {
   pattern="$1"
   if grep -Eq "${pattern}" "${QEMU_LOG}"; then
-    fail "unexpected QEMU log pattern: ${pattern}"
+    fail "unexpected log pattern: ${pattern}"
   fi
 }
 
 require_tool qemu-system-x86_64
 
-[ -f "${QEMU_DIR}/vmlinuz-virt" ] || fail "missing ${QEMU_DIR}/vmlinuz-virt"
-[ -f "${QEMU_DIR}/rootfs.cpio.gz" ] || fail "missing ${QEMU_DIR}/rootfs.cpio.gz"
+[ -f "${QEMU_DIR}/vmlinuz" ] || fail "missing ${QEMU_DIR}/vmlinuz (run scripts/boot-native.sh)"
+[ -f "${QEMU_DIR}/initramfs.cpio.zst" ] || fail "missing ${QEMU_DIR}/initramfs.cpio.zst"
 
 rm -f "${QEMU_LOG}"
 set +e
@@ -64,20 +64,10 @@ case "${status}" in
   *) tail -n 120 "${QEMU_LOG}" >&2; fail "QEMU exited with status ${status}" ;;
 esac
 
-require_log '\[init\] launching /sbin/init'
-require_log 'OpenRC .*Linux 6\.12\.[0-9]+-0-virt'
-require_log 'Starting alpenglow-kernel-policy .*ok'
-require_log 'Starting alpenglow-zram .*ok'
-require_log 'Starting alpenglow-pressure'
-require_log 'lease of 10\.0\.2\.15 obtained'
-require_log 'DRM device found; using cage \(Wayland\)'
-require_log 'redraw requested: .*active_webview=true.*title=Alpenglow( Shell)?'
-require_log 'gui\.paint end'
-reject_log 'kernel policy required but cgroups state is unavailable'
-reject_log 'Cannot find Xwayland binary'
-reject_log '/etc/resolv\.conf\.[A-Za-z0-9]+'
-reject_log 'cannot start .* as alpenglow-kernel-policy would not start'
-reject_log 'cannot start .* as alpenglow-pressure would not start'
-reject_log 'ERROR: alpenglow-session failed to start'
+require_log 'Alpenglow boot'
+require_log 'mount-filesystems'
+require_log 'shell-ttyS0'
+require_log 'login:'
+reject_log 'No such file or directory'
 
 printf 'ci-qemu-appliance: ok\n'
