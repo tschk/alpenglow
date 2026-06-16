@@ -77,12 +77,12 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 | OS | Boot | Initramfs | Kernel | Idle RAM |
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **5.4MB** | **~31MB** |
-| **Alpenglow** std | **1.3s** | 1.7MB | 11MB | ~31MB |
+| **Alpenglow** std | **1.3s** | 1.7MB | 5.4MB | ~17MB |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
 
-Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM and aarch64 HVF. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and uses 5x the RAM.
+Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM and aarch64 HVF. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM at idle (58MB vs 17MB).
 
 ### Binary size (static musl, x86_64)
 
