@@ -17,7 +17,8 @@ docker run --rm \
     set -eu
     apk add --no-cache build-base linux-headers curl tar xz bash >/dev/null
 
-    KERNEL_VERSION="7.0.12"
+    # ponytail: glowfs module targets 6.12 API; 7.0 port WIP
+    KERNEL_VERSION="6.12.93"
     KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
 
     cd /tmp
