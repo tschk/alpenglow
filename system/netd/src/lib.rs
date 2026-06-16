@@ -1,30 +1,38 @@
+use serde::Serialize;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct NetworkSnapshot {
     pub generated_unix_ms: u64,
     pub interfaces: Vec<NetworkInterface>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct NetworkInterface {
     pub name: String,
     pub index: Option<u32>,
+    #[serde(rename = "kind")]
     pub kind: InterfaceKind,
+    #[serde(rename = "mac-address")]
     pub mac_address: Option<String>,
     pub operstate: OperState,
     pub mtu: Option<u32>,
     pub carrier: Option<bool>,
+    #[serde(rename = "speed-mbps")]
     pub speed_mbps: Option<u32>,
+    #[serde(rename = "rx-bytes")]
     pub rx_bytes: Option<u64>,
+    #[serde(rename = "tx-bytes")]
     pub tx_bytes: Option<u64>,
+    #[serde(rename = "flags-hex")]
     pub flags_hex: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum InterfaceKind {
     Loopback,
     Ethernet,
@@ -33,12 +41,15 @@ pub enum InterfaceKind {
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum OperState {
     Up,
     Down,
     Dormant,
+    #[serde(rename = "lower-layer-down")]
     LowerLayerDown,
+    #[serde(rename = "not-present")]
     NotPresent,
     Testing,
     Unknown,
@@ -70,86 +81,7 @@ pub fn read_snapshot(sys_class_net: impl AsRef<Path>) -> io::Result<NetworkSnaps
 }
 
 pub fn render_json(snapshot: &NetworkSnapshot) -> String {
-    let mut buf = String::with_capacity(1024);
-    buf.push_str("{\n  \"generated_unix_ms\": ");
-    buf.push_str(&snapshot.generated_unix_ms.to_string());
-    buf.push_str(",\n  \"interfaces\": [\n");
-    for (i, iface) in snapshot.interfaces.iter().enumerate() {
-        if i > 0 { buf.push_str(",\n"); }
-        buf.push_str("    {\n      \"name\": \"");
-        buf.push_str(&json_escape(&iface.name));
-        buf.push_str("\",\n      \"index\": ");
-        json_opt(&mut buf, iface.index);
-        buf.push_str(",\n      \"kind\": \"");
-        buf.push_str(kind_name(&iface.kind));
-        buf.push_str("\",\n      \"mac-address\": ");
-        json_opt_str(&mut buf, iface.mac_address.as_deref());
-        buf.push_str(",\n      \"operstate\": \"");
-        buf.push_str(state_name(&iface.operstate));
-        buf.push_str("\",\n      \"mtu\": ");
-        json_opt(&mut buf, iface.mtu);
-        buf.push_str(",\n      \"carrier\": ");
-        json_opt_bool(&mut buf, iface.carrier);
-        buf.push_str(",\n      \"speed-mbps\": ");
-        json_opt(&mut buf, iface.speed_mbps);
-        buf.push_str(",\n      \"rx-bytes\": ");
-        json_opt(&mut buf, iface.rx_bytes);
-        buf.push_str(",\n      \"tx-bytes\": ");
-        json_opt(&mut buf, iface.tx_bytes);
-        buf.push_str(",\n      \"flags-hex\": ");
-        json_opt_str(&mut buf, iface.flags_hex.as_deref());
-        buf.push_str("\n    }");
-    }
-    buf.push_str("\n  ]\n}\n");
-    buf
-}
-
-fn json_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
-}
-
-fn json_opt(buf: &mut String, v: Option<impl std::fmt::Display>) {
-    match v {
-        Some(x) => buf.push_str(&x.to_string()),
-        None => buf.push_str("null"),
-    }
-}
-
-fn json_opt_str(buf: &mut String, v: Option<&str>) {
-    match v {
-        Some(s) => { buf.push('"'); buf.push_str(&json_escape(s)); buf.push('"'); }
-        None => buf.push_str("null"),
-    }
-}
-
-fn json_opt_bool(buf: &mut String, v: Option<bool>) {
-    match v {
-        Some(true) => buf.push_str("true"),
-        Some(false) => buf.push_str("false"),
-        None => buf.push_str("null"),
-    }
-}
-
-fn kind_name(kind: &InterfaceKind) -> &'static str {
-    match kind {
-        InterfaceKind::Loopback => "loopback",
-        InterfaceKind::Ethernet => "ethernet",
-        InterfaceKind::Wireless => "wireless",
-        InterfaceKind::Other(_) => "other",
-        InterfaceKind::Unknown => "unknown",
-    }
-}
-
-fn state_name(state: &OperState) -> &'static str {
-    match state {
-        OperState::Up => "up",
-        OperState::Down => "down",
-        OperState::Dormant => "dormant",
-        OperState::LowerLayerDown => "lower-layer-down",
-        OperState::NotPresent => "not-present",
-        OperState::Testing => "testing",
-        OperState::Unknown => "unknown",
-    }
+    serde_json::to_string_pretty(snapshot).unwrap_or_default()
 }
 
 pub fn render_runtime_env(snapshot: &NetworkSnapshot) -> String {
