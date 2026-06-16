@@ -1,0 +1,95 @@
+{
+  "profile": "internet-appliance",
+  "cgroup_root": "alpenglow",
+  "groups": [
+    {
+      "id": "system",
+      "path": "alpenglow/system",
+      "cpu_weight": 100,
+      "io_weight": 100,
+      "memory_high": "256M",
+      "pids_max": 128
+    },
+    {
+      "id": "network",
+      "path": "alpenglow/network",
+      "cpu_weight": 250,
+      "io_weight": 500,
+      "memory_high": "384M",
+      "memory_max": "640M",
+      "pids_max": 192
+    },
+    {
+      "id": "browser",
+      "path": "alpenglow/browser",
+      "cpu_weight": 350,
+      "io_weight": 300,
+      "memory_high": "768M",
+      "memory_max": "1024M",
+      "pids_max": 256
+    },
+    {
+      "id": "foreground-renderer",
+      "path": "alpenglow/foreground-renderer",
+      "cpu_weight": 800,
+      "io_weight": 800,
+      "memory_high": "1536M",
+      "memory_max": "2304M",
+      "pids_max": 512
+    },
+    {
+      "id": "background-renderer",
+      "path": "alpenglow/background-renderer",
+      "cpu_weight": 250,
+      "io_weight": 200,
+      "memory_high": "768M",
+      "memory_max": "1280M",
+      "pids_max": 384
+    },
+    {
+      "id": "frozen-renderer",
+      "path": "alpenglow/frozen-renderer",
+      "cpu_weight": 50,
+      "io_weight": 50,
+      "memory_high": "384M",
+      "memory_max": "768M",
+      "pids_max": 256
+    },
+    {
+      "id": "discardable-renderer",
+      "path": "alpenglow/discardable-renderer",
+      "cpu_weight": 10,
+      "io_weight": 10,
+      "memory_high": "128M",
+      "memory_max": "256M",
+      "pids_max": 128
+    },
+    {
+      "id": "gpu-compositor",
+      "path": "alpenglow/gpu-compositor",
+      "cpu_weight": 900,
+      "io_weight": 300,
+      "memory_high": "512M",
+      "memory_max": "768M",
+      "pids_max": 192
+    }
+  ],
+  "sysctl": {
+    "net.core.somaxconn": "4096",
+    "net.core.default_qdisc": "fq",
+    "net.ipv4.tcp_congestion_control": "bbr",
+    "net.ipv4.tcp_fastopen": "3",
+    "net.ipv4.tcp_fin_timeout": "15",
+    "net.ipv4.tcp_keepalive_time": "60",
+    "net.ipv4.tcp_mtu_probing": "1",
+    "net.ipv4.tcp_syncookies": "1",
+    "net.ipv4.tcp_tw_reuse": "1",
+    "net.ipv4.ip_forward": "0",
+    "net.ipv4.conf.all.accept_redirects": "0",
+    "net.ipv4.conf.all.rp_filter": "2",
+    "net.ipv4.conf.all.send_redirects": "0",
+    "vm.swappiness": "20",
+    "vm.vfs_cache_pressure": "50",
+    "kernel.unprivileged_bpf_disabled": "1"
+  }
+}
