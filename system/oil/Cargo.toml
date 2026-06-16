@@ -22,12 +22,6 @@ cms = "0.2"
 const-oid = "0.9"
 der = "0.7"
 signature = "2"
-dunce = "1"
 ctrlc = "3"
-libc = "0.2"
-nix = { version = "0.31", features = ["user"] }
-shellexpand = "3"
-urlencoding = "2"
 clap = { version = "4", features = ["derive"] }
-regex = "1"
 tempfile = "3"
