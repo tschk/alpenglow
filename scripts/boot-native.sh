@@ -111,6 +111,8 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
     # Enable GlowFS in config
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
+    # LZ4 compression overrides (Clear Linux: faster decompress)
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     make ARCH=x86_64 olddefconfig 2>/dev/null
     make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
@@ -156,6 +158,8 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
     sed -i 's/# CONFIG_SOUND is not set/CONFIG_SOUND=y/' .config 2>/dev/null || echo "CONFIG_SOUND=y" >> .config
     sed -i 's/# CONFIG_ACPI is not set/CONFIG_ACPI=y/' .config 2>/dev/null || echo "CONFIG_ACPI=y" >> .config
+    # LZ4 compression overrides (Clear Linux: faster decompress)
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     make olddefconfig >/dev/null 2>&1
     cd "${ROOT_DIR}"
     # Build kernel + GlowFS module
