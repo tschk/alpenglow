@@ -32,7 +32,7 @@ reject_log() {
 require_tool qemu-system-x86_64
 
 [ -f "${QEMU_DIR}/vmlinuz" ] || fail "missing ${QEMU_DIR}/vmlinuz (run scripts/boot-native.sh)"
-[ -f "${QEMU_DIR}/initramfs.cpio.zst" ] || fail "missing ${QEMU_DIR}/initramfs.cpio.zst"
+[ -f "${QEMU_DIR}/initramfs.cpio.gz" ] || [ -f "${QEMU_DIR}/initramfs.cpio.zst" ] || fail "missing initramfs in ${QEMU_DIR}"
 
 rm -f "${QEMU_LOG}"
 set +e

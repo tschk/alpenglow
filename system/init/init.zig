@@ -1,9 +1,9 @@
 const std = @import("std");
 
 pub fn main() void {
-    // syscall(open, "/dev/console", O_WRONLY|O_NOCTTY, 0)
     const path = "/dev/console";
-    const fd = std.os.linux.syscall3(.open, @intFromPtr(path), 0x101, 0);
+    @setRuntimeSafety(false);
+    const fd = std.os.linux.syscall3(.openat, @as(u64, @bitCast(@as(i64, -100))), @intFromPtr(path), 0x101);
     
     if (fd == 0 or fd > 0) {
         const msg1 = "Alpenglow Zig init boot OK\n";
