@@ -1,14 +1,20 @@
 # Architecture Support
 
-Target: diskless, hardened, immutable Linux appliance across architectures.
+General-purpose musl+LLVM Linux distribution supporting two deployment modes:
+- **Diskless/Appliance** — initramfs-only, RAM root, GlowFS overlay
+- **Rootfs/Desktop** — normal root-on-disk, package-managed
+
+Both modes share the same kernel, toolchain, init system, and package manager.
+The only difference is the boot flow: initramfs with switch_root vs persistent root.
 
 ## Current (x86_64)
 
-- **Boot:** Limine (UEFI) + SeaBIOS (QEMU)
+- **Boot:** Limine (UEFI) + SeaBIOS (QEMU), or direct initramfs
 - **Kernel:** Linux 7.0, CONFIG_RUST=y, defconfig+kvm_guest+rust (13MB)
-- **Init:** dinit (Zig 4.8KB init fallback)
+- **Init:** dinit (Zig 4.8KB fallback)
 - **Userland:** toybox musl static
 - **Toolchain:** LLVM/Clang, Zig 0.16, Rust 1.93
+- **Mode:** Diskless by default, rootfs supported
 - **Branch:** `main`
 
 ## Target: aarch64

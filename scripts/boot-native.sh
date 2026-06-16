@@ -1,5 +1,7 @@
 #!/bin/sh
-# Build and boot Alpenglow native — our kernel, toybox, dinit, GlowFS.
+# Build and boot Alpenglow native — supports two modes:
+#   Diskless (default): boot from initramfs, root in RAM
+#   Rootfs:            boot from persistent rootfs partition
 # Uses Docker for host-independent compilation.
 set -eu
 
@@ -7,15 +9,15 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/native"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
+INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
-KERNEL_VERSION="${KERNEL_VERSION:-6.12.93}"
-KERNEL_BUILD="${KERNEL_BUILD:-0}"  # 1=build kernel from config, 0=fetch Alpine pre-built
-KERNEL_7="${KERNEL_7:-0}"  # 1=Linux 7.0 defconfig+rust (alternative, overrides KERNEL_BUILD)
+KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
+KERNEL_7="${KERNEL_7:-1}"  # 1=Linux 7.0 defconfig+rust, 0=Alpine pre-built
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
+BOOT_MODE="${BOOT_MODE:-diskless}"  # diskless or rootfs
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
@@ -588,11 +590,36 @@ require_cmd qemu-system-x86_64
 echo "→ Booting Alpenglow..."
 echo "  kernel:    ${KERNEL_IMAGE}"
 echo "  initramfs: ${INITRAMFS}"
+echo "  mode:      ${BOOT_MODE}"
 echo "  efi:       ${EFI}"
 echo "  (Ctrl-A X to quit)"
 echo ""
 
 QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
+
+# Kernel cmdline args
+KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
+
+if [ "${BOOT_MODE}" = "rootfs" ]; then
+  # Rootfs mode: boot from a disk image with alpenglow-root label
+  ROOTFS_IMAGE="${OUT_DIR}/rootfs.img"
+  if [ ! -f "${ROOTFS_IMAGE}" ]; then
+    echo "→ Creating rootfs image..."
+    dd if=/dev/zero of="${ROOTFS_IMAGE}" bs=1M count=1024 2>/dev/null
+    mkfs.ext4 -L alpenglow-root "${ROOTFS_IMAGE}" 2>/dev/null
+    # Populate rootfs from built rootfs directory if exists
+    if [ -d "${ROOTFS_DIR}" ]; then
+      TMPMNT=$(mktemp -d)
+      mount -o loop "${ROOTFS_IMAGE}" "${TMPMNT}" 2>/dev/null
+      cp -a "${ROOTFS_DIR}/." "${TMPMNT}/" 2>/dev/null || true
+      umount "${TMPMNT}" 2>/dev/null || true
+      rmdir "${TMPMNT}" 2>/dev/null || true
+    fi
+    echo "  rootfs: ${ROOTFS_IMAGE}"
+  fi
+  QEMU_OPTS="${QEMU_OPTS} -drive file=${ROOTFS_IMAGE},format=raw,if=virtio"
+  KERNEL_CMDLINE="${KERNEL_CMDLINE} alpenglow.root=/dev/vda"
+fi
 
 if [ "${EFI}" = "1" ]; then
   # UEFI boot via kernel EFI stub (saves ~200ms vs SeaBIOS)
@@ -606,7 +633,7 @@ if [ "${EFI}" = "1" ]; then
       -bios "${OVMF_CODE}" \
       -kernel "${KERNEL_IMAGE}" \
       -initrd "${INITRAMFS}" \
-      -append "quiet console=ttyS0 init=/init"
+      -append "${KERNEL_CMDLINE}"
   fi
   echo "  → OVMF not found, falling back to SeaBIOS"
 fi
@@ -616,4 +643,4 @@ exec qemu-system-x86_64 \
   ${QEMU_OPTS} \
   -kernel "${KERNEL_IMAGE}" \
   -initrd "${INITRAMFS}" \
-  -append "quiet console=ttyS0 init=/init"
+  -append "${KERNEL_CMDLINE}"
