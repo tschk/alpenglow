@@ -41,8 +41,18 @@ jobs:
       - name: Check Rust core
         run: scripts/ci-rust-core.sh
 
-  rust-audit:
-    name: Alpenglow Rust dependency audit
+  rust-kernel-module:
+    name: Rust kernel module compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install bindgen
+        run: cargo install bindgen-cli --locked 2>/dev/null
+      - name: Build Rust kernel module
+        run: scripts/ci-rust-kernel-module.sh
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
