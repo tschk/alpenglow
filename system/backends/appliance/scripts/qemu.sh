@@ -13,6 +13,7 @@ INITRAMFS="${QEMU_DIR}/initramfs.cpio.gz"
 MEMORY_MB="${QEMU_MEMORY_MB:-${MEMORY_MB:-2048}}"
 ACCEL="${QEMU_ACCEL:-${ACCEL:-tcg}}"
 HEADLESS="${QEMU_HEADLESS:-${HEADLESS:-0}}"
+EFI="${QEMU_EFI:-${EFI:-1}}"
 KERNEL_CMDLINE="${KERNEL_CMDLINE:-quiet console=ttyS0 init=/init}"
 
 command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86_64"; exit 1; }
@@ -22,12 +23,19 @@ command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86
 DISPLAY="--display default"
 [ "${HEADLESS}" = "1" ] && DISPLAY="-nographic"
 
-exec qemu-system-x86_64 \
-  -machine q35,accel="${ACCEL}" \
-  -m "${MEMORY_MB}" \
-  -smp 2 \
-  -no-reboot \
-  ${DISPLAY} \
-  -kernel "${KERNEL}" \
-  -initrd "${INITRAMFS}" \
-  -append "${KERNEL_CMDLINE}"
+# Find OVMF firmware for EFI boot
+OVMF=""
+if [ "${EFI}" = "1" ]; then
+  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd \
+    /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd; do
+    [ -f "$p" ] && { OVMF="$p"; break; }
+  done
+fi
+
+QEMU_CMD="qemu-system-x86_64 -machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot ${DISPLAY}"
+
+if [ -n "${OVMF}" ]; then
+  exec ${QEMU_CMD} -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"
+fi
+
+exec ${QEMU_CMD} -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"

@@ -12,7 +12,9 @@ KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
 KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
-KERNEL_7="${KERNEL_7:-1}"  # 1=Linux 7.0 defconfig+rust, 0=Alpine stock
+KERNEL_BUILD="${KERNEL_BUILD:-1}"  # 1=build kernel from config, 0=fetch Alpine pre-built
+KERNEL_7="${KERNEL_7:-0}"  # 1=Linux 7.0 defconfig+rust (alternative to KERNEL_BUILD)
+KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"  # config name: alpenglow-qemu-minimal or alpenglow-internet-appliance
 ARCH="${KERNEL_ARCH:-x86_64}"
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
@@ -28,7 +30,7 @@ if [ -z "$ACCEL" ]; then
     ACCEL=tcg
   fi
 fi
-EFI="${EFI:-0}"
+EFI="${EFI:-1}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
@@ -36,8 +38,9 @@ mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
 echo "=== Alpenglow native boot ==="
 echo "  init:    dinit v${DINIT_VERSION}"
 echo "  shell:   toybox v${TOYBOX_VERSION}"
-echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom build"; else echo "pre-built"; fi)"
+echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom (${KERNEL_CONFIG})"; else echo "pre-built"; fi)"
 echo "  arch:    ${ARCH}"
+echo "  efi:     ${EFI}"
 echo "  profile: ${BUILD_PROFILE}"
 echo ""
 
@@ -125,16 +128,16 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       cp "${MOD_SRC}/alpenglow_core.ko" "${OUT_DIR}/alpenglow_core.ko" 2>/dev/null || echo "  alpenglow_core: build failed (not fatal)"
     fi
   elif [ "${KERNEL_BUILD:-0}" = "1" ]; then
-    echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
+    echo "→ Building custom kernel (Linux ${KERNEL_VERSION}, config: ${KERNEL_CONFIG})..."
     KERNEL_SRC="${OUT_DIR}/linux"
-    KERNEL_CONFIG="${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-internet-appliance.config"
+    KERNEL_CONFIG_FILE="${ROOT_DIR}/system/backends/appliance/kernel/${KERNEL_CONFIG}.config"
     [ -d "${KERNEL_SRC}" ] || {
       KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
       curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz"
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
       mv "${OUT_DIR}/linux-${KERNEL_VERSION}" "${KERNEL_SRC}"
     }
-    cp "${KERNEL_CONFIG}" "${KERNEL_SRC}/.config"
+    cp "${KERNEL_CONFIG_FILE}" "${KERNEL_SRC}/.config"
 
     # In-tree GlowFS source
     mkdir -p "${KERNEL_SRC}/fs/glowfs"
@@ -616,7 +619,7 @@ QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reb
 if [ "${EFI}" = "1" ]; then
   # UEFI boot via kernel EFI stub (saves ~200ms vs SeaBIOS)
   OVMF_CODE=""
-  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /opt/homebrew/Cellar/qemu/11.0.1/share/qemu/edk2-i386-code.fd; do
+  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd; do
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
   done
   if [ -n "${OVMF_CODE}" ]; then
