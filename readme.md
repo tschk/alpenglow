@@ -64,17 +64,19 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Performance
 
-### Boot to login (QEMU KVM/HVF)
+### Boot to login
 
-| OS | Arches | Initramfs | Kernel | Boot time |
-|----|--------|-----------|--------|-----------|
-| **Alpenglow** min | x86_64, aarch64 | 1.4MB | 9MB | **1.3s** |
-| **Alpenglow** std | x86_64, aarch64 | 1.7MB | 11MB | **1.3s** |
-| Alpine Linux virt | x86_64, aarch64 | 8.7MB | 6.7MB | 1.3s |
-| Void Linux | x86_64 | 12MB | 7MB | 2.5s |
-| Ubuntu Server | x86_64, aarch64 | 40MB | 12MB | 15s |
+| OS | x86_64 (KVM) | aarch64 (HVF) | Initramfs | Kernel |
+|----|-------------|---------------|-----------|--------|
+| **Alpenglow** min | **0.6s** | **0.6s** | 1.4MB | 9MB |
+| **Alpenglow** std | **1.3s** | — | 1.7MB | 11MB |
+| Alpine Linux virt | 1.3s | 1.3s | 8.7MB | 6.7MB |
+| Void Linux | 2.5s | — | 12MB | 7MB |
+| Ubuntu Server | 15s | 15s | 40MB | 12MB |
 
-All measurements on native virt (x86_64 KVM or aarch64 HVF). Alpine matches Alpenglow on boot time but uses 5x the initramfs size. The full appliance image (all services) is 34MB compressed.
+Alpenglow minimal (Zig init) boots in 0.6s on both arches. The standard build (dinit + getty) adds ~0.7s for service startup. Alpine matches boot speed but uses 5x the initramfs and needs separate services. Ubuntu is 15s due to systemd + large initramfs. All measured with native virt (KVM on x86_64, HVF on aarch64 macOS).
+
+The full appliance image (all services: dropbear, chronyd, dnsmasq, iwd, cage, pipewire) is 34MB compressed.
 
 ### Binary size (static musl, x86_64)
 
