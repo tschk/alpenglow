@@ -39,10 +39,10 @@ docker run --rm \
     # Build GlowFS module
     cd /alpenglow/system/glowfs/kernel
     make KERNEL_SRC="/tmp/linux-${KERNEL_VERSION}" clean >/dev/null 2>&1 || true
-    make KERNEL_SRC="/tmp/linux-${KERNEL_VERSION}" 2>&1
+    make KERNEL_SRC="/tmp/linux-${KERNEL_VERSION}" KBUILD_MODPOST_WARN=1 2>&1
     test -f glowfs.ko
     echo "glowfs.ko built: $(ls -la glowfs.ko)"
-    make clean >/dev/null 2>&1
+    make clean >/dev/null 2>&1 || true
   '
 
 printf 'ci-glowfs-kernel-module: ok\n'

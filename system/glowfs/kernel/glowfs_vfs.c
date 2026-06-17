@@ -761,7 +761,7 @@ static const struct super_operations glowfs_super_ops = {
 	.drop_inode = generic_delete_inode,
 };
 
-static int glowfs_fill_super(struct super_block *sb, void *data, int silent)
+static int glowfs_fill_super(struct super_block *sb, struct fs_context *fc)
 {
 	struct inode *root_inode;
 	struct glowfs_disk_header header;
