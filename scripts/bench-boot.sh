@@ -92,10 +92,21 @@ if [ -n "${SHELL_LINE}" ]; then
 fi
 printf "  Total (power-on to login):     %5sms\n" "${TOTAL_MS}"
 
+# Parse memory from serial log
+MEM_TOTAL="$(grep -o 'MemTotal: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print \$2" "\$3}')"
+MEM_FREE="$(grep -o 'MemFree: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print \$2" "\$3}')"
+[ -z "${MEM_TOTAL}" ] && MEM_TOTAL="?"
+[ -z "${MEM_FREE}" ] && MEM_FREE="?"
+
+# Count unique files in initramfs
+INITRAMFS_FILES="$(zcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+
 echo ""
-echo "=== Size Metrics ==="
+echo "=== Resource Metrics ==="
 echo "  initramfs: $(du -sh "${INITRAMFS}" 2>/dev/null | cut -f1 || echo "?")"
+echo "  initramfs files: ${INITRAMFS_FILES}"
 echo "  kernel:    $(du -sh "${KERNEL}" 2>/dev/null | cut -f1 || echo "?")"
+echo "  memory:    ${MEM_TOTAL} total, ${MEM_FREE} free"
 
 echo ""
 echo "bench: ok"
