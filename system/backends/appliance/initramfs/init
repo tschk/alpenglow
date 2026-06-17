@@ -1,14 +1,14 @@
 #!/bin/sh
 # ──────────────────────────────────────────────────────────────────────
-# Alpenglow diskless initramfs init
+# Alpenglow init — dual-mode: rootfs (normal OS) or diskless (appliance)
 # ──────────────────────────────────────────────────────────────────────
 set -eu
 
-# ponytail: /init does minimum — proc, sys, dev, then dinit owns the rest
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
-mkdir -p /dev/shm /run /tmp /state /sysroot
+
+mkdir -p /dev/shm /run /tmp /sysroot
 mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
 mkdir -p /run/user/0 /tmp
 
@@ -16,36 +16,75 @@ mkdir -p /run/user/0 /tmp
 ALPENGLOW_IMAGE=""
 ALPENGLOW_STATE=""
 ALPENGLOW_DEBUG=""
+ALPENGLOW_ROOT=""
 
 for arg in $(cat /proc/cmdline); do
   case "${arg}" in
     alpenglow.image=*)  ALPENGLOW_IMAGE="${arg#alpenglow.image=}" ;;
     alpenglow.state=*)  ALPENGLOW_STATE="${arg#alpenglow.state=}" ;;
+    alpenglow.root=*)   ALPENGLOW_ROOT="${arg#alpenglow.root=}" ;;
     alpenglow.debug)    ALPENGLOW_DEBUG="1" ;;
   esac
 done
 
 [ -n "${ALPENGLOW_DEBUG}" ] && set -x
 
-# Load essential modules (parallel — each modprobe is ~2-5ms)
-for m in glowfs erofs squashfs ext4 virtio-blk virtio-net snd snd-pcm \
-         snd-hda-intel snd-usb-audio cfg80211 mac80211 iwlwifi ath9k \
-         ath10k hid hid-multitouch usbhid i2c-dev \
-         acpi-cpufreq acpi-button acpi-battery; do
+# ── Mode A: rootfs (normal OS) ─────────────────────────────────────
+# Boot from persistent rootfs partition. Activated when:
+#   1. alpenglow.root=<dev> kernel arg given, OR
+#   2. Partition with LABEL=alpenglow-root exists
+
+ROOTFS_DEV=""
+
+if [ -n "${ALPENGLOW_ROOT}" ]; then
+  ROOTFS_DEV="${ALPENGLOW_ROOT}"
+elif [ -b "/dev/disk/by-label/alpenglow-root" ]; then
+  ROOTFS_DEV="/dev/disk/by-label/alpenglow-root"
+elif [ -b "/dev/disk/by-partlabel/alpenglow-root" ]; then
+  ROOTFS_DEV="/dev/disk/by-partlabel/alpenglow-root"
+fi
+
+if [ -n "${ROOTFS_DEV}" ]; then
+  # Load filesystem modules for rootfs
+  for m in ext4 btrfs xfs zfs; do
+    (modprobe "$m" 2>/dev/null || true) &
+  done
+  wait
+
+  echo "Alpenglow: rootfs mode — mounting ${ROOTFS_DEV}..."
+  mkdir -p /sysroot
+  mount -t auto -o rw,noatime "${ROOTFS_DEV}" /sysroot 2>/dev/null || \
+    mount -t ext4 -o rw,noatime "${ROOTFS_DEV}" /sysroot
+
+  # Mount state partition ontop if exists
+  if [ -n "${ALPENGLOW_STATE}" ]; then
+    mount -t ext4 -o rw,nosuid,nodev "${ALPENGLOW_STATE}" /sysroot/state 2>/dev/null || true
+  else
+    mount -t ext4 -o rw,nosuid,nodev LABEL=alpenglow-state /sysroot/state 2>/dev/null || true
+  fi
+
+  echo "Alpenglow: switching to rootfs..."
+  exec switch_root /sysroot /sbin/init
+fi
+
+# ── Mode B: diskless/appliance ────────────────────────────────────
+# Boot from initramfs with RAM root + GlowFS/erofs/squashfs overlay.
+
+# Load essential modules
+for m in glowfs erofs squashfs ext4 virtio-blk virtio-net \
+         snd snd-pcm cfg80211 mac80211 iwlwifi ath9k \
+         hid usbhid i2c-dev acpi-cpufreq; do
   (modprobe "$m" 2>/dev/null || true) &
 done
 wait
 
-# Discover rootfs image
 find_image() {
-  # Search order: kernel arg → well-known paths → by-partlabel → block scan
   if [ -n "${ALPENGLOW_IMAGE}" ] && [ -f "${ALPENGLOW_IMAGE}" ]; then
     echo "${ALPENGLOW_IMAGE}"; return
   fi
   for img in /sysroot/alpenglow/current.{glowfs,erofs,squashfs}; do
     [ -f "${img}" ] && echo "${img}" && return
   done
-  # Try by partition label first (avoids scanning all devices)
   local found
   found=$(blkid -L alpenglow-root 2>/dev/null || true)
   if [ -n "${found}" ]; then
@@ -55,7 +94,6 @@ find_image() {
     done
     umount /mnt 2>/dev/null || true
   fi
-  # Fallback: scan known block devices
   for dev in /dev/vda* /dev/sda* /dev/nvme0n1* /dev/mmcblk0*; do
     [ -b "${dev}" ] || continue
     mount -r "${dev}" /mnt 2>/dev/null || continue
@@ -72,30 +110,23 @@ find_image() {
 
 ROOT_IMAGE=$(find_image)
 if [ -z "${ROOT_IMAGE}" ]; then
-  echo "Alpenglow: no root image found. Boot failed." >&2
-  echo "Provide alpenglow.image=<path> on kernel cmdline." >&2
+  echo "Alpenglow: diskless mode — no root image found, falling back to shell" >&2
+  echo "  To boot rootfs: add alpenglow.root=<device> to kernel cmdline" >&2
+  echo "  To boot diskless: add alpenglow.image=<path> to kernel cmdline" >&2
   exec /bin/sh
 fi
 
-# Mount the root image
-echo "Alpenglow: mounting ${ROOT_IMAGE}..."
+echo "Alpenglow: diskless mode — mounting ${ROOT_IMAGE}..."
 case "${ROOT_IMAGE}" in
   *.glowfs)    mount -t glowfs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
   *.erofs)     mount -t erofs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
   *.squashfs)  mount -t squashfs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
-  *)
-    echo "Unknown image format: ${ROOT_IMAGE}" >&2
-    exec /bin/sh
-    ;;
 esac
 
-# Mount state partition (optional)
 if [ -n "${ALPENGLOW_STATE}" ]; then
   mount -t ext4 -o rw,nosuid,nodev "${ALPENGLOW_STATE}" /mnt/root/state 2>/dev/null || true
 else
-  # Try by label
   mount -t ext4 -o rw,nosuid,nodev LABEL=alpenglow-state /mnt/root/state 2>/dev/null || true
 fi
 
-# Switch to real root
 exec switch_root /mnt/root /sbin/init

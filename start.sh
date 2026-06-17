@@ -1,33 +1,37 @@
 #!/bin/sh
 # Alpenglow — quick start
+# Modes: diskless (default) or rootfs (BOOT_MODE=rootfs)
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 
 case "${1:-help}" in
   build)
-    echo "==> Build native boot image..."
+    echo "==> Build native boot image (diskless mode)..."
     "${ROOT_DIR}/scripts/boot-native.sh"
     ;;
+  build-rootfs)
+    echo "==> Build + install to rootfs image..."
+    BOOT_MODE=rootfs "${ROOT_DIR}/scripts/boot-native.sh"
+    ;;
   boot)
-    IMG="${2:-${ROOT_DIR}/build/native/alpenglow.img}"
+    IMG="${2:-${ROOT_DIR}/build/native/rootfs.img}"
     if [ ! -f "${IMG}" ]; then
-      echo "Image not found at ${IMG}. Run ./start.sh build first." >&2
+      echo "Rootfs image not found. Run ./start.sh build-rootfs first." >&2
       exit 1
     fi
-    echo "==> Boot ${IMG} in QEMU..."
-    exec qemu-system-x86_64 -m 512 -smp 2 -drive "file=${IMG},format=raw" -nographic
+    echo "==> Boot rootfs in QEMU..."
+    exec qemu-system-x86_64 -m 512 -smp 2 -nographic -no-reboot \
+      -kernel "${ROOT_DIR}/build/native/vmlinuz" \
+      -initrd "${ROOT_DIR}/build/native/initramfs.cpio.zst" \
+      -drive "file=${IMG},format=raw,if=virtio" \
+      -append "quiet console=ttyS0 alpenglow.root=/dev/vda"
+    ;;
+  install)
+    shift
+    exec "${ROOT_DIR}/scripts/install-rootfs.sh" "$@"
     ;;
   check)
-    exec cargo check
-    ;;
-  test)
-    exec cargo test
-    ;;
-  bench)
-    # Boot-time benchmarks (boot phases + size metrics)
-    exec "${ROOT_DIR}/scripts/bench-boot.sh"
-    ;;
   bench-all)
     # Multi-OS comparison benchmark (Alpenglow vs Alpine vs others)
     # Requires: x86_64 Linux with KVM. Use ssh ultramarine for meaningful numbers.

@@ -1,5 +1,7 @@
 #!/bin/sh
-# Build and boot Alpenglow native — our kernel, toybox, dinit, GlowFS.
+# Build and boot Alpenglow native — supports two modes:
+#   Diskless (default): boot from initramfs, root in RAM
+#   Rootfs:            boot from persistent rootfs partition
 # Uses Docker for host-independent compilation.
 set -eu
 
@@ -7,13 +9,15 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/native"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
+INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
 KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
-KERNEL_7="${KERNEL_7:-1}"  # 1=Linux 7.0 defconfig+rust, 0=Alpine stock
+KERNEL_7="${KERNEL_7:-1}"  # 1=Linux 7.0 defconfig+rust, 0=Alpine pre-built
+KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
+BOOT_MODE="${BOOT_MODE:-diskless}"  # diskless or rootfs
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
@@ -28,7 +32,7 @@ if [ -z "$ACCEL" ]; then
     ACCEL=tcg
   fi
 fi
-EFI="${EFI:-0}"
+EFI="${EFI:-1}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
@@ -36,8 +40,9 @@ mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
 echo "=== Alpenglow native boot ==="
 echo "  init:    dinit v${DINIT_VERSION}"
 echo "  shell:   toybox v${TOYBOX_VERSION}"
-echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom build"; else echo "pre-built"; fi)"
+echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom (${KERNEL_CONFIG})"; else echo "pre-built"; fi)"
 echo "  arch:    ${ARCH}"
+echo "  efi:     ${EFI}"
 echo "  profile: ${BUILD_PROFILE}"
 echo ""
 
@@ -89,16 +94,7 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-7.0.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
-    # In-tree GlowFS source
-    mkdir -p "${KERNEL_SRC}/fs/glowfs"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
-    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
-    printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS immutable root filesystem\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
-    grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
-    grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
+    # GlowFS needs Linux 6.12 API — not in-tree for 7.0, built separately via ci-glowfs
     make ARCH=x86_64 defconfig 2>/dev/null
     make ARCH=x86_64 kvm_guest.config 2>/dev/null
     make ARCH=x86_64 rust.config 2>/dev/null
@@ -108,11 +104,13 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
     # Enable GlowFS in config
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
+    # Config overrides: LZ4 + virt drivers + gzip decompress
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
     make ARCH=x86_64 olddefconfig 2>/dev/null
     make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
-    make -j"$(nproc)" ARCH=x86_64 M=fs/glowfs modules 2>&1 | tail -3
-    cp fs/glowfs/glowfs.ko "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
     cd "${ROOT_DIR}"
 
     # Build alpenglow_core Rust module
@@ -127,39 +125,20 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
   elif [ "${KERNEL_BUILD:-0}" = "1" ]; then
     echo "→ Building custom kernel (Linux ${KERNEL_VERSION})..."
     KERNEL_SRC="${OUT_DIR}/linux"
-    KERNEL_CONFIG="${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-internet-appliance.config"
     [ -d "${KERNEL_SRC}" ] || {
       KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
       curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz"
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
       mv "${OUT_DIR}/linux-${KERNEL_VERSION}" "${KERNEL_SRC}"
     }
-    cp "${KERNEL_CONFIG}" "${KERNEL_SRC}/.config"
-
-    # In-tree GlowFS source
-    mkdir -p "${KERNEL_SRC}/fs/glowfs"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_vfs.c" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_core.rs" "${KERNEL_SRC}/fs/glowfs/"
-    cp "${ROOT_DIR}/system/glowfs/kernel/glowfs_format.h" "${KERNEL_SRC}/fs/glowfs/"
-    echo 'obj-$(CONFIG_GLOWFS) += glowfs.o' > "${KERNEL_SRC}/fs/glowfs/Makefile"
-    echo 'glowfs-objs := glowfs_vfs.o glowfs_core.o' >> "${KERNEL_SRC}/fs/glowfs/Makefile"
-    printf 'config GLOWFS\n\ttristate "GlowFS immutable filesystem"\n\tdefault m\n\thelp\n\t  GlowFS is Alpenglow'"'"'s immutable root filesystem.\n' > "${KERNEL_SRC}/fs/glowfs/Kconfig"
-    grep -q "fs/glowfs" "${KERNEL_SRC}/fs/Kconfig" 2>/dev/null || echo 'source "fs/glowfs/Kconfig"' >> "${KERNEL_SRC}/fs/Kconfig"
-    grep -q "glowfs" "${KERNEL_SRC}/fs/Makefile" 2>/dev/null || echo 'obj-y += glowfs/' >> "${KERNEL_SRC}/fs/Makefile"
-
-    # Enable GlowFS, Sound, Wireless, ACPI, USB-HID in config
-    cd "${KERNEL_SRC}"
-    make olddefconfig >/dev/null 2>&1
-    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-    sed -i 's/# CONFIG_SOUND is not set/CONFIG_SOUND=y/' .config 2>/dev/null || echo "CONFIG_SOUND=y" >> .config
-    sed -i 's/# CONFIG_ACPI is not set/CONFIG_ACPI=y/' .config 2>/dev/null || echo "CONFIG_ACPI=y" >> .config
-    make olddefconfig >/dev/null 2>&1
-    cd "${ROOT_DIR}"
-    # Build kernel + GlowFS module
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" bzImage 2>&1 | tail -5
-    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}"
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" M=fs/glowfs modules 2>&1 | tail -5
-    cp "${KERNEL_SRC}/fs/glowfs/glowfs.ko" "${OUT_DIR}/glowfs.ko" 2>/dev/null || true
+    # Base stripped config (from 7.0.12, auto-adapted to whatever kernel version)
+    cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    make -C "${KERNEL_SRC}" ARCH=x86_64 olddefconfig >/dev/null 2>&1
+    # Build kernel
+    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage 2>&1 | tail -5
+    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}" 2>/dev/null || true
   else
     echo "→ Fetching pre-built kernel..."
     ALPINE_VERSION="${ALPINE_VERSION:-3.21}"
@@ -531,6 +510,10 @@ fi
 echo ""
 echo "Alpenglow boot"
 echo ""
+# Log memory at boot for benchmark
+if [ -f /proc/meminfo ]; then
+  grep -E 'MemTotal|MemFree' /proc/meminfo 2>/dev/null
+fi
 exec /sbin/dinit -d /etc/dinit.d -s -t shell-ttyS0
 INIT
 chmod 755 "${ROOTFS_DIR}/init"
@@ -607,16 +590,41 @@ require_cmd qemu-system-x86_64
 echo "→ Booting Alpenglow..."
 echo "  kernel:    ${KERNEL_IMAGE}"
 echo "  initramfs: ${INITRAMFS}"
+echo "  mode:      ${BOOT_MODE}"
 echo "  efi:       ${EFI}"
 echo "  (Ctrl-A X to quit)"
 echo ""
 
 QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
 
+# Kernel cmdline args
+KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
+
+if [ "${BOOT_MODE}" = "rootfs" ]; then
+  # Rootfs mode: boot from a disk image with alpenglow-root label
+  ROOTFS_IMAGE="${OUT_DIR}/rootfs.img"
+  if [ ! -f "${ROOTFS_IMAGE}" ]; then
+    echo "→ Creating rootfs image..."
+    dd if=/dev/zero of="${ROOTFS_IMAGE}" bs=1M count=1024 2>/dev/null
+    mkfs.ext4 -L alpenglow-root "${ROOTFS_IMAGE}" 2>/dev/null
+    # Populate rootfs from built rootfs directory if exists
+    if [ -d "${ROOTFS_DIR}" ]; then
+      TMPMNT=$(mktemp -d)
+      mount -o loop "${ROOTFS_IMAGE}" "${TMPMNT}" 2>/dev/null
+      cp -a "${ROOTFS_DIR}/." "${TMPMNT}/" 2>/dev/null || true
+      umount "${TMPMNT}" 2>/dev/null || true
+      rmdir "${TMPMNT}" 2>/dev/null || true
+    fi
+    echo "  rootfs: ${ROOTFS_IMAGE}"
+  fi
+  QEMU_OPTS="${QEMU_OPTS} -drive file=${ROOTFS_IMAGE},format=raw,if=virtio"
+  KERNEL_CMDLINE="${KERNEL_CMDLINE} alpenglow.root=/dev/vda"
+fi
+
 if [ "${EFI}" = "1" ]; then
   # UEFI boot via kernel EFI stub (saves ~200ms vs SeaBIOS)
   OVMF_CODE=""
-  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /opt/homebrew/Cellar/qemu/11.0.1/share/qemu/edk2-i386-code.fd; do
+  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd; do
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
   done
   if [ -n "${OVMF_CODE}" ]; then
@@ -625,7 +633,7 @@ if [ "${EFI}" = "1" ]; then
       -bios "${OVMF_CODE}" \
       -kernel "${KERNEL_IMAGE}" \
       -initrd "${INITRAMFS}" \
-      -append "quiet console=ttyS0 init=/init"
+      -append "${KERNEL_CMDLINE}"
   fi
   echo "  → OVMF not found, falling back to SeaBIOS"
 fi
@@ -635,4 +643,4 @@ exec qemu-system-x86_64 \
   ${QEMU_OPTS} \
   -kernel "${KERNEL_IMAGE}" \
   -initrd "${INITRAMFS}" \
-  -append "quiet console=ttyS0 init=/init"
+  -append "${KERNEL_CMDLINE}"

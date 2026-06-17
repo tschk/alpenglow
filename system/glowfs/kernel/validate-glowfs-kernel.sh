@@ -60,7 +60,7 @@ assert_contains "${GLOWFS_KERNEL_DIR}/glowfs_format.h" 'GLWFSV01'
 assert_contains "${GLOWFS_KERNEL_DIR}/glowfs_format.h" 'GLWFSV02'
 assert_contains "${GLOWFS_KERNEL_DIR}/glowfs_format.h" 'struct glowfs_v2_superblock'
 assert_contains "${GLOWFS_KERNEL_DIR}/glowfs_format.h" 'GLOWFS_KIND_SYMLINK'
-assert_contains "${GLOWFS_KERNEL_DIR}/Kbuild" 'glowfs_vfs.o'
+assert_contains "${GLOWFS_KERNEL_DIR}/Kbuild" 'glowfs-objs := glowfs_vfs.o'
 
 if [ -n "${KERNEL_SRC:-}" ]; then
   [ -d "${KERNEL_SRC}" ] || fail "KERNEL_SRC does not exist: ${KERNEL_SRC}"
