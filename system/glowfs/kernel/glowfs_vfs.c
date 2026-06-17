@@ -1,5 +1,7 @@
 #include <linux/buffer_head.h>
 #include <linux/fs.h>
+#include <linux/fs_context.h>
+#include <linux/blkdev.h>
 #include <linux/highmem.h>
 #include <linux/limits.h>
 #include <linux/module.h>
@@ -759,7 +761,7 @@ static const struct super_operations glowfs_super_ops = {
 	.drop_inode = generic_delete_inode,
 };
 
-static int glowfs_fill_super(struct super_block *sb, void *data, int silent)
+static int glowfs_fill_super(struct super_block *sb, struct fs_context *fc)
 {
 	struct inode *root_inode;
 	struct glowfs_disk_header header;
