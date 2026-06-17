@@ -42,8 +42,9 @@ fetch_kernel() {
   fi
 
   echo "→ Fetching riscv64 kernel from Alpine U-Boot image..."
-  UBOWL_TMP=$(mktemp -d)
-  trap 'rm -rf "${UBOWL_TMP}"' EXIT
+  local UBOWL_TMP=
+  UBOWL_TMP="$(mktemp -d)"
+  trap 'rm -rf "${UBOWL_TMP:-}"' EXIT
 
   curl -#fsSL \
     "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/riscv64/alpine-uboot-3.21.7-riscv64.tar.gz" \
@@ -66,8 +67,9 @@ fetch_kernel() {
 # ── 3. Build initramfs ────────────────────────────────────────────
 build_initramfs() {
   echo "→ Building initramfs..."
-  local INITRAMFS_DIR=$(mktemp -d)
-  trap 'rm -rf "${INITRAMFS_DIR}"' EXIT
+  local INITRAMFS_DIR=
+  INITRAMFS_DIR="$(mktemp -d)"
+  trap 'rm -rf "${INITRAMFS_DIR:-}"' EXIT
 
   mkdir -p "${INITRAMFS_DIR}"/{bin,dev,etc,proc,sys,tmp}
 
