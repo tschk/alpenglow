@@ -1,9 +1,12 @@
 #!/bin/sh
 # Build Alpenglow riscv64 cross-compiled components + initramfs
+# Uses Alpenglow's in-house kernel (not Alpine pre-built)
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT_DIR="${REPO_ROOT}/build/cross/riscv64"
+KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
+KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 
@@ -34,34 +37,92 @@ build_zig() {
   file "${OUT_DIR}"/zig-init "${OUT_DIR}"/alpenglow-kernelctl 2>/dev/null
 }
 
-# ── 2. Fetch or build riscv64 kernel ──────────────────────────────
-fetch_kernel() {
-  if [ -f "${OUT_DIR}/vmlinuz" ]; then
-    echo "  kernel exists: ${OUT_DIR}/vmlinuz"
+# ── 2. Build Alpenglow kernel for riscv64 ─────────────────────────
+build_kernel() {
+  if [ -f "${OUT_DIR}/Image" ]; then
+    echo "  kernel exists: ${OUT_DIR}/Image"
     return
   fi
 
-  echo "→ Fetching riscv64 kernel from Alpine U-Boot image..."
-  local UBOWL_TMP=
-  UBOWL_TMP="$(mktemp -d)"
-  trap 'rm -rf "${UBOWL_TMP:-}"' EXIT
+  echo "→ Building Alpenglow kernel (Linux ${KERNEL_VERSION}) for riscv64..."
 
-  curl -#fsSL \
-    "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/riscv64/alpine-uboot-3.21.7-riscv64.tar.gz" \
-    -o "${UBOWL_TMP}/alpine-uboot.tar.gz"
-
-  tar -xzf "${UBOWL_TMP}/alpine-uboot.tar.gz" -C "${UBOWL_TMP}" boot/vmlinuz-lts 2>/dev/null
-  if [ -f "${UBOWL_TMP}/boot/vmlinuz-lts" ]; then
-    # Alpine kernel is gzip-compressed
-    gunzip -c "${UBOWL_TMP}/boot/vmlinuz-lts" > "${OUT_DIR}/vmlinuz" 2>/dev/null || \
-      cp "${UBOWL_TMP}/boot/vmlinuz-lts" "${OUT_DIR}/vmlinuz"
-    echo "  kernel: ${OUT_DIR}/vmlinuz ($(du -sh "${OUT_DIR}/vmlinuz" | cut -f1))"
-  else
-    echo "  WARNING: could not fetch riscv64 kernel"
-    echo "  Build manually: scripts/cross-build.sh riscv64-linux-musl"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: docker required for cross-compilation" >&2
+    exit 1
   fi
-  rm -rf "${UBOWL_TMP}"
-  trap '' EXIT
+
+  docker run --rm -i \
+    -v "${OUT_DIR}:/build" \
+    --platform linux/arm64 \
+    debian:bookworm-slim sh -c '
+      set -eu
+      echo "  installing cross-toolchain..."
+      apt-get update -qq 2>/dev/null
+      apt-get install -y -qq gcc-riscv64-linux-gnu make flex bison bc \
+        libelf-dev curl tar xz-utils python3 cpio zstd 2>&1 | tail -3
+
+      KERNEL_VERSION="'${KERNEL_VERSION}'"
+      KERNEL_MAJOR="'${KERNEL_MAJOR}'"
+      KERNEL_SRC="/tmp/linux-${KERNEL_VERSION}"
+
+      if [ ! -d "${KERNEL_SRC}" ]; then
+        echo "  fetching kernel source..."
+        cd /tmp
+        curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o linux.tar.xz
+        tar -xf linux.tar.xz
+      fi
+
+      cd "${KERNEL_SRC}"
+
+      echo "  configuring..."
+      # RISC-V arch is "riscv" in kernel, not "riscv64"
+      make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- defconfig 2>&1
+      # Merge 64-bit config on top of defconfig (defconfig is 32-bit)
+      make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- 64-bit.config 2>&1
+
+      # Enable virt drivers for QEMU
+      scripts/config --enable VIRTIO_MENU
+      scripts/config --enable VIRTIO
+      scripts/config --enable VIRTIO_PCI
+      scripts/config --enable VIRTIO_BLK
+      scripts/config --enable VIRTIO_CONSOLE
+      scripts/config --enable VIRTIO_NET
+      scripts/config --enable VIRTIO_MMIO
+      scripts/config --enable VIRTIO_MMIO_CMDLINE_DEVICES
+      scripts/config --enable SERIAL_8250
+      scripts/config --enable SERIAL_8250_CONSOLE
+      scripts/config --enable SERIAL_OF_PLATFORM
+      scripts/config --enable SERIAL_EARLYCON_RISCV_SBI
+      scripts/config --enable SERIAL_EARLYCON_SEMIHOST
+      scripts/config --enable BLK_DEV_INITRD
+      scripts/config --enable DEVTMPFS
+      scripts/config --enable DEVTMPFS_MOUNT
+      scripts/config --enable PRINTK
+      scripts/config --enable EARLY_PRINTK
+      scripts/config --enable RISCV_SBI_V02
+
+      # Strip unnecessary drivers (minimal profile)
+      for d in WLAN WIRELESS SOUND HID USB_SUPPORT DRM FB \
+        BACKLIGHT_CLASS_DEVICE INPUT_MOUSE INPUT_JOYSTICK \
+        INPUT_TABLET INPUT_TOUCHSCREEN INPUT_MISC NFC BT RFKILL MAC80211 \
+        SECURITY_SELINUX SECURITY_SMACK SECURITY_TOMOYO SECURITY_YAMA \
+        SECURITY_SAFESETID MODULE_SIG MODULE_SIG_ALL MODULE_SIG_FORMAT \
+        DEBUG_FS DEBUG_KERNEL DEBUG_INFO FTRACE; do
+        scripts/config --disable "$d" 2>/dev/null || true
+      done
+
+      make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- olddefconfig 2>&1
+
+      echo "  building (this takes a while)..."
+      if make -j"$(nproc)" ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- Image 2>&1; then
+        # cp directly to bind mount can fail on macOS Docker; use cat instead
+        cat arch/riscv/boot/Image > /build/Image
+        echo "  kernel: /build/Image ($(ls -lh /build/Image | awk "{print \$5}"))"
+      else
+        echo "ERROR: kernel build failed" >&2
+        exit 1
+      fi
+    '
 }
 
 # ── 3. Build initramfs ────────────────────────────────────────────
@@ -94,7 +155,7 @@ else
   exit 1
 fi
 
-fetch_kernel
+build_kernel
 build_initramfs
 
 echo ""

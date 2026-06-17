@@ -46,18 +46,18 @@ fi
 echo "  OpenSBI: ${OPENSBI}"
 
 # ── 2. Build components if needed ────────────────────────────────
-if [ ! -f "${OUT_DIR}/initramfs.cpio.gz" ] || [ ! -f "${OUT_DIR}/vmlinuz" ]; then
+if [ ! -f "${OUT_DIR}/initramfs.cpio.gz" ] || [ ! -f "${OUT_DIR}/Image" ]; then
   echo "→ Building cross components..."
   "${REPO_ROOT}/scripts/build-riscv64.sh" 2>&1 | tail -3
 fi
 
 [ -f "${OUT_DIR}/zig-init" ]          || fail "init not found — run build-riscv64.sh first"
-[ -f "${OUT_DIR}/vmlinuz" ]           || fail "kernel not found — run build-riscv64.sh first"
+[ -f "${OUT_DIR}/Image" ]            || fail "kernel not found — run build-riscv64.sh first"
 [ -f "${OUT_DIR}/initramfs.cpio.gz" ] || fail "initramfs not found — run build-riscv64.sh first"
 
 # ── 3. Boot and verify ───────────────────────────────────────────
 echo "→ Booting QEMU riscv64 virt (timeout: ${TIMEOUT_SEC}s)..."
-echo "  kernel:    ${OUT_DIR}/vmlinuz"
+echo "  kernel:    ${OUT_DIR}/Image"
 echo "  initramfs: ${OUT_DIR}/initramfs.cpio.gz"
 echo ""
 
@@ -67,9 +67,9 @@ OUTPUT=$(gtimeout "${TIMEOUT_SEC}" qemu-system-riscv64 \
   -m 2G \
   -smp 2 \
   -bios "${OPENSBI}" \
-  -kernel "${OUT_DIR}/vmlinuz" \
+  -kernel "${OUT_DIR}/Image" \
   -initrd "${OUT_DIR}/initramfs.cpio.gz" \
-  -append "console=ttyS0,115200 init=/init loglevel=8" \
+  -append "earlycon=sbi console=ttyS0,115200 init=/init loglevel=8" \
   -nographic \
   -no-reboot \
   2>&1) || true
