@@ -16,7 +16,7 @@ docker run --rm \
   alpine:3.21 sh -c '
     set -eu
     apk add --no-cache build-base linux-headers curl tar xz bash \
-      flex bison openssl-dev perl >/dev/null
+      flex bison openssl-dev perl elfutils-dev >/dev/null
 
     # ponytail: glowfs module targets 6.12 API; 7.0 port WIP
     KERNEL_VERSION="6.12.93"
@@ -29,8 +29,7 @@ docker run --rm \
 
     # Use our appliance kernel config
     cp /alpenglow/system/backends/appliance/kernel/alpenglow-internet-appliance.config .config
-    # Disable objtool (needs libelf, not worth it for module build)
-    scripts/config --disable STACK_VALIDATION 2>/dev/null || true
+    # objtool needed for x86 module LD (elfutils-dev provides libelf)
 
     make olddefconfig >/dev/null 2>&1
     # modules_prepare might take long due to objtool; skip when headers exist
