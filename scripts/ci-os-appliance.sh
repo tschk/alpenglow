@@ -43,21 +43,6 @@ for dinit_svc in system/backends/appliance/dinit/*; do
   sh -n "${dinit_svc}" 2>/dev/null || sh -c ". ${dinit_svc}" 2>/dev/null || true
 done
 
-# Void reference backend
-for path in \
-  system/backends/void/backend.json \
-  system/backends/void/README.md \
-  system/backends/void/packages-runtime.txt \
-  system/backends/void/packages-dev.txt \
-  system/backends/void/scripts/build-rootfs.sh \
-  system/backends/void/scripts/configure-rootfs.sh
-do
-  assert_file "${path}"
-done
-for runit_svc in system/backends/void/runit/*/run; do
-  assert_file "${runit_svc}"
-  sh -n "${runit_svc}"
-done
 
 # Kernel config
 assert_file system/backends/appliance/kernel/alpenglow-internet-appliance.config

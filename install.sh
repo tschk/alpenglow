@@ -2,15 +2,13 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-BACKEND="${ALPENGLOW_BACKEND:-${ALPENGLOW_BACKEND:-void-musl-runit}}"
 
 usage() {
   cat <<'EOF'
-usage: ./install.sh [--check] [--prepare-rootfs] [--qemu-reference]
+usage: ./install.sh [--check] [--prepare-rootfs]
 
   --check           Run install readiness gates.
-  --prepare-rootfs  Build the selected backend rootfs.
-  --qemu-reference  Run the current Alpine reference QEMU flow.
+  --prepare-rootfs  Build the appliance rootfs.
 EOF
 }
 
@@ -21,18 +19,7 @@ check_ready() {
 }
 
 prepare_rootfs() {
-  case "${BACKEND}" in
-    void|void-musl-runit)
-      "${ROOT_DIR}/system/backends/void/scripts/build-rootfs.sh"
-      ;;
-    alpine|alpine-openrc)
-      "${ROOT_DIR}/system/alpine/scripts/build-rootfs.sh"
-      ;;
-    *)
-      echo "unknown backend: ${BACKEND}" >&2
-      exit 1
-      ;;
-  esac
+  "${ROOT_DIR}/system/backends/appliance/scripts/build-rootfs.sh"
 }
 
 if [ "$#" -eq 0 ]; then
@@ -48,10 +35,7 @@ while [ "$#" -gt 0 ]; do
     --prepare-rootfs)
       prepare_rootfs
       ;;
-    --qemu-reference)
-      "${ROOT_DIR}/system/alpine/scripts/qemu-v0.sh"
-      ;;
-    --help|-h)
+    --usage|-h)
       usage
       ;;
     *)

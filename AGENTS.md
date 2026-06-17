@@ -60,12 +60,10 @@ system/
   oil/              Native package manager (Rust, APK-only)
   backends/
     appliance/      Primary target (dinit, toybox, LLVM, Oil, diskless)
-    void/           Void reference backend (deprecated)
-  alpine/           Legacy Alpine reference backend (kernel configs symlinked to appliance)
   glowfs/           GlowFS kernel module source
 docs/               Architecture, build, install docs
 
-Kernel configs live at `system/backends/appliance/kernel/`. The `system/alpine/kernel/` path is a symlink.
+Kernel configs live at `system/backends/appliance/kernel/`.
 ```
 
 ## CI
