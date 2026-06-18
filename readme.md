@@ -25,8 +25,7 @@ Platform support:
 ./scripts/boot-native.sh
 
 # Rootfs mode — install to disk
-curl -L alpenglow.example.org/installer | sh   # or:
-oil install alpenglow-core
+# I'll clean up these instructions later, and am gonna make a website or sm for this.
 
 # Custom kernel
 KERNEL_BUILD=1 ./scripts/boot-native.sh
@@ -120,6 +119,7 @@ The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exis
 
 ## Status
 
-21/22 milestones complete. Last milestone: real hardware boot (QEMU only for now).
+It boots on real hardware! 22/22 milestones.
+Booted on 2012 Mac Mini.
 
 See [AGENTS.md](AGENTS.md) for full milestone table and [docs/](docs/) for architecture docs.
