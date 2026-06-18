@@ -8,6 +8,18 @@ CARGO_CONFIG_BACKUP=""
 
 fail() { printf 'ci-rust-core: %s\n' "$1" >&2; exit 1; }
 
+run_cargo() {
+  output="$(mktemp)"
+  if "$@" >"${output}" 2>&1; then
+    tail -5 "${output}"
+    rm -f "${output}"
+    return 0
+  fi
+  tail -20 "${output}" >&2
+  rm -f "${output}"
+  fail "$* failed"
+}
+
 restore_cargo_config() {
   if [ -n "${CARGO_CONFIG_BACKUP}" ] && [ -f "${CARGO_CONFIG_BACKUP}" ]; then
     mv "${CARGO_CONFIG_BACKUP}" .cargo/config.toml
@@ -21,7 +33,7 @@ if [ -f .cargo/config.toml ]; then
   mv .cargo/config.toml "${CARGO_CONFIG_BACKUP}"
 fi
 
-cargo check --workspace 2>&1 | tail -5
-cargo test -p alpenglow-netd 2>&1 | tail -5
+run_cargo cargo check --workspace
+run_cargo cargo test -p alpenglow-netd
 
 printf 'ci-rust-core: ok\n'
