@@ -101,14 +101,14 @@ echo "→ Installing Limine bootloader..."
 sudo mkdir -p "${MNT_ROOT}/boot/limine"
 cat > /tmp/limine.conf << 'LIMINE'
 # Alpenglow Limine configuration
-TIMEOUT=5
-VERBOSE=no
+timeout: 5
+verbose: no
 
-:Alpenglow
-  PROTOCOL=linux
-  KERNEL_PATH=boot:///boot/vmlinuz
-  CMDLINE=console=tty0 console=ttyS0 init=/init alpenglow.state=LABEL=alpenglow-state
-  MODULE_PATH=boot:///boot/initramfs.cpio.gz
+/Alpenglow
+  protocol: linux
+  path: boot:///boot/vmlinuz
+  cmdline: console=tty0 console=ttyS0 init=/init alpenglow.state=LABEL=alpenglow-state
+  module_path: boot:///boot/initramfs.cpio.gz
 LIMINE
 sudo cp /tmp/limine.conf "${MNT_ROOT}/boot/limine/limine.conf"
 sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 2>/dev/null || true
