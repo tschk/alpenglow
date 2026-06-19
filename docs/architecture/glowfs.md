@@ -1,13 +1,15 @@
 # GlowFS
 
-GlowFS is the Alpenglow general-purpose filesystem. Its job is to provide a normal writable filesystem for Alpenglow systems while learning from ext4, ZFS, Btrfs, XFS, NTFS, APFS, EROFS, and SquashFS without inheriting all of their complexity.
+GlowFS is the planned Alpenglow general-purpose filesystem. It is under development, not a production filesystem today. Its job is to provide a normal writable filesystem for Alpenglow systems while learning from ext4, ZFS, Btrfs, XFS, NTFS, APFS, EROFS, and SquashFS without inheriting all of their complexity.
 
 Alpenglow separates the filesystem family into two formats:
 
-- GlowFS is the normal writable filesystem track. It is for persistent state, package state, profiles, downloads, and general POSIX workloads where allocation, fsync, recovery, and long-lived mutation matter.
-- GlowIFS is immutable-first, sealed at build time, and optimized for appliance roots, system generations, rollback, verification, and segmented editable areas such as `/home`.
+- GlowFS is the planned normal writable filesystem track. It is for persistent state, package state, profiles, downloads, and general POSIX workloads where allocation, fsync, recovery, and long-lived mutation matter.
+- GlowIFS is the planned immutable-first image format, sealed at build time and optimized for appliance roots, system generations, rollback, verification, and segmented editable areas such as `/home`.
 
 The split is intentional. GlowIFS should not grow into a half-mutable general filesystem. GlowFS can learn from ext4, ZFS, NTFS, APFS, and other writable filesystems without forcing those concerns into the sealed boot image.
+
+Current status: the repository still contains a prototype `glowfs` kernel module and `glowfsctl` image tool for the immutable image experiment. The naming and implementation have not caught up with this design split yet. Treat this document as direction, not a claim that GlowFS or GlowIFS are ready for real data.
 
 ## Why GlowFS Exists
 
@@ -19,7 +21,7 @@ General filesystems optimize for broad POSIX workloads. GlowFS should keep that 
 - Integrity should be native to the format instead of bolted on after mount.
 - Layout should make the common appliance and desktop paths fast without needing a large policy engine in the kernel.
 
-GlowFS should start as a small, journaled extent filesystem rather than a broad ZFS clone. The baseline should look closer to ext4 than to ZFS: block groups, extents, checksummed metadata, journaled metadata commits, orphan recovery, fsck support, and fast mount. The ZFS lessons to carry over are end-to-end checksums, transaction boundaries, scrub support, explicit datasets or volumes, send/receive as an update primitive, and avoiding silent corruption as a design premise.
+GlowFS should start as a small, journaled extent filesystem rather than a broad ZFS clone. The early design should learn from ext4's block groups, extents, journaled metadata commits, orphan recovery, fsck support, and fast mount behavior. The ZFS lessons to carry over are end-to-end checksums, transaction boundaries, scrub support, explicit datasets or volumes, send/receive as an update primitive, and avoiding silent corruption as a design premise.
 
 GlowFS should avoid ZFS's weight at first: no pooled multi-device manager in v0, no deduplication, no ARC-sized memory assumptions, no general snapshot graph, and no policy engine in the kernel. Snapshots can come later as read-only roots or generation checkpoints once allocation, recovery, and verification are correct.
 
@@ -33,7 +35,7 @@ GlowIFS is not purely static. It should support segmented editability by design:
 
 - `/` is sealed and generation-verified.
 - `/usr`, `/bin`, `/sbin`, `/lib`, and most of `/etc` come from the immutable image.
-- `/home`, `/var/lib`, `/var/cache`, and selected `/etc` overlays can be editable segments backed by GlowFS or another writable filesystem.
+- `/home`, `/var/lib`, `/var/cache`, and selected `/etc` overlays can be editable segments backed by the current writable state filesystem.
 - Segment boundaries are explicit in the image manifest and mount policy.
 - Rollback switches the sealed image generation without destroying writable segments.
 
