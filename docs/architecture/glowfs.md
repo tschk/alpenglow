@@ -31,15 +31,19 @@ GlowFS should also learn from NTFS and APFS. NTFS shows why extensible metadata,
 
 GlowIFS is the immutable-first format for appliance roots. It should take the best parts of immutable filesystems: EROFS-style read-only discipline, SquashFS-style packed images, dm-verity-style verification, OSTree-style generation thinking, and ZFS-style distrust of silent corruption. It leaves behind the parts Alpenglow does not need in the sealed image: online allocation, block reuse, write ordering for arbitrary mutation, quota policy, and repair tools.
 
-GlowIFS is not purely static. It should support segmented editability by design:
+GlowIFS is not purely static. It should support object-policy editability by design:
 
-- `/` is sealed and generation-verified.
-- `/usr`, `/bin`, `/sbin`, `/lib`, and most of `/etc` come from the immutable image.
-- `/home`, `/var/lib`, `/var/cache`, and selected `/etc` overlays can be editable segments backed by the current writable state filesystem.
-- Segment boundaries are explicit in the image manifest and mount policy.
-- Rollback switches the sealed image generation without destroying writable segments.
+- sealed objects are generation-verified and cannot be edited in place,
+- editable objects are policy-declared and persist outside the sealed generation,
+- ephemeral objects are recreated each boot,
+- cache objects can be discarded without rollback impact,
+- inherited objects take their policy from a parent directory object unless overridden.
 
 This gives Alpenglow an appliance-style root without pretending user data is immutable.
+
+Paths are a projection over object policy, not the policy source. `/usr`, `/bin`, `/sbin`, `/lib`, and most of `/etc` resolve to sealed objects. `/home`, `/var/lib`, `/var/cache`, and selected `/etc` entries resolve to editable or cache objects. The image manifest records object IDs, object kind, policy, owner, digest, generation compatibility, and path bindings. Rollback switches the sealed generation while preserving editable object IDs.
+
+GlowIFS should learn from object-oriented filesystems without abandoning POSIX. Applications still see directories, files, symlinks, permissions, and file descriptors. Internally, GlowIFS treats directories, files, snapshots, editable segments, cache regions, manifests, xattr sets, and generation roots as typed objects. This lets Alpenglow attach policy to durable objects instead of relying only on path naming.
 
 ## Kernel Boundary
 

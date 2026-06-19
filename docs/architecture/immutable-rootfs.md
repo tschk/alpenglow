@@ -15,6 +15,8 @@ GlowIFS is the planned immutable format, but it is under development. Current ap
 
 GlowFS and GlowIFS are separate by design, but neither should be documented as production-ready yet. GlowIFS is the sealed appliance-root direction: immutable, read-only, digest-verified, and generation-oriented. GlowFS is the writable-filesystem direction: journaled, recoverable, allocation-aware, and suitable for normal POSIX writes. Appliance images should not depend on mutable GlowIFS behavior.
 
+GlowIFS editability is planned as object policy rather than path-only policy. A path such as `/home` is just a binding to editable objects; the durable identity lives in the object manifest. The current bind-mount plan below is the practical compatibility shape until object-policy mounting exists.
+
 ## Runtime Mount Plan (appliance mode)
 
 | Mount | Type | Options | Purpose |
