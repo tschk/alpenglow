@@ -27,6 +27,31 @@ GlowFS should avoid ZFS's weight at first: no pooled multi-device manager in v0,
 
 GlowFS should also learn from NTFS and APFS. NTFS shows why extensible metadata, durable file identity, recoverable journals, reparse-like indirection, and rich attributes matter. APFS shows why snapshots, clones, copy-on-write metadata, space sharing, and per-volume encryption are useful on SSDs. GlowFS should take those ideas selectively: extensible metadata and durable IDs early, snapshots and clones later, and encryption as a volume/layer decision rather than a mandatory v0 feature.
 
+## GlowFS Object Model
+
+GlowFS should be a typed object filesystem with a POSIX surface. Applications still see paths, directories, files, symlinks, permissions, and file descriptors. Internally, durable identity is an object ID, not a path string. Directories map names to object IDs. Files are byte-stream objects backed by extents. Snapshots, clones, xattr sets, cache regions, package roots, and policy roots can become object types as the filesystem grows.
+
+The core object record should include:
+
+- object ID,
+- object kind,
+- parent or link references,
+- policy,
+- version,
+- size,
+- extent references,
+- checksum references,
+- timestamps and ownership.
+
+GlowFS should use a hybrid write policy instead of making the whole filesystem copy-on-write or non-copy-on-write. Metadata updates should be transactional. File data policy should be per object:
+
+- `cow`: allocate new extents on write, suitable for snapshots, clones, user documents, and package roots.
+- `nocow`: overwrite existing extents where safe, suitable for databases, VM images, and write-amplification-sensitive files.
+- `cache`: durable enough for normal operation, discardable during recovery or cleanup.
+- `ephemeral`: runtime-only or boot-scoped data that should not participate in durable recovery.
+
+This keeps GlowFS from forcing browser cache, package downloads, databases, and user documents into one write strategy. The first implementation should support transactional metadata, stable object IDs, extents, directory indexes, checksummed metadata, and a clear repair story. Data checksums, copy-on-write data, clones, snapshots, scrub, send/receive, compression, and richer policy roots can come after the allocator and recovery model are proven.
+
 ## GlowIFS
 
 GlowIFS is the immutable-first format for appliance roots. It should take the best parts of immutable filesystems: EROFS-style read-only discipline, SquashFS-style packed images, dm-verity-style verification, OSTree-style generation thinking, and ZFS-style distrust of silent corruption. It leaves behind the parts Alpenglow does not need in the sealed image: online allocation, block reuse, write ordering for arbitrary mutation, quota policy, and repair tools.
