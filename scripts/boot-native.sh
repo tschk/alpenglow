@@ -14,7 +14,7 @@ KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
 KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
-KERNEL_7="${KERNEL_7:-1}"  # 1=Linux 7.0 defconfig+rust, 0=Alpine pre-built
+KERNEL_7="${KERNEL_7:-1}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
 BOOT_MODE="${BOOT_MODE:-diskless}"  # diskless or rootfs
@@ -140,9 +140,8 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage 2>&1 | tail -5
     cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}" 2>/dev/null || true
   else
-    echo "→ Fetching pre-built kernel..."
-    ALPINE_VERSION="${ALPINE_VERSION:-3.21}"
-    curl -#fsSL "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/${ARCH}/netboot/vmlinuz-virt" -o "${KERNEL_IMAGE}"
+    echo "KERNEL_7=0 requires KERNEL_BUILD=1; no distro netboot kernel fallback is used." >&2
+    exit 1
   fi
   echo "  kernel: ${KERNEL_IMAGE}"
 fi

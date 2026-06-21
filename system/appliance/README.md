@@ -1,6 +1,6 @@
 # Alpenglow Appliance Backend Contract
 
-Alpenglow composes an immutable browser appliance from a small base system, staged browser artifacts, and a fixed runtime state contract. The base system is selected through a backend. The active direction is Oasis-style composition with a Void musl and runit backend.
+Alpenglow composes an immutable appliance from its native musl+dinit system, staged desktop artifacts, and a fixed runtime state contract.
 
 The shared appliance contract owns:
 
@@ -11,21 +11,17 @@ The shared appliance contract owns:
 - installer bridge metadata,
 - backend metadata validation.
 
-Backends own:
+The native backend owns:
 
-- base package installation,
+- base package installation through Oil,
 - libc and init selection,
 - rootfs bootstrap,
 - service-manager files,
-- distro package manifests,
-- distro-specific kernel packaging.
+- package manifests,
+- kernel packaging.
 
-The package-manager identity is `oil`, sourced from [Oil](https://github.com/tschk/oil). The current sibling checkout still builds a binary named `wax`, so scripts call that binary through the Oil bridge. Void base bootstrap still uses XBPS only as a fetcher until Oil exposes a Void registry backend.
+The package-manager identity is `oil`, sourced from [Oil](https://github.com/tschk/oil). The current sibling checkout still builds a binary named `wax`, so scripts call that binary through the Oil bridge.
 
 Current backend ranking:
 
-1. `void-musl-runit`
-2. `alpine-openrc`
-3. `chimera-musl-dinit`
-4. `oasis-static`
-
+1. `alpenglow-native`

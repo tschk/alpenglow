@@ -20,7 +20,7 @@
   "runtime_state": "/run/alpenglow/runtime-state.env",
   "fallback_boot": {
     "enabled": true,
-    "artifact": "vmlinuz-virt"
+    "artifact": "vmlinuz"
   },
   "metrics_gates": [
     "cold_page_load_ms",

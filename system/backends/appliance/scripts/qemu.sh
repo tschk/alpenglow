@@ -5,7 +5,7 @@ set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 
-# Accept QEMU_DIR as optional arg for compatibility with Alpine runner interface
+# Accept QEMU_DIR as optional arg for compatibility with CI callers.
 QEMU_DIR="${1:-${ROOT_DIR}/build/native}"
 KERNEL="${QEMU_DIR}/vmlinuz"
 INITRAMFS="${QEMU_DIR}/initramfs.cpio.gz"
