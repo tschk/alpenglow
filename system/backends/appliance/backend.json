@@ -10,52 +10,11 @@
   "composition_model": "oasis-static",
   "boot_model": "diskless",
   "hardened": true,
-  "compiler": {
-    "default": "clang",
-    "linker": "lld",
-    "available": ["clang", "clang++", "llvm-ar", "llvm-nm", "llvm-objcopy", "lld"],
-    "future": ["inauguration"]
-  },
-  "userland": {
-    "core": "toybox",
-    "style": "minimal"
-  },
-  "filesystem": {
-    "immutable_root": true,
-    "diskless": true,
-    "root_fs": "glowfs",
-    "generation_model": "git-based",
-    "state_model": "persistent-mount"
-  },
-  "display": {
-    "server": "wayland",
-    "compositor": "velox",
-    "session_manager": "greetd",
-    "terminal": "foot",
-    "infrastructure": "seatd"
-  },
-  "audio": {
-    "server": "pipewire",
-    "session_manager": "wireplumber",
-    "backend": "alsa"
-  },
-  "networking": {
-    "dhcp": "sdhcp",
-    "wifi": "iwd"
-  },
-  "power": {
-    "manager": "elogind",
-    "acpi": true,
-    "suspend": "loginctl suspend",
-    "hibernate": "loginctl hibernate"
-  },
   "profiles": {
     "minimal": {
-      "description": "Headless appliance — boot, shell, networking, SSH, NTP, logging, cron, DNS",
       "packages": "packages-minimal.txt"
     },
     "standard": {
-      "description": "Full Wayland desktop appliance — display, audio, WiFi, browser, dev tools",
       "packages": "packages-runtime.txt"
     }
   },
@@ -63,94 +22,8 @@
     "packages": "packages-runtime.txt",
     "packages_dev": "packages-dev.txt",
     "services": "dinit",
-    "initramfs": "initramfs",
     "configure_rootfs": "scripts/configure-rootfs.sh",
     "build_rootfs": "scripts/build-rootfs.sh",
     "installer": "../../appliance/scripts/oil-installer.sh"
-  },
-  "kernel": {
-    "policy": "hardened",
-    "approach": "minimal-appliance",
-    "sources": ["linux-stable"],
-    "features": [
-      "rust",
-      "sound",
-      "wireless",
-      "acpi",
-      "usb-hid",
-      "i2c",
-      "glowfs",
-      "erofs",
-      "squashfs",
-      "zram",
-      "damon",
-      "cgroups",
-      "seccomp",
-      "landlock",
-      "namespaces",
-      "bpf"
-    ]
-  },
-  "boot": {
-    "model": "custom-initramfs",
-    "inspiration": ["limine", "uefi-stub", "extlinux"],
-    "disk_image": "GPT + Limine + ext4"
-  },
-  "services": {
-    "essential": [
-      "mount-filesystems",
-      "state-mount",
-      "elogind",
-      "seatd",
-      "networking"
-    ],
-    "system": [
-      "alpenglow-kernel-policy",
-      "alpenglow-zram",
-      "alpenglow-pressure",
-      "alpenglow-netd",
-      "alpenglow-power",
-      "iwd",
-      "syslogd",
-      "crond"
-    ],
-    "session": [
-      "pipewire",
-      "wireplumber",
-      "greetd",
-      "velox",
-      "foot"
-    ],
-    "network_services": [
-      "dropbear",
-      "chronyd",
-      "dnsmasq"
-    ],
-    "user_init": [
-      "alpenglow-session"
-    ]
-  },
-  "notes": [
-    "Alpenglow native appliance — the unified target OS.",
-    "Diskless boot: rootfs in RAM via GlowFS, state on persistent media.",
-    "Oil native: no distro bootstrap fetcher. Oil fetches and manages everything.",
-    "dinit: fast parallel dependency-graph init system.",
-    "LLVM/Clang: default system compiler. Inauguration as future codegen backend.",
-    "toybox: minimal BSD-licensed coreutils replacement.",
-    "Hardened kernel and system policies throughout.",
-    "Custom initramfs combining best ideas from Limine, UEFI stub, and extlinux.",
-    "Not HW-specific: generic appliance kernel config.",
-    "Wayland + velox compositor for graphical sessions.",
-    "PipeWire audio server with WirePlumber session manager.",
-    "iwd for modern WiFi management.",
-    "elogind for session tracking and power management.",
-    "greetd as login greeter for graphical login.",
-    "Rust kernel support enabled.",
-    "SSH: dropbear for remote administration.",
-    "NTP: chrony for clock synchronization.",
-    "Logging: toybox syslogd.",
-    "Cron: toybox crond.",
-    "DNS cache: dnsmasq local caching resolver.",
-    "Editor: vro (V-based micro-inspired editor), replaces toybox vi."
-  ]
+  }
 }

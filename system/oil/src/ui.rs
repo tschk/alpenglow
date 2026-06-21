@@ -3,9 +3,9 @@ pub mod dirs {
     use std::path::PathBuf;
 
     pub fn home_dir() -> Result<PathBuf> {
-        std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| {
-            OilError::Install("$HOME not set".into())
-        })
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| OilError::Install("$HOME not set".into()))
     }
 
     pub fn oil_dir() -> Result<PathBuf> {

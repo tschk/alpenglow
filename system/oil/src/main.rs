@@ -7,6 +7,8 @@ mod version;
 
 use clap::{Parser, Subcommand};
 use error::Result;
+use std::io::Read;
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(name = "oil")]
@@ -26,13 +28,9 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Search for packages
-    Search {
-        query: String,
-    },
+    Search { query: String },
     /// Show package details
-    Info {
-        formula: String,
-    },
+    Info { formula: String },
     /// List installed packages
     List {
         query: Option<String>,
@@ -76,14 +74,7 @@ enum Commands {
         list: bool,
     },
     /// Unpin a package
-    Unpin {
-        packages: Vec<String>,
-    },
-    /// Remove old versions
-    Cleanup {
-        #[arg(long)]
-        dry_run: bool,
-    },
+    Unpin { packages: Vec<String> },
     /// Show packages not required by any other package
     Leaves,
     /// Show packages that depend on a given package
@@ -100,10 +91,6 @@ enum Commands {
         #[arg(long, help = "Only installed")]
         installed: bool,
     },
-    /// Generate lockfile from installed packages
-    Lock,
-    /// Install packages from lockfile
-    Sync,
     /// Check system for problems
     Audit,
     /// Show oil installation info
@@ -135,8 +122,12 @@ fn run_command(cmd: Commands) -> Result<()> {
             let registry = system::registry::apk::ApkRegistry::alpine_default();
             let index = registry.load()?;
             let q = query.to_lowercase();
-            let mut results: Vec<_> = index.packages.iter()
-                .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
+            let mut results: Vec<_> = index
+                .packages
+                .iter()
+                .filter(|p| {
+                    p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q)
+                })
                 .collect();
             results.sort_by(|a, b| a.name.cmp(&b.name));
             for pkg in &results {
@@ -166,7 +157,9 @@ fn run_command(cmd: Commands) -> Result<()> {
             list.sort_by(|a, b| a.name.cmp(&b.name));
             for pkg in &list {
                 if let Some(ref q) = query {
-                    if !pkg.name.contains(q) { continue; }
+                    if !pkg.name.contains(q) {
+                        continue;
+                    }
                 }
                 if upgradable {
                     // Check against index
@@ -183,20 +176,26 @@ fn run_command(cmd: Commands) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Install { packages, dry_run, user, global } => {
+        Commands::Install {
+            packages,
+            dry_run,
+            user,
+            global,
+        } => {
             // For Alpenglow, system install is the default
             let _ = (user, global);
             let registry = system::registry::apk::ApkRegistry::alpine_default();
             let index = registry.load()?;
             let mut state = install::InstallState::new()?;
             for name in &packages {
-                let pkg = index.find(name)
+                let pkg = index
+                    .find(name)
                     .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
                 if dry_run {
                     println!("Would install {} {}", pkg.name, pkg.version);
                 } else {
                     let dest = std::path::PathBuf::from("/usr/local");
-                    system::installer::install_package(pkg, &dest)?;
+                    install_package(pkg, &dest)?;
                     state.mark_installed(&pkg.name, Some(pkg.version.clone()), true);
                     println!("Installed {} {}", pkg.name, pkg.version);
                 }
@@ -231,7 +230,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                     let index = registry.load()?;
                     if let Some(latest) = index.find(&name) {
                         let dest = std::path::PathBuf::from("/usr/local");
-                        system::installer::install_package(latest, &dest)?;
+                        install_package(latest, &dest)?;
                         state.mark_installed(&name, Some(latest.version.clone()), true);
                         println!("Reinstalled {name} {}", latest.version);
                     }
@@ -252,15 +251,24 @@ fn run_command(cmd: Commands) -> Result<()> {
             };
             for name in &targets {
                 if let Some(current) = installed.get(name) {
+                    if current.pinned {
+                        continue;
+                    }
                     if let Some(latest) = index.find(name) {
                         if &latest.version != &current.version {
                             if dry_run {
-                                println!("Would upgrade {name}: {} → {}", &current.version, &latest.version);
+                                println!(
+                                    "Would upgrade {name}: {} → {}",
+                                    &current.version, &latest.version
+                                );
                             } else {
                                 let dest = std::path::PathBuf::from("/usr/local");
-                                system::installer::install_package(latest, &dest)?;
+                                install_package(latest, &dest)?;
                                 state.mark_installed(name, Some(latest.version.clone()), true);
-                                println!("Upgraded {name}: {} → {}", current.version, latest.version);
+                                println!(
+                                    "Upgraded {name}: {} → {}",
+                                    current.version, latest.version
+                                );
                             }
                         }
                     }
@@ -287,7 +295,9 @@ fn run_command(cmd: Commands) -> Result<()> {
             let mut state = install::InstallState::new()?;
             if list {
                 for (name, pkg) in state.load()? {
-                    println!("{} {}", name, pkg.version);
+                    if pkg.pinned {
+                        println!("{} {}", name, pkg.version);
+                    }
                 }
             } else {
                 for name in &packages {
@@ -309,32 +319,53 @@ fn run_command(cmd: Commands) -> Result<()> {
             state.save()?;
             Ok(())
         }
-        Commands::Cleanup { dry_run } => {
-            let state = install::InstallState::new()?;
-            let _ = dry_run;
-            // Simple: just prune removed packages
-            state.save()?;
-            Ok(())
-        }
         Commands::Leaves => {
             let state = install::InstallState::new()?;
             let packages = state.load()?;
-            for (name, _) in &packages {
+            let installed_names: std::collections::HashSet<_> = packages.keys().cloned().collect();
+            let registry = system::registry::apk::ApkRegistry::alpine_default();
+            let index = registry.load()?;
+            let mut required = std::collections::HashSet::new();
+            for pkg in packages.values() {
+                if let Some(meta) = index.find(&pkg.name) {
+                    required.extend(
+                        meta.depends
+                            .iter()
+                            .filter(|dep| installed_names.contains(*dep))
+                            .cloned(),
+                    );
+                }
+            }
+            let mut leaves: Vec<_> = installed_names.difference(&required).cloned().collect();
+            leaves.sort();
+            for name in leaves {
                 println!("{name}");
             }
             Ok(())
         }
-        Commands::Uses { formula: _, installed } => {
+        Commands::Uses { formula, installed } => {
             let state = install::InstallState::new()?;
-            let _ = installed;
-            // Check dependency tree
-            let packages = state.load()?;
-            for (name, _) in &packages {
+            let installed_packages = state.load()?;
+            let registry = system::registry::apk::ApkRegistry::alpine_default();
+            let index = registry.load()?;
+            let mut users: Vec<_> = index
+                .packages
+                .iter()
+                .filter(|pkg| pkg.depends.iter().any(|dep| dep == &formula))
+                .filter(|pkg| !installed || installed_packages.contains_key(&pkg.name))
+                .map(|pkg| pkg.name.clone())
+                .collect();
+            users.sort();
+            for name in users {
                 println!("{name}");
             }
             Ok(())
         }
-        Commands::Deps { formula, tree, installed } => {
+        Commands::Deps {
+            formula,
+            tree,
+            installed,
+        } => {
             let _ = (tree, installed);
             let registry = system::registry::apk::ApkRegistry::alpine_default();
             let index = registry.load()?;
@@ -343,14 +374,6 @@ fn run_command(cmd: Commands) -> Result<()> {
                     println!("{dep}");
                 }
             }
-            Ok(())
-        }
-        Commands::Lock => {
-            println!("Lock not implemented for APK-only mode");
-            Ok(())
-        }
-        Commands::Sync => {
-            println!("Sync not implemented for APK-only mode");
             Ok(())
         }
         Commands::Audit => {
@@ -362,8 +385,37 @@ fn run_command(cmd: Commands) -> Result<()> {
         Commands::OilInfo => {
             println!("oil {}", version::OIL_VERSION);
             println!("Prefix: /usr/local");
-            println!("Cache: {}", ui::dirs::oil_cache_dir().unwrap_or_default().display());
+            println!(
+                "Cache: {}",
+                ui::dirs::oil_cache_dir().unwrap_or_default().display()
+            );
             Ok(())
         }
     }
+}
+
+fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
+    let url = &pkg.download_url;
+    eprintln!("Downloading {} {}...", pkg.name, pkg.version);
+
+    let resp = ureq::get(url)
+        .call()
+        .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
+
+    let mut data = Vec::new();
+    resp.into_body()
+        .into_reader()
+        .read_to_end(&mut data)
+        .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
+
+    let tmp = tempfile::NamedTempFile::new()
+        .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
+
+    std::fs::write(tmp.path(), &data)
+        .map_err(|e| error::OilError::Install(format!("write temp: {e}")))?;
+
+    eprintln!("Extracting {}...", pkg.name);
+    system::apk_extract::extract_tracked(tmp.path(), dest)?;
+
+    Ok(())
 }

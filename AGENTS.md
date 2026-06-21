@@ -110,7 +110,7 @@ cargo test -p alpenglow-netd
 | Custom kernel build | ✅ | `KERNEL_BUILD=1` works, GlowFS in-tree |
 | GlowFS kernel module | ✅ | In-tree, weak C fallback for Rust |
 | Real hardware boot | ❌ | QEMU only for now |
-| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` (native) / `ALPENGLOW_PROFILE=minimal|standard` (Oil) |
+| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` |
 | Interactive installer | 🟡 | Planned |
 | Crepuscularity DE | 📝 | 4-phase GPUI desktop shell plan |
 

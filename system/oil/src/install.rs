@@ -18,7 +18,6 @@ fn state_path() -> Result<PathBuf> {
 
 pub struct InstallState {
     packages: HashMap<String, InstalledPackage>,
-    dirty: bool,
 }
 
 impl InstallState {
@@ -30,7 +29,7 @@ impl InstallState {
         } else {
             HashMap::new()
         };
-        Ok(Self { packages, dirty: false })
+        Ok(Self { packages })
     }
 
     pub fn load(&self) -> Result<HashMap<String, InstalledPackage>> {
@@ -57,18 +56,15 @@ impl InstallState {
             pinned: false,
         };
         self.packages.insert(name.to_string(), pkg);
-        self.dirty = true;
     }
 
     pub fn remove(&mut self, name: &str) -> Result<()> {
         self.packages.remove(name);
-        self.dirty = true;
         Ok(())
     }
 
     pub fn clear(&mut self) {
         self.packages.clear();
-        self.dirty = true;
     }
 
     pub fn get(&self, name: &str) -> Option<InstalledPackage> {

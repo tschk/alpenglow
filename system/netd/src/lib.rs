@@ -118,7 +118,10 @@ pub fn write_snapshot(
 ) -> io::Result<()> {
     let json = render_json(snapshot);
     write_file(state_json.as_ref(), json.as_bytes())?;
-    write_file(runtime_env.as_ref(), render_runtime_env(snapshot).as_bytes())
+    write_file(
+        runtime_env.as_ref(),
+        render_runtime_env(snapshot).as_bytes(),
+    )
 }
 
 fn read_interface(name: &str, path: &Path) -> io::Result<NetworkInterface> {
@@ -286,21 +289,19 @@ mod tests {
     fn renders_json_with_kebab_case() {
         let snapshot = NetworkSnapshot {
             generated_unix_ms: 123,
-            interfaces: vec![
-                NetworkInterface {
-                    name: "eth0".to_owned(),
-                    index: Some(2),
-                    kind: InterfaceKind::Ethernet,
-                    mac_address: Some("02:00:00:00:00:01".to_owned()),
-                    operstate: OperState::Up,
-                    mtu: Some(1500),
-                    carrier: Some(true),
-                    speed_mbps: Some(1000),
-                    rx_bytes: Some(42),
-                    tx_bytes: Some(84),
-                    flags_hex: Some("0x1003".to_owned()),
-                },
-            ],
+            interfaces: vec![NetworkInterface {
+                name: "eth0".to_owned(),
+                index: Some(2),
+                kind: InterfaceKind::Ethernet,
+                mac_address: Some("02:00:00:00:00:01".to_owned()),
+                operstate: OperState::Up,
+                mtu: Some(1500),
+                carrier: Some(true),
+                speed_mbps: Some(1000),
+                rx_bytes: Some(42),
+                tx_bytes: Some(84),
+                flags_hex: Some("0x1003".to_owned()),
+            }],
         };
         let json = render_json(&snapshot);
         assert!(json.contains("\"name\": \"eth0\""));

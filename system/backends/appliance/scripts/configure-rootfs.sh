@@ -115,6 +115,23 @@ chmod 700 "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
 chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/lib/alpenglow/browser" 2>/dev/null || true
 chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS}/var/lib/alpenglow/system" 2>/dev/null || true
 
+# Enable dinit boot services (profile-aware)
+BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+case "${BUILD_PROFILE}" in
+  minimal)
+    BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
+    WORLD_FILE="${BACKEND_DIR}/packages-minimal.txt"
+    ;;
+  standard)
+    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
+    WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
+    ;;
+  *)
+    echo "Unknown profile: ${BUILD_PROFILE}. Use minimal or standard." >&2
+    exit 1
+    ;;
+esac
+
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
@@ -123,25 +140,11 @@ cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${BACKEND_DIR}/backend.json" "${ROOTFS}/etc/alpenglow/backend.json"
-cp "${BACKEND_DIR}/packages-runtime.txt" "${ROOTFS}/etc/alpenglow/world"
+cp "${WORLD_FILE}" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
 rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
-# Enable dinit boot services (profile-aware)
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
-ALPENGLOW_PROFILE="${ALPENGLOW_PROFILE:-standard}"
-case "${ALPENGLOW_PROFILE}" in
-  minimal)
-    BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
-    ;;
-  standard)
-    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
-    ;;
-  *)
-    echo "Unknown profile: ${ALPENGLOW_PROFILE}. Use minimal or standard." >&2
-    exit 1
-    ;;
-esac
 for service in ${BOOT_SERVICES}; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done

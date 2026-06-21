@@ -5,13 +5,12 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 
 usage() {
   cat <<'EOF'
-usage: ./install.sh [--check] [--doctor] [--prepare-rootfs] [--qemu-appliance] [--qemu-reference]
+usage: ./install.sh [--check] [--doctor] [--prepare-rootfs] [--qemu-appliance]
 
   --check            Static CI gates (no QEMU).
   --doctor           Report host tools and key repo paths.
   --prepare-rootfs   Build the appliance rootfs.
   --qemu-appliance   Headless QEMU boot smoke (ci-qemu-appliance).
-  --qemu-reference   Legacy Alpine cpio QEMU (not appliance).
 EOF
 }
 
@@ -72,9 +71,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --qemu-appliance)
       "${ROOT_DIR}/scripts/ci-qemu-appliance.sh"
-      ;;
-    --qemu-reference)
-      "${ROOT_DIR}/system/alpine/scripts/qemu-v0.sh"
       ;;
     --help|-h|--usage)
       usage

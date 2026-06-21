@@ -7,12 +7,12 @@
 
 use cms::signed_data::SignedData;
 use der::{Decode, Encode};
-use rsa::RsaPublicKey;
 use rsa::pkcs1v15;
 use rsa::pkcs1v15::Signature;
 use rsa::pkcs8::DecodePublicKey;
+use rsa::RsaPublicKey;
 use sha1::Sha1;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use signature::hazmat::PrehashVerifier;
 
 use crate::error::{OilError, Result};
@@ -32,15 +32,14 @@ const OID_MD: const_oid::ObjectIdentifier =
     const_oid::ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.4");
 
 /// Verify a detached CMS signature against data using a PEM-encoded RSA public key.
-pub fn verify_apk_signature(
-    data_tar: &[u8],
-    sig_cms_der: &[u8],
-    pubkey_pem: &str,
-) -> Result<()> {
+pub fn verify_apk_signature(data_tar: &[u8], sig_cms_der: &[u8], pubkey_pem: &str) -> Result<()> {
     let signed_data = SignedData::from_der(sig_cms_der)
         .map_err(|e| OilError::Install(format!("bad CMS signature: {e}")))?;
 
-    let signer = signed_data.signer_infos.0.get(0)
+    let signer = signed_data
+        .signer_infos
+        .0
+        .get(0)
         .ok_or_else(|| OilError::Install("CMS signature has no signer".into()))?;
 
     let sig_bytes = signer.signature.as_bytes();
@@ -67,7 +66,8 @@ pub fn verify_apk_signature(
     let prehash = if let Some(attrs) = &signer.signed_attrs {
         verify_message_digest(attrs, &data_hash)?;
         let mut encoded = Vec::new();
-        attrs.encode_to_vec(&mut encoded)
+        attrs
+            .encode_to_vec(&mut encoded)
             .map_err(|e| OilError::Install(format!("encode attrs: {e}")))?;
         // ponytail: hash DER(attrs) according to signatureAlgorithm
         hash_bytes(&encoded, sig_alg)?
@@ -92,7 +92,9 @@ pub fn verify_apk_signature(
         vk.verify_prehash(&prehash, &sig)
             .map_err(|e| verification_failed(e))
     } else {
-        Err(OilError::Install("unsupported RSA signature algorithm".into()))
+        Err(OilError::Install(
+            "unsupported RSA signature algorithm".into(),
+        ))
     }
 }
 
@@ -102,7 +104,9 @@ fn hash_bytes(data: &[u8], sig_alg: const_oid::ObjectIdentifier) -> Result<Vec<u
     } else if sig_alg == OID_RSA_SHA1 {
         Ok(Sha1::digest(data).to_vec())
     } else {
-        Err(OilError::Install("unsupported signature hash algorithm".into()))
+        Err(OilError::Install(
+            "unsupported signature hash algorithm".into(),
+        ))
     }
 }
 
@@ -115,7 +119,10 @@ fn verification_failed(e: signature::Error) -> OilError {
 
 /// Check that the signed-attributes SET contains a messageDigest matching
 /// our locally computed hash.
-fn verify_message_digest(attrs: &cms::signed_data::SignedAttributes, computed_hash: &[u8]) -> Result<()> {
+fn verify_message_digest(
+    attrs: &cms::signed_data::SignedAttributes,
+    computed_hash: &[u8],
+) -> Result<()> {
     for attr in attrs.iter() {
         if attr.oid != OID_MD {
             continue;

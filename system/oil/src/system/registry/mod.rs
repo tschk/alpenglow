@@ -20,10 +20,11 @@ pub struct PackageIndex {
 
 impl PackageIndex {
     pub fn find(&self, name: &str) -> Option<&PackageMetadata> {
-        self.packages
-            .iter()
-            .find(|p| p.name == name)
-            .or_else(|| self.packages.iter().find(|p| p.provides.iter().any(|prov| prov == name)))
+        self.packages.iter().find(|p| p.name == name).or_else(|| {
+            self.packages
+                .iter()
+                .find(|p| p.provides.iter().any(|prov| prov == name))
+        })
     }
 }
 

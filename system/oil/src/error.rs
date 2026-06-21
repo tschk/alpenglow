@@ -36,15 +36,21 @@ impl std::error::Error for OilError {
 }
 
 impl From<serde_json::Error> for OilError {
-    fn from(e: serde_json::Error) -> Self { OilError::Json(e) }
+    fn from(e: serde_json::Error) -> Self {
+        OilError::Json(e)
+    }
 }
 
 impl From<std::io::Error> for OilError {
-    fn from(e: std::io::Error) -> Self { OilError::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        OilError::Io(e)
+    }
 }
 
 impl From<ureq::Error> for OilError {
-    fn from(e: ureq::Error) -> Self { OilError::Http(e.to_string()) }
+    fn from(e: ureq::Error) -> Self {
+        OilError::Http(e.to_string())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, OilError>;
