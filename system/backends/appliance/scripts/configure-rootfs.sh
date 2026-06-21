@@ -117,9 +117,6 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
-cp "${BIN_SRC}/apply-kernel-policy.sh" "${ROOTFS}/usr/local/bin/"
-cp "${BIN_SRC}/apply-pressure-policy.sh" "${ROOTFS}/usr/local/bin/"
-cp "${BIN_SRC}/apply-zram-policy.sh" "${ROOTFS}/usr/local/bin/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
 cp "${SCRIPT_DIR}/mount-glowfs-root.sh" "${ROOTFS}/usr/local/bin/"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
@@ -138,7 +135,11 @@ case "${ALPENGLOW_PROFILE}" in
     BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
     ;;
   standard)
-    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq"
+    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
+    ;;
+  *)
+    echo "Unknown profile: ${ALPENGLOW_PROFILE}. Use minimal or standard." >&2
+    exit 1
     ;;
 esac
 for service in ${BOOT_SERVICES}; do
@@ -146,7 +147,7 @@ for service in ${BOOT_SERVICES}; do
 done
 
 # Default compiler: LLVM/Clang (with Inauguration as future path)
-mkdir -p "${ROOTFS}/etc/profile.d"
+mkdir -p "${ROOTFS}/etc/profile.d" "${ROOTFS}/etc/sysctl.d"
 cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
 # Alpenglow system compiler: LLVM/Clang (default)
 # Inauguration will be added as a future codegen backend.
@@ -185,8 +186,67 @@ vm.unprivileged_userfaultfd=0
 SYSCTL
 
 chmod +x "${ROOTFS}/usr/local/bin/"*.sh
+chmod +x "${ROOTFS}/opt/alpenglow/session-init" 2>/dev/null || true
 chmod +x "${ROOTFS}/init" 2>/dev/null || true
 find "${ROOTFS}/etc/dinit.d" -type f -exec chmod +x {} \; 2>/dev/null || true
+
+cat > "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" <<'KERNELPOLICY'
+#!/bin/sh
+set -eu
+
+set_sysctl() {
+  key="$1"
+  value="$2"
+  path="/proc/sys/$(printf '%s' "${key}" | tr . /)"
+  [ -w "${path}" ] || return 0
+  printf '%s\n' "${value}" >"${path}" 2>/dev/null || true
+}
+
+set_sysctl kernel.kptr_restrict 2
+set_sysctl kernel.dmesg_restrict 1
+set_sysctl kernel.unprivileged_bpf_disabled 1
+set_sysctl net.core.bpf_jit_harden 2
+set_sysctl net.ipv4.tcp_syncookies 1
+set_sysctl net.ipv4.conf.all.rp_filter 1
+set_sysctl net.ipv4.conf.default.rp_filter 1
+set_sysctl net.ipv4.tcp_rfc1337 1
+set_sysctl vm.unprivileged_userfaultfd 0
+KERNELPOLICY
+
+cat > "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" <<'ZRAMPOLICY'
+#!/bin/sh
+set -eu
+
+if [ -d /sys/class/zram-control ] && [ ! -e /dev/zram0 ]; then
+  cat /sys/class/zram-control/hot_add >/dev/null 2>&1 || true
+fi
+
+if [ -e /sys/block/zram0/disksize ]; then
+  mem_kb=$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')
+  if [ "${mem_kb}" -gt 0 ]; then
+    size_kb=$((mem_kb / 2))
+    printf '%sK\n' "${size_kb}" >/sys/block/zram0/disksize 2>/dev/null || true
+  fi
+fi
+
+if [ -e /dev/zram0 ] && command -v mkswap >/dev/null 2>&1 && command -v swapon >/dev/null 2>&1; then
+  mkswap /dev/zram0 >/dev/null 2>&1 || true
+  swapon /dev/zram0 >/dev/null 2>&1 || true
+fi
+ZRAMPOLICY
+
+cat > "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh" <<'PRESSUREPOLICY'
+#!/bin/sh
+set -eu
+
+while :; do
+  sleep 60
+done
+PRESSUREPOLICY
+chmod 755 \
+  "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" \
+  "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" \
+  "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh"
 
 # System configuration
 cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
@@ -256,7 +316,7 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
   "services": {
     "essential": ["mount-filesystems", "state-mount", "elogind", "seatd", "networking"],
     "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "alpenglow-power", "iwd", "syslogd", "crond"],
-    "session": ["pipewire", "wireplumber", "greetd", "velox", "foot"],
+    "session": ["pipewire", "wireplumber", "greetd", "velox", "alpenglowed", "foot"],
     "network_services": ["dropbear", "chronyd", "dnsmasq"],
     "user_init": ["alpenglow-session"]
   }

@@ -55,7 +55,7 @@
       "packages": "packages-minimal.txt"
     },
     "standard": {
-      "description": "Full desktop appliance — display, audio, WiFi, browser, dev tools",
+      "description": "Full Wayland desktop appliance — display, audio, WiFi, browser, dev tools",
       "packages": "packages-runtime.txt"
     }
   },

@@ -307,7 +307,7 @@ case "${BUILD_PROFILE}" in
     BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq"
     ;;
   standard)
-    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power iwd pipewire wireplumber greetd velox foot"
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power iwd pipewire wireplumber greetd velox alpenglowed foot"
     ;;
 esac
 

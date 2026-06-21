@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export GDK_BACKEND=wayland
+export QT_QPA_PLATFORM=wayland
+export SDL_VIDEODRIVER=wayland
+export _JAVA_AWT_WM_NONREPARENTING=1
+export CLUTTER_BACKEND=wayland
+export FREEDESKTOP_MONITORS="${FREEDESKTOP_MONITORS:-/run/user/$(id -u)/monitors}"
+
+mkdir -p "${XDG_RUNTIME_DIR}"
+chmod 700 "${XDG_RUNTIME_DIR}"
+
+if command -v alpenglowed >/dev/null 2>&1; then
+	exec alpenglowed
+fi
+
+exec velox

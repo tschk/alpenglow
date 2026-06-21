@@ -39,6 +39,7 @@ wayland
 wayland-protocols
 glowfs-wayland
 foot
+alpenglowed
 
 # Session management
 greetd
