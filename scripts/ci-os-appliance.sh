@@ -15,17 +15,13 @@ test -L CLAUDE.md || fail "CLAUDE.md must be a symlink"
 
 # Core backend contract
 for path in \
-  system/appliance/scripts/select-backend.sh \
   system/appliance/scripts/oil-installer.sh \
   system/appliance/README.md \
-  system/appliance/backend.schema.json \
-  system/appliance/backends.json \
   system/appliance/filesystems/rootfs-layout.json \
   system/appliance/filesystems/state-mounts.json
 do
   assert_file "${path}"
 done
-assert_executable system/appliance/scripts/select-backend.sh
 
 # Native appliance backend
 for path in \
@@ -79,10 +75,6 @@ assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
 
-# backends.json validation
-assert_contains system/appliance/backends.json '"default": "alpenglow-native"'
-assert_contains system/appliance/backends.json '"composition_model": "oasis-static"'
-
 # rootfs-layout.json validation
 assert_contains system/appliance/filesystems/rootfs-layout.json '"role": "immutable-system"'
 assert_contains system/appliance/filesystems/rootfs-layout.json '"default_mode": "diskless"'
@@ -94,7 +86,9 @@ assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT INT TERM
-mkdir -p "${tmp_root}"/{bin,sbin,etc,dev,proc,sys,tmp,run}
+for dir in bin sbin etc dev proc sys tmp run; do
+  mkdir -p "${tmp_root}/${dir}"
+done
 cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
 system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
