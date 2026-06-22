@@ -58,15 +58,41 @@ pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Ve
 /// Split a concatenated-gzip file into up to `count` individually
 /// decompressed streams by scanning for gzip magic bytes.
 fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+    const MAX_STREAM_COUNT: usize = 3;
+    const MAX_STREAM_SIZE: usize = 1024 * 1024 * 1024; // 1GB per stream
+    const MAX_TOTAL_SIZE: usize = 2 * 1024 * 1024 * 1024; // 2GB total
+
+    if count > MAX_STREAM_COUNT {
+        return Err(OilError::Install(format!(
+            "Requested {count} streams, maximum is {MAX_STREAM_COUNT}"
+        )));
+    }
+
+    if data.len() > MAX_TOTAL_SIZE {
+        return Err(OilError::Install(format!(
+            "APK size {} exceeds maximum {}",
+            data.len(),
+            MAX_TOTAL_SIZE
+        )));
+    }
+
     let mut starts: Vec<usize> = Vec::new();
+    let mut last_pos = 0;
+    
     for i in 0..data.len().saturating_sub(1) {
         if data[i] == 0x1f && data[i + 1] == 0x8b {
+            if i < last_pos {
+                return Err(OilError::Install("Invalid gzip stream overlap".into()));
+            }
             starts.push(i);
+            last_pos = i;
+            
             if starts.len() >= count {
                 break;
             }
         }
     }
+    
     if starts.len() < count {
         return Err(OilError::Install(format!(
             "APK has {} gzip streams, expected {count}",
@@ -75,13 +101,36 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
     }
 
     let mut out = Vec::with_capacity(count);
+    let mut total_decompressed: usize = 0;
+    
     for i in 0..count {
         let slice = &data[starts[i]..];
         let mut decoder = flate2::read::GzDecoder::new(slice);
         let mut buf = Vec::new();
+        
         decoder.read_to_end(&mut buf)?;
+        
+        if buf.len() > MAX_STREAM_SIZE {
+            return Err(OilError::Install(format!(
+                "Stream {} size {} exceeds maximum {}",
+                i,
+                buf.len(),
+                MAX_STREAM_SIZE
+            )));
+        }
+        
+        total_decompressed += buf.len();
+        if total_decompressed > MAX_TOTAL_SIZE {
+            return Err(OilError::Install(format!(
+                "Total decompressed size {} exceeds maximum {}",
+                total_decompressed,
+                MAX_TOTAL_SIZE
+            )));
+        }
+        
         out.push(buf);
     }
+    
     Ok((out.remove(0), out.remove(0), out.remove(0)))
 }
 

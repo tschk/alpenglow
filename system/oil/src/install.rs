@@ -13,7 +13,10 @@ pub struct InstalledPackage {
 }
 
 fn state_path() -> Result<PathBuf> {
-    crate::ui::dirs::oil_dir().map(|d| d.join("installed.json"))
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|d| d.join(".oil").join("installed.json"))
+        .ok_or_else(|| crate::error::OilError::Install("$HOME not set".into()))
 }
 
 pub struct InstallState {
@@ -45,7 +48,7 @@ impl InstallState {
         Ok(())
     }
 
-    pub fn mark_installed(&mut self, name: &str, version: Option<String>, _declared: bool) {
+    pub fn mark_installed(&mut self, name: &str, version: Option<String>) {
         let pkg = InstalledPackage {
             name: name.to_string(),
             version: version.unwrap_or_default(),
@@ -69,9 +72,5 @@ impl InstallState {
 
     pub fn get(&self, name: &str) -> Option<InstalledPackage> {
         self.packages.get(name).cloned()
-    }
-
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut InstalledPackage> {
-        self.packages.get_mut(name)
     }
 }

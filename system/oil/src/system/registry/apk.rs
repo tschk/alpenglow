@@ -2,6 +2,7 @@ use super::{PackageIndex, PackageMetadata};
 use crate::error::{OilError, Result};
 use flate2::read::MultiGzDecoder;
 use std::io::Read;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 pub struct ApkRegistry {
@@ -33,7 +34,10 @@ impl ApkRegistry {
     }
 
     fn cache_path(&self) -> Result<std::path::PathBuf> {
-        let dir = crate::ui::dirs::oil_cache_dir()?.join("system");
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| OilError::Install("$HOME not set".into()))?;
+        let dir = home.join(".oil").join("cache").join("system");
         std::fs::create_dir_all(&dir)?;
         Ok(dir.join(format!(
             "apk-{}-{}-{}.json",
