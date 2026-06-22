@@ -148,6 +148,14 @@ mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
 for service in ${BOOT_SERVICES}; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
+{
+  echo "type = scripted"
+  echo "command = /bin/true"
+  echo "restart = no"
+  for service in ${BOOT_SERVICES}; do
+    echo "depends-on = ${service}"
+  done
+} > "${ROOTFS}/etc/dinit.d/boot"
 
 # Default compiler: LLVM/Clang (with Inauguration as future path)
 mkdir -p "${ROOTFS}/etc/profile.d" "${ROOTFS}/etc/sysctl.d"

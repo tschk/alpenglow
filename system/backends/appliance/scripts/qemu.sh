@@ -14,6 +14,7 @@ MEMORY_MB="${QEMU_MEMORY_MB:-${MEMORY_MB:-2048}}"
 ACCEL="${QEMU_ACCEL:-${ACCEL:-tcg}}"
 HEADLESS="${QEMU_HEADLESS:-${HEADLESS:-0}}"
 EFI="${QEMU_EFI:-${EFI:-1}}"
+VNC="${QEMU_VNC:-}"
 KERNEL_CMDLINE="${KERNEL_CMDLINE:-quiet console=ttyS0 init=/init}"
 
 command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86_64"; exit 1; }
@@ -21,7 +22,15 @@ command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86
 [ -f "${INITRAMFS}" ] || { echo "missing initramfs: ${INITRAMFS}"; exit 1; }
 
 DISPLAY="--display default"
-[ "${HEADLESS}" = "1" ] && DISPLAY="-nographic"
+INPUT=""
+if [ "${HEADLESS}" = "1" ]; then
+  DISPLAY="-nographic"
+elif [ -n "${VNC}" ]; then
+  DISPLAY="-display none -vnc ${VNC}"
+  INPUT="-device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci"
+else
+  INPUT="-device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci"
+fi
 
 # Find OVMF firmware for EFI boot
 OVMF=""
@@ -32,7 +41,7 @@ if [ "${EFI}" = "1" ]; then
   done
 fi
 
-QEMU_CMD="qemu-system-x86_64 -machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot ${DISPLAY}"
+QEMU_CMD="qemu-system-x86_64 -machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot ${DISPLAY} ${INPUT}"
 
 if [ -n "${OVMF}" ]; then
   # Try OVMF + kernel EFI stub. If firmware fails (e.g. EFI stub missing), fall through.

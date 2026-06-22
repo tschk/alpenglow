@@ -377,6 +377,14 @@ DNSQ
 for svc in ${BOOT_SERVICES}; do
   ln -sf "/etc/dinit.d/${svc}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${svc}" 2>/dev/null || true
 done
+{
+  echo "type = scripted"
+  echo "command = /bin/true"
+  echo "restart = no"
+  for svc in ${BOOT_SERVICES}; do
+    echo "depends-on = ${svc}"
+  done
+} > "${ROOTFS_DIR}/etc/dinit.d/boot"
 
 # Oil (native package manager)
 OIL_BIN="${ROOT_DIR}/build/native/oil"
@@ -479,6 +487,21 @@ fi
 if [ -d "${OUT_DIR}/dnsmasq" ]; then
   cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
 fi
+ALPENGLOWED_BIN="${ALPENGLOWED_BIN:-}"
+if [ -z "${ALPENGLOWED_BIN}" ]; then
+  for candidate in \
+    "${ROOT_DIR}/../alpenglowed/target/x86_64-unknown-linux-musl/release/alpenglowed" \
+    "${ROOT_DIR}/../alpenglowed/target/release/alpenglowed" \
+    "${ROOT_DIR}/../alpenglowed/target/debug/alpenglowed"
+  do
+    [ -x "${candidate}" ] && { ALPENGLOWED_BIN="${candidate}"; break; }
+  done
+fi
+if [ -n "${ALPENGLOWED_BIN}" ] && [ -x "${ALPENGLOWED_BIN}" ]; then
+  mkdir -p "${ROOTFS_DIR}/usr/bin"
+  cp "${ALPENGLOWED_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed"
+  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed"
+fi
 
 # Init — dinit as primary PID 1, manages all services
 cat > "${ROOTFS_DIR}/init" << 'INIT'
@@ -513,7 +536,7 @@ echo ""
 if [ -f /proc/meminfo ]; then
   grep -E 'MemTotal|MemFree' /proc/meminfo 2>/dev/null
 fi
-exec /sbin/dinit -d /etc/dinit.d -s -t shell-ttyS0
+exec /sbin/dinit -d /etc/dinit.d -s -t boot
 INIT
 chmod 755 "${ROOTFS_DIR}/init"
 
