@@ -1,103 +1,67 @@
 use std::env;
 use std::path::PathBuf;
-use std::thread;
 use std::time::Duration;
 
 use alpenglow_netd::{read_snapshot, write_snapshot};
+use notify::{EventKind, RecursiveMode, Watcher};
+use notify::recommended_watcher;
 
 const DEFAULT_SYS_CLASS_NET: &str = "/sys/class/net";
 const DEFAULT_STATE_JSON: &str = "/run/alpenglow/netd/interfaces.json";
 const DEFAULT_RUNTIME_ENV: &str = "/run/alpenglow/netd/runtime-state.env";
 
-#[derive(Debug)]
-struct Args {
-    sys_class_net: PathBuf,
-    state_json: PathBuf,
-    runtime_env: PathBuf,
-    interval: Duration,
-    samples: Option<u64>,
-}
-
 fn main() {
-    if let Err(error) = run(parse_args(env::args().skip(1))) {
+    if let Err(error) = run() {
         eprintln!("alpenglow-netd: {error}");
         std::process::exit(1);
     }
 }
 
-fn parse_args<I>(args: I) -> Args
-where
-    I: IntoIterator<Item = String>,
-{
-    let mut parsed = Args {
-        sys_class_net: env::var_os("ALPENGLOW_NETD_SYS_CLASS_NET")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_SYS_CLASS_NET)),
-        state_json: env::var_os("ALPENGLOW_NETD_STATE_JSON")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_STATE_JSON)),
-        runtime_env: env::var_os("ALPENGLOW_NETD_RUNTIME_ENV")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_RUNTIME_ENV)),
-        interval: Duration::from_secs(
-            env::var("ALPENGLOW_NETD_INTERVAL_SECS")
-                .ok()
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(5),
-        ),
-        samples: None,
-    };
-    let mut iter = args.into_iter();
-    while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--sys-class-net" => {
-                if let Some(value) = iter.next() {
-                    parsed.sys_class_net = PathBuf::from(value);
+fn run() -> Result<(), String> {
+    let sys_class_net = env::var_os("ALPENGLOW_NETD_SYS_CLASS_NET")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_SYS_CLASS_NET));
+    
+    let state_json = env::var_os("ALPENGLOW_NETD_STATE_JSON")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_STATE_JSON));
+    
+    let runtime_env = env::var_os("ALPENGLOW_NETD_RUNTIME_ENV")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_RUNTIME_ENV));
+    
+    let sys_class_net_clone = sys_class_net.clone();
+    let state_json_clone = state_json.clone();
+    let runtime_env_clone = runtime_env.clone();
+    
+    let mut watcher = recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+        if let Ok(event) = res {
+            if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)) {
+                if let Err(error) = update_snapshot(&sys_class_net_clone, &state_json_clone, &runtime_env_clone) {
+                    eprintln!("alpenglow-netd: {error}");
                 }
             }
-            "--state-json" => {
-                if let Some(value) = iter.next() {
-                    parsed.state_json = PathBuf::from(value);
-                }
-            }
-            "--runtime-env" => {
-                if let Some(value) = iter.next() {
-                    parsed.runtime_env = PathBuf::from(value);
-                }
-            }
-            "--interval-secs" => {
-                if let Some(value) = iter.next().and_then(|value| value.parse().ok()) {
-                    parsed.interval = Duration::from_secs(value);
-                }
-            }
-            "--samples" => {
-                parsed.samples = iter.next().and_then(|value| value.parse().ok());
-            }
-            "--once" => parsed.samples = Some(1),
-            _ => {}
         }
+    }).map_err(|e| format!("Failed to create watcher: {e}"))?;
+    
+    watcher.watch(&sys_class_net, RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to watch {sys_class_net:?}: {e}"))?;
+    
+    update_snapshot(&sys_class_net, &state_json, &runtime_env)?;
+    
+    loop {
+        std::thread::sleep(Duration::from_secs(3600));
     }
-    parsed
 }
 
-fn run(args: Args) -> Result<(), String> {
-    let mut remaining = args.samples;
-    loop {
-        let snapshot = read_snapshot(&args.sys_class_net)
-            .map_err(|error| format!("read {}: {error}", args.sys_class_net.display()))?;
-        write_snapshot(&snapshot, &args.state_json, &args.runtime_env).map_err(|error| {
-            format!(
-                "write {} and {}: {error}",
-                args.state_json.display(),
-                args.runtime_env.display()
-            )
-        })?;
-        if let Some(samples) = remaining.as_mut() {
-            *samples = samples.saturating_sub(1);
-            if *samples == 0 {
-                return Ok(());
-            }
-        }
-        thread::sleep(args.interval);
-    }
+fn update_snapshot(sys_class_net: &PathBuf, state_json: &PathBuf, runtime_env: &PathBuf) -> Result<(), String> {
+    let snapshot = read_snapshot(sys_class_net)
+        .map_err(|error| format!("read {}: {error}", sys_class_net.display()))?;
+    write_snapshot(&snapshot, state_json, runtime_env).map_err(|error| {
+        format!(
+            "write {} and {}: {error}",
+            state_json.display(),
+            runtime_env.display()
+        )
+    })
 }

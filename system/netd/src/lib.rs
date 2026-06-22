@@ -36,9 +36,6 @@ pub struct NetworkInterface {
 pub enum InterfaceKind {
     Loopback,
     Ethernet,
-    Wireless,
-    Other(i32),
-    Unknown,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -46,13 +43,6 @@ pub enum InterfaceKind {
 pub enum OperState {
     Up,
     Down,
-    Dormant,
-    #[serde(rename = "lower-layer-down")]
-    LowerLayerDown,
-    #[serde(rename = "not-present")]
-    NotPresent,
-    Testing,
-    Unknown,
 }
 
 pub fn read_snapshot(sys_class_net: impl AsRef<Path>) -> io::Result<NetworkSnapshot> {
@@ -147,17 +137,13 @@ fn read_interface(name: &str, path: &Path) -> io::Result<NetworkInterface> {
 }
 
 fn read_kind(path: &Path) -> io::Result<InterfaceKind> {
-    if path.join("wireless").is_dir() {
-        return Ok(InterfaceKind::Wireless);
-    }
     let Some(value) = read_trimmed(path.join("type"))? else {
-        return Ok(InterfaceKind::Unknown);
+        return Ok(InterfaceKind::Ethernet);
     };
     Ok(match value.parse::<i32>() {
         Ok(1) => InterfaceKind::Ethernet,
         Ok(772) => InterfaceKind::Loopback,
-        Ok(kind) => InterfaceKind::Other(kind),
-        Err(_) => InterfaceKind::Unknown,
+        _ => InterfaceKind::Ethernet,
     })
 }
 
@@ -165,15 +151,10 @@ fn read_operstate(path: &Path) -> io::Result<OperState> {
     Ok(
         match read_trimmed(path.join("operstate"))?
             .as_deref()
-            .unwrap_or("unknown")
+            .unwrap_or("down")
         {
             "up" => OperState::Up,
-            "down" => OperState::Down,
-            "dormant" => OperState::Dormant,
-            "lowerlayerdown" => OperState::LowerLayerDown,
-            "notpresent" => OperState::NotPresent,
-            "testing" => OperState::Testing,
-            _ => OperState::Unknown,
+            _ => OperState::Down,
         },
     )
 }
