@@ -220,3 +220,64 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
 
     Ok((files, dirs))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+
+    fn create_gzip_stream(content: &[u8]) -> Vec<u8> {
+        let mut e = GzEncoder::new(Vec::new(), Compression::default());
+        e.write_all(content).unwrap();
+        e.finish().unwrap()
+    }
+
+    #[test]
+    fn test_split_gzip_streams_happy_path() {
+        let stream1 = create_gzip_stream(b"stream 1 data");
+        let stream2 = create_gzip_stream(b"stream 2 data");
+        let stream3 = create_gzip_stream(b"stream 3 data");
+
+        let mut combined = Vec::new();
+        combined.extend(&stream1);
+        combined.extend(&stream2);
+        combined.extend(&stream3);
+
+        let result = split_gzip_streams(&combined, 3);
+        assert!(result.is_ok());
+        let (out1, out2, out3) = result.unwrap();
+
+        assert_eq!(out1, b"stream 1 data");
+        assert_eq!(out2, b"stream 2 data");
+        assert_eq!(out3, b"stream 3 data");
+    }
+
+    #[test]
+    fn test_split_gzip_streams_too_many_requested() {
+        let stream = create_gzip_stream(b"data");
+        let result = split_gzip_streams(&stream, 4);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Requested 4 streams, maximum is 3"
+        );
+    }
+
+    #[test]
+    fn test_split_gzip_streams_not_enough_streams() {
+        let stream1 = create_gzip_stream(b"data 1");
+        let stream2 = create_gzip_stream(b"data 2");
+        let mut combined = Vec::new();
+        combined.extend(&stream1);
+        combined.extend(&stream2);
+
+        let result = split_gzip_streams(&combined, 3);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "APK has 2 gzip streams, expected 3"
+        );
+    }
+}
