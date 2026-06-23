@@ -35,10 +35,6 @@ enum Commands {
         packages: Vec<String>,
         #[arg(long)]
         dry_run: bool,
-        #[arg(long, help = "Install to ~/.local/oil (no sudo)")]
-        user: bool,
-        #[arg(long, help = "Install to system directory (may need sudo)")]
-        global: bool,
     },
     /// Uninstall packages
     Uninstall {
@@ -114,13 +110,7 @@ fn run_command(cmd: Commands) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Install {
-            packages,
-            dry_run,
-            user,
-            global,
-        } => {
-            let _ = (user, global);
+        Commands::Install { packages, dry_run } => {
             let registry = system::registry::apk::ApkRegistry::alpine_default();
             let index = registry.load()?;
             let mut state = install::InstallState::new()?;
@@ -165,10 +155,10 @@ fn run_command(cmd: Commands) -> Result<()> {
                 if let Some(_pkg) = state.get(name) {
                     let registry = system::registry::apk::ApkRegistry::alpine_default();
                     let index = registry.load()?;
-                    if let Some(latest) = index.find(&name) {
+                    if let Some(latest) = index.find(name) {
                         let dest = std::path::PathBuf::from("/usr/local");
                         install_package(latest, &dest)?;
-                        state.mark_installed(&name, Some(latest.version.clone()));
+                        state.mark_installed(name, Some(latest.version.clone()));
                         println!("Reinstalled {name} {}", latest.version);
                     }
                 }
@@ -192,7 +182,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                         continue;
                     }
                     if let Some(latest) = index.find(name) {
-                        if &latest.version != &current.version {
+                        if latest.version != current.version {
                             if dry_run {
                                 println!(
                                     "Would upgrade {name}: {} → {}",
@@ -255,10 +245,10 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .map_err(|e| error::OilError::Install(format!("set permissions: {e}")))?;
 
     eprintln!("Extracting {}...", pkg.name);
-    
+
     let result = system::apk_extract::extract_tracked(tmp.path(), dest);
-    
+
     let _ = std::fs::remove_file(tmp.path());
-    
+
     result.map(|_| ())
 }

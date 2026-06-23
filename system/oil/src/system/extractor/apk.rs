@@ -78,7 +78,7 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
 
     let mut starts: Vec<usize> = Vec::new();
     let mut last_pos = 0;
-    
+
     for i in 0..data.len().saturating_sub(1) {
         if data[i] == 0x1f && data[i + 1] == 0x8b {
             if i < last_pos {
@@ -86,13 +86,13 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
             }
             starts.push(i);
             last_pos = i;
-            
+
             if starts.len() >= count {
                 break;
             }
         }
     }
-    
+
     if starts.len() < count {
         return Err(OilError::Install(format!(
             "APK has {} gzip streams, expected {count}",
@@ -102,14 +102,14 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
 
     let mut out = Vec::with_capacity(count);
     let mut total_decompressed: usize = 0;
-    
+
     for i in 0..count {
         let slice = &data[starts[i]..];
         let mut decoder = flate2::read::GzDecoder::new(slice);
         let mut buf = Vec::new();
-        
+
         decoder.read_to_end(&mut buf)?;
-        
+
         if buf.len() > MAX_STREAM_SIZE {
             return Err(OilError::Install(format!(
                 "Stream {} size {} exceeds maximum {}",
@@ -118,19 +118,18 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
                 MAX_STREAM_SIZE
             )));
         }
-        
+
         total_decompressed += buf.len();
         if total_decompressed > MAX_TOTAL_SIZE {
             return Err(OilError::Install(format!(
                 "Total decompressed size {} exceeds maximum {}",
-                total_decompressed,
-                MAX_TOTAL_SIZE
+                total_decompressed, MAX_TOTAL_SIZE
             )));
         }
-        
+
         out.push(buf);
     }
-    
+
     Ok((out.remove(0), out.remove(0), out.remove(0)))
 }
 
