@@ -223,3 +223,117 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
 
     Ok((files, dirs))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    fn create_gz_stream(data: &[u8]) -> Vec<u8> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    #[test]
+    fn test_split_gzip_streams_happy_path() {
+        let stream1 = create_gz_stream(b"stream 1 data");
+        let stream2 = create_gz_stream(b"stream 2 data");
+        let stream3 = create_gz_stream(b"stream 3 data");
+
+        let mut combined = Vec::new();
+        combined.extend(&stream1);
+        combined.extend(&stream2);
+        combined.extend(&stream3);
+
+        let result = split_gzip_streams(&combined, 3);
+        assert!(result.is_ok());
+        let (out1, out2, out3) = result.unwrap();
+
+        assert_eq!(out1, b"stream 1 data");
+        assert_eq!(out2, b"stream 2 data");
+        assert_eq!(out3, b"stream 3 data");
+    }
+
+    #[test]
+    fn test_split_gzip_streams_too_many_requested() {
+        let stream = create_gz_stream(b"data");
+        let result = split_gzip_streams(&stream, 4);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Requested 4 streams, maximum is 3"), "Unexpected error: {}", err_msg);
+    }
+
+    #[test]
+    fn test_split_gzip_streams_not_enough_streams() {
+        let stream1 = create_gz_stream(b"data 1");
+        let stream2 = create_gz_stream(b"data 2");
+        let mut combined = Vec::new();
+        combined.extend(&stream1);
+        combined.extend(&stream2);
+
+        let result = split_gzip_streams(&combined, 3);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("APK has 2 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+    }
+
+    #[test]
+    fn test_split_gzip_streams_corrupted_gzip() {
+        let mut data = create_gz_stream(b"stream 1 data");
+        data.extend(create_gz_stream(b"stream 2 data"));
+        let mut corrupted_stream = create_gz_stream(b"stream 3 data");
+        corrupted_stream.truncate(5);
+        data.extend(corrupted_stream);
+        let result = split_gzip_streams(&data, 3);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_tracked_missing_file() {
+        let dir = tempdir().unwrap();
+        let missing_path = dir.path().join("does_not_exist.apk");
+        let dest_dir = dir.path().join("dest");
+        let result = extract_tracked(&missing_path, &dest_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_signature_info_success() {
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let data = b"dummy signature data";
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub", &data[..]).unwrap();
+        let tar_data = tar_builder.into_inner().unwrap();
+        let result = extract_signature_info(&tar_data);
+        assert!(result.is_some());
+        let (keyname, sig) = result.unwrap();
+        assert_eq!(keyname, "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub");
+        assert_eq!(sig, data);
+    }
+
+    #[test]
+    fn test_extract_signature_info_not_found() {
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let data = b"some other file";
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "some_other_file.txt", &data[..]).unwrap();
+        let tar_data = tar_builder.into_inner().unwrap();
+        let result = extract_signature_info(&tar_data);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_signature_info_invalid_tar() {
+        let invalid_tar_data = b"not a tar file";
+        let result = extract_signature_info(invalid_tar_data);
+        assert!(result.is_none());
+    }
+}

@@ -294,6 +294,30 @@ mod tests {
     }
 
     #[test]
+    fn test_branch_from_os_release_quoted_version() {
+        let os_release = "ID=alpine\nVERSION_ID=\"3.21.0\"\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.21"));
+    }
+
+    #[test]
+    fn test_branch_from_os_release_missing_version_id() {
+        let os_release = "ID=alpine\n";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
+    fn test_branch_from_os_release_missing_minor_version() {
+        let os_release = "ID=alpine\nVERSION_ID=3\n";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
+    fn test_branch_from_os_release_empty_string() {
+        let os_release = "";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
     fn index_url_includes_architecture_segment() {
         let registry = ApkRegistry::new("https://dl-cdn.alpinelinux.org/alpine", "v3.24");
         let arch = match std::env::consts::ARCH {
@@ -343,18 +367,18 @@ mod tests {
             let mut sig_header = tar::Header::new_gnu();
             sig_header
                 .set_path(".SIGN.RSA.alpine-devel@example.rsa.pub")
-                .unwrap();
+                .expect("failed to set path for signature header");
             sig_header.set_size(signature.len() as u64);
             sig_header.set_cksum();
-            archive.append(&sig_header, &signature[..]).unwrap();
+            archive.append(&sig_header, &signature[..]).expect("failed to append signature to archive");
 
             let content = b"P:ripgrep\nV:15.1.0-r0\nT:Search tool\nI:12345\nD:so:libc.musl-aarch64.so.1\np:cmd:rg=15.1.0-r0\n\n";
             let mut header = tar::Header::new_gnu();
-            header.set_path("APKINDEX").unwrap();
+            header.set_path("APKINDEX").expect("failed to set path for APKINDEX header");
             header.set_size(content.len() as u64);
             header.set_cksum();
-            archive.append(&header, &content[..]).unwrap();
-            archive.finish().unwrap();
+            archive.append(&header, &content[..]).expect("failed to append APKINDEX to archive");
+            archive.finish().expect("failed to finish archive");
         }
 
         let packages = parse_apkindex_archive(
@@ -364,7 +388,7 @@ mod tests {
             "community",
             "aarch64",
         )
-        .unwrap();
+        .expect("failed to parse APKINDEX archive");
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].name, "ripgrep");
     }
