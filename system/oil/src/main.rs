@@ -133,7 +133,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                 } else {
                     let dest = std::path::PathBuf::from("/usr/local");
                     install_package(pkg, &dest)?;
-                    state.mark_installed(&pkg.name, Some(pkg.version.clone()));
+                    state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
                     println!("Installed {} {}", pkg.name, pkg.version);
                 }
             }
@@ -168,7 +168,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                     if let Some(latest) = index.find(&name) {
                         let dest = std::path::PathBuf::from("/usr/local");
                         install_package(latest, &dest)?;
-                        state.mark_installed(&name, Some(latest.version.clone()));
+                        state.mark_installed(&name, Some(latest.version.as_str()));
                         println!("Reinstalled {name} {}", latest.version);
                     }
                 }
@@ -201,7 +201,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                             } else {
                                 let dest = std::path::PathBuf::from("/usr/local");
                                 install_package(latest, &dest)?;
-                                state.mark_installed(name, Some(latest.version.clone()));
+                                state.mark_installed(name, Some(latest.version.as_str()));
                                 println!(
                                     "Upgraded {name}: {} → {}",
                                     current.version, latest.version
