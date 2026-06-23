@@ -220,3 +220,48 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
 
     Ok((files, dirs))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tar::Builder;
+
+    #[test]
+    fn test_extract_signature_info_success() {
+        let mut tar_builder = Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let data = b"dummy signature data";
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub", &data[..]).unwrap();
+
+        let tar_data = tar_builder.into_inner().unwrap();
+
+        let result = extract_signature_info(&tar_data);
+        assert!(result.is_some());
+        let (keyname, sig) = result.unwrap();
+        assert_eq!(keyname, "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub");
+        assert_eq!(sig, data);
+    }
+
+    #[test]
+    fn test_extract_signature_info_not_found() {
+        let mut tar_builder = Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let data = b"some other file";
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "some_other_file.txt", &data[..]).unwrap();
+
+        let tar_data = tar_builder.into_inner().unwrap();
+
+        let result = extract_signature_info(&tar_data);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_signature_info_invalid_tar() {
+        let invalid_tar_data = b"not a tar file";
+        let result = extract_signature_info(invalid_tar_data);
+        assert!(result.is_none());
+    }
+}
