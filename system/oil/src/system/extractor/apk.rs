@@ -167,7 +167,7 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             continue;
         }
 
-        let stripped = entry_str.strip_prefix("./").unwrap_or(&entry_str);
+        let stripped = entry_str.strip_prefix("./").unwrap_or(&entry_str).trim_start_matches('/');
         if stripped.is_empty() || stripped.contains("..") {
             continue;
         }
@@ -206,7 +206,10 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
         for entry_ in archive.entries()? {
             let mut entry = entry_?;
             let path = entry.path()?.to_string_lossy().to_string();
-            let stripped = path.strip_prefix("./").unwrap_or(&path);
+            let stripped = path.strip_prefix("./").unwrap_or(&path).trim_start_matches('/');
+            if stripped.is_empty() || stripped.contains("..") {
+                continue;
+            }
             let dest = dest_dir.join(stripped);
             if let Some(parent) = dest.parent() {
                 std::fs::create_dir_all(parent)?;
