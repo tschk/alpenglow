@@ -48,17 +48,26 @@ impl InstallState {
         Ok(())
     }
 
-    pub fn mark_installed(&mut self, name: &str, version: Option<String>) {
-        let pkg = InstalledPackage {
-            name: name.to_string(),
-            version: version.unwrap_or_default(),
-            install_date: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0),
-            pinned: false,
-        };
-        self.packages.insert(name.to_string(), pkg);
+    pub fn mark_installed(&mut self, name: &str, version: Option<&str>) {
+        let version_str = version.unwrap_or_default();
+        let install_date = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        if let Some(pkg) = self.packages.get_mut(name) {
+            pkg.version.clear();
+            pkg.version.push_str(version_str);
+            pkg.install_date = install_date;
+        } else {
+            let pkg = InstalledPackage {
+                name: name.to_string(),
+                version: version_str.to_string(),
+                install_date,
+                pinned: false,
+            };
+            self.packages.insert(name.to_string(), pkg);
+        }
     }
 
     pub fn remove(&mut self, name: &str) -> Result<()> {
