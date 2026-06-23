@@ -220,3 +220,63 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
 
     Ok((files, dirs))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    fn create_gz_stream(data: &[u8]) -> Vec<u8> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    #[test]
+    fn test_extract_tracked_missing_file() {
+        let dir = tempdir().unwrap();
+        let missing_path = dir.path().join("does_not_exist.apk");
+        let dest_dir = dir.path().join("dest");
+
+        let result = extract_tracked(&missing_path, &dest_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_split_gzip_streams_too_few_streams() {
+        let mut data = create_gz_stream(b"stream 1 data");
+        data.extend(create_gz_stream(b"stream 2 data"));
+        // Only 2 streams, but 3 are requested by extract_tracked
+
+        let result = split_gzip_streams(&data, 3);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("expected 3"), "Unexpected error: {}", err_msg);
+    }
+
+    #[test]
+    fn test_split_gzip_streams_too_many_requested() {
+        let data = create_gz_stream(b"dummy");
+        let result = split_gzip_streams(&data, 4);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Requested 4 streams, maximum is 3"), "Unexpected error: {}", err_msg);
+    }
+
+    #[test]
+    fn test_split_gzip_streams_corrupted_gzip() {
+        let mut data = create_gz_stream(b"stream 1 data");
+        data.extend(create_gz_stream(b"stream 2 data"));
+
+        // Add a corrupted 3rd stream that has the gzip magic but then is cut off
+        let mut corrupted_stream = create_gz_stream(b"stream 3 data");
+        corrupted_stream.truncate(5); // Cut off early
+        data.extend(corrupted_stream);
+
+        let result = split_gzip_streams(&data, 3);
+        assert!(result.is_err());
+    }
+}
