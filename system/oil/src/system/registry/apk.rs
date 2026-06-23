@@ -294,6 +294,30 @@ mod tests {
     }
 
     #[test]
+    fn test_branch_from_os_release_quoted_version() {
+        let os_release = "ID=alpine\nVERSION_ID=\"3.21.0\"\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.21"));
+    }
+
+    #[test]
+    fn test_branch_from_os_release_missing_version_id() {
+        let os_release = "ID=alpine\n";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
+    fn test_branch_from_os_release_missing_minor_version() {
+        let os_release = "ID=alpine\nVERSION_ID=3\n";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
+    fn test_branch_from_os_release_empty_string() {
+        let os_release = "";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
     fn index_url_includes_architecture_segment() {
         let registry = ApkRegistry::new("https://dl-cdn.alpinelinux.org/alpine", "v3.24");
         let arch = match std::env::consts::ARCH {
