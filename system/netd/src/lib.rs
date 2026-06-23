@@ -56,8 +56,9 @@ pub fn read_snapshot(sys_class_net: impl AsRef<Path>) -> io::Result<NetworkSnaps
     }
     for entry in fs::read_dir(root)? {
         let entry = entry?;
+        let file_type = entry.file_type()?;
         let path = entry.path();
-        if !path.is_dir() {
+        if !file_type.is_dir() && !file_type.is_symlink() {
             continue;
         }
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -162,7 +163,12 @@ fn read_operstate(path: &Path) -> io::Result<OperState> {
 fn read_trimmed(path: PathBuf) -> io::Result<Option<String>> {
     match fs::read_to_string(&path) {
         Ok(value) => Ok(Some(value.trim().to_owned())),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error)
+            if error.kind() == io::ErrorKind::NotFound
+                || error.kind() == io::ErrorKind::InvalidInput =>
+        {
+            Ok(None)
+        }
         Err(error) => Err(error),
     }
 }
