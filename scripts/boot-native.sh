@@ -33,6 +33,15 @@ if [ -z "$ACCEL" ]; then
   fi
 fi
 EFI="${EFI:-1}"
+GRAPHICAL="${GRAPHICAL:-0}"
+for arg in "$@"; do
+  case "$arg" in
+    --graphical) GRAPHICAL=1 ;;
+  esac
+done
+if [ "${GRAPHICAL}" = "1" ] && [ "${MEMORY_MB}" = "2048" ]; then
+  MEMORY_MB=4096
+fi
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
@@ -614,13 +623,30 @@ echo "  kernel:    ${KERNEL_IMAGE}"
 echo "  initramfs: ${INITRAMFS}"
 echo "  mode:      ${BOOT_MODE}"
 echo "  efi:       ${EFI}"
+if [ "${GRAPHICAL}" = "1" ]; then
+  echo "  display:   graphical (virtio-gpu)"
+fi
 echo "  (Ctrl-A X to quit)"
 echo ""
 
-QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
-
-# Kernel cmdline args
-KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
+if [ "${GRAPHICAL}" = "1" ]; then
+  # Pick a display backend available on this host
+  QEMU_DISPLAY=""
+  for backend in cocoa gtk sdl; do
+    if qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
+      QEMU_DISPLAY="${backend}"
+      break
+    fi
+  done
+  QEMU_DISPLAY="${QEMU_DISPLAY:-default}"
+  QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
+  QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
+  QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci -serial mon:stdio"
+  KERNEL_CMDLINE="quiet init=/init"
+else
+  QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
+  KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
+fi
 
 if [ "${BOOT_MODE}" = "rootfs" ]; then
   # Rootfs mode: boot from a disk image with alpenglow-root label
