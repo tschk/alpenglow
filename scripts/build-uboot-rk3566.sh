@@ -86,8 +86,8 @@ if command -v docker >/dev/null 2>&1; then
     git clone --depth 1 https://github.com/rockchip-linux/rkbin.git "${RKBIN_DIR}" 2>&1 | tail -3
   fi
 
-  DDR_BLOB="rk35/rk3566_ddr_1056MHz_v1.10.bin"
-  BL31_BLOB="rk35/rk3568_bl31_v1.29.elf"
+  DDR_BLOB="rk35/rk3566_ddr_1056MHz_v1.25.bin"
+  BL31_BLOB="rk35/rk3568_bl31_v1.46.elf"
 
   docker run --rm \
     -v "${U_BOOT_ABS}:/u-boot" \
