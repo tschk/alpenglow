@@ -19,7 +19,7 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1;
 echo "=== Cross-build: ${TARGET} ==="
 mkdir -p "${BUILD_OUT}"
 
-# 1. Kernel (Linux 7.0 + minimal config, built in Docker with musl cross toolchain)
+# 1. Kernel (Linux 7.0 + minimal config, built in Docker with musl.cc toolchain)
 build_kernel() {
   local KD="${BUILD_OUT}/kernel-src"
   if [ ! -d "${KD}" ]; then
@@ -34,16 +34,17 @@ build_kernel() {
     -e ARCH="${ARCH}" \
     -e KARCH="${KARCH}" \
     -e KERNEL_TARGET="${KERNEL_TARGET}" \
-    -e CROSS_PREFIX="${KARCH}-linux-musl-" \
     -v "${BUILD_OUT}:/out" \
     -v "${REPO_ROOT}:/repo:ro" \
     alpine:3.21 sh -c '
       set -eu
-      apk add --no-cache bash bc bison elfutils-dev findutils flex gawk gcc linux-headers make musl-dev openssl-dev perl gcc-${KARCH}-linux-musl binutils-${KARCH}-linux-musl >/dev/null
+      apk add --no-cache bash bc bison curl elfutils-dev findutils flex gawk gcc make openssl-dev perl tar xz >/dev/null
+      curl -fsSL "https://musl.cc/${KARCH}-linux-musl-cross.tgz" | tar -xz -C /opt
+      export PATH="/opt/${KARCH}-linux-musl-cross/bin:${PATH}"
       KD=/out/kernel-src
       cd "${KD}"
-      make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" defconfig
-      make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" rust.config 2>/dev/null || true
+      make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" defconfig
+      make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" rust.config 2>/dev/null || true
 
       scripts/config \
         --enable BLK_DEV_INITRD --enable RD_GZIP --enable RD_ZSTD \
@@ -56,8 +57,8 @@ build_kernel() {
         cat /repo/system/backends/rk3566/kernel-rockchip-rk3566.config >> .config
       fi
 
-      make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" olddefconfig 2>/dev/null
-      make -j"$(nproc)" ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" "${KERNEL_TARGET}" 2>&1 | tail -5
+      make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" olddefconfig 2>/dev/null
+      make -j"$(nproc)" ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" "${KERNEL_TARGET}" 2>&1 | tail -5
       cp "arch/${ARCH}/boot/${KERNEL_TARGET}" /out/vmlinuz
     ' 2>&1 | tail -5
 
@@ -89,7 +90,9 @@ build_toybox() {
   TOYBOX_VER="0.8.11"
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
-    apk add --no-cache make gcc musl-dev curl tar xz bash linux-headers gcc-${KARCH}-linux-musl binutils-${KARCH}-linux-musl >/dev/null
+    apk add --no-cache make curl tar xz bash >/dev/null
+    curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/landley/toybox/archive/refs/tags/${TOYBOX_VER}.tar.gz -o /tmp/tb.tar.gz
     tar -xzf /tmp/tb.tar.gz -C /tmp
     cd /tmp/toybox-${TOYBOX_VER}
@@ -114,7 +117,9 @@ build_dinit() {
   DINIT_VER="0.19.2"
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
-    apk add --no-cache g++ make curl tar xz musl-dev bash g++-${KARCH}-linux-musl binutils-${KARCH}-linux-musl >/dev/null
+    apk add --no-cache make curl tar xz bash >/dev/null
+    curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/davmac314/dinit/releases/download/v${DINIT_VER}/dinit-${DINIT_VER}.tar.xz -o /tmp/dinit.tar.xz
     tar -xf /tmp/dinit.tar.xz -C /tmp
     cd /tmp/dinit-${DINIT_VER}
