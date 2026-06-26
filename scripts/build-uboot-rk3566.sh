@@ -86,7 +86,8 @@ if command -v docker >/dev/null 2>&1; then
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -qq >/dev/null 2>&1
       apt-get install -y -qq build-essential gcc-aarch64-linux-gnu \
-        bison flex libssl-dev swig python3-dev python3-setuptools python3-distutils bc git >/dev/null 2>&1
+        bison flex libssl-dev libgnutls28-dev \
+        swig python3-dev python3-setuptools python3-distutils bc git >/dev/null 2>&1
       cd /u-boot
       make ${DEFCONFIG} CROSS_COMPILE=${CROSS_COMPILE}
       make -j\$(nproc) CROSS_COMPILE=${CROSS_COMPILE} 2>&1 | tail -10
