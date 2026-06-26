@@ -78,9 +78,21 @@ mkdir -p "${OUT_ABS}/spl"
 if command -v docker >/dev/null 2>&1; then
   echo "→ Building in Docker (Ubuntu 20.04 with OpenSSL 1.1)..."
 
+  RKBIN_DIR="${REPO_ROOT}/build/rkbin"
+  if [ ! -d "${RKBIN_DIR}/.git" ]; then
+    echo "→ Cloning rkbin for DDR init blobs..."
+    rm -rf "${RKBIN_DIR}"
+    mkdir -p "$(dirname "${RKBIN_DIR}")"
+    git clone --depth 1 https://github.com/rockchip-linux/rkbin.git "${RKBIN_DIR}" 2>&1 | tail -3
+  fi
+
+  DDR_BLOB="rk35/rk3566_ddr_1056MHz_v1.10.bin"
+  BL31_BLOB="rk35/rk3568_bl31_v1.29.elf"
+
   docker run --rm \
     -v "${U_BOOT_ABS}:/u-boot" \
     -v "${OUT_ABS}:/out" \
+    -v "${RKBIN_DIR}:/rkbin:ro" \
     ubuntu:20.04 sh -c "
       set -eu
       export DEBIAN_FRONTEND=noninteractive
@@ -90,8 +102,11 @@ if command -v docker >/dev/null 2>&1; then
         swig python3-dev python3-setuptools python3-distutils bc git >/dev/null 2>&1
       cd /u-boot
       make ${DEFCONFIG} CROSS_COMPILE=${CROSS_COMPILE}
-      make -j\$(nproc) CROSS_COMPILE=${CROSS_COMPILE} 2>&1 | tail -10
-      for f in u-boot.bin u-boot.itb; do
+      make -j\$(nproc) CROSS_COMPILE=${CROSS_COMPILE} \
+        BL31=/rkbin/${BL31_BLOB} \
+        ROCKCHIP_TPL=/rkbin/${DDR_BLOB} \
+        2>&1 | tail -10
+      for f in u-boot.bin u-boot.itb idbloader.img; do
         [ -f \$f ] && cp \$f /out/
       done
       [ -f spl/u-boot-spl.bin ] && cp spl/u-boot-spl.bin /out/spl/
