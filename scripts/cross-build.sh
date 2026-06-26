@@ -93,7 +93,8 @@ build_toybox() {
   TOYBOX_VER="0.8.11"
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
-    apk add --no-cache make curl tar xz bash >/dev/null
+    set -eu
+    apk add --no-cache make gcc musl-dev curl tar xz bash >/dev/null
     curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
     export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/landley/toybox/archive/refs/tags/${TOYBOX_VER}.tar.gz -o /tmp/tb.tar.gz
@@ -120,7 +121,8 @@ build_dinit() {
   DINIT_VER="0.19.2"
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
-    apk add --no-cache make curl tar xz bash >/dev/null
+    set -eu
+    apk add --no-cache make g++ musl-dev curl tar xz bash >/dev/null
     curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
     export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/davmac314/dinit/releases/download/v${DINIT_VER}/dinit-${DINIT_VER}.tar.xz -o /tmp/dinit.tar.xz
