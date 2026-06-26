@@ -34,10 +34,16 @@ build_kernel() {
 
   # Apply Alpenglow minimal config overrides
   scripts/config \
+    --enable BLK_DEV_INITRD --enable RD_GZIP --enable RD_ZSTD \
     --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
     --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
     --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE \
     --disable STACKTRACE --disable SCHED_DEBUG --disable MAGIC_SYSRQ
+
+  # Apply RK3566 board-specific config fragment when building for aarch64
+  if [ "${TARGET}" = "aarch64-linux-musl" ] && [ -f "${REPO_ROOT}/system/backends/rk3566/kernel-rockchip-rk3566.config" ]; then
+    cat "${REPO_ROOT}/system/backends/rk3566/kernel-rockchip-rk3566.config" >> .config
+  fi
 
   make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" olddefconfig 2>/dev/null
 
