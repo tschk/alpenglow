@@ -79,7 +79,7 @@ build_toybox() {
   TOYBOX_VER="0.8.11"
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
-    apk add --no-cache make gcc musl-dev curl tar xz bash linux-headers >/dev/null
+    apk add --no-cache make gcc musl-dev curl tar xz bash linux-headers gcc-${KARCH}-linux-musl binutils-${KARCH}-linux-musl >/dev/null
     curl -fsSL https://github.com/landley/toybox/archive/refs/tags/${TOYBOX_VER}.tar.gz -o /tmp/tb.tar.gz
     tar -xzf /tmp/tb.tar.gz -C /tmp
     cd /tmp/toybox-${TOYBOX_VER}
@@ -87,6 +87,9 @@ build_toybox() {
     sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
     sed -i 's/# CONFIG_SH is not set/CONFIG_SH=y/' .config
     sed -i 's/# CONFIG_GETTY is not set/CONFIG_GETTY=y/' .config
+    sed -i 's/# CONFIG_UDHCPC is not set/CONFIG_UDHCPC=y/' .config
+    sed -i 's/# CONFIG_IFCONFIG is not set/CONFIG_IFCONFIG=y/' .config
+    sed -i 's/# CONFIG_ROUTE is not set/CONFIG_ROUTE=y/' .config
     sed -i 's/CONFIG_VI=y/# CONFIG_VI is not set/' .config 2>/dev/null || true
     make -j\$(nproc) CROSS_COMPILE=${KARCH}-linux-musl- LDFLAGS='-static' >/dev/null 2>&1
     cp toybox /out/toybox
@@ -101,7 +104,7 @@ build_dinit() {
   DINIT_VER="0.19.2"
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
-    apk add --no-cache g++ make curl tar xz musl-dev bash >/dev/null
+    apk add --no-cache g++ make curl tar xz musl-dev bash g++-${KARCH}-linux-musl binutils-${KARCH}-linux-musl >/dev/null
     curl -fsSL https://github.com/davmac314/dinit/releases/download/v${DINIT_VER}/dinit-${DINIT_VER}.tar.xz -o /tmp/dinit.tar.xz
     tar -xf /tmp/dinit.tar.xz -C /tmp
     cd /tmp/dinit-${DINIT_VER}
