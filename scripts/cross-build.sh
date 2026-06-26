@@ -19,7 +19,7 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1;
 echo "=== Cross-build: ${TARGET} ==="
 mkdir -p "${BUILD_OUT}"
 
-# 1. Kernel (Linux 7.0 + Rust + minimal config)
+# 1. Kernel (Linux 7.0 + minimal config, built in Docker with musl cross toolchain)
 build_kernel() {
   local KD="${BUILD_OUT}/kernel-src"
   if [ ! -d "${KD}" ]; then
@@ -27,30 +27,40 @@ build_kernel() {
     mv "${BUILD_OUT}/linux-7.0" "${KD}"
   fi
 
-  cd "${KD}"
-  make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" defconfig
-  make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" kvm_guest.config 2>/dev/null || true
-  make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" rust.config 2>/dev/null || true
+  echo "→ Building kernel in Docker..."
+  require_cmd docker
 
-  # Apply Alpenglow minimal config overrides
-  scripts/config \
-    --enable BLK_DEV_INITRD --enable RD_GZIP --enable RD_ZSTD \
-    --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
-    --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
-    --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE \
-    --disable STACKTRACE --disable SCHED_DEBUG --disable MAGIC_SYSRQ
+  docker run --rm --platform linux/amd64 \
+    -e ARCH="${ARCH}" \
+    -e KARCH="${KARCH}" \
+    -e KERNEL_TARGET="${KERNEL_TARGET}" \
+    -e CROSS_PREFIX="${KARCH}-linux-musl-" \
+    -v "${BUILD_OUT}:/out" \
+    -v "${REPO_ROOT}:/repo:ro" \
+    alpine:3.21 sh -c '
+      set -eu
+      apk add --no-cache bash bc bison elfutils-dev findutils flex gawk gcc linux-headers make musl-dev openssl-dev perl gcc-${KARCH}-linux-musl binutils-${KARCH}-linux-musl >/dev/null
+      KD=/out/kernel-src
+      cd "${KD}"
+      make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" defconfig
+      make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" rust.config 2>/dev/null || true
 
-  # Apply RK3566 board-specific config fragment when building for aarch64
-  if [ "${TARGET}" = "aarch64-linux-musl" ] && [ -f "${REPO_ROOT}/system/backends/rk3566/kernel-rockchip-rk3566.config" ]; then
-    cat "${REPO_ROOT}/system/backends/rk3566/kernel-rockchip-rk3566.config" >> .config
-  fi
+      scripts/config \
+        --enable BLK_DEV_INITRD --enable RD_GZIP --enable RD_ZSTD \
+        --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
+        --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
+        --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE \
+        --disable STACKTRACE --disable SCHED_DEBUG --disable MAGIC_SYSRQ
 
-  make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" olddefconfig 2>/dev/null
+      if [ "${ARCH}" = "arm64" ] && [ -f /repo/system/backends/rk3566/kernel-rockchip-rk3566.config ]; then
+        cat /repo/system/backends/rk3566/kernel-rockchip-rk3566.config >> .config
+      fi
 
-  # Build
-  make -j"${NPROC}" ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" ${KERNEL_TARGET} 2>&1 | tail -5
+      make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" olddefconfig 2>/dev/null
+      make -j"$(nproc)" ARCH="${ARCH}" CROSS_COMPILE="${CROSS_PREFIX}" "${KERNEL_TARGET}" 2>&1 | tail -5
+      cp "arch/${ARCH}/boot/${KERNEL_TARGET}" /out/vmlinuz
+    ' 2>&1 | tail -5
 
-  cp "arch/${ARCH}/boot/${KERNEL_TARGET}" "${BUILD_OUT}/vmlinuz"
   echo "  kernel: ${BUILD_OUT}/vmlinuz"
 }
 
@@ -145,7 +155,6 @@ case "${TARGET}" in
   riscv64-linux-musl)
     build_kernel
     if command -v zig >/dev/null 2>&1; then build_zig; fi
-    # RISC-V cross toolchain harder to set up; try Zig cc
     echo "  Note: toybox/dinit RISC-V cross-build requires musl-cross"
     echo "  Try: https://github.com/richfelker/musl-cross-make"
     ;;
