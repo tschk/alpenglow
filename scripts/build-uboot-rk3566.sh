@@ -1,51 +1,69 @@
 #!/bin/sh
-# Build U-Boot for PINE64 Quartz64 Model A (rk3566_quartz64_defconfig)
+# Build U-Boot for a Rockchip RK3566 board.
+#
+# Select the board with BOARD=<id> (default: quartz64-a).
 set -eu
 
-OUT_DIR="${OUT_DIR:-build/uboot-rk3566}"
+BOARD="${BOARD:-quartz64-a}"
 U_BOOT_TAG="${U_BOOT_TAG:-v2025.04}"
 U_BOOT_DIR="${U_BOOT_DIR:-build/u-boot}"
 CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
-
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 U_BOOT_ABS="${REPO_ROOT}/${U_BOOT_DIR}"
-OUT_ABS="${REPO_ROOT}/${OUT_DIR}"
+OUT_ABS="${REPO_ROOT}/build/uboot-rk3566/${BOARD}"
 
-require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
+require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
 
-echo "=== U-Boot rk3566 build ==="
-echo "  target:  rk3566_quartz64_defconfig"
+# Board-specific U-Boot defconfig and device-tree blob.
+case "${BOARD}" in
+  quartz64-a)
+    DEFCONFIG="quartz64-a-rk3566_defconfig"
+    DTB="rk3566-quartz64-a.dtb"
+    ;;
+  quartz64-b)
+    DEFCONFIG="quartz64-b-rk3566_defconfig"
+    DTB="rk3566-quartz64-b.dtb"
+    ;;
+  soquartz-model-a)
+    DEFCONFIG="soquartz-model-a-rk3566_defconfig"
+    DTB="rk3566-soquartz-model-a.dtb"
+    ;;
+  orangepi-3b)
+    DEFCONFIG="orangepi-3b-rk3566_defconfig"
+    DTB="rk3566-orangepi-3b.dtb"
+    ;;
+  *)
+    echo "unknown RK3566 board: ${BOARD}" >&2
+    echo "supported: quartz64-a, quartz64-b, soquartz-model-a, orangepi-3b" >&2
+    exit 1
+    ;;
+esac
+
+NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+
+require_cmd git
+require_cmd make
+
+echo "=== U-Boot RK3566 build ==="
+echo "  board:   ${BOARD}"
+echo "  defconfig: ${DEFCONFIG}"
+echo "  dtb:     ${DTB}"
 echo "  tag:     ${U_BOOT_TAG}"
 echo "  out:     ${OUT_ABS}"
 echo "  cc:      ${CROSS_COMPILE}gcc"
 echo ""
 
 # Check cross toolchain
-TOOLCHAIN_OK=0
-if command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
-  TOOLCHAIN_OK=1
-  echo "→ Cross toolchain found: ${CROSS_COMPILE}gcc"
-else
-  echo "→ Cross toolchain not found: ${CROSS_COMPILE}gcc"
-  echo "  Trying zig cc as alternative..."
-  if command -v zig >/dev/null 2>&1; then
-    echo "  NOTE: U-Boot requires gcc/binutils (zig cc won't work for U-Boot)"
-    echo "  Install aarch64 cross toolchain:"
-    echo ""
-    echo "  macOS (Homebrew):"
-    echo "    brew install aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc"
-    echo ""
-    echo "  Debian/Ubuntu:"
-    echo "    apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
-    echo ""
-    echo "  Fedora:"
-    echo "    dnf install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
-    echo ""
-    echo "  musl-cross-make:"
-    echo "    git clone https://github.com/richfelker/musl-cross-make"
-    echo "    make TARGET=aarch64-linux-musl -j\$(nproc)"
-    exit 1
-  fi
+if ! command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+  echo "ERROR: cross toolchain not found: ${CROSS_COMPILE}gcc" >&2
+  echo "Install an aarch64-linux-gnu cross toolchain, e.g.:" >&2
+  echo "" >&2
+  echo "  macOS (wax):" >&2
+  echo "    wax install aarch64-linux-gnu-gcc" >&2
+  echo "  Debian/Ubuntu:" >&2
+  echo "    apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" >&2
+  echo "  Fedora:" >&2
+  echo "    dnf install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" >&2
   exit 1
 fi
 
@@ -56,45 +74,51 @@ if [ -d "${U_BOOT_ABS}/.git" ]; then
   git fetch --tags origin 2>/dev/null || true
 else
   echo "→ Cloning U-Boot ${U_BOOT_TAG}..."
+  rm -rf "${U_BOOT_ABS}"
   mkdir -p "${U_BOOT_ABS}"
   git clone --depth 1 --branch "${U_BOOT_TAG}" \
     https://source.denx.de/u-boot/u-boot.git "${U_BOOT_ABS}" 2>&1 || {
-    echo "  Tag ${U_BOOT_TAG} not found, cloning without branch..."
+    echo "  Tag ${U_BOOT_TAG} not found, cloning default branch..."
     rm -rf "${U_BOOT_ABS}"
     git clone --depth 1 https://source.denx.de/u-boot/u-boot.git "${U_BOOT_ABS}"
   }
 fi
 
-# Configure
-echo "→ Configuring rk3566_quartz64_defconfig..."
+# Configure and build
 cd "${U_BOOT_ABS}"
-make rk3566_quartz64_defconfig CROSS_COMPILE="${CROSS_COMPILE}"
+echo "→ Configuring ${DEFCONFIG}..."
+make "${DEFCONFIG}" CROSS_COMPILE="${CROSS_COMPILE}"
 
-# Build
 echo "→ Building (this takes a few minutes)..."
-make -j"$(nproc)" CROSS_COMPILE="${CROSS_COMPILE}" 2>&1 | tail -10
+make -j"${NPROC}" CROSS_COMPILE="${CROSS_COMPILE}" 2>&1 | tail -10
 
 # Collect outputs
-echo "→ Collecting build artifacts..."
+rm -rf "${OUT_ABS}"
 mkdir -p "${OUT_ABS}"
 
-for f in u-boot.bin u-boot.itb spl/u-boot-spl.bin; do
+echo "→ Collecting build artifacts..."
+for f in u-boot.bin u-boot.itb; do
   if [ -f "${U_BOOT_ABS}/${f}" ]; then
     cp "${U_BOOT_ABS}/${f}" "${OUT_ABS}/"
-    echo "  ${f}: $(du -h "${OUT_ABS}/$(basename ${f})" | cut -f1)"
+    echo "  ${f}: $(du -h "${OUT_ABS}/${f}" | cut -f1)"
   else
-    echo "  WARNING: ${f} not found"
+    echo "  WARNING: ${f} not found" >&2
   fi
 done
 
-# Copy device tree blobs
+if [ -f "${U_BOOT_ABS}/spl/u-boot-spl.bin" ]; then
+  mkdir -p "${OUT_ABS}/spl"
+  cp "${U_BOOT_ABS}/spl/u-boot-spl.bin" "${OUT_ABS}/spl/"
+  echo "  spl/u-boot-spl.bin: $(du -h "${OUT_ABS}/spl/u-boot-spl.bin" | cut -f1)"
+fi
+
 DTB_DIR="${U_BOOT_ABS}/arch/arm/dts"
-for dtb in rk3566-quartz64-a.dtb rk3566-soquartz.dtb rk3566-roc-pc.dtb; do
-  if [ -f "${DTB_DIR}/${dtb}" ]; then
-    cp "${DTB_DIR}/${dtb}" "${OUT_ABS}/"
-    echo "  ${dtb}: $(du -h "${OUT_ABS}/${dtb}" | cut -f1)"
-  fi
-done
+if [ -f "${DTB_DIR}/${DTB}" ]; then
+  cp "${DTB_DIR}/${DTB}" "${OUT_ABS}/"
+  echo "  ${DTB}: $(du -h "${OUT_ABS}/${DTB}" | cut -f1)"
+else
+  echo "  WARNING: ${DTB} not found" >&2
+fi
 
 echo ""
 echo "=== U-Boot build complete ==="

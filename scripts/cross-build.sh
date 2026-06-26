@@ -6,6 +6,7 @@ set -eu
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 TARGET="${1:-aarch64-linux-musl}"
 BUILD_OUT="${REPO_ROOT}/build/cross/${TARGET}"
+NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 
 case "${TARGET}" in
   aarch64-linux-musl) ARCH=arm64 KARCH=aarch64 KERNEL_TARGET=Image;;
@@ -41,7 +42,7 @@ build_kernel() {
   make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" olddefconfig 2>/dev/null
 
   # Build
-  make -j"$(nproc)" ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" ${KERNEL_TARGET} 2>&1 | tail -5
+  make -j"${NPROC}" ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" ${KERNEL_TARGET} 2>&1 | tail -5
 
   cp "arch/${ARCH}/boot/${KERNEL_TARGET}" "${BUILD_OUT}/vmlinuz"
   echo "  kernel: ${BUILD_OUT}/vmlinuz"

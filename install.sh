@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-BACKEND="${ALPENGLOW_BACKEND:-${ALPENGLOW_BACKEND:-void-musl-runit}}"
+BACKEND="${ALPENGLOW_BACKEND:-alpenglow-native}"
 
 usage() {
   cat <<'EOF'
@@ -53,6 +53,9 @@ check_ready() {
 
 prepare_rootfs() {
   case "${BACKEND}" in
+    native|alpenglow-native|appliance)
+      "${ROOT_DIR}/system/backends/appliance/scripts/build-rootfs.sh"
+      ;;
     void|void-musl-runit)
       "${ROOT_DIR}/system/backends/void/scripts/build-rootfs.sh"
       ;;

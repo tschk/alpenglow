@@ -1,19 +1,27 @@
 #!/bin/sh
-# Flash U-Boot to SD card for PINE64 Quartz64 Model A
+# Flash U-Boot to an SD card for a Rockchip RK3566 board.
 #
-# WARNING: This writes to a block device. Double-check the device path!
+# WARNING: This writes to a raw block device. Double-check the device path!
 # Running on the wrong device will destroy data.
 set -eu
 
+BOARD="${BOARD:-quartz64-a}"
+UBOOT_DIR="${UBOOT_DIR:-build/uboot-rk3566/${BOARD}}"
+BOOT_PART_START="${BOOT_PART_START:-16MiB}"
+
 usage() {
   cat << 'USAGE'
-Usage: scripts/flash-rk3566.sh <device> [uboot-dir]
+Usage: BOARD=<board> [UBOOT_DIR=<dir>] scripts/flash-rk3566.sh <device>
 
-Flash U-Boot SPL and U-Boot proper to SD card for RK3566.
+Flash U-Boot SPL and U-Boot proper to an SD card for an RK3566 board.
 
 Arguments:
-  <device>    SD card device (e.g. /dev/sdb, /dev/mmcblk0, /dev/disk4)
-  [uboot-dir] U-Boot build output directory (default: build/uboot-rk3566)
+  <device>    SD card block device (e.g. /dev/sdb, /dev/mmcblk0, /dev/disk4)
+
+Environment:
+  BOARD       RK3566 board id (default: quartz64-a)
+              supported: quartz64-a, quartz64-b, soquartz-model-a, orangepi-3b
+  UBOOT_DIR   U-Boot build output directory (default: build/uboot-rk3566/${BOARD})
 
 Offsets (RK3566):
   SPL:        32K (sector 64)
@@ -21,28 +29,17 @@ Offsets (RK3566):
   Boot part:  16M+ (vfat partition for kernel + initramfs + dtb)
 
 Example:
-  # First: build U-Boot
-  scripts/build-uboot-rk3566.sh
+  # Build U-Boot for the Orange Pi 3B
+  BOARD=orangepi-3b scripts/build-uboot-rk3566.sh
 
-  # Then: flash to SD card (on macOS, SD card is typically /dev/disk4)
-  scripts/flash-rk3566.sh /dev/disk4
-
-  # Create boot partition
-  sudo mkfs.vfat -n BOOT /dev/disk4s1
-
-  # Mount and copy boot files
-  mount /dev/disk4s1 /mnt
-  cp build/uboot-rk3566/rk3566-quartz64-a.dtb /mnt/
-  cp build/cross/aarch64/vmlinuz /mnt/
-  cp build/cross/aarch64/initramfs.cpio.gz /mnt/
-  umount /mnt
+  # Flash to SD card (on macOS, SD card is typically /dev/disk4)
+  BOARD=orangepi-3b scripts/flash-rk3566.sh /dev/disk4
 USAGE
   exit 1
 }
 
 if [ $# -lt 1 ]; then usage; fi
 DEV="$1"
-UBOOT_DIR="${2:-build/uboot-rk3566}"
 
 # Safety checks
 if [ ! -b "${DEV}" ]; then
@@ -60,18 +57,18 @@ case "${DEV}" in
     ;;
 esac
 
-echo "=== Flashing U-Boot to ${DEV} ==="
-echo ""
-echo "WARNING: This will destroy all data on ${DEV}!"
-echo "Press Ctrl-C now to abort, or wait 5 seconds to continue..."
-sleep 5
-
 # Verify U-Boot artifacts exist
 SPL="${UBOOT_DIR}/spl/u-boot-spl.bin"
 UBOOT="${UBOOT_DIR}/u-boot.itb"
 
 [ -f "${SPL}" ]   || { echo "ERROR: ${SPL} not found — run build-uboot-rk3566.sh first" >&2; exit 1; }
 [ -f "${UBOOT}" ] || { echo "ERROR: ${UBOOT} not found — run build-uboot-rk3566.sh first" >&2; exit 1; }
+
+echo "=== Flashing U-Boot for ${BOARD} to ${DEV} ==="
+echo ""
+echo "WARNING: This will destroy all data on ${DEV}!"
+echo "Press Ctrl-C now to abort, or wait 5 seconds to continue..."
+sleep 5
 
 echo "→ Writing SPL to sector 64 (32K)..."
 sudo dd if="${SPL}" of="${DEV}" bs=512 seek=64 conv=notrunc,fdatasync
@@ -83,14 +80,14 @@ echo "→ Syncing..."
 sync
 
 echo ""
-echo "✓ U-Boot flashed to ${DEV}"
+echo "✓ U-Boot flashed for ${BOARD} to ${DEV}"
 echo ""
 echo "Next steps:"
-echo "  1. Create boot partition:  sudo parted ${DEV} mkpart primary fat32 16M 100%"
+echo "  1. Create boot partition:  sudo parted ${DEV} mkpart primary fat32 ${BOOT_PART_START} 100%"
 echo "  2. Format:                 sudo mkfs.vfat -n BOOT ${DEV}1"
-echo "  3. Copy boot files (kernel + initramfs + dtb) to the boot partition"
-echo "  4. Insert SD card into Quartz64 Model A"
+echo "  3. Copy kernel, initramfs, dtb and boot.scr to the boot partition"
+echo "  4. Insert SD card into the ${BOARD} board"
 echo "  5. Connect serial console (UART2, 1500000 baud)"
 echo "  6. Power on"
 echo ""
-echo "See scripts/test-rk3566.md for detailed hardware test procedure."
+echo "See scripts/test-rk3566.md for per-board hardware test procedures."

@@ -1,11 +1,15 @@
-# PINE64 Quartz64 Model A Hardware Test Procedure
+# RK3566 Hardware Test Procedure
+
+This covers building, flashing, and booting Alpenglow on Rockchip RK3566
+boards. The examples use the Orange Pi 3B; substitute `BOARD` for other
+supported boards (`quartz64-a`, `quartz64-b`, `soquartz-model-a`).
 
 ## Prerequisites
 
-- PINE64 Quartz64 Model A board
-- 5V power supply (USB-C)
+- RK3566 board (Orange Pi 3B, Quartz64 Model A/B, SOQuartz on Model A, etc.)
+- 5V power supply (USB-C for Orange Pi 3B / Quartz64)
 - MicroSD card (8GB+)
-- Serial console adapter (UART2 — GPIO pins 8/10/12 on the 40-pin header)
+- Serial console adapter (UART2 — 1500000 baud)
 - Another machine to build U-Boot and prepare the SD card
 - Serial terminal (screen, minicom, picocom, or tio) at 1500000 baud
 
@@ -13,19 +17,19 @@
 
 ```sh
 # From the Alpenglow repo root
-scripts/build-uboot-rk3566.sh
+BOARD=orangepi-3b scripts/build-uboot-rk3566.sh
 ```
 
-This clones U-Boot (v2025.04), configures with `rk3566_quartz64_defconfig`,
-and builds. Output goes to `build/uboot-rk3566/`.
+This clones U-Boot (v2025.04), configures with the board defconfig, and
+builds. Output goes to `build/uboot-rk3566/${BOARD}/`.
 
-**Expected artifacts:**
-- `build/uboot-rk3566/spl/u-boot-spl.bin` — SPL (Secondary Program Loader)
-- `build/uboot-rk3566/u-boot.itb` — FIT image with U-Boot proper + ATF + DTB
-- `build/uboot-rk3566/rk3566-quartz64-a.dtb` — Device tree blob
+**Expected artifacts for Orange Pi 3B:**
+- `build/uboot-rk3566/orangepi-3b/spl/u-boot-spl.bin` — SPL
+- `build/uboot-rk3566/orangepi-3b/u-boot.itb` — U-Boot proper + ATF + DTB
+- `build/uboot-rk3566/orangepi-3b/rk3566-orangepi-3b.dtb` — Device tree blob
 
 **If cross toolchain is missing:** Install `aarch64-linux-gnu-gcc`:
-- macOS: `brew install aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc`
+- macOS (wax): `wax install aarch64-linux-gnu-gcc`
 - Debian/Ubuntu: `apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu`
 - Fedora: `dnf install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu`
 
@@ -33,7 +37,7 @@ and builds. Output goes to `build/uboot-rk3566/`.
 
 ```sh
 # Insert SD card, find device (e.g. /dev/sdb, /dev/disk4)
-scripts/flash-rk3566.sh /dev/sdX
+BOARD=orangepi-3b scripts/flash-rk3566.sh /dev/sdX
 ```
 
 **WARNING:** This writes to the raw SD card device. Double-check the device.
@@ -55,24 +59,39 @@ sudo mkfs.vfat -n BOOT /dev/sdX1
 sudo mount /dev/sdX1 /mnt
 
 # Kernel (aarch64 Linux)
-sudo cp build/cross/aarch64/vmlinuz /mnt/vmlinuz
+sudo cp build/cross/aarch64-linux-musl/vmlinuz /mnt/vmlinuz
 
-# Initramfs (Alpenglow Zig init + busybox)
-sudo cp build/cross/aarch64/initramfs.cpio.gz /mnt/initramfs.cpio.gz
+# Initramfs (Alpenglow initramfs from the appliance build)
+sudo cp build/appliance/initramfs.cpio.zst /mnt/initramfs.cpio.zst
 
-# Device tree blob (from U-Boot build)
-sudo cp build/uboot-rk3566/rk3566-quartz64-a.dtb /mnt/rk3566-quartz64-a.dtb
+# Device tree blob (from the U-Boot build)
+sudo cp build/uboot-rk3566/orangepi-3b/rk3566-orangepi-3b.dtb /mnt/rk3566-orangepi-3b.dtb
 
-# Boot script
-mkimage -A arm64 -T script -C none -d system/backends/rk3566/boot.cmd /mnt/boot.scr
+# Boot script (requires u-boot-tools, or the `mkimage` from U-Boot build)
+mkimage -A arm64 -T script -C none -d system/backends/rk3566/boot-orangepi-3b.cmd /mnt/boot.scr
 
 sudo umount /mnt
 sync
 ```
 
+**Note:** The cross-build path for the Alpenglow aarch64 rootfs/initramfs is
+still being integrated. Until then, build the initramfs on a Linux host or
+use the native appliance builder and copy the resulting `initramfs.cpio.zst`
+onto the boot partition.
+
 ## Step 4: Connect Serial Console
 
-Connect UART2 on the Quartz64 Model A 40-pin header:
+**Orange Pi 3B debug header (UART2, 1500000 baud):**
+
+| Function | Pin |
+|----------|-----|
+| TX       | 2 (GPIO header) |
+| RX       | 3 (GPIO header) |
+| GND      | 6 or 9 |
+
+Connect USB-to-serial adapter TX → board RX, RX → board TX, GND → GND.
+
+**Quartz64 Model A 40-pin header:**
 
 | Function | GPIO | Pin # |
 |----------|------|-------|
@@ -80,17 +99,11 @@ Connect UART2 on the Quartz64 Model A 40-pin header:
 | RX       | GPIO4 A0 | 10 |
 | GND      | — | 6 |
 
-Connect to your serial adapter:
-
-- USB-to-serial adapter TX → Quartz64 RX (pin 10)
-- USB-to-serial adapter RX → Quartz64 TX (pin 8)
-- GND → GND (pin 6)
-
-Open serial terminal at **1500000 baud**:
+Open a serial terminal at **1500000 baud**:
 
 ```sh
-# macOS (install with: brew install screen)
-screen /dev/tty.usbserial-XXXX 1500000
+# macOS (wax)
+wax install tio
 
 # Linux
 picocom -b 1500000 /dev/ttyUSB0
@@ -101,60 +114,53 @@ tio -b 1500000 /dev/ttyUSB0
 
 ## Step 5: Boot
 
-1. Insert SD card into Quartz64
+1. Insert SD card into the board
 2. Connect serial console
-3. Connect power (USB-C)
+3. Connect power
 4. Observe serial output
 
 ## Expected Serial Output
 
 ```
-U-Boot SPL 2025.04 (Oct 01 2025 - 00:00:00 +0000)
+U-Boot SPL 2025.04 ...
 Trying to boot from MMC1
 
-U-Boot 2025.04 (Oct 01 2025 - 00:00:00 +0000)
+U-Boot 2025.04 ...
 
 DRAM:  4 GiB
-Core:  78 devices, 18 uclasses, devicetree: rk3566-quartz64-a
-MMC:   dwmmc@fe2b0000: 1, dwmmc@fe2c0000: 0
-Loading Environment from nowhere... OK
-In:    serial@fe660000
-Out:   serial@fe660000
-Err:   serial@fe660000
-Net:   eth0: ethernet@fe010000
+...
 Hit any key to stop autoboot:  0
 
 Reading boot.scr from mmc 0:1 ...
-528 bytes read in 2 ms (256.8 KiB/s)
 ## Executing script at 00a00000
 Reading vmlinuz from mmc 0:1 ...
 ...
 
 [ Linux boots ]
 
-Alpenglow Zig init boot OK
+Alpenglow init boot OK
 login:
 ```
 
 **Key checkpoints:**
-1. `U-Boot SPL` — SPL loaded from SD card at 32K offset ✓
-2. `U-Boot 2025.04` — U-Boot proper loaded from 256K offset ✓
-3. `DRAM: 4 GiB` — Memory detected correctly ✓
-4. `rk3566-quartz64-a` — Correct device tree ✓
-5. `Reading vmlinuz...` — Boot partition readable ✓
-6. `Alpenglow Zig init boot OK` — Kernel + init successfully booted ✓
+1. `U-Boot SPL` loaded from SD card at 32K offset ✓
+2. `U-Boot 2025.04` loaded from 256K offset ✓
+3. DRAM size detected correctly ✓
+4. Correct device tree loaded ✓
+5. `Reading vmlinuz...` — boot partition readable ✓
+6. `Alpenglow init boot OK` — kernel + init successfully booted ✓
 
 ## Troubleshooting
 
 ### No serial output at all
 - Check serial connection (TX/RX/GND)
 - Verify baud rate (1500000, not 115200!)
-- Check power (Quartz64 draws ~2-5W, USB-C should supply 5V/2A+)
+- Check power (board draws ~2-5W; USB-C should supply 5V/2A+)
 
 ### U-Boot SPL doesn't load
 - SPL written at wrong offset (must be sector 64 = 32K for RK3566)
-- SD card not recognized (try different card or format)
-- Boot mode switches wrong (Quartz64 boots from SD by default)
+- SD card not recognized (try a different card or format)
+- Boot mode switches wrong (SD is the default for these boards)
 
 ### U-Boot proper doesn't load
 - U-Boot proper at wrong offset (sector 512 = 256K)
@@ -164,4 +170,4 @@ login:
 - Missing or wrong device tree blob
 - Kernel config mismatch (needs RK3566 drivers enabled)
 - Initramfs not found or corrupt
-- Console parameter mismatch (uart2 on rk3566 is ttyS2, not ttyAMA0)
+- Console parameter mismatch (UART2 on RK3566 is ttyS2, not ttyAMA0)
