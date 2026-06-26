@@ -2,6 +2,8 @@
 # Build U-Boot for a Rockchip RK3566 board.
 #
 # Select the board with BOARD=<id> (default: quartz64-a).
+# Uses Docker with Ubuntu 20.04 (OpenSSL 1.1) if docker is available,
+# otherwise falls back to a native build (requires OpenSSL 1.1 headers).
 set -eu
 
 BOARD="${BOARD:-quartz64-a}"
@@ -53,20 +55,6 @@ echo "  out:     ${OUT_ABS}"
 echo "  cc:      ${CROSS_COMPILE}gcc"
 echo ""
 
-# Check cross toolchain
-if ! command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
-  echo "ERROR: cross toolchain not found: ${CROSS_COMPILE}gcc" >&2
-  echo "Install an aarch64-linux-gnu cross toolchain, e.g.:" >&2
-  echo "" >&2
-  echo "  macOS (wax):" >&2
-  echo "    wax install aarch64-linux-gnu-gcc" >&2
-  echo "  Debian/Ubuntu:" >&2
-  echo "    apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" >&2
-  echo "  Fedora:" >&2
-  echo "    dnf install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" >&2
-  exit 1
-fi
-
 # Clone or fetch U-Boot
 if [ -d "${U_BOOT_ABS}/.git" ]; then
   echo "→ U-Boot already cloned at ${U_BOOT_ABS}"
@@ -84,43 +72,83 @@ else
   }
 fi
 
-# Configure and build
-cd "${U_BOOT_ABS}"
-echo "→ Configuring ${DEFCONFIG}..."
-make "${DEFCONFIG}" CROSS_COMPILE="${CROSS_COMPILE}"
-
-echo "→ Building (this takes a few minutes)..."
-make -j"${NPROC}" CROSS_COMPILE="${CROSS_COMPILE}" 2>&1 | tail -10
-
-# Collect outputs
 rm -rf "${OUT_ABS}"
-mkdir -p "${OUT_ABS}"
+mkdir -p "${OUT_ABS}/spl"
 
-echo "→ Collecting build artifacts..."
-for f in u-boot.bin u-boot.itb; do
-  if [ -f "${U_BOOT_ABS}/${f}" ]; then
-    cp "${U_BOOT_ABS}/${f}" "${OUT_ABS}/"
-    echo "  ${f}: $(du -h "${OUT_ABS}/${f}" | cut -f1)"
-  else
-    echo "  WARNING: ${f} not found" >&2
-  fi
-done
+if command -v docker >/dev/null 2>&1; then
+  echo "→ Building in Docker (Ubuntu 20.04 with OpenSSL 1.1)..."
 
-if [ -f "${U_BOOT_ABS}/spl/u-boot-spl.bin" ]; then
-  mkdir -p "${OUT_ABS}/spl"
-  cp "${U_BOOT_ABS}/spl/u-boot-spl.bin" "${OUT_ABS}/spl/"
-  echo "  spl/u-boot-spl.bin: $(du -h "${OUT_ABS}/spl/u-boot-spl.bin" | cut -f1)"
-fi
+  docker run --rm \
+    -v "${U_BOOT_ABS}:/u-boot" \
+    -v "${OUT_ABS}:/out" \
+    ubuntu:20.04 sh -c "
+      set -eu
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -qq >/dev/null 2>&1
+      apt-get install -y -qq build-essential gcc-aarch64-linux-gnu \
+        bison flex libssl-dev swig python3-dev bc git >/dev/null 2>&1
+      cd /u-boot
+      make ${DEFCONFIG} CROSS_COMPILE=${CROSS_COMPILE}
+      make -j\$(nproc) CROSS_COMPILE=${CROSS_COMPILE} 2>&1 | tail -10
+      for f in u-boot.bin u-boot.itb; do
+        [ -f \$f ] && cp \$f /out/
+      done
+      [ -f spl/u-boot-spl.bin ] && cp spl/u-boot-spl.bin /out/spl/
+      [ -f arch/arm/dts/${DTB} ] && cp arch/arm/dts/${DTB} /out/
+    " 2>&1 | tail -15
 
-DTB_DIR="${U_BOOT_ABS}/arch/arm/dts"
-if [ -f "${DTB_DIR}/${DTB}" ]; then
-  cp "${DTB_DIR}/${DTB}" "${OUT_ABS}/"
-  echo "  ${DTB}: $(du -h "${OUT_ABS}/${DTB}" | cut -f1)"
 else
-  echo "  WARNING: ${DTB} not found" >&2
+  if ! command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+    echo "ERROR: cross toolchain not found: ${CROSS_COMPILE}gcc" >&2
+    echo "Install an aarch64-linux-gnu cross toolchain, e.g.:" >&2
+    echo "" >&2
+    echo "  macOS (wax):" >&2
+    echo "    wax install aarch64-linux-gnu-gcc" >&2
+    echo "  Debian/Ubuntu:" >&2
+    echo "    apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" >&2
+    echo "  Fedora:" >&2
+    echo "    dnf install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" >&2
+    exit 1
+  fi
+
+  if ! [ -f /usr/include/openssl/engine.h ] 2>/dev/null && \
+     ! [ -f /usr/local/include/openssl/engine.h ] 2>/dev/null; then
+    echo "WARNING: openssl/engine.h not found (OpenSSL 3.x removed it)." >&2
+    echo "  U-Boot host tools need OpenSSL 1.1. Install docker or a compat package." >&2
+  fi
+
+  cd "${U_BOOT_ABS}"
+  echo "→ Configuring ${DEFCONFIG}..."
+  make "${DEFCONFIG}" CROSS_COMPILE="${CROSS_COMPILE}"
+
+  echo "→ Building (this takes a few minutes)..."
+  make -j"${NPROC}" CROSS_COMPILE="${CROSS_COMPILE}" 2>&1 | tail -10
+
+  echo "→ Collecting build artifacts..."
+  for f in u-boot.bin u-boot.itb; do
+    if [ -f "${U_BOOT_ABS}/${f}" ]; then
+      cp "${U_BOOT_ABS}/${f}" "${OUT_ABS}/"
+      echo "  ${f}: $(du -h "${OUT_ABS}/${f}" | cut -f1)"
+    else
+      echo "  WARNING: ${f} not found" >&2
+    fi
+  done
+
+  if [ -f "${U_BOOT_ABS}/spl/u-boot-spl.bin" ]; then
+    cp "${U_BOOT_ABS}/spl/u-boot-spl.bin" "${OUT_ABS}/spl/"
+    echo "  spl/u-boot-spl.bin: $(du -h "${OUT_ABS}/spl/u-boot-spl.bin" | cut -f1)"
+  fi
+
+  DTB_DIR="${U_BOOT_ABS}/arch/arm/dts"
+  if [ -f "${DTB_DIR}/${DTB}" ]; then
+    cp "${DTB_DIR}/${DTB}" "${OUT_ABS}/"
+    echo "  ${DTB}: $(du -h "${OUT_ABS}/${DTB}" | cut -f1)"
+  else
+    echo "  WARNING: ${DTB} not found" >&2
+  fi
 fi
 
 echo ""
 echo "=== U-Boot build complete ==="
 echo "  Artifacts in: ${OUT_ABS}"
-ls -lh "${OUT_ABS}/"
+ls -lh "${OUT_ABS}/" "${OUT_ABS}/spl/" 2>/dev/null
