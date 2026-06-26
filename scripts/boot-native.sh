@@ -642,7 +642,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
   QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
   QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci -serial mon:stdio"
-  KERNEL_CMDLINE="quiet init=/init"
+  KERNEL_CMDLINE="quiet console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
@@ -670,15 +670,19 @@ if [ "${BOOT_MODE}" = "rootfs" ]; then
 fi
 
 if [ "${EFI}" = "1" ]; then
-  # UEFI boot via kernel EFI stub (saves ~200ms vs SeaBIOS)
+  # UEFI boot via OVMF pflash (saves ~200ms vs SeaBIOS)
   OVMF_CODE=""
-  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd; do
+  for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /opt/homebrew/Cellar/qemu/*/share/qemu/edk2-x86_64-code.fd; do
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
   done
   if [ -n "${OVMF_CODE}" ]; then
+    # Create a writable OVMF vars copy (pflash needs writable vars)
+    OVMF_VARS="${OUT_DIR}/ovmf-vars.fd"
+    cp "${OVMF_CODE}" "${OVMF_VARS}" 2>/dev/null || true
     exec qemu-system-x86_64 \
       ${QEMU_OPTS} \
-      -bios "${OVMF_CODE}" \
+      -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
+      -drive if=pflash,format=raw,file="${OVMF_VARS}" \
       -kernel "${KERNEL_IMAGE}" \
       -initrd "${INITRAMFS}" \
       -append "${KERNEL_CMDLINE}"
