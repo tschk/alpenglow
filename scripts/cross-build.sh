@@ -38,7 +38,7 @@ build_kernel() {
     -v "${REPO_ROOT}:/repo:ro" \
     alpine:3.21 sh -c '
       set -eu
-      apk add --no-cache bash bc bison curl elfutils-dev findutils flex gawk gcc make openssl-dev perl tar xz >/dev/null
+      apk add --no-cache bash bc bison curl elfutils-dev findutils flex gawk gcc make musl-dev openssl-dev perl tar xz >/dev/null
       curl -fsSL "https://musl.cc/${KARCH}-linux-musl-cross.tgz" | tar -xz -C /opt
       export PATH="/opt/${KARCH}-linux-musl-cross/bin:${PATH}"
       KD=/out/kernel-src
