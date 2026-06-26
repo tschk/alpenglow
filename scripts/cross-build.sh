@@ -122,17 +122,18 @@ build_dinit() {
 
   docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
     set -eu
-    apk add --no-cache make g++ musl-dev curl tar xz bash >/dev/null
+    apk add --no-cache make g++ musl-dev m4 curl tar xz bash >/dev/null
     curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
     export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/davmac314/dinit/releases/download/v${DINIT_VER}/dinit-${DINIT_VER}.tar.xz -o /tmp/dinit.tar.xz
     tar -xf /tmp/dinit.tar.xz -C /tmp
     cd /tmp/dinit-${DINIT_VER}
     ./configure --host=${KARCH}-linux-musl --static >/dev/null 2>&1
-    make -j\$(nproc) CXX=${KARCH}-linux-musl-g++ CXXFLAGS='-static' LDFLAGS='-static' >/dev/null 2>&1
-    make install DESTDIR=/out/dinit-install >/dev/null 2>&1
-    cp /out/dinit-install/sbin/dinit /out/dinit
-  " 2>&1 | tail -1
+    make -j\$(nproc) CXX=${KARCH}-linux-musl-g++ CXXFLAGS='-static -O2' LDFLAGS='-static' 2>&1 | tail -3
+    make install DESTDIR=/out/dinit-install STRIP=true 2>&1 | tail -3 || true
+    cp src/dinit /out/dinit 2>/dev/null || cp /out/dinit-install/sbin/dinit /out/dinit
+    cp src/dinitctl /out/dinit-install/sbin/dinitctl 2>/dev/null || true
+  " 2>&1 | tail -3
   echo "  dinit: ${BUILD_OUT}/dinit"
 }
 
@@ -146,7 +147,9 @@ build_oil() {
 
   cd "${REPO_ROOT}/system/oil"
   RUSTFLAGS="-C target-feature=+crt-static" \
-    cargo build --release --target "${TARGET}" 2>&1 | tail -1 || \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${KARCH}-linux-musl-gcc" \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_AR="${KARCH}-linux-musl-ar" \
+    cargo build --release --target "${TARGET}" 2>&1 | tail -3 || \
     echo "  Oil: cross-build failed (try with musl-cross)"
   cp "target/${TARGET}/release/oil" "${BUILD_OUT}/oil" 2>/dev/null || true
   echo "  oil: ${BUILD_OUT}/oil"
