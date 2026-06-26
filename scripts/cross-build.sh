@@ -43,6 +43,9 @@ build_kernel() {
       export PATH="/opt/${KARCH}-linux-musl-cross/bin:${PATH}"
       KD=/out/kernel-src
       cd "${KD}"
+      # Rebuild host tools inside the container (the previous host build may
+      # have produced glibc-linked binaries that cannot run on Alpine musl).
+      make clean >/dev/null 2>&1 || true
       make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" defconfig
       make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" rust.config 2>/dev/null || true
 
