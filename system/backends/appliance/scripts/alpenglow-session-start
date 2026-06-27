@@ -17,4 +17,4 @@ if command -v alpenglowed >/dev/null 2>&1; then
 	exec alpenglowed
 fi
 
-exec velox
+exec cage

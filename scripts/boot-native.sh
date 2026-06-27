@@ -268,6 +268,30 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   fi
 fi
 
+# Graphical builds: cage (musl) + alpenglowed (glibc) + graphics libs
+if [ "${GRAPHICAL}" = "1" ]; then
+  echo "→ Building graphical stack (cage + alpenglowed + graphics libs)..."
+
+  # cage + musl shared libs from Alpine
+  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ]; then
+    sh "${BACKEND_DIR}/scripts/build-cage.sh" "${OUT_DIR}"
+  fi
+  echo "  cage: ${OUT_DIR}/cage/usr/bin/cage"
+
+  # alpenglowed with glibc dynamic linking
+  ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
+  if [ ! -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
+    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
+  fi
+  echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
+
+  # glibc Mesa/Vulkan/EGL libs from Debian
+  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ]; then
+    sh "${BACKEND_DIR}/scripts/install-graphics-libs.sh" "${OUT_DIR}"
+  fi
+  echo "  graphics libs: ${OUT_DIR}/glibc-libs"
+fi
+
 # Compose rootfs
 echo "→ Composing rootfs..."
 rm -rf "${ROOTFS_DIR}"
@@ -309,13 +333,174 @@ for svc in "${BACKEND_DIR}/dinit/"*; do
   cp "${svc}" "${ROOTFS_DIR}/etc/dinit.d/${name}"
 done
 
+# Install userspace services (if built via BUILD_SERVICES=1)
+if [ -d "${OUT_DIR}/iwd" ]; then
+  cp -R "${OUT_DIR}/iwd/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/iwd"
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/iwd/main.conf" "${ROOTFS_DIR}/etc/iwd/" 2>/dev/null || true
+fi
+if [ -d "${OUT_DIR}/greetd" ]; then
+  cp -R "${OUT_DIR}/greetd/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/greetd"
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
+fi
+if [ -d "${OUT_DIR}/dropbear" ]; then
+  cp -R "${OUT_DIR}/dropbear/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/dropbear"
+fi
+if [ -d "${OUT_DIR}/chrony" ]; then
+  cp -R "${OUT_DIR}/chrony/" "${ROOTFS_DIR}/"
+  mkdir -p "${ROOTFS_DIR}/etc/chrony"
+fi
+if [ -d "${OUT_DIR}/dnsmasq" ]; then
+  cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
+fi
+
+# Graphical stack: cage (musl) + alpenglowed (glibc) + isolated libs
+# Installed before BOOT_SERVICES so availability checks work
+if [ "${GRAPHICAL}" = "1" ]; then
+  if [ -d "${OUT_DIR}/cage" ]; then
+    mkdir -p "${ROOTFS_DIR}/usr/bin" "${ROOTFS_DIR}/usr/lib/musl" "${ROOTFS_DIR}/lib"
+    cp "${OUT_DIR}/cage/usr/bin/cage" "${ROOTFS_DIR}/usr/bin/"
+    cp "${OUT_DIR}/cage/usr/bin/Xwayland" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
+    cp "${OUT_DIR}/cage/usr/bin/seatd" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
+    cp "${OUT_DIR}/cage/usr/bin/seatd-launch" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
+    cp "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" "${ROOTFS_DIR}/lib/" 2>/dev/null || true
+    # musl libc: ld-musl is the same binary, symlink the libc name
+    ln -sf ld-musl-x86_64.so.1 "${ROOTFS_DIR}/lib/libc.musl-x86_64.so.1" 2>/dev/null || true
+    cp "${OUT_DIR}/cage/usr/lib/lib"*.so* "${ROOTFS_DIR}/usr/lib/musl/" 2>/dev/null || true
+    if [ -d "${OUT_DIR}/cage/usr/lib/dri" ]; then
+      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/dri"
+      cp "${OUT_DIR}/cage/usr/lib/dri/"*.so "${ROOTFS_DIR}/usr/lib/musl/dri/" 2>/dev/null || true
+    fi
+    if [ -d "${OUT_DIR}/cage/usr/lib/gallium-pipe" ]; then
+      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/gallium-pipe"
+      cp "${OUT_DIR}/cage/usr/lib/gallium-pipe/"*.so "${ROOTFS_DIR}/usr/lib/musl/gallium-pipe/" 2>/dev/null || true
+    fi
+    if [ -d "${OUT_DIR}/cage/usr/lib/gbm" ]; then
+      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/gbm"
+      cp "${OUT_DIR}/cage/usr/lib/gbm/"*.so "${ROOTFS_DIR}/usr/lib/musl/gbm/" 2>/dev/null || true
+    fi
+  fi
+
+  ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
+  if [ -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
+    mkdir -p "${ROOTFS_DIR}/usr/bin"
+    cp "${ALPENGLOWED_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
+    chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
+  fi
+
+  if [ -d "${OUT_DIR}/glibc-libs" ]; then
+    mkdir -p "${ROOTFS_DIR}/lib/x86_64-linux-gnu" "${ROOTFS_DIR}/lib64"
+    cp "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/"lib*.so* "${ROOTFS_DIR}/lib/x86_64-linux-gnu/" 2>/dev/null || true
+    cp "${OUT_DIR}/glibc-libs/lib64/ld-linux-x86-64.so.2" "${ROOTFS_DIR}/lib64/" 2>/dev/null || true
+    if [ -d "${OUT_DIR}/glibc-libs/usr/lib/x86_64-linux-gnu/dri" ]; then
+      mkdir -p "${ROOTFS_DIR}/usr/lib/x86_64-linux-gnu/dri"
+      cp "${OUT_DIR}/glibc-libs/usr/lib/x86_64-linux-gnu/dri/"*.so "${ROOTFS_DIR}/usr/lib/x86_64-linux-gnu/dri/" 2>/dev/null || true
+    fi
+    if [ -d "${OUT_DIR}/glibc-libs/usr/share/vulkan/icd.d" ]; then
+      mkdir -p "${ROOTFS_DIR}/usr/share/vulkan/icd.d"
+      cp "${OUT_DIR}/glibc-libs/usr/share/vulkan/icd.d/"*.json "${ROOTFS_DIR}/usr/share/vulkan/icd.d/" 2>/dev/null || true
+    fi
+  fi
+
+  cat > "${ROOTFS_DIR}/usr/bin/cage-run.sh" << 'CAGEWRAP'
+#!/bin/sh
+unset WAYLAND_DISPLAY
+export XDG_RUNTIME_DIR=/run
+export LIBSEAT_BACKEND=seatd
+export WLR_LIBINPUT_NO_DEVICES=1
+export LD_LIBRARY_PATH=/usr/lib/musl
+export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
+export EGL_DRIVER=swrast
+mkdir -p /run
+chmod 700 /run
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  [ -S /run/seatd.sock ] && break
+  sleep 0.5
+done
+exec /usr/bin/cage /usr/bin/alpenglowed-run.sh
+CAGEWRAP
+  chmod 755 "${ROOTFS_DIR}/usr/bin/cage-run.sh"
+
+  cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
+#!/bin/sh
+export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
+export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
+exec /usr/bin/alpenglowed-bin "$@"
+ALPWRAP
+  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
+
+  # Override seatd service: run as root with musl LD_LIBRARY_PATH
+  cat > "${ROOTFS_DIR}/etc/dinit.d/seatd" << 'SEATD'
+# Seat management daemon
+type = process
+command = /usr/bin/seatd -g seat
+restart = yes
+run-as = root
+SEATD
+
+  cat > "${ROOTFS_DIR}/etc/dinit.d/velox" << 'VELUX'
+# cage — Wayland compositor (wlroots-based kiosk)
+type = process
+command = /usr/bin/cage-run.sh
+restart = yes
+depends-on = seatd
+VELUX
+  cat > "${ROOTFS_DIR}/etc/dinit.d/alpenglowed" << 'ALPENGLOW'
+type = process
+command = /usr/bin/alpenglowed-run.sh
+restart = yes
+depends-on = velox
+ALPENGLOW
+else
+  ALPENGLOWED_BIN="${ALPENGLOWED_BIN:-}"
+  if [ -z "${ALPENGLOWED_BIN}" ]; then
+    for candidate in \
+      "${ROOT_DIR}/../alpenglowed/target/x86_64-unknown-linux-musl/release/alpenglowed" \
+      "${ROOT_DIR}/../alpenglowed/target/release/alpenglowed" \
+      "${ROOT_DIR}/../alpenglowed/target/debug/alpenglowed"
+    do
+      [ -x "${candidate}" ] && { ALPENGLOWED_BIN="${candidate}"; break; }
+    done
+  fi
+  if [ -n "${ALPENGLOWED_BIN}" ] && [ -x "${ALPENGLOWED_BIN}" ]; then
+    mkdir -p "${ROOTFS_DIR}/usr/bin"
+    cp "${ALPENGLOWED_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed"
+    chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed"
+  fi
+fi
+
 # Define enabled services per profile
+# Only include services whose binaries actually exist in the rootfs
 case "${BUILD_PROFILE}" in
   minimal)
-    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq"
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
+    for svc in dropbear chronyd dnsmasq; do
+      [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && [ "${svc}" = "dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} ${svc}"
+      [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && [ "${svc}" = "chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} ${svc}"
+      [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && [ "${svc}" = "dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} ${svc}"
+    done
     ;;
   standard)
-    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond dropbear chronyd dnsmasq glowfs-mount state-mount elogind seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power iwd pipewire wireplumber greetd velox alpenglowed foot"
+    # Core services always available (inline definitions)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
+    # Conditionally add services that have binaries installed
+    [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
+    [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
+    [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
+    [ -f "${ROOTFS_DIR}/usr/bin/seatd" ] && BOOT_SERVICES="${BOOT_SERVICES} seatd"
+    [ -f "${ROOTFS_DIR}/usr/bin/cage-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} velox"
+    [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"
+    # Optional services (only if binaries exist)
+    [ -f "${ROOTFS_DIR}/usr/libexec/iwd" ] && BOOT_SERVICES="${BOOT_SERVICES} iwd"
+    [ -f "${ROOTFS_DIR}/usr/bin/greetd" ] && BOOT_SERVICES="${BOOT_SERVICES} greetd"
+    [ -f "${ROOTFS_DIR}/usr/bin/pipewire" ] && BOOT_SERVICES="${BOOT_SERVICES} pipewire"
+    [ -f "${ROOTFS_DIR}/usr/bin/wireplumber" ] && BOOT_SERVICES="${BOOT_SERVICES} wireplumber"
+    [ -f "${ROOTFS_DIR}/usr/bin/foot" ] && BOOT_SERVICES="${BOOT_SERVICES} foot"
+    [ -f "${ROOTFS_DIR}/usr/sbin/elogind" ] && BOOT_SERVICES="${BOOT_SERVICES} elogind"
     ;;
 esac
 
@@ -346,7 +531,7 @@ NET
 cat > "${ROOTFS_DIR}/etc/dinit.d/syslogd" << 'SYSLOG'
 type = process
 command = /bin/toybox syslogd -n
-restart = always
+restart = yes
 depends-on = mount-filesystems
 SYSLOG
 
@@ -430,6 +615,7 @@ chmod 755 "${ROOTFS_DIR}/usr/share/udhcpc/default.script"
 mkdir -p "${ROOTFS_DIR}/etc"
 cat > "${ROOTFS_DIR}/etc/passwd" << 'PASSWD'
 root:x:0:0:root:/root:/bin/toybox sh
+seatd:x:772:772:seatd:/var/empty:/sbin/nologin
 PASSWD
 cat > "${ROOTFS_DIR}/etc/shadow" << 'SHADOW'
 root::19999:0:99999:7:::
@@ -472,44 +658,6 @@ if [ -f "${GLOWFS_KO}" ]; then
 fi
 if [ -f "${ALPENGLOW_MODULE}" ]; then
   cp "${ALPENGLOW_MODULE}" "${ROOTFS_DIR}/lib/modules/"
-fi
-
-# Userspace services (if built)
-if [ -d "${OUT_DIR}/iwd" ]; then
-  cp -R "${OUT_DIR}/iwd/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/iwd"
-  cp "${BACKEND_DIR}/rootfs-overlay/etc/iwd/main.conf" "${ROOTFS_DIR}/etc/iwd/" 2>/dev/null || true
-fi
-if [ -d "${OUT_DIR}/greetd" ]; then
-  cp -R "${OUT_DIR}/greetd/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/greetd"
-  cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
-fi
-if [ -d "${OUT_DIR}/dropbear" ]; then
-  cp -R "${OUT_DIR}/dropbear/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/dropbear"
-fi
-if [ -d "${OUT_DIR}/chrony" ]; then
-  cp -R "${OUT_DIR}/chrony/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/chrony"
-fi
-if [ -d "${OUT_DIR}/dnsmasq" ]; then
-  cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
-fi
-ALPENGLOWED_BIN="${ALPENGLOWED_BIN:-}"
-if [ -z "${ALPENGLOWED_BIN}" ]; then
-  for candidate in \
-    "${ROOT_DIR}/../alpenglowed/target/x86_64-unknown-linux-musl/release/alpenglowed" \
-    "${ROOT_DIR}/../alpenglowed/target/release/alpenglowed" \
-    "${ROOT_DIR}/../alpenglowed/target/debug/alpenglowed"
-  do
-    [ -x "${candidate}" ] && { ALPENGLOWED_BIN="${candidate}"; break; }
-  done
-fi
-if [ -n "${ALPENGLOWED_BIN}" ] && [ -x "${ALPENGLOWED_BIN}" ]; then
-  mkdir -p "${ROOTFS_DIR}/usr/bin"
-  cp "${ALPENGLOWED_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed"
-  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed"
 fi
 
 # Init — dinit as primary PID 1, manages all services
@@ -633,16 +781,16 @@ if [ "${GRAPHICAL}" = "1" ]; then
   # Pick a display backend available on this host
   QEMU_DISPLAY=""
   for backend in cocoa gtk sdl; do
-    if qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
+    if timeout 2 qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
       QEMU_DISPLAY="${backend}"
       break
     fi
   done
-  QEMU_DISPLAY="${QEMU_DISPLAY:-default}"
+  QEMU_DISPLAY="${QEMU_DISPLAY:-cocoa}"
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
   QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
   QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci -serial mon:stdio"
-  KERNEL_CMDLINE="quiet console=ttyS0 console=tty0 init=/init"
+  KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
