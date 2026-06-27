@@ -63,12 +63,13 @@ build_kernel() {
       make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" olddefconfig 2>/dev/null
       make -j"$(nproc)" ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" "${KERNEL_TARGET}" dtbs 2>&1 | tail -5
       cp "arch/${ARCH}/boot/${KERNEL_TARGET}" /out/vmlinuz
-      if [ "${ARCH}" = "arm64" ]; then
-        for dtb in arch/arm64/boot/dts/rockchip/rk3566-orangepi-3b*.dtb; do
-          [ -f "\$dtb" ] && cp "\$dtb" /out/ && echo "  dtb: \$(basename \$dtb)"
-        done
-      fi
     ' 2>&1 | tail -10
+
+  if [ "${ARCH}" = "arm64" ]; then
+    for dtb in "${BUILD_OUT}/kernel-src/arch/arm64/boot/dts/rockchip/rk3566-orangepi-3b"*.dtb; do
+      [ -f "${dtb}" ] && cp "${dtb}" "${BUILD_OUT}/" && echo "  dtb: $(basename "${dtb}")"
+    done
+  fi
 
   echo "  kernel: ${BUILD_OUT}/vmlinuz"
 }
