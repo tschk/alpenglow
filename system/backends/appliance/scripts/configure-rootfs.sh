@@ -396,10 +396,18 @@ chmod 600 "${ROOTFS}/etc/crontabs/root"
 # ── Rotate logs daily ──────────────────────────────────────────────
 cat > "${ROOTFS}/usr/local/bin/logrotate.sh" <<'LOGX'
 #!/bin/toybox sh
-# ponytail: naive logrotate, mv + signal
+# Advanced log rotation script
+MAX_LOGS=7
 for log in /var/log/alpenglow/*.log; do
   [ -f "${log}" ] || continue
-  mv "${log}" "${log}.old" 2>/dev/null || true
+  rm -f "${log}.${MAX_LOGS}" 2>/dev/null || true
+  i=${MAX_LOGS}
+  while [ "$i" -gt 1 ]; do
+    prev=$((i - 1))
+    [ -f "${log}.${prev}" ] && mv "${log}.${prev}" "${log}.${i}" 2>/dev/null || true
+    i=${prev}
+  done
+  mv "${log}" "${log}.1" 2>/dev/null || true
 done
 LOGX
 chmod 755 "${ROOTFS}/usr/local/bin/logrotate.sh"
