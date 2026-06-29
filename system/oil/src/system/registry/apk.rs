@@ -370,14 +370,20 @@ mod tests {
                 .expect("failed to set path for signature header");
             sig_header.set_size(signature.len() as u64);
             sig_header.set_cksum();
-            archive.append(&sig_header, &signature[..]).expect("failed to append signature to archive");
+            archive
+                .append(&sig_header, &signature[..])
+                .expect("failed to append signature to archive");
 
             let content = b"P:ripgrep\nV:15.1.0-r0\nT:Search tool\nI:12345\nD:so:libc.musl-aarch64.so.1\np:cmd:rg=15.1.0-r0\n\n";
             let mut header = tar::Header::new_gnu();
-            header.set_path("APKINDEX").expect("failed to set path for APKINDEX header");
+            header
+                .set_path("APKINDEX")
+                .expect("failed to set path for APKINDEX header");
             header.set_size(content.len() as u64);
             header.set_cksum();
-            archive.append(&header, &content[..]).expect("failed to append APKINDEX to archive");
+            archive
+                .append(&header, &content[..])
+                .expect("failed to append APKINDEX to archive");
             archive.finish().expect("failed to finish archive");
         }
 

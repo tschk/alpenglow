@@ -166,9 +166,11 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     // ponytail: hoist registry load out of loop — was N+1
     let registry = system::registry::apk::ApkRegistry::alpine_default();
     let index = registry.load()?;
+    let cache = index.build_cache();
+
     for name in &names {
         if let Some(_pkg) = state.get(name) {
-            if let Some(latest) = index.find(name) {
+            if let Some(latest) = cache.get(name.as_str()) {
                 let dest = std::path::PathBuf::from("/usr/local");
                 install_package(latest, &dest)?;
                 state.mark_installed(name, Some(latest.version.as_str()));
@@ -185,6 +187,8 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let installed = state.load()?;
     let registry = system::registry::apk::ApkRegistry::alpine_default();
     let index = registry.load()?;
+    let cache = index.build_cache();
+
     let targets: Vec<String> = if packages.is_empty() {
         installed.keys().cloned().collect()
     } else {
@@ -195,7 +199,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
             if current.pinned {
                 continue;
             }
-            if let Some(latest) = index.find(name) {
+            if let Some(latest) = cache.get(name.as_str()) {
                 if latest.version != current.version {
                     if dry_run {
                         println!(
@@ -206,10 +210,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                         let dest = std::path::PathBuf::from("/usr/local");
                         install_package(latest, &dest)?;
                         state.mark_installed(name, Some(latest.version.as_str()));
-                        println!(
-                            "Upgraded {name}: {} → {}",
-                            current.version, latest.version
-                        );
+                        println!("Upgraded {name}: {} → {}", current.version, latest.version);
                     }
                 }
             }
@@ -224,8 +225,10 @@ fn run_outdated() -> Result<()> {
     let installed = state.load()?;
     let registry = system::registry::apk::ApkRegistry::alpine_default();
     let index = registry.load()?;
+    let cache = index.build_cache();
+
     for (name, pkg) in &installed {
-        if let Some(latest) = index.find(name) {
+        if let Some(latest) = cache.get(name.as_str()) {
             if latest.version != pkg.version {
                 println!("{} {} -> {}", name, pkg.version, latest.version);
             }

@@ -14,6 +14,8 @@ pub struct PackageMetadata {
     pub provides: Vec<String>,
 }
 
+use std::collections::HashMap;
+
 pub struct PackageIndex {
     pub packages: Vec<PackageMetadata>,
 }
@@ -25,6 +27,20 @@ impl PackageIndex {
                 .iter()
                 .find(|p| p.provides.iter().any(|prov| prov == name))
         })
+    }
+
+    /// Builds an O(1) cache for fast lookups by name and provides.
+    pub fn build_cache(&self) -> HashMap<&str, &PackageMetadata> {
+        let mut cache = HashMap::new();
+        for pkg in &self.packages {
+            cache.insert(pkg.name.as_str(), pkg);
+        }
+        for pkg in &self.packages {
+            for prov in &pkg.provides {
+                cache.entry(prov.as_str()).or_insert(pkg);
+            }
+        }
+        cache
     }
 }
 
