@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
-#![allow(missing_docs, dead_code)]
+#![allow(missing_docs)]
 //! Alpenglow core — records boot time and appliance state.
 
 use kernel::prelude::*;
 
-extern "C" {
-    fn ktime_get_boot_fast_ns() -> u64;
-}
 
 module! {
     type: AlpenglowCore,
