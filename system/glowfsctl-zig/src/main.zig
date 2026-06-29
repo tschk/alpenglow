@@ -157,9 +157,13 @@ fn inspectImage(io: std.Io, gpa: std.mem.Allocator, path: []const u8) !void {
 
     for (0..h.entry_count) |i| {
         const off = h.entries_offset + @as(u64, i) * ent_len;
+        if (off + ent_len > data.len) return fatal(io, "corrupt image: entry out of bounds", .{});
         const e = @as(*align(1) const Ent, @ptrCast(data[@as(usize, @intCast(off))..][0..ent_len]));
         const name = if (e.name_len > 0)
-            data[@as(usize, @intCast(h.names_offset + e.name_off))..][0..@as(usize, @intCast(e.name_len))]
+            blk: {
+                if (h.names_offset + e.name_off + e.name_len > data.len) return fatal(io, "corrupt image: name out of bounds", .{});
+                break :blk data[@as(usize, @intCast(h.names_offset + e.name_off))..][0..@as(usize, @intCast(e.name_len))];
+            }
         else
             "(root)";
         const kind = if (e.kind == k_dir) "dir" else if (e.kind == k_file) "file" else "?";
@@ -181,10 +185,13 @@ fn readFile(io: std.Io, gpa: std.mem.Allocator, image: []const u8, path: []const
     const base = std.fs.path.basename(path);
     for (0..h.entry_count) |i| {
         const off = h.entries_offset + @as(u64, i) * ent_len;
+        if (off + ent_len > data.len) return fatal(io, "corrupt image: entry out of bounds", .{});
         const e = @as(*align(1) const Ent, @ptrCast(data[@as(usize, @intCast(off))..][0..ent_len]));
         if (e.name_len == 0) continue;
+        if (h.names_offset + e.name_off + e.name_len > data.len) return fatal(io, "corrupt image: name out of bounds", .{});
         const name = data[@as(usize, @intCast(h.names_offset + e.name_off))..][0..@as(usize, @intCast(e.name_len))];
         if (std.mem.eql(u8, name, base)) {
+            if (e.data_off + e.size > data.len) return fatal(io, "corrupt image: data out of bounds", .{});
             try std.Io.File.stdout().writeStreamingAll(io, data[@as(usize, @intCast(e.data_off))..][0..@as(usize, @intCast(e.size))]);
             return;
         }
@@ -203,10 +210,13 @@ fn writeFile(io: std.Io, gpa: std.mem.Allocator, image: []const u8, path: []cons
     const base = std.fs.path.basename(path);
     for (0..h.entry_count) |i| {
         const off = h.entries_offset + @as(u64, i) * ent_len;
+        if (off + ent_len > data.len) return fatal(io, "corrupt image: entry out of bounds", .{});
         const e = @as(*align(1) const Ent, @ptrCast(data[@as(usize, @intCast(off))..][0..ent_len]));
         if (e.name_len == 0) continue;
+        if (h.names_offset + e.name_off + e.name_len > data.len) return fatal(io, "corrupt image: name out of bounds", .{});
         const name = data[@as(usize, @intCast(h.names_offset + e.name_off))..][0..@as(usize, @intCast(e.name_len))];
         if (!std.mem.eql(u8, name, base)) continue;
+        if (e.data_off + e.size > data.len) return fatal(io, "corrupt image: data out of bounds", .{});
 
         const eo = @as(usize, @intCast(off));
         if (value.len <= e.size) {

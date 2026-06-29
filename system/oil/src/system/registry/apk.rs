@@ -132,7 +132,8 @@ fn branch_from_os_release(os_release: &str) -> Option<String> {
     })?;
     let mut parts = version.split('.');
     let major = parts.next()?;
-    let minor = parts.next()?;
+    // ponytail: filter out empty minor (trailing dot like "3.")
+    let minor = parts.next().filter(|s| !s.is_empty())?;
     Some(format!("v{major}.{minor}"))
 }
 
@@ -313,6 +314,24 @@ mod tests {
     fn test_branch_from_os_release_empty_string() {
         let os_release = "";
         assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
+    fn test_branch_from_os_release_trailing_dot() {
+        let os_release = "ID=alpine\nVERSION_ID=3.\n";
+        assert_eq!(branch_from_os_release(os_release), None);
+    }
+
+    #[test]
+    fn test_branch_from_os_release_multiple_dots() {
+        let os_release = "ID=alpine\nVERSION_ID=3.20.1-r0\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
+    }
+
+    #[test]
+    fn test_branch_from_os_release_exact_two_parts() {
+        let os_release = "ID=alpine\nVERSION_ID=3.20\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
     }
 
     #[test]
