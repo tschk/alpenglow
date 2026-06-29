@@ -1,6 +1,7 @@
 pub mod apk;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageMetadata {
@@ -16,15 +17,27 @@ pub struct PackageMetadata {
 
 pub struct PackageIndex {
     pub packages: Vec<PackageMetadata>,
+    lookup: HashMap<String, usize>,
 }
 
 impl PackageIndex {
+    pub fn new(packages: Vec<PackageMetadata>) -> Self {
+        let mut lookup = HashMap::new();
+        // Insert provides first, reversed so the earliest package takes precedence
+        for (i, pkg) in packages.iter().enumerate().rev() {
+            for prov in &pkg.provides {
+                lookup.insert(prov.clone(), i);
+            }
+        }
+        // Insert names second, overwriting provides, reversed for earliest precedence
+        for (i, pkg) in packages.iter().enumerate().rev() {
+            lookup.insert(pkg.name.clone(), i);
+        }
+        Self { packages, lookup }
+    }
+
     pub fn find(&self, name: &str) -> Option<&PackageMetadata> {
-        self.packages.iter().find(|p| p.name == name).or_else(|| {
-            self.packages
-                .iter()
-                .find(|p| p.provides.iter().any(|prov| prov == name))
-        })
+        self.lookup.get(name).map(|&i| &self.packages[i])
     }
 }
 
@@ -54,30 +67,28 @@ mod tests {
 
     #[test]
     fn test_package_index_find_by_name() {
-        let index = PackageIndex {
-            packages: vec![
-                PackageMetadata {
-                    name: "curl".to_string(),
-                    version: "8.0.0".to_string(),
-                    description: String::new(),
-                    download_url: String::new(),
-                    sha256: None,
-                    installed_size: 0,
-                    depends: vec![],
-                    provides: vec![],
-                },
-                PackageMetadata {
-                    name: "libssl3".to_string(),
-                    version: "3.0.0".to_string(),
-                    description: String::new(),
-                    download_url: String::new(),
-                    sha256: None,
-                    installed_size: 0,
-                    depends: vec![],
-                    provides: vec!["libssl".to_string()],
-                },
-            ],
-        };
+        let index = PackageIndex::new(vec![
+            PackageMetadata {
+                name: "curl".to_string(),
+                version: "8.0.0".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+            PackageMetadata {
+                name: "libssl3".to_string(),
+                version: "3.0.0".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec!["libssl".to_string()],
+            },
+        ]);
         assert!(index.find("curl").is_some());
         assert!(index.find("libssl3").is_some());
         assert!(index.find("libssl").is_some());
