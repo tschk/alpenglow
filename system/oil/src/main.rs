@@ -60,6 +60,12 @@ enum Commands {
     },
     /// List packages with available updates
     Outdated,
+    /// List packages that use a specific formula
+    Uses {
+        formula: String,
+        #[arg(long)]
+        installed: bool,
+    },
 }
 
 fn main() {
@@ -165,10 +171,10 @@ fn run_command(cmd: Commands) -> Result<()> {
                 if let Some(_pkg) = state.get(name) {
                     let registry = system::registry::apk::ApkRegistry::alpine_default();
                     let index = registry.load()?;
-                    if let Some(latest) = index.find(&name) {
+                    if let Some(latest) = index.find(name) {
                         let dest = std::path::PathBuf::from("/usr/local");
                         install_package(latest, &dest)?;
-                        state.mark_installed(&name, Some(latest.version.clone()));
+                        state.mark_installed(name, Some(latest.version.clone()));
                         println!("Reinstalled {name} {}", latest.version);
                     }
                 }
@@ -192,7 +198,7 @@ fn run_command(cmd: Commands) -> Result<()> {
                         continue;
                     }
                     if let Some(latest) = index.find(name) {
-                        if &latest.version != &current.version {
+                        if latest.version != current.version {
                             if dry_run {
                                 println!(
                                     "Would upgrade {name}: {} → {}",
@@ -224,6 +230,32 @@ fn run_command(cmd: Commands) -> Result<()> {
                     if latest.version != pkg.version {
                         println!("{} {} -> {}", name, pkg.version, latest.version);
                     }
+                }
+            }
+            Ok(())
+        }
+        Commands::Uses { formula, installed } => {
+            let registry = system::registry::apk::ApkRegistry::alpine_default();
+            let index = registry.load()?;
+            let mut dependants = Vec::new();
+
+            for pkg in &index.packages {
+                if pkg.depends.contains(&formula) {
+                    dependants.push(pkg.name.clone());
+                }
+            }
+
+            if installed {
+                let state = install::InstallState::new()?;
+                let installed_pkgs = state.load()?;
+                for name in dependants {
+                    if installed_pkgs.contains_key(&name) {
+                        println!("{name}");
+                    }
+                }
+            } else {
+                for name in dependants {
+                    println!("{name}");
                 }
             }
             Ok(())
