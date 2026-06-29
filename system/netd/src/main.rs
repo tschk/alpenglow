@@ -76,3 +76,89 @@ fn update_snapshot(
         )
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn create_temp_dir(name: &str) -> PathBuf {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("alpenglow-netd-test-{}-{}", name, ts));
+        fs::create_dir_all(&path).expect("failed to create temp dir");
+        path
+    }
+
+    #[test]
+    fn test_update_snapshot_success() {
+        let temp_dir = create_temp_dir("success");
+
+        let sys_class_net = temp_dir.join("sys_class_net");
+        fs::create_dir_all(&sys_class_net).expect("failed to create sys_class_net");
+
+        let state_json = temp_dir.join("state.json");
+        let runtime_env = temp_dir.join("runtime.env");
+
+        let result = update_snapshot(&sys_class_net, &state_json, &runtime_env);
+
+        assert!(result.is_ok(), "update_snapshot failed: {:?}", result.err());
+        assert!(state_json.exists(), "state_json should exist");
+        assert!(runtime_env.exists(), "runtime_env should exist");
+
+        fs::remove_dir_all(&temp_dir).expect("failed to clean up");
+    }
+
+    #[test]
+    fn test_update_snapshot_read_error() {
+        let temp_dir = create_temp_dir("read-err");
+
+        let sys_class_net = temp_dir.join("sys_class_net_file");
+        fs::write(&sys_class_net, "not a dir").expect("failed to write file");
+
+        let state_json = temp_dir.join("state.json");
+        let runtime_env = temp_dir.join("runtime.env");
+
+        let result = update_snapshot(&sys_class_net, &state_json, &runtime_env);
+
+        let err_msg = result.expect_err("expected update_snapshot to fail");
+        assert!(
+            err_msg.starts_with(&format!("read {}", sys_class_net.display())),
+            "unexpected error message: {}",
+            err_msg
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("failed to clean up");
+    }
+
+    #[test]
+    fn test_update_snapshot_write_error() {
+        let temp_dir = create_temp_dir("write-err");
+
+        let sys_class_net = temp_dir.join("sys_class_net");
+        fs::create_dir_all(&sys_class_net).expect("failed to create sys_class_net");
+
+        let state_json = temp_dir.join("state.json");
+        fs::create_dir_all(&state_json).expect("failed to create dir for state_json");
+
+        let runtime_env = temp_dir.join("runtime.env");
+
+        let result = update_snapshot(&sys_class_net, &state_json, &runtime_env);
+
+        let err_msg = result.expect_err("expected update_snapshot to fail");
+        assert!(
+            err_msg.starts_with(&format!(
+                "write {} and {}:",
+                state_json.display(),
+                runtime_env.display()
+            )),
+            "unexpected error message: {}",
+            err_msg
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("failed to clean up");
+    }
+}
