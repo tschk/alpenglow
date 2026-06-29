@@ -634,6 +634,7 @@ dependencies = [
  "der",
  "flate2",
  "hex",
+ "lazy_static",
  "rsa",
  "serde",
  "serde_json",
