@@ -161,10 +161,10 @@ fn run_command(cmd: Commands) -> Result<()> {
             } else {
                 packages
             };
+            let registry = system::registry::apk::ApkRegistry::alpine_default();
+            let index = registry.load()?;
             for name in &names {
                 if let Some(_pkg) = state.get(name) {
-                    let registry = system::registry::apk::ApkRegistry::alpine_default();
-                    let index = registry.load()?;
                     if let Some(latest) = index.find(&name) {
                         let dest = std::path::PathBuf::from("/usr/local");
                         install_package(latest, &dest)?;
