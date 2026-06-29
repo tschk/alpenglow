@@ -234,8 +234,8 @@ mod tests {
 
     fn create_gz_stream(data: &[u8]) -> Vec<u8> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(data).unwrap();
-        encoder.finish().unwrap()
+        encoder.write_all(data).expect("Failed to write data to gzip encoder");
+        encoder.finish().expect("Failed to finish gzip encoding")
     }
 
     #[test]
