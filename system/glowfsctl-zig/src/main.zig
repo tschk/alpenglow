@@ -223,8 +223,14 @@ fn writeFile(io: std.Io, gpa: std.mem.Allocator, image: []const u8, path: []cons
             @memcpy(data[@as(usize, @intCast(e.data_off))..][0..value.len], value);
             if (value.len < e.size)
                 @memset(data[@as(usize, @intCast(e.data_off)) + value.len ..][0..@as(usize, @intCast(e.size)) - value.len], 0);
+        } else if (aln8(e.data_off + e.size) == aln8(h.image_size)) {
+            const needed = @as(usize, @intCast(e.data_off)) + value.len;
+            data = try gpa.realloc(data, needed);
+            @memcpy(data[@as(usize, @intCast(e.data_off))..][0..value.len], value);
+            std.mem.writeInt(u64, data[eo + 52 ..][0..8], @intCast(value.len), .little);
+            @memcpy(data[eo + 60 .. eo + 92], &digest(value));
+            std.mem.writeInt(u64, data[40..48], @intCast(needed), .little);
         } else {
-            // ponytail: O(n²) on repeated grows, use free-list if 100+ rewrites
             const new_off = aln8(h.image_size);
             const needed = @as(usize, @intCast(new_off)) + value.len;
             data = try gpa.realloc(data, needed);
