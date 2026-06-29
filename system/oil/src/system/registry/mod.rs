@@ -53,6 +53,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_dep_name_complex_edge_cases() {
+        assert_eq!(parse_dep_name(""), "");
+        assert_eq!(parse_dep_name("   "), "");
+        assert_eq!(parse_dep_name(">=1.0.0"), "");
+        assert_eq!(parse_dep_name("pkg=1.0=2.0"), "pkg");
+        assert_eq!(parse_dep_name("so:libssl.so.3"), "so:libssl.so.3");
+        assert_eq!(parse_dep_name("cmd:bash"), "cmd:bash");
+        assert_eq!(parse_dep_name("  pkg  "), "pkg");
+    }
+
+    #[test]
     fn test_package_index_find_by_name() {
         let index = PackageIndex {
             packages: vec![
