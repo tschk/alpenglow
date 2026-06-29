@@ -5,8 +5,7 @@ mod system;
 
 use clap::{Parser, Subcommand};
 use error::Result;
-use std::io::Read;
-use std::os::unix::fs::PermissionsExt;
+use std::io::{Read, Write};
 use std::path::Path;
 
 #[derive(Parser)]
@@ -248,14 +247,11 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .read_to_end(&mut data)
         .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
 
-    let tmp = tempfile::NamedTempFile::new()
+    let mut tmp = tempfile::NamedTempFile::new()
         .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
 
-    std::fs::write(tmp.path(), &data)
+    tmp.write_all(&data)
         .map_err(|e| error::OilError::Install(format!("write temp: {e}")))?;
-
-    std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))
-        .map_err(|e| error::OilError::Install(format!("set permissions: {e}")))?;
 
     eprintln!("Extracting {}...", pkg.name);
 
