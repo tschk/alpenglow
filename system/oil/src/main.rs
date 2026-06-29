@@ -75,16 +75,57 @@ fn main() {
     }
 }
 
-fn run_command(cmd: Commands) -> Result<()> {
-    match cmd {
-        Commands::Search { query } => run_search(query),
-        Commands::Info { formula } => run_info(formula),
-        Commands::Install { packages, dry_run } => run_install(packages, dry_run),
-        Commands::Uninstall { formulae, all } => run_uninstall(formulae, all),
-        Commands::Reinstall { packages, all } => run_reinstall(packages, all),
-        Commands::Upgrade { packages, dry_run } => run_upgrade(packages, dry_run),
-        Commands::Outdated => run_outdated(),
+trait CommandRunner {
+    fn search(&self, query: String) -> Result<()>;
+    fn info(&self, formula: String) -> Result<()>;
+    fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
+    fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()>;
+    fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()>;
+    fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
+    fn outdated(&self) -> Result<()>;
+}
+
+struct DefaultRunner;
+
+impl CommandRunner for DefaultRunner {
+    fn search(&self, query: String) -> Result<()> {
+        run_search(query)
     }
+    fn info(&self, formula: String) -> Result<()> {
+        run_info(formula)
+    }
+    fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
+        run_install(packages, dry_run)
+    }
+    fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
+        run_uninstall(formulae, all)
+    }
+    fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
+        run_reinstall(packages, all)
+    }
+    fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
+        run_upgrade(packages, dry_run)
+    }
+    fn outdated(&self) -> Result<()> {
+        run_outdated()
+    }
+}
+
+fn execute_command<R: CommandRunner>(cmd: Commands, runner: &R) -> Result<()> {
+    match cmd {
+        Commands::Search { query } => runner.search(query),
+        Commands::Info { formula } => runner.info(formula),
+        Commands::Install { packages, dry_run } => runner.install(packages, dry_run),
+        Commands::Uninstall { formulae, all } => runner.uninstall(formulae, all),
+        Commands::Reinstall { packages, all } => runner.reinstall(packages, all),
+        Commands::Upgrade { packages, dry_run } => runner.upgrade(packages, dry_run),
+        Commands::Outdated => runner.outdated(),
+    }
+}
+
+fn run_command(cmd: Commands) -> Result<()> {
+    let runner = DefaultRunner;
+    execute_command(cmd, &runner)
 }
 
 fn run_search(query: String) -> Result<()> {
@@ -259,4 +300,145 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
     let _ = std::fs::remove_file(tmp.path());
 
     result.map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    #[derive(Debug, PartialEq, Clone)]
+    enum MockCall {
+        Search(String),
+        Info(String),
+        Install(Vec<String>, bool),
+        Uninstall(Vec<String>, bool),
+        Reinstall(Vec<String>, bool),
+        Upgrade(Vec<String>, bool),
+        Outdated,
+    }
+
+    struct MockRunner {
+        calls: RefCell<Vec<MockCall>>,
+    }
+
+    impl MockRunner {
+        fn new() -> Self {
+            MockRunner {
+                calls: RefCell::new(Vec::new()),
+            }
+        }
+
+        fn get_calls(&self) -> Vec<MockCall> {
+            self.calls.borrow().clone()
+        }
+    }
+
+    impl CommandRunner for MockRunner {
+        fn search(&self, query: String) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Search(query));
+            Ok(())
+        }
+        fn info(&self, formula: String) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Info(formula));
+            Ok(())
+        }
+        fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Install(packages, dry_run));
+            Ok(())
+        }
+        fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Uninstall(formulae, all));
+            Ok(())
+        }
+        fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Reinstall(packages, all));
+            Ok(())
+        }
+        fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Upgrade(packages, dry_run));
+            Ok(())
+        }
+        fn outdated(&self) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Outdated);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_execute_command_search() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Search { query: "foo".to_string() };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(runner.get_calls(), vec![MockCall::Search("foo".to_string())]);
+    }
+
+    #[test]
+    fn test_execute_command_info() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Info { formula: "bar".to_string() };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(runner.get_calls(), vec![MockCall::Info("bar".to_string())]);
+    }
+
+    #[test]
+    fn test_execute_command_install() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Install {
+            packages: vec!["pkg1".to_string(), "pkg2".to_string()],
+            dry_run: true,
+        };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Install(vec!["pkg1".to_string(), "pkg2".to_string()], true)]
+        );
+    }
+
+    #[test]
+    fn test_execute_command_uninstall() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Uninstall {
+            formulae: vec!["pkg1".to_string()],
+            all: false,
+        };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Uninstall(vec!["pkg1".to_string()], false)]
+        );
+    }
+
+    #[test]
+    fn test_execute_command_reinstall() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Reinstall {
+            packages: vec!["pkg1".to_string()],
+            all: true,
+        };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Reinstall(vec!["pkg1".to_string()], true)]
+        );
+    }
+
+    #[test]
+    fn test_execute_command_upgrade() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Upgrade {
+            packages: vec![],
+            dry_run: false,
+        };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(runner.get_calls(), vec![MockCall::Upgrade(vec![], false)]);
+    }
+
+    #[test]
+    fn test_execute_command_outdated() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Outdated;
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(runner.get_calls(), vec![MockCall::Outdated]);
+    }
 }
