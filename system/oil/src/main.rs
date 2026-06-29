@@ -162,7 +162,6 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     } else {
         packages
     };
-    // ponytail: hoist registry load out of loop — was N+1
     let registry = system::registry::apk::ApkRegistry::alpine_default();
     let index = registry.load()?;
     for name in &names {
