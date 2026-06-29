@@ -64,7 +64,7 @@ impl ApkRegistry {
         if Self::is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
             let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
-            return Ok(PackageIndex { packages });
+            return Ok(PackageIndex::new(packages));
         }
 
         let mut all_packages: Vec<PackageMetadata> = Vec::new();
@@ -102,9 +102,7 @@ impl ApkRegistry {
         }
         std::fs::write(&cache_path, &serde_json::to_string(&all_packages)?)?;
 
-        Ok(PackageIndex {
-            packages: all_packages,
-        })
+        Ok(PackageIndex::new(all_packages))
     }
 
     fn index_url(&self, repo: &str) -> String {
