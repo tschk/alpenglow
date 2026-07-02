@@ -35,4 +35,9 @@ echo "ci-zig: building glowfsctl-zig..."
 (cd "${REPO_ROOT}/system/glowfsctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
 echo "ci-zig: glowfsctl-zig built OK"
 
+# Build pressurectl-zig
+echo "ci-zig: building pressurectl-zig..."
+(cd "${REPO_ROOT}/system/pressurectl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
+echo "ci-zig: pressurectl-zig built OK"
+
 printf 'ci-zig: ok\n'
