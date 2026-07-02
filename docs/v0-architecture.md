@@ -1,6 +1,6 @@
 # Alpenglow Architecture (v0)
 
-**Build**: Docker cross-compile in CI. Kernel: Linux 7.0 + custom config.
+**Build**: Docker cross-compile in CI. Kernel: tracks kernel.org latest stable + custom config.
 **Boot**: initramfs only (diskless) or ext4 root (rootfs mode).
 **Init**: dinit (PID 1) — parallel dependency graph.
 **Userland**: toybox + oksh. Static musl, no glibc.
