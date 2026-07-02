@@ -106,9 +106,9 @@ verbose: no
 
 /Alpenglow
   protocol: linux
-  path: boot:///boot/vmlinuz
+  path: boot():/boot/vmlinuz
   cmdline: console=tty0 console=ttyS0 init=/init alpenglow.state=LABEL=alpenglow-state
-  module_path: boot:///boot/initramfs.cpio.gz
+  module_path: boot():/boot/initramfs.cpio.gz
 LIMINE
 sudo cp /tmp/limine.conf "${MNT_ROOT}/boot/limine/limine.conf"
 sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 2>/dev/null || true
