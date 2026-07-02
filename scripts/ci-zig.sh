@@ -40,4 +40,9 @@ echo "ci-zig: building netd-zig..."
 (cd "${REPO_ROOT}/system/netd-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
 echo "ci-zig: netd-zig built OK"
 
+# Build zramctl-zig
+echo "ci-zig: building zramctl-zig..."
+(cd "${REPO_ROOT}/system/zramctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
+echo "ci-zig: zramctl-zig built OK"
+
 printf 'ci-zig: ok\n'

@@ -58,6 +58,8 @@ system/glowfsctl-zig/.zig-cache/
 system/glowfsctl-zig/zig-out/
 system/netd-zig/.zig-cache/
 system/netd-zig/zig-out/
+system/zramctl-zig/.zig-cache/
+system/zramctl-zig/zig-out/
 third_party/ghostty/zig-out/
 
 # Kernel build artifacts
