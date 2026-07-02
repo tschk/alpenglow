@@ -38,6 +38,21 @@ if [ ! -d "${ROOTFS}" ]; then
   exit 1
 fi
 
+# ── usrmerge: canonicalize /bin, /sbin, /lib, /lib64 under /usr ─────
+# Oil (Phase 1 of build-rootfs.sh) already populated the rootfs before
+# this script runs, so /bin, /sbin, /lib, /lib64 may already hold real
+# files. Move whatever is there into the usr-prefixed real directory,
+# then replace the legacy top-level path with a symlink so nothing that
+# still hardcodes the old path breaks.
+mkdir -p "${ROOTFS}/usr/bin" "${ROOTFS}/usr/sbin" "${ROOTFS}/usr/lib" "${ROOTFS}/usr/lib64"
+for d in bin sbin lib lib64; do
+  if [ -d "${ROOTFS}/${d}" ] && [ ! -L "${ROOTFS}/${d}" ]; then
+    cp -R "${ROOTFS}/${d}/." "${ROOTFS}/usr/${d}/" 2>/dev/null || true
+    rm -rf "${ROOTFS}/${d}"
+  fi
+  [ -e "${ROOTFS}/${d}" ] || ln -s "usr/${d}" "${ROOTFS}/${d}"
+done
+
 ensure_group() { name="$1"; gid="$2"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/group" 2>/dev/null; then
     printf '%s:x:%s:\n' "${name}" "${gid}" >>"${ROOTFS}/etc/group"
@@ -45,7 +60,7 @@ ensure_group() { name="$1"; gid="$2"
 }
 ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/passwd" 2>/dev/null; then
-    printf '%s:x:%s:%s:%s:%s:/sbin/nologin\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" >>"${ROOTFS}/etc/passwd"
+    printf '%s:x:%s:%s:%s:%s:/usr/sbin/nologin\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" >>"${ROOTFS}/etc/passwd"
   fi
 }
 
@@ -150,7 +165,7 @@ for service in ${BOOT_SERVICES}; do
 done
 {
   echo "type = scripted"
-  echo "command = /bin/true"
+  echo "command = /usr/bin/true"
   echo "restart = no"
   for service in ${BOOT_SERVICES}; do
     echo "depends-on = ${service}"
@@ -177,8 +192,8 @@ COMPEOF
 chmod 644 "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh"
 
 # Default shell
-if [ ! -f "${ROOTFS}/bin/sh" ]; then
-  ln -s /bin/oksh "${ROOTFS}/bin/sh" 2>/dev/null || true
+if [ ! -f "${ROOTFS}/usr/bin/sh" ]; then
+  ln -s /usr/bin/oksh "${ROOTFS}/usr/bin/sh" 2>/dev/null || true
 fi
 
 # Hardened sysctl defaults
@@ -395,7 +410,7 @@ chmod 600 "${ROOTFS}/etc/crontabs/root"
 
 # ── Rotate logs daily ──────────────────────────────────────────────
 cat > "${ROOTFS}/usr/local/bin/logrotate.sh" <<'LOGX'
-#!/bin/toybox sh
+#!/usr/bin/toybox sh
 # Advanced log rotation script
 MAX_LOGS=7
 for log in /var/log/alpenglow/*.log; do

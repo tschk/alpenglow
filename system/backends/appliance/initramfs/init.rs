@@ -32,11 +32,11 @@ fn main() {
         }
     }
     println!(); println!("Alpenglow boot (rust-init)"); println!();
-    let err = Command::new("/sbin/dinit")
+    let err = Command::new("/usr/sbin/dinit")
         .args(["-d", "/etc/dinit.d", "-s", "-t", "shell-ttyS0"])
         .exec();
     eprintln!("init: dinit exec failed: {}", err);
-    let _ = Command::new("/bin/sh").exec();
+    let _ = Command::new("/usr/bin/sh").exec();
 }
 fn run(prog: &str, args: &[&str]) {
     if let Err(e) = Command::new(prog).args(args).status() {

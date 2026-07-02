@@ -52,10 +52,10 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/glibc-libs:/out" rust:late
     [ -f "${src}" ] && cp "${src}" /out/lib/x86_64-linux-gnu/ 2>/dev/null || true
   done
 
-  # glibc dynamic linker
+  # glibc dynamic linker (prefer canonical usr path, legacy /lib64 as fallback)
   mkdir -p /out/lib64
-  cp /lib64/ld-linux-x86-64.so.2 /out/lib64/ 2>/dev/null || \
-    cp /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 /out/lib64/ 2>/dev/null || true
+  cp /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 /out/lib64/ 2>/dev/null || \
+    cp /lib64/ld-linux-x86-64.so.2 /out/lib64/ 2>/dev/null || true
 
   # DRI drivers (software rasterizer)
   mkdir -p /out/usr/lib/x86_64-linux-gnu/dri
