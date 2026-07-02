@@ -23,15 +23,12 @@ const Snapshot = struct {
     interfaces: []const Interface,
 };
 
-fn readTrimmed(io: std.Io, gpa: std.mem.Allocator, dir: std.Io.Dir, sub_path: []const u8) !?[]const u8 {
-    const content = dir.readFileAlloc(io, sub_path, gpa, std.Io.Limit.limited(4096)) catch |err| {
-        if (err == error.FileNotFound or err == error.IsDir) return null;
-        return err;
-    };
+fn readTrimmed(io: std.Io, gpa: std.mem.Allocator, dir: std.Io.Dir, sub_path: []const u8) ?[]const u8 {
+    const content = dir.readFileAlloc(io, sub_path, gpa, std.Io.Limit.limited(4096)) catch return null;
     defer gpa.free(content);
     const trimmed = std.mem.trim(u8, content, " \t\r\n");
     if (trimmed.len == 0) return null;
-    return try gpa.dupe(u8, trimmed);
+    return gpa.dupe(u8, trimmed) catch null;
 }
 
 fn parseU32(value: []const u8) ?u32 {
@@ -69,16 +66,16 @@ fn readInterface(io: std.Io, gpa: std.mem.Allocator, base_dir: std.Io.Dir, name:
     const iface_dir = try base_dir.openDir(io, name, .{});
     defer iface_dir.close(io);
 
-    const index_str = try readTrimmed(io, gpa, iface_dir, "ifindex");
-    const kind_str = try readTrimmed(io, gpa, iface_dir, "type");
-    const address = try readTrimmed(io, gpa, iface_dir, "address");
-    const operstate_str = try readTrimmed(io, gpa, iface_dir, "operstate");
-    const mtu_str = try readTrimmed(io, gpa, iface_dir, "mtu");
-    const carrier_str = try readTrimmed(io, gpa, iface_dir, "carrier");
-    const speed_str = try readTrimmed(io, gpa, iface_dir, "speed");
-    const rx_str = try readTrimmed(io, gpa, iface_dir, "statistics/rx_bytes");
-    const tx_str = try readTrimmed(io, gpa, iface_dir, "statistics/tx_bytes");
-    const flags_str = try readTrimmed(io, gpa, iface_dir, "flags");
+    const index_str = readTrimmed(io, gpa, iface_dir, "ifindex");
+    const kind_str = readTrimmed(io, gpa, iface_dir, "type");
+    const address = readTrimmed(io, gpa, iface_dir, "address");
+    const operstate_str = readTrimmed(io, gpa, iface_dir, "operstate");
+    const mtu_str = readTrimmed(io, gpa, iface_dir, "mtu");
+    const carrier_str = readTrimmed(io, gpa, iface_dir, "carrier");
+    const speed_str = readTrimmed(io, gpa, iface_dir, "speed");
+    const rx_str = readTrimmed(io, gpa, iface_dir, "statistics/rx_bytes");
+    const tx_str = readTrimmed(io, gpa, iface_dir, "statistics/tx_bytes");
+    const flags_str = readTrimmed(io, gpa, iface_dir, "flags");
 
     return Interface{
         .name = try gpa.dupe(u8, name),
@@ -108,12 +105,10 @@ fn readSnapshot(io: std.Io, gpa: std.mem.Allocator, sys_class_net: []const u8) !
     };
     defer dir.close(io);
 
-    var walker = try dir.walk(gpa);
-    defer walker.deinit();
-
-    while (try walker.next(io)) |entry| {
+    var it = dir.iterate();
+    while (try it.next(io)) |entry| {
         if (entry.kind != .directory and entry.kind != .sym_link) continue;
-        const iface = try readInterface(io, gpa, dir, std.fs.path.basename(entry.path));
+        const iface = try readInterface(io, gpa, dir, entry.name);
         try interfaces.append(gpa, iface);
     }
 
