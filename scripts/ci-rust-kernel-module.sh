@@ -1,5 +1,5 @@
 #!/bin/sh
-# CI: Validate Rust kernel module compilation against Linux 7.0
+# CI: Validate Rust kernel module compilation against a pinned Linux version
 set -eu
 
 KERNEL_VER="7.0"

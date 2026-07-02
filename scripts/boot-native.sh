@@ -13,7 +13,7 @@ INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
-KERNEL_VERSION="${KERNEL_VERSION:-7.0}"
+KERNEL_VERSION="${KERNEL_VERSION:-7.1.2}"
 KERNEL_7="${KERNEL_7:-1}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
@@ -115,7 +115,7 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
   if [ "${GRAPHICAL}" = "1" ] && [ "${KERNEL_BUILD:-0}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
     sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
   elif [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
-    echo "→ Building Linux 7.0 + CONFIG_RUST=y kernel..."
+    echo "→ Building Linux ${KERNEL_VERSION} + CONFIG_RUST=y kernel..."
     KERNEL_SRC="${OUT_DIR}/linux-7.0"
     [ -d "${KERNEL_SRC}" ] || {
       curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.0.tar.xz" -o "${OUT_DIR}/linux-7.0.tar.xz"
@@ -160,7 +160,7 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
       mv "${OUT_DIR}/linux-${KERNEL_VERSION}" "${KERNEL_SRC}"
     }
-    # Base stripped config (from 7.0.12, auto-adapted to whatever kernel version)
+    # Base stripped config (auto-adapted to whatever kernel version)
     cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true

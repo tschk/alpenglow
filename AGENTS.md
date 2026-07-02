@@ -17,7 +17,7 @@ Early-stage. Not production-ready.
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |
-| Kernel | Hardened — minimal appliance config. Linux 7.0.12 |
+| Kernel | Hardened — minimal appliance config. Tracks kernel.org latest stable |
 | Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
 | Display | Wayland + cage+foot |
 | Audio | ALSA + PipeWire |
@@ -119,7 +119,7 @@ cargo test -p alpenglow-netd
 | Host | IP | User | OS | Tools |
 |------|-----|------|----|-------|
 | ultramarine | 192.168.4.134 | undivisible | Ultramarine (Fedora-like, glibc), WSL2, x86_64 | zig 0.14, cargo 1.93, docker, qemu+kvm |
-| chimera | 192.168.4.168 | undivisible | Chimera Linux (musl), kernel 7.0.12, x86_64 | cargo/rustc, /dev/kvm, no zig/docker/qemu |
+| chimera | 192.168.4.168 | undivisible | Chimera Linux (musl), x86_64 | cargo/rustc, /dev/kvm, no zig/docker/qemu |
 
 Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds and QEMU boot testing (has docker, qemu+kvm).
 
