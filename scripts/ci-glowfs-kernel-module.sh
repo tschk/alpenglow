@@ -16,7 +16,7 @@ docker run --rm \
   alpine:3.21 sh -c '
     set -eu
     apk add --no-cache build-base linux-headers curl tar xz bash \
-      flex bison openssl-dev perl >/dev/null
+      flex bison openssl-dev elfutils-dev perl >/dev/null
 
     # ponytail: glowfs module targets 6.12 API; 7.0 port WIP
     KERNEL_VERSION="6.12.93"
@@ -34,7 +34,7 @@ docker run --rm \
 
     make olddefconfig >/dev/null 2>&1
     # modules_prepare might take long due to objtool; skip when headers exist
-    make modules_prepare >/dev/null 2>&1 || true
+    make modules_prepare >/dev/null 2>&1
 
     # Build GlowFS module
     cd /alpenglow/system/glowfs/kernel
