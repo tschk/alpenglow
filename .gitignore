@@ -73,3 +73,7 @@ modules.order
 README.md
 .agents/
 system/backends/appliance/vro/vro
+
+# Local/tooling directories
+.poolside/
+piolium/
