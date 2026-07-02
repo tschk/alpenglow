@@ -60,6 +60,8 @@ system/netd-zig/.zig-cache/
 system/netd-zig/zig-out/
 system/zramctl-zig/.zig-cache/
 system/zramctl-zig/zig-out/
+system/pressurectl-zig/.zig-cache/
+system/pressurectl-zig/zig-out/
 third_party/ghostty/zig-out/
 
 # Kernel build artifacts
