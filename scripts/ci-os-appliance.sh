@@ -37,6 +37,8 @@ do
   assert_file "${path}"
 done
 assert_executable system/backends/appliance/scripts/alpenglow-session-start
+assert_file system/backends/appliance/rootfs-overlay/etc/greetd/config.toml
+assert_file system/backends/appliance/rootfs-overlay/etc/greetd/config-autologin.toml
 for dinit_svc in system/backends/appliance/dinit/*; do
   sh -n "${dinit_svc}" 2>/dev/null || sh -c ". ${dinit_svc}" 2>/dev/null || true
 done
