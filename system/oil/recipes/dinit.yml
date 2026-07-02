@@ -1,0 +1,24 @@
+# Oil recipe — see docs/architecture/oil-recipe-format.md for the schema.
+name: dinit
+version: 0.21.0-r0
+description: Service monitoring/init system
+
+source:
+  url: https://dl-cdn.alpinelinux.org/alpine/edge/community/x86_64/dinit-0.21.0-r0.apk
+  sha256: 98bfaf584025c79233f100b594a1c95ea6c5dee5d38b199c610efa7f6070a1f3
+
+# No build steps: Oil installs the prebuilt Alpine .apk directly.
+build: []
+
+install: /usr/local
+
+depends:
+  - so:libc.musl-x86_64.so.1
+  - so:libgcc_s.so.1
+  - so:libstdc++.so.6
+
+provides:
+  - cmd:dinit-check
+  - cmd:dinit-monitor
+  - cmd:dinit
+  - cmd:dinitctl
