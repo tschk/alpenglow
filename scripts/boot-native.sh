@@ -42,6 +42,23 @@ done
 if [ "${GRAPHICAL}" = "1" ] && [ "${MEMORY_MB}" = "2048" ]; then
   MEMORY_MB=4096
 fi
+# virtio-gpu needs CONFIG_DRM_VIRTIO_GPU (virt.config)
+KERNEL_VIRT_STAMP="${OUT_DIR}/.kernel-virtio-gpu.ok"
+if [ "${GRAPHICAL}" = "1" ]; then
+  BUILD_SERVICES=1
+  KERNEL_BUILD=1
+  KERNEL_7=0
+  if [ ! -f "${KERNEL_VIRT_STAMP}" ] || [ ! -f "${KERNEL_IMAGE}" ]; then
+    rm -f "${KERNEL_IMAGE}"
+    echo "→ graphical: need kernel with virtio-gpu (minimal+virt.config)"
+  fi
+fi
+
+NPROC="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+MAKE_CMD="make"
+if command -v gmake >/dev/null 2>&1; then
+  MAKE_CMD="gmake"
+fi
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
@@ -95,7 +112,9 @@ build_dinit() {
 
 # Kernel
 if [ ! -f "${KERNEL_IMAGE}" ]; then
-  if [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+  if [ "${GRAPHICAL}" = "1" ] && [ "${KERNEL_BUILD:-0}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+    sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
+  elif [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
     echo "→ Building Linux 7.0 + CONFIG_RUST=y kernel..."
     KERNEL_SRC="${OUT_DIR}/linux-7.0"
     [ -d "${KERNEL_SRC}" ] || {
@@ -117,8 +136,9 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
-    make ARCH=x86_64 olddefconfig 2>/dev/null
-    make -j"$(nproc)" ARCH=x86_64 bzImage 2>&1 | tail -3
+    ${MAKE_CMD} ARCH=x86_64 olddefconfig 2>/dev/null
+    echo "→ compiling bzImage (this can take several minutes)..."
+    ${MAKE_CMD} -j"${NPROC}" ARCH=x86_64 bzImage
     cp arch/x86/boot/bzImage "${KERNEL_IMAGE}"
     cd "${ROOT_DIR}"
 
@@ -144,10 +164,13 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    make -C "${KERNEL_SRC}" ARCH=x86_64 olddefconfig >/dev/null 2>&1
-    # Build kernel
-    make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage 2>&1 | tail -5
-    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}" 2>/dev/null || true
+    ${MAKE_CMD} -C "${KERNEL_SRC}" ARCH=x86_64 olddefconfig >/dev/null 2>&1
+    echo "→ compiling bzImage (this can take several minutes)..."
+    ${MAKE_CMD} -j"${NPROC}" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage
+    cp "${KERNEL_SRC}/arch/x86/boot/bzImage" "${KERNEL_IMAGE}"
+    if [ "${GRAPHICAL}" = "1" ]; then
+      touch "${KERNEL_VIRT_STAMP}"
+    fi
   else
     echo "KERNEL_7=0 requires KERNEL_BUILD=1; no distro netboot kernel fallback is used." >&2
     exit 1
@@ -390,6 +413,25 @@ if [ "${GRAPHICAL}" = "1" ]; then
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
   fi
 
+  GREETER_GLIBC_BIN="${OUT_DIR}/alpenglow-greeter-glibc/usr/bin/alpenglow-greeter"
+  if [ ! -f "${GREETER_GLIBC_BIN}" ]; then
+    sh "${BACKEND_DIR}/scripts/build-alpenglow-greeter-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
+  fi
+  if [ -f "${GREETER_GLIBC_BIN}" ]; then
+    cp "${GREETER_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
+    chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
+  fi
+
+  mkdir -p "${ROOTFS_DIR}/usr/local/bin" "${ROOTFS_DIR}/etc/alpenglow" "${ROOTFS_DIR}/etc/greetd"
+  cp "${BACKEND_DIR}/scripts/alpenglow-session-start" "${ROOTFS_DIR}/usr/local/bin/"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/alpenglow-session-start"
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/alpenglow/greeter-default-user" "${ROOTFS_DIR}/etc/alpenglow/" 2>/dev/null || true
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
+  cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config-autologin.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
+  if [ "${ALPENGLOW_AUTOLOGIN:-0}" = "1" ]; then
+    ln -sf config-autologin.toml "${ROOTFS_DIR}/etc/greetd/config.toml"
+  fi
+
   if [ -d "${OUT_DIR}/glibc-libs" ]; then
     mkdir -p "${ROOTFS_DIR}/lib/x86_64-linux-gnu" "${ROOTFS_DIR}/lib64"
     cp "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/"lib*.so* "${ROOTFS_DIR}/lib/x86_64-linux-gnu/" 2>/dev/null || true
@@ -432,6 +474,35 @@ export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
 exec /usr/bin/alpenglowed-bin "$@"
 ALPWRAP
   chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
+
+  cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
+#!/bin/sh
+export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
+export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
+exec /usr/bin/alpenglow-greeter-bin "$@"
+GWRAP
+  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh"
+
+  cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-cage.sh" << 'GCAGE'
+#!/bin/sh
+unset WAYLAND_DISPLAY
+export XDG_RUNTIME_DIR=/run
+export LIBSEAT_BACKEND=seatd
+export WLR_LIBINPUT_NO_DEVICES=1
+export LD_LIBRARY_PATH=/usr/lib/musl
+export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
+export EGL_DRIVER=swrast
+mkdir -p /run
+chmod 700 /run
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  [ -S /run/seatd.sock ] && break
+  sleep 0.5
+done
+exec /usr/bin/cage /usr/bin/alpenglow-greeter-run.sh
+GCAGE
+  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-cage.sh"
 
   # Override seatd service: run as root with musl LD_LIBRARY_PATH
   cat > "${ROOTFS_DIR}/etc/dinit.d/seatd" << 'SEATD'
@@ -492,11 +563,14 @@ case "${BUILD_PROFILE}" in
     [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
     [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
     [ -f "${ROOTFS_DIR}/usr/bin/seatd" ] && BOOT_SERVICES="${BOOT_SERVICES} seatd"
-    [ -f "${ROOTFS_DIR}/usr/bin/cage-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} velox"
-    [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"
+    if [ -f "${ROOTFS_DIR}/usr/bin/greetd" ] && [ -f "${ROOTFS_DIR}/etc/greetd/config.toml" ]; then
+      BOOT_SERVICES="${BOOT_SERVICES} greetd"
+    else
+      [ -f "${ROOTFS_DIR}/usr/bin/cage-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} velox"
+      [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"
+    fi
     # Optional services (only if binaries exist)
     [ -f "${ROOTFS_DIR}/usr/libexec/iwd" ] && BOOT_SERVICES="${BOOT_SERVICES} iwd"
-    [ -f "${ROOTFS_DIR}/usr/bin/greetd" ] && BOOT_SERVICES="${BOOT_SERVICES} greetd"
     [ -f "${ROOTFS_DIR}/usr/bin/pipewire" ] && BOOT_SERVICES="${BOOT_SERVICES} pipewire"
     [ -f "${ROOTFS_DIR}/usr/bin/wireplumber" ] && BOOT_SERVICES="${BOOT_SERVICES} wireplumber"
     [ -f "${ROOTFS_DIR}/usr/bin/foot" ] && BOOT_SERVICES="${BOOT_SERVICES} foot"
@@ -789,7 +863,12 @@ if [ "${GRAPHICAL}" = "1" ]; then
   QEMU_DISPLAY="${QEMU_DISPLAY:-cocoa}"
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
   QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
-  QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci -serial mon:stdio"
+  if [ -f "${KERNEL_VIRT_STAMP}" ]; then
+    QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci"
+  else
+    QEMU_OPTS="${QEMU_OPTS} -vga std"
+  fi
+  QEMU_OPTS="${QEMU_OPTS} -chardev stdio,id=char0,mux=on,signal=off -serial chardev:char0 -mon chardev=char0"
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
@@ -824,9 +903,22 @@ if [ "${EFI}" = "1" ]; then
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
   done
   if [ -n "${OVMF_CODE}" ]; then
-    # Create a writable OVMF vars copy (pflash needs writable vars)
     OVMF_VARS="${OUT_DIR}/ovmf-vars.fd"
-    cp "${OVMF_CODE}" "${OVMF_VARS}" 2>/dev/null || true
+    OVMF_VARS_TEMPLATE=""
+    for p in \
+      "${OVMF_CODE%CODE.fd}VARS.fd" \
+      "${OVMF_CODE%CODE.4m.fd}VARS.4m.fd" \
+      "$(dirname "${OVMF_CODE}")/edk2-x86_64-vars.fd" \
+      /opt/homebrew/share/qemu/edk2-x86_64-vars.fd \
+      /usr/share/OVMF/OVMF_VARS.fd \
+      /usr/share/edk2/x64/OVMF_VARS.4m.fd; do
+      [ -f "$p" ] && { OVMF_VARS_TEMPLATE="$p"; break; }
+    done
+    if [ -n "${OVMF_VARS_TEMPLATE}" ]; then
+      cp "${OVMF_VARS_TEMPLATE}" "${OVMF_VARS}"
+    elif [ ! -f "${OVMF_VARS}" ]; then
+      cp "${OVMF_CODE}" "${OVMF_VARS}" 2>/dev/null || true
+    fi
     exec qemu-system-x86_64 \
       ${QEMU_OPTS} \
       -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
