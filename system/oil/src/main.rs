@@ -1,12 +1,13 @@
 mod error;
 mod install;
+mod recipe;
 mod signal;
 mod system;
 
 use clap::{Parser, Subcommand};
 use error::Result;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "oil")]
@@ -32,6 +33,12 @@ enum Commands {
     /// Install packages
     Install {
         packages: Vec<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Install a package from a declarative recipe (.yml) file
+    InstallRecipe {
+        recipe: PathBuf,
         #[arg(long)]
         dry_run: bool,
     },
@@ -79,6 +86,7 @@ trait CommandRunner {
     fn search(&self, query: String) -> Result<()>;
     fn info(&self, formula: String) -> Result<()>;
     fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
+    fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()>;
     fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()>;
     fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()>;
     fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
@@ -96,6 +104,9 @@ impl CommandRunner for DefaultRunner {
     }
     fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
         run_install(packages, dry_run)
+    }
+    fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
+        run_install_recipe(recipe, dry_run)
     }
     fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
         run_uninstall(formulae, all)
@@ -116,6 +127,7 @@ fn execute_command<R: CommandRunner>(cmd: Commands, runner: &R) -> Result<()> {
         Commands::Search { query } => runner.search(query),
         Commands::Info { formula } => runner.info(formula),
         Commands::Install { packages, dry_run } => runner.install(packages, dry_run),
+        Commands::InstallRecipe { recipe, dry_run } => runner.install_recipe(recipe, dry_run),
         Commands::Uninstall { formulae, all } => runner.uninstall(formulae, all),
         Commands::Reinstall { packages, all } => runner.reinstall(packages, all),
         Commands::Upgrade { packages, dry_run } => runner.upgrade(packages, dry_run),
@@ -180,6 +192,32 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     if !dry_run {
         state.save()?;
     }
+    Ok(())
+}
+
+fn run_install_recipe(recipe_path: PathBuf, dry_run: bool) -> Result<()> {
+    let recipe = recipe::Recipe::load(&recipe_path)?;
+    let pkg = recipe.to_package_metadata();
+    if dry_run {
+        println!(
+            "Would install {} {} from recipe {}",
+            pkg.name,
+            pkg.version,
+            recipe_path.display()
+        );
+        return Ok(());
+    }
+    let dest = recipe.install_dest();
+    install_package(&pkg, &dest)?;
+    let mut state = install::InstallState::new()?;
+    state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
+    state.save()?;
+    println!(
+        "Installed {} {} (recipe: {})",
+        pkg.name,
+        pkg.version,
+        recipe_path.display()
+    );
     Ok(())
 }
 
@@ -312,6 +350,7 @@ mod tests {
         Search(String),
         Info(String),
         Install(Vec<String>, bool),
+        InstallRecipe(PathBuf, bool),
         Uninstall(Vec<String>, bool),
         Reinstall(Vec<String>, bool),
         Upgrade(Vec<String>, bool),
@@ -345,6 +384,10 @@ mod tests {
         }
         fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
             self.calls.borrow_mut().push(MockCall::Install(packages, dry_run));
+            Ok(())
+        }
+        fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::InstallRecipe(recipe, dry_run));
             Ok(())
         }
         fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
@@ -396,6 +439,20 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_command_install_recipe() {
+        let runner = MockRunner::new();
+        let cmd = Commands::InstallRecipe {
+            recipe: PathBuf::from("recipes/toybox.yml"),
+            dry_run: true,
+        };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::InstallRecipe(PathBuf::from("recipes/toybox.yml"), true)]
+        );
+    }
+
+    #[test]
     fn test_execute_command_uninstall() {
         let runner = MockRunner::new();
         let cmd = Commands::Uninstall {
@@ -440,5 +497,25 @@ mod tests {
         let cmd = Commands::Outdated;
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(runner.get_calls(), vec![MockCall::Outdated]);
+    }
+
+    #[test]
+    fn test_run_install_recipe_dry_run_does_not_touch_network() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("pkg.yml");
+        std::fs::write(
+            &path,
+            "name: pkg\nversion: \"1.0\"\nsource:\n  url: https://example.invalid/pkg.apk\n",
+        )
+        .expect("write recipe");
+
+        // dry_run must succeed without ever attempting the download.
+        run_install_recipe(path, true).expect("dry run install_recipe should succeed");
+    }
+
+    #[test]
+    fn test_run_install_recipe_missing_file() {
+        let result = run_install_recipe(PathBuf::from("/nonexistent/recipe.yml"), true);
+        assert!(result.is_err());
     }
 }

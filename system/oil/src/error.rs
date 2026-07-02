@@ -8,6 +8,7 @@ pub enum OilError {
     FormulaNotFound(String),
     ChecksumMismatch { expected: String, actual: String },
     Install(String),
+    Recipe(String),
 }
 
 impl fmt::Display for OilError {
@@ -21,6 +22,7 @@ impl fmt::Display for OilError {
                 write!(f, "checksum mismatch: expected {expected}, got {actual}")
             }
             OilError::Install(msg) => write!(f, "{msg}"),
+            OilError::Recipe(msg) => write!(f, "recipe error: {msg}"),
         }
     }
 }
@@ -38,6 +40,12 @@ impl std::error::Error for OilError {
 impl From<serde_json::Error> for OilError {
     fn from(e: serde_json::Error) -> Self {
         OilError::Json(e)
+    }
+}
+
+impl From<serde_norway::Error> for OilError {
+    fn from(e: serde_norway::Error) -> Self {
+        OilError::Recipe(e.to_string())
     }
 }
 
