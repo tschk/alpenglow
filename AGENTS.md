@@ -22,7 +22,7 @@ Early-stage. Not production-ready.
 | Display | Wayland + cage+foot |
 | Audio | ALSA + PipeWire |
 | Networking | udhcpc + iwd |
-| Arch | Generic — x86_64, aarch64, etc. |
+| Arch | x86_64, aarch64 (aarch64 CI cross-compile only; x86_64 boot-tested in CI) |
 
 ### What's not in the base (by design)
 
