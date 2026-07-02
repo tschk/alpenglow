@@ -1,0 +1,11 @@
+# Default Alpenglowed desktop configuration.
+# This file lives in the immutable image at /usr/share/defaults/alpenglowed/config.toml.
+# User overrides live in /etc/alpenglowed/config.toml and take precedence.
+# Run the "factory-reset" action to delete /etc/alpenglowed and restore defaults.
+
+status_bar = false
+external_polybar = false
+open_settings = false
+initial_query = ""
+mode = "tiling"
+demo_layout = false
