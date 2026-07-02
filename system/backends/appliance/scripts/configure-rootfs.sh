@@ -134,11 +134,11 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 case "${BUILD_PROFILE}" in
   minimal)
-    BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
+    BOOT_SERVICES="glowfs-mount state-mount networking earlyoom dropbear chronyd syslogd crond dnsmasq"
     WORLD_FILE="${BACKEND_DIR}/packages-minimal.txt"
     ;;
   standard)
-    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
+    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
     WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
     ;;
   *)
