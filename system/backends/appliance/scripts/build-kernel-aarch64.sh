@@ -19,6 +19,13 @@ if [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ]; then
   exit 0
 fi
 
+# Reuse the x86_64 kernel source tarball if already present locally.
+NATIVE_SRC="${OUT_DIR}/../native/${KERNEL_TAR}.tar.xz"
+if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ ! -f "${OUT_DIR}/k.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
+  cp "${NATIVE_SRC}" "${OUT_DIR}/${KERNEL_TAR}.tar.xz"
+  echo "  reusing ${NATIVE_SRC}"
+fi
+
 echo "→ Building custom aarch64 kernel (Linux ${KERNEL_VERSION})..."
 
 docker run --rm --platform linux/amd64 \
@@ -30,10 +37,14 @@ docker run --rm --platform linux/amd64 \
     apt-get update -qq
     apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
       libncurses-dev dwarves rsync kmod wget xz-utils ca-certificates \
-      gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu lz4 >/dev/null
+      gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu lz4
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
-      wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O k.tar.xz
+      if [ -f /out/'"${KERNEL_TAR}"'.tar.xz ]; then
+        cp /out/'"${KERNEL_TAR}"'.tar.xz k.tar.xz
+      elif [ ! -f k.tar.xz ]; then
+        wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O k.tar.xz
+      fi
       tar -xf k.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
