@@ -6,7 +6,8 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 KERNEL="${ROOT_DIR}/build/native/vmlinuz"
 # Prefer the small headless initramfs; the .gz graphical image is much larger
 # and not suitable for serial boot timing.
-INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
+INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.lz4"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
 [ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
 OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"

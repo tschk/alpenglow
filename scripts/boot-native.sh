@@ -9,7 +9,7 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/native"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
@@ -120,6 +120,26 @@ build_dinit() {
 
 [ -f "${OUT_DIR}/toybox" ] || build_toybox
 [ -f "${OUT_DIR}/dinit" ] || build_dinit
+
+# Zig init (replaces /bin/toybox sh /init)
+ZIG="${ZIG:-zig}"
+if ! command -v "${ZIG}" >/dev/null 2>&1; then
+  if command -v /usr/local/bin/zig >/dev/null 2>&1; then
+    ZIG=/usr/local/bin/zig
+  elif command -v /opt/homebrew/Cellar/zig/0.16.0_1/bin/zig >/dev/null 2>&1; then
+    ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
+  fi
+fi
+if command -v "${ZIG}" >/dev/null 2>&1; then
+  echo "→ Building Zig init..."
+  "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
+    -target x86_64-linux-musl -O ReleaseSmall -fstrip \
+    -femit-bin="${OUT_DIR}/alpenglow-init" 2>&1 | tail -5
+  if [ -f "${OUT_DIR}/alpenglow-init" ]; then
+    file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64"; exit 1; }
+    echo "  init: ${OUT_DIR}/alpenglow-init"
+  fi
+fi
 
 # Kernel
 if [ ! -f "${KERNEL_IMAGE}" ]; then
@@ -774,8 +794,13 @@ if [ -f "${ALPENGLOW_MODULE}" ]; then
   cp "${ALPENGLOW_MODULE}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
-# Init — dinit as primary PID 1, manages all services
-cat > "${ROOTFS_DIR}/init" << 'INIT'
+# Init — dinit as primary PID 1, manages all services.
+# Use the Zig init binary if available; otherwise fall back to shell.
+if [ -f "${OUT_DIR}/alpenglow-init" ]; then
+  cp "${OUT_DIR}/alpenglow-init" "${ROOTFS_DIR}/init"
+  chmod 755 "${ROOTFS_DIR}/init"
+else
+  cat > "${ROOTFS_DIR}/init" << 'INIT'
 #!/bin/toybox sh
 /bin/toybox mount -t proc proc /proc
 /bin/toybox mount -t sysfs sysfs /sys
@@ -783,9 +808,9 @@ cat > "${ROOTFS_DIR}/init" << 'INIT'
 /bin/toybox mount -t tmpfs tmpfs /run
 /bin/toybox mkdir -p /dev/shm 2>/dev/null
 /bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
-mkdir -p /run/user/0
-chmod 700 /run/user/0
-mkdir -p /state
+/bin/toybox mkdir -p /run/user/0
+/bin/toybox chmod 700 /run/user/0
+/bin/toybox mkdir -p /state
 # Try to mount state partition (if available)
 state_dev=""
 for arg in $(cat /proc/cmdline); do
@@ -805,11 +830,12 @@ echo "Alpenglow boot"
 echo ""
 # Log memory at boot for benchmark
 if [ -f /proc/meminfo ]; then
-  grep -E 'MemTotal|MemFree' /proc/meminfo 2>/dev/null
+  /bin/toybox grep -E 'MemTotal|MemFree' /proc/meminfo 2>/dev/null
 fi
 exec /sbin/dinit -d /etc/dinit.d -s -t boot
 INIT
-chmod 755 "${ROOTFS_DIR}/init"
+  chmod 755 "${ROOTFS_DIR}/init"
+fi
 
 # Devices
 mknod -m 622 "${ROOTFS_DIR}/dev/console" c 5 1 2>/dev/null || true
@@ -874,10 +900,10 @@ chmod 700 "${ROOTFS_DIR}/root/.ssh"
 
 # Build initramfs
 echo "→ Building initramfs..."
-if command -v zstd >/dev/null 2>&1; then
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -1 -T0 > "${INITRAMFS}")
+if command -v lz4 >/dev/null 2>&1; then
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -c > "${INITRAMFS}")
 else
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -1 -T0 > "${INITRAMFS}")
 fi
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
