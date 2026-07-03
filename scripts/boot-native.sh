@@ -132,10 +132,19 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
     # Enable GlowFS in config
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
-    # Config overrides: LZ4 + virt drivers + gzip decompress
+    # Config overrides: LZ4 + virt drivers + minimal + EFI (for OVMF) + optional fast boot
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
+    if [ "${EFI:-1}" = "1" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
+    fi
+    if [ "${KERNEL_UNCOMPRESSED:-0}" = "1" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/uncompressed.config" >> .config 2>/dev/null || true
+    fi
+    if [ "${KERNEL_FASTINIT:-0}" = "1" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/fastinit.config" >> .config 2>/dev/null || true
+    fi
     ${MAKE_CMD} ARCH=x86_64 olddefconfig 2>/dev/null
     echo "→ compiling bzImage (this can take several minutes)..."
     ${MAKE_CMD} -j"${NPROC}" ARCH=x86_64 bzImage
@@ -164,6 +173,15 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    if [ "${EFI:-1}" = "1" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    fi
+    if [ "${KERNEL_UNCOMPRESSED:-0}" = "1" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/uncompressed.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    fi
+    if [ "${KERNEL_FASTINIT:-0}" = "1" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/fastinit.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    fi
     ${MAKE_CMD} -C "${KERNEL_SRC}" ARCH=x86_64 olddefconfig >/dev/null 2>&1
     echo "→ compiling bzImage (this can take several minutes)..."
     ${MAKE_CMD} -j"${NPROC}" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage

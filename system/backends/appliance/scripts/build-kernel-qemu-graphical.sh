@@ -40,6 +40,13 @@ docker run --rm --platform linux/amd64 \
     cp /kcfg/alpenglow-qemu-minimal.config .config
     cat /kcfg/lz4.config >> .config 2>/dev/null || true
     cat /kcfg/virt.config >> .config 2>/dev/null || true
+    cat /kcfg/efi.config >> .config 2>/dev/null || true
+    if [ "${KERNEL_UNCOMPRESSED:-0}" = "1" ]; then
+      cat /kcfg/uncompressed.config >> .config 2>/dev/null || true
+    fi
+    if [ "${KERNEL_FASTINIT:-0}" = "1" ]; then
+      cat /kcfg/fastinit.config >> .config 2>/dev/null || true
+    fi
     echo "CONFIG_DRM_BOCHS_QEMU=y" >> .config
     make ARCH=x86_64 olddefconfig
     ./scripts/config --disable OBJTOOL --disable STACK_VALIDATION --disable UNWINDER_ORC 2>/dev/null || true
