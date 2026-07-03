@@ -22,6 +22,7 @@ ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 QEMU_MACHINE="${QEMU_MACHINE:-q35}"
+QEMU_CPU="${QEMU_CPU:-}"
 # Auto-detect acceleration: prefer KVM, then HVF (macOS), fall back TCG
 ACCEL="${ACCEL:-}"
 if [ -z "$ACCEL" ]; then
@@ -915,6 +916,11 @@ if [ "${GRAPHICAL}" = "1" ]; then
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
+  if [ -z "${QEMU_CPU}" ] && [ "${ACCEL}" = "kvm" ]; then
+    QEMU_OPTS="${QEMU_OPTS} -cpu host"
+  elif [ -n "${QEMU_CPU}" ]; then
+    QEMU_OPTS="${QEMU_OPTS} -cpu ${QEMU_CPU}"
+  fi
   QEMU_OPTS="${QEMU_OPTS} -boot order=n -device e1000,romfile=,netdev=net0 -netdev user,id=net0"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
 fi

@@ -13,6 +13,7 @@ ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 SMP="${SMP:-2}"
 MACHINE="${MACHINE:-q35}"
+CPU="${CPU:-}"
 FAST="${FAST:-0}"
 if [ "${FAST}" = "1" ] && [ "${ACCEL}" = "tcg" ]; then
   ACCEL="kvm"
@@ -29,8 +30,16 @@ rm -f "${OUTFILE}"
 
 START="$(date +%s%N)"
 
+QEMU_CPU=""
+if [ -z "${CPU}" ] && [ "${ACCEL}" = "kvm" ]; then
+  QEMU_CPU="-cpu host"
+elif [ -n "${CPU}" ]; then
+  QEMU_CPU="-cpu ${CPU}"
+fi
+
 stdbuf -oL -eL qemu-system-x86_64 \
   -machine "${MACHINE},accel=${ACCEL}" \
+  ${QEMU_CPU} \
   -m "${MEMORY_MB}" \
   -smp "${SMP}" \
   -nographic \
