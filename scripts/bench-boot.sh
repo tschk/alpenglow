@@ -38,6 +38,16 @@ elif [ -n "${CPU}" ]; then
   QEMU_CPU="-cpu ${CPU}"
 fi
 
+EMBEDDED_INITRAMFS=""
+if [ -f "${OUT_DIR}/.kernel-fast.ok" ]; then
+  EMBEDDED_INITRAMFS="1"
+fi
+
+INITRD_ARG=""
+if [ -z "${EMBEDDED_INITRAMFS}" ]; then
+  INITRD_ARG="-initrd ${INITRAMFS}"
+fi
+
 stdbuf -oL -eL qemu-system-x86_64 \
   -machine "${MACHINE},accel=${ACCEL}" \
   ${QEMU_CPU} \
@@ -48,7 +58,7 @@ stdbuf -oL -eL qemu-system-x86_64 \
   -boot order=n \
   -device e1000,romfile=,netdev=net0 -netdev user,id=net0 \
   -kernel "${KERNEL}" \
-  -initrd "${INITRAMFS}" \
+  ${INITRD_ARG} \
   -append "quiet console=ttyS0 init=/init" \
   < /dev/null > "${OUTFILE}" 2>&1 &
 QEMU_PID=$!

@@ -142,7 +142,10 @@ if command -v "${ZIG}" >/dev/null 2>&1; then
 fi
 
 # Kernel
-if [ ! -f "${KERNEL_IMAGE}" ]; then
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+  # FAST path: build a tiny kernel with embedded initramfs after initramfs is ready.
+  : # placeholder; build happens after initramfs
+elif [ ! -f "${KERNEL_IMAGE}" ]; then
   if [ "${GRAPHICAL}" = "1" ] && [ "${KERNEL_BUILD:-0}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
     sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
   elif [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
@@ -908,6 +911,11 @@ fi
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
+# FAST kernel: tiny kernel with embedded initramfs
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+  sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
+fi
+
 # Boot
 require_cmd qemu-system-x86_64
 echo "→ Booting Alpenglow..."
@@ -972,6 +980,11 @@ if [ "${BOOT_MODE}" = "rootfs" ]; then
   KERNEL_CMDLINE="${KERNEL_CMDLINE} alpenglow.root=/dev/vda"
 fi
 
+EMBEDDED_INITRAMFS=""
+if [ -f "${OUT_DIR}/.kernel-fast.ok" ] && [ "${KERNEL_IMAGE}" = "${OUT_DIR}/vmlinuz" ]; then
+  EMBEDDED_INITRAMFS="1"
+fi
+
 if [ "${EFI}" = "1" ]; then
   # UEFI boot via OVMF pflash (available, but measured slower than SeaBIOS)
   OVMF_CODE=""
@@ -995,20 +1008,36 @@ if [ "${EFI}" = "1" ]; then
     elif [ ! -f "${OVMF_VARS}" ]; then
       cp "${OVMF_CODE}" "${OVMF_VARS}" 2>/dev/null || true
     fi
-    exec qemu-system-x86_64 \
-      ${QEMU_OPTS} \
-      -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
-      -drive if=pflash,format=raw,file="${OVMF_VARS}" \
-      -kernel "${KERNEL_IMAGE}" \
-      -initrd "${INITRAMFS}" \
-      -append "${KERNEL_CMDLINE}"
+    if [ -n "${EMBEDDED_INITRAMFS}" ]; then
+      exec qemu-system-x86_64 \
+        ${QEMU_OPTS} \
+        -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
+        -drive if=pflash,format=raw,file="${OVMF_VARS}" \
+        -kernel "${KERNEL_IMAGE}" \
+        -append "${KERNEL_CMDLINE}"
+    else
+      exec qemu-system-x86_64 \
+        ${QEMU_OPTS} \
+        -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
+        -drive if=pflash,format=raw,file="${OVMF_VARS}" \
+        -kernel "${KERNEL_IMAGE}" \
+        -initrd "${INITRAMFS}" \
+        -append "${KERNEL_CMDLINE}"
+    fi
   fi
   echo "  → OVMF not found, falling back to SeaBIOS"
 fi
 
 # Legacy BIOS boot
-exec qemu-system-x86_64 \
-  ${QEMU_OPTS} \
-  -kernel "${KERNEL_IMAGE}" \
-  -initrd "${INITRAMFS}" \
-  -append "${KERNEL_CMDLINE}"
+if [ -n "${EMBEDDED_INITRAMFS}" ]; then
+  exec qemu-system-x86_64 \
+    ${QEMU_OPTS} \
+    -kernel "${KERNEL_IMAGE}" \
+    -append "${KERNEL_CMDLINE}"
+else
+  exec qemu-system-x86_64 \
+    ${QEMU_OPTS} \
+    -kernel "${KERNEL_IMAGE}" \
+    -initrd "${INITRAMFS}" \
+    -append "${KERNEL_CMDLINE}"
+fi
