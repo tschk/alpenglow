@@ -901,7 +901,7 @@ chmod 700 "${ROOTFS_DIR}/root/.ssh"
 # Build initramfs
 echo "→ Building initramfs..."
 if command -v lz4 >/dev/null 2>&1; then
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -9 -c > "${INITRAMFS}")
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${INITRAMFS}")
 else
   (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -1 -T0 > "${INITRAMFS}")
 fi
