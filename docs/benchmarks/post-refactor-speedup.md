@@ -10,6 +10,8 @@ Measured after the Zig common-module refactor and the boot-test fixes
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **1.25 s** (n=3 median) | Full appliance initramfs (11 MB) |
 | aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.61 s** (n=3 median) | Minimal Zig-init initramfs (1.4 KB) |
 
+Latest single x86_64 run: **1.35 s**, initramfs **11 MB / 218 files**, kernel **4.8 MB**, memory **2.1 GB total / 2.0 GB free**.
+
 ### Speedup vs. previous revisions
 
 * **x86_64 appliance boot**: previously used the 171 MB graphical
