@@ -11,12 +11,13 @@ INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
 OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
+SMP="${SMP:-2}"
 
 fail() { echo "bench: $1" >&2; exit 1; }
 [ -f "${KERNEL}" ] || fail "kernel not found at ${KERNEL}"
 [ -f "${INITRAMFS}" ] || fail "initramfs not found at ${INITRAMFS}"
 
-echo "==> Booting Alpenglow in QEMU and timing boot phases..."
+echo "==> Booting Alpenglow in QEMU (${SMP} vCPU, ${MEMORY_MB}MB, ${ACCEL}) and timing boot phases..."
 
 OUTFILE="${OUT_DIR}/bench-serial.log"
 rm -f "${OUTFILE}"
@@ -27,7 +28,7 @@ START="$(date +%s%N)"
 qemu-system-x86_64 \
   -machine q35,accel="${ACCEL}" \
   -m "${MEMORY_MB}" \
-  -smp 2 \
+  -smp "${SMP}" \
   -nographic \
   -no-reboot \
   -kernel "${KERNEL}" \
