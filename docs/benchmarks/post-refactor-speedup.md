@@ -11,7 +11,7 @@ Measured after the Zig common-module refactor and the boot-test fixes
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **1.05 s** (n=5 median) | FAST config, default `q35` machine + `-cpu host` |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **2.7 s** (n=5 median) | Standard config: EFI kernel, `q35` |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **6.0 s** (n=3 median) | OVMF: EFI firmware init overhead dominates |
-| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.63 s** (n=3 median) | Minimal Zig-init initramfs (1.4 KB) |
+| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.63 s** (n=3 median) | Minimal Zig-init initramfs (1.4 KB), `-cpu host` now default |
 
 Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`): **0.73 s**, initramfs **1.7 MB / 139 files**, kernel **4.9 MB**, memory **2.0 GB total / 2.0 GB free**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
 
@@ -175,4 +175,5 @@ curl -o /tmp/vmlinuz-aarch64-alpine \
 bsdtar -xf /tmp/vmlinuz-aarch64-alpine -C /tmp/iso
 ALPENGLOW_AARCH64_KERNEL=/tmp/iso/boot/vmlinuz-virt ./scripts/build-aarch64.sh --force
 ./scripts/qemu-boot-aarch64.sh
+./scripts/bench-boot-aarch64.sh
 ```
