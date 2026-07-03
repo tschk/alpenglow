@@ -7,6 +7,9 @@ REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 TARGET="${1:-aarch64-linux-musl}"
 BUILD_OUT="${REPO_ROOT}/build/cross/${TARGET}"
 NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+KERNEL_VERSION="${ALPENGLOW_KERNEL_VERSION:-7.0.14}"
+KERNEL_URL="${ALPENGLOW_KERNEL_URL:-https://www.kernel.org/pub/linux/kernel/v$(printf '%s' "${KERNEL_VERSION}" | cut -d. -f1).x/linux-${KERNEL_VERSION}.tar.xz}"
+KERNEL_DIR="linux-${KERNEL_VERSION}"
 
 case "${TARGET}" in
   aarch64-linux-musl) ARCH=arm64 KARCH=aarch64 KERNEL_TARGET=Image;;
@@ -16,15 +19,26 @@ esac
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 
+toolchain_docker_args() {
+  if [ -d "/opt/${KARCH}-linux-musl-cross" ]; then
+    printf '%s\n' "-v"
+    printf '%s\n' "/opt/${KARCH}-linux-musl-cross:/host-musl-cross:ro"
+  fi
+}
+
 echo "=== Cross-build: ${TARGET} ==="
 mkdir -p "${BUILD_OUT}"
 
-# 1. Kernel (Linux 7.0 + minimal config, built in Docker with musl.cc toolchain)
+# 1. Kernel (minimal config, built in Docker with musl.cc toolchain)
 build_kernel() {
   local KD="${BUILD_OUT}/kernel-src"
   if [ ! -d "${KD}" ]; then
-    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.0.tar.xz" | tar -xJ -C "${BUILD_OUT}"
-    mv "${BUILD_OUT}/linux-7.0" "${KD}"
+    case "${KERNEL_URL}" in
+      *.tar.gz) curl -fsSL "${KERNEL_URL}" | tar -xz -C "${BUILD_OUT}" ;;
+      *.tar.xz) curl -fsSL "${KERNEL_URL}" | tar -xJ -C "${BUILD_OUT}" ;;
+      *) echo "unsupported kernel archive: ${KERNEL_URL}"; exit 1 ;;
+    esac
+    mv "${BUILD_OUT}/${KERNEL_DIR}" "${KD}"
   fi
 
   echo "→ Building kernel in Docker..."
@@ -34,12 +48,17 @@ build_kernel() {
     -e ARCH="${ARCH}" \
     -e KARCH="${KARCH}" \
     -e KERNEL_TARGET="${KERNEL_TARGET}" \
+    $(toolchain_docker_args) \
     -v "${BUILD_OUT}:/out" \
     -v "${REPO_ROOT}:/repo:ro" \
     alpine:3.21 sh -c '
       set -eu
       apk add --no-cache bash bc bison curl elfutils-dev findutils flex gawk gcc make musl-dev openssl-dev perl tar xz >/dev/null
-      curl -fsSL "https://musl.cc/${KARCH}-linux-musl-cross.tgz" | tar -xz -C /opt
+      if [ -d /host-musl-cross ]; then
+        ln -s /host-musl-cross "/opt/${KARCH}-linux-musl-cross"
+      else
+        curl -fsSL "https://musl.cc/${KARCH}-linux-musl-cross.tgz" | tar -xz -C /opt
+      fi
       export PATH="/opt/${KARCH}-linux-musl-cross/bin:${PATH}"
       KD=/out/kernel-src
       cd "${KD}"
@@ -98,10 +117,14 @@ build_toybox() {
   require_cmd docker
   TOYBOX_VER="0.8.11"
 
-  docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
+  docker run --rm $(toolchain_docker_args) -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
     set -eu
     apk add --no-cache make gcc musl-dev curl tar xz bash >/dev/null
-    curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    if [ -d /host-musl-cross ]; then
+      ln -s /host-musl-cross /opt/${KARCH}-linux-musl-cross
+    else
+      curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    fi
     export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/landley/toybox/archive/refs/tags/${TOYBOX_VER}.tar.gz -o /tmp/tb.tar.gz
     tar -xzf /tmp/tb.tar.gz -C /tmp
@@ -126,10 +149,14 @@ build_dinit() {
   require_cmd docker
   DINIT_VER="0.19.2"
 
-  docker run --rm -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
+  docker run --rm $(toolchain_docker_args) -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
     set -eu
     apk add --no-cache make g++ musl-dev m4 curl tar xz bash >/dev/null
-    curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    if [ -d /host-musl-cross ]; then
+      ln -s /host-musl-cross /opt/${KARCH}-linux-musl-cross
+    else
+      curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    fi
     export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
     curl -fsSL https://github.com/davmac314/dinit/releases/download/v${DINIT_VER}/dinit-${DINIT_VER}.tar.xz -o /tmp/dinit.tar.xz
     tar -xf /tmp/dinit.tar.xz -C /tmp
