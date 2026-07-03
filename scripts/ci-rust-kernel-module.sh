@@ -31,7 +31,10 @@ scripts/config \
   --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL
 
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
-RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 modules_prepare > /tmp/kmod-modules_prepare.log 2>&1 || { tail -20 /tmp/kmod-modules_prepare.log; exit 1; }
+NPROC="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+echo "Building Linux ${KERNEL_VER} with Rust support (this may take a few minutes)..."
+RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" > /tmp/kmod-kernel.log 2>&1 || { tail -30 /tmp/kmod-kernel.log; exit 1; }
+RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" modules > /tmp/kmod-modules.log 2>&1 || { tail -30 /tmp/kmod-modules.log; exit 1; }
 
 # Build Alpenglow core module
 rm -rf /tmp/alpenglow-kmod
