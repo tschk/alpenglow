@@ -2,8 +2,9 @@
 # CI: Validate Rust kernel module compilation against a pinned Linux version
 set -eu
 
-KERNEL_VER="7.0"
-KERNEL_MAJOR="7"
+# Match GlowFS CI kernel version; 7.0 is not yet available on kernel.org mirrors.
+KERNEL_VER="6.12.93"
+KERNEL_MAJOR="6"
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 if ! command -v rustc >/dev/null 2>&1 || ! command -v bindgen >/dev/null 2>&1; then
@@ -17,8 +18,8 @@ mkdir -p linux-kmod-ci
 cd linux-kmod-ci
 
 echo "Downloading Linux ${KERNEL_VER}..."
-curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VER}.tar.xz" -o linux.tar.xz
-tar -xJf linux.tar.xz
+curl -fsSL "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git/snapshot/linux-${KERNEL_VER}.tar.gz" -o linux.tar.gz
+tar -xzf linux.tar.gz
 cd "linux-${KERNEL_VER}"
 
 # Minimal config with Rust support
