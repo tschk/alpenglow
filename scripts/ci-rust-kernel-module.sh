@@ -31,10 +31,11 @@ scripts/config \
   --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL
 
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
-RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 modules_prepare 2>&1 | tail -3
+RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 modules_prepare > /tmp/kmod-modules_prepare.log 2>&1 || { tail -20 /tmp/kmod-modules_prepare.log; exit 1; }
 
 # Build Alpenglow core module
 cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
-RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" 2>&1 | tail -5
-test -f /tmp/alpenglow-kmod/alpenglow_core.ko && echo "Rust kernel module OK"
+RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 || { tail -30 /tmp/kmod-build.log; exit 1; }
+test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
+echo "Rust kernel module OK"
 echo "ci-rust-kernel-module: ok"
