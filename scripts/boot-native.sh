@@ -915,7 +915,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
-  QEMU_OPTS="${QEMU_OPTS} -boot order=n -device e1000,romfile= -netdev user,id=net0"
+  QEMU_OPTS="${QEMU_OPTS} -boot order=n -device e1000,romfile=,netdev=net0 -netdev user,id=net0"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
 fi
 

@@ -36,7 +36,7 @@ stdbuf -oL -eL qemu-system-x86_64 \
   -nographic \
   -no-reboot \
   -boot order=n \
-  -device e1000,romfile= -netdev user,id=net0 \
+  -device e1000,romfile=,netdev=net0 -netdev user,id=net0 \
   -kernel "${KERNEL}" \
   -initrd "${INITRAMFS}" \
   -append "quiet console=ttyS0 init=/init" \
