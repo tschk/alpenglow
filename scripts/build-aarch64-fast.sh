@@ -62,12 +62,6 @@ if command -v "${ZIG}" >/dev/null 2>&1; then
   fi
 fi
 
-# Stage kernel if missing
-if [ ! -f "${BUILD_OUT}/vmlinuz" ]; then
-  echo "ERROR: ${BUILD_OUT}/vmlinuz not found. Set ALPENGLOW_AARCH64_KERNEL and run build-aarch64.sh first." >&2
-  exit 1
-fi
-
 # Compose rootfs
 ROOTFS_DIR="$(mktemp -d)"
 mkdir -p "${ROOTFS_DIR}/bin" "${ROOTFS_DIR}/sbin" "${ROOTFS_DIR}/etc/dinit.d/boot.d" \
@@ -145,9 +139,11 @@ rm -rf "${ROOTFS_DIR}"
 SIZE_KB=$(( $(stat -f%z "${INITRAMFS}" 2>/dev/null || stat -c%s "${INITRAMFS}") / 1024 ))
 echo "  ${INITRAMFS} (${SIZE_KB}K)"
 
+# Build custom aarch64 kernel with embedded initramfs
+sh "${BACKEND_DIR}/scripts/build-kernel-aarch64.sh" "${BUILD_OUT}" "${REPO_ROOT}"
+
 echo ""
 echo "To boot the proper aarch64 initramfs:"
 echo "  qemu-system-aarch64 -M virt -cpu max -m 512 -smp 2 -nographic -no-reboot \\"
 echo "    -kernel ${BUILD_OUT}/vmlinuz \\"
-echo "    -initrd ${INITRAMFS} \\"
 echo "    -append \"console=ttyAMA0,115200 init=/init quiet\""

@@ -34,6 +34,11 @@ elif [ -n "${CPU}" ]; then
   QEMU_CPU="-cpu ${CPU}"
 fi
 
+INITRD_ARG=""
+if [ ! -f "${BUILD_OUT}/.kernel-aarch64.ok" ]; then
+  INITRD_ARG="-initrd ${INITRAMFS}"
+fi
+
 stdbuf -oL -eL qemu-system-aarch64 \
   -M "${MACHINE}" \
   ${QEMU_CPU} \
@@ -42,7 +47,7 @@ stdbuf -oL -eL qemu-system-aarch64 \
   -nographic \
   -no-reboot \
   -kernel "${KERNEL}" \
-  -initrd "${INITRAMFS}" \
+  ${INITRD_ARG} \
   -append "console=ttyAMA0,115200 init=/init quiet" \
   < /dev/null > "${OUTFILE}" 2>&1 &
 QEMU_PID=$!

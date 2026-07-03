@@ -40,6 +40,11 @@ elif [ -n "${CPU}" ]; then
   QEMU_CPU="-cpu ${CPU}"
 fi
 
+INITRD_ARG=""
+if [ ! -f "${BUILD_OUT}/.kernel-aarch64.ok" ]; then
+  INITRD_ARG="-initrd ${INITRAMFS}"
+fi
+
 qemu-system-aarch64 \
   -M virt \
   -accel "${ACCEL}" \
@@ -49,7 +54,7 @@ qemu-system-aarch64 \
   -nographic \
   -no-reboot \
   -kernel "${BUILD_OUT}/vmlinuz" \
-  -initrd "${INITRAMFS}" \
+  ${INITRD_ARG} \
   -append "console=ttyAMA0,115200 init=/init quiet"
 
 echo ""
