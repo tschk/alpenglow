@@ -20,8 +20,8 @@ if [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ]; then
 fi
 
 # Reuse the x86_64 kernel source tarball if already present locally.
-NATIVE_SRC="${OUT_DIR}/../native/${KERNEL_TAR}.tar.xz"
-if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ ! -f "${OUT_DIR}/k.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
+NATIVE_SRC="${OUT_DIR}/../../native/${KERNEL_TAR}.tar.xz"
+if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
   cp "${NATIVE_SRC}" "${OUT_DIR}/${KERNEL_TAR}.tar.xz"
   echo "  reusing ${NATIVE_SRC}"
 fi
