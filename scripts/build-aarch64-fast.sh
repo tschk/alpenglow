@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build a proper Alpenglow aarch64 initramfs for the FAST config.
-# Uses a static toybox binary and builds dinit in an arm64 Alpine container.
-# Requires: docker, curl, qemu-system-aarch64 (for the macOS arm64 host)
+# Uses a static toybox binary, a static dinit, and a static Zig init.
+# Requires: docker, curl, zig, qemu-system-aarch64 (for the macOS arm64 host)
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -44,6 +44,24 @@ if [ ! -f "${DINIT_BIN}" ] || [ ! -f "${LD_MUSL}" ]; then
   echo "  ${DINIT_BIN}"
 fi
 
+# Zig init
+ZIG="${ZIG:-zig}"
+if ! command -v "${ZIG}" >/dev/null 2>&1; then
+  if command -v /opt/homebrew/Cellar/zig/0.16.0_1/bin/zig >/dev/null 2>&1; then
+    ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
+  fi
+fi
+if command -v "${ZIG}" >/dev/null 2>&1; then
+  echo "→ Building Zig init for aarch64..."
+  "${ZIG}" build-exe "${REPO_ROOT}/system/init/init.zig" \
+    -target aarch64-linux-musl -O ReleaseSmall -fstrip \
+    -femit-bin="${BUILD_OUT}/alpenglow-init-aarch64" 2>&1 | tail -5
+  if [ -f "${BUILD_OUT}/alpenglow-init-aarch64" ]; then
+    file "${BUILD_OUT}/alpenglow-init-aarch64" | grep -q aarch64 || { echo "ERROR: init not aarch64"; exit 1; }
+    echo "  ${BUILD_OUT}/alpenglow-init-aarch64"
+  fi
+fi
+
 # Stage kernel if missing
 if [ ! -f "${BUILD_OUT}/vmlinuz" ]; then
   echo "ERROR: ${BUILD_OUT}/vmlinuz not found. Set ALPENGLOW_AARCH64_KERNEL and run build-aarch64.sh first." >&2
@@ -65,8 +83,12 @@ cp "${DINIT_BIN}" "${ROOTFS_DIR}/sbin/dinit"
 mkdir -p "${ROOTFS_DIR}/lib"
 cp "${LD_MUSL}" "${ROOTFS_DIR}/lib/ld-musl-aarch64.so.1"
 
-# Init script (same as x86 FAST config, adapted for toybox)
-cat > "${ROOTFS_DIR}/init" <<'INIT'
+# Init: static Zig binary if available, otherwise shell fallback.
+if [ -f "${BUILD_OUT}/alpenglow-init-aarch64" ]; then
+  cp "${BUILD_OUT}/alpenglow-init-aarch64" "${ROOTFS_DIR}/init"
+  chmod +x "${ROOTFS_DIR}/init"
+else
+  cat > "${ROOTFS_DIR}/init" <<'INIT'
 #!/bin/sh
 /bin/toybox mount -t proc proc /proc
 /bin/toybox mount -t sysfs sysfs /sys
@@ -85,7 +107,8 @@ if [ -f /proc/meminfo ]; then
 fi
 exec /sbin/dinit -d /etc/dinit.d -s -t boot
 INIT
-chmod +x "${ROOTFS_DIR}/init"
+  chmod +x "${ROOTFS_DIR}/init"
+fi
 
 # Dinit services
 cat > "${ROOTFS_DIR}/etc/dinit.d/boot" <<'SVC'
@@ -110,9 +133,13 @@ ln -sf /etc/dinit.d/shell-ttyAMA0 "${ROOTFS_DIR}/etc/dinit.d/boot.d/shell-ttyAMA
 ln -sf /etc/dinit.d/mount-filesystems "${ROOTFS_DIR}/etc/dinit.d/boot.d/mount-filesystems"
 
 # Build initramfs
-INITRAMFS="${BUILD_OUT}/initramfs-proper.cpio.gz"
+INITRAMFS="${BUILD_OUT}/initramfs-proper.cpio.lz4"
 echo "→ Building initramfs..."
-(cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
+if command -v lz4 >/dev/null 2>&1; then
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${INITRAMFS}")
+else
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
+fi
 rm -rf "${ROOTFS_DIR}"
 
 SIZE_KB=$(( $(stat -f%z "${INITRAMFS}" 2>/dev/null || stat -c%s "${INITRAMFS}") / 1024 ))

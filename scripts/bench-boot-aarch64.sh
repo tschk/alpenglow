@@ -6,7 +6,8 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_OUT="${ROOT_DIR}/build/cross/aarch64"
 KERNEL="${BUILD_OUT}/vmlinuz"
-INITRAMFS="${INITRAMFS:-${BUILD_OUT}/initramfs-proper.cpio.gz}"
+INITRAMFS="${INITRAMFS:-${BUILD_OUT}/initramfs-proper.cpio.lz4}"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${BUILD_OUT}/initramfs-proper.cpio.gz"
 [ -f "${INITRAMFS}" ] || INITRAMFS="${BUILD_OUT}/initramfs.cpio.gz"
 
 MEMORY_MB="${MEMORY_MB:-512}"
