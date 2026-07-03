@@ -582,12 +582,8 @@ fi
 # Only include services whose binaries actually exist in the rootfs
 case "${BUILD_PROFILE}" in
   minimal)
-    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
-    for svc in dropbear chronyd dnsmasq; do
-      [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && [ "${svc}" = "dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} ${svc}"
-      [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && [ "${svc}" = "chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} ${svc}"
-      [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && [ "${svc}" = "dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} ${svc}"
-    done
+    # Headless serial-only: only run the two services required to reach login.
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems"
     ;;
   standard)
     # Core services always available (inline definitions)
