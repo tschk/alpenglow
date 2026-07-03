@@ -11,5 +11,10 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    exe.root_module.link_libc = false;
+
+    const strip = b.option(bool, "strip", "Strip debug symbols") orelse (optimize == .ReleaseSmall);
+    exe.root_module.strip = strip;
+
     b.installArtifact(exe);
 }
