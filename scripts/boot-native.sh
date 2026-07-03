@@ -13,7 +13,7 @@ INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
-KERNEL_VERSION="${KERNEL_VERSION:-7.1.2}"
+KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
 KERNEL_7="${KERNEL_7:-1}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
@@ -125,10 +125,11 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
   elif [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
     echo "→ Building Linux ${KERNEL_VERSION} + CONFIG_RUST=y kernel..."
-    KERNEL_SRC="${OUT_DIR}/linux-7.0"
+    KERNEL_SRC="${OUT_DIR}/linux-${KERNEL_VERSION}"
     [ -d "${KERNEL_SRC}" ] || {
-      curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.0.tar.xz" -o "${OUT_DIR}/linux-7.0.tar.xz"
-      tar -xf "${OUT_DIR}/linux-7.0.tar.xz" -C "${OUT_DIR}"
+      KERNEL_MAJOR_MINOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1).$(echo "${KERNEL_VERSION}" | cut -d. -f2)"
+      curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${KERNEL_VERSION}.tar.xz" -o "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz"
+      tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
     # GlowFS needs Linux 6.12 API — not in-tree for 7.0, built separately via ci-glowfs
