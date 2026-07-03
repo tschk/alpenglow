@@ -7,10 +7,12 @@ Measured after the Zig common-module refactor and the boot-test fixes
 
 | Target | Host | Accel | RAM | vCPUs | Power-on → login | Notes |
 |--------|------|-------|-----|-------|------------------|-------|
-| x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **1.25 s** (n=3 median) | Full appliance initramfs (11 MB) |
+| x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **2.0 s** (n=5 median) | FAST config: minimal initramfs (1.7 MB) |
+| x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **2.7 s** (n=5 median) | Standard config: EFI kernel, minimal initramfs (1.7 MB) |
+| x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **6.0 s** (n=3 median) | OVMF: EFI firmware init overhead dominates |
 | aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.63 s** (n=3 median) | Minimal Zig-init initramfs (1.4 KB) |
 
-Latest x86_64 run: **1.25 s**, initramfs **11 MB / 218 files**, kernel **4.8 MB**, memory **2.1 GB total / 2.0 GB free**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
+Latest x86_64 run (FAST config): **2.0 s**, initramfs **1.7 MB / 139 files**, kernel **4.9 MB**, memory **2.0 GB total / 2.0 GB free**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
 
 ## vCPU scaling
 
@@ -40,11 +42,13 @@ FAST=1 ./scripts/bench-boot.sh
 ```
 
 `FAST=1` enables:
-- `EFI=1` — OVMF instead of SeaBIOS.
-- `KERNEL_UNCOMPRESSED=1` — skip kernel payload decompress (requires x86
-  `HAVE_KERNEL_UNCOMPRESSED` in the chosen kernel version).
+- `EFI=0` — SeaBIOS instead of OVMF (OVMF is ~3× slower in this config).
 - `KERNEL_FASTINIT=1` — async driver probes, no debug paths.
-- `BUILD_PROFILE=minimal`, no graphical stack.
+- `BUILD_PROFILE=minimal` — headless serial-only initramfs.
+- `BOOT_MODE=diskless` and `GRAPHICAL=0`.
+
+Uncompressed kernel is opt-in via `KERNEL_UNCOMPRESSED=1` (not enabled by
+FAST because Linux 7.0.12 x86 does not support `CONFIG_KERNEL_UNCOMPRESSED`).
 
 ## Shell vs compiled boot scripts
 
@@ -74,13 +78,21 @@ These are now opt-in via env vars or the `FAST=1` shortcut:
 | Feature | Control | Caveat |
 |---------|---------|--------|
 | OVMF instead of SeaBIOS | `EFI=1` (default) | Kernel must have `CONFIG_EFI_STUB`; `efi.config` is now merged by default. |
-| Uncompressed kernel | `KERNEL_UNCOMPRESSED=1` | Only works on x86 if the kernel has `HAVE_KERNEL_UNCOMPRESSED` (Linux 7.0.12 status: verify with `make kernelversion` / check `arch/x86/Kconfig`). |
-| Parallel hardware init | `KERNEL_FASTINIT=1` | `CONFIG_DRIVER_ASYNC_PROBE=y` and disabled debug paths; still limited by inherently sequential early boot. |
+| Uncompressed kernel | `KERNEL_UNCOMPRESSED=1` | Not supported on Linux 7.0.12 x86 — `arch/x86/Kconfig` has no `HAVE_KERNEL_UNCOMPRESSED`. Requires a newer kernel or different architecture. |
+| Parallel hardware init | `KERNEL_FASTINIT=1` | `CONFIG_DRIVER_ASYNC_PROBE=y` and disabled debug paths; gain is limited because the boot is not driver-bound. |
 
-Real gains from OVMF vs SeaBIOS are usually 100–200 ms of firmware init
- time. Uncompressed kernel removes the decompress step (usually < 100 ms
- with LZ4). Parallel hardware init helps only when the appliance has many
- independent devices/drivers.
+Measured on ultramarine:
+
+| Firmware | Kernel | Initramfs | Power-on → login |
+|----------|------|-----------|------------------|
+| SeaBIOS | 4.9 MB (no EFI/Rust) | 1.7 MB | **~2.0 s** |
+| SeaBIOS | 5.4 MB (EFI) | 1.7 MB | **~2.7 s** |
+| OVMF | 5.4 MB (EFI) | 1.7 MB | **~6.0 s** |
+
+OVMF is the most expensive change: the firmware initialization alone adds
+~4 s. Uncompressed kernel is not currently available on the target kernel.
+Parallel hardware init is enabled but the boot path is not driver-bound,
+so the gain is within the noise.
 
 ### Speedup vs. previous revisions
 
@@ -88,8 +100,8 @@ Real gains from OVMF vs SeaBIOS are usually 100–200 ms of firmware init
   `initramfs.cpio.gz` and waited for QEMU to exit, so the benchmark always
   hit the 60 s timeout and never reached login. After switching to the
   headless `initramfs.cpio.zst` and stopping at the `login:` marker, boot
-  to login is **~1.25 s** (n=3 median) — the gate now completes rather than
-  timing out.
+  to login is **~2.0 s** with the FAST config (n=5 median) — the gate now
+  completes rather than timing out.
 * **aarch64 boot**: not benchmarked before this run; the first measured
   power-on-to-login time is **0.61 s** on Apple Silicon with HVF.
 
@@ -127,7 +139,13 @@ source-code maintainability and a single place for bug fixes.
 
 x86_64 boot (on ultramarine):
 ```sh
+# Fastest path (SeaBIOS, minimal initramfs)
 git pull
+FAST=1 ./scripts/boot-native.sh
+FAST=1 ./scripts/bench-boot.sh
+
+# Standard EFI kernel (OVMF boot)
+EFI=1 BUILD_PROFILE=minimal ./scripts/boot-native.sh
 ACCEL=kvm ./scripts/bench-boot.sh
 ```
 
