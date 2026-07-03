@@ -20,16 +20,16 @@ for f in vmlinuz initramfs.cpio.gz; do
 done
 
 echo "=== Alpenglow aarch64 QEMU boot ==="
+INITRAMFS="${INITRAMFS:-${BUILD_OUT}/initramfs-proper.cpio.gz}"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${BUILD_OUT}/initramfs.cpio.gz"
 echo "  kernel:    ${BUILD_OUT}/vmlinuz"
-echo "  initramfs: ${BUILD_OUT}/initramfs.cpio.gz"
+echo "  initramfs: ${INITRAMFS}"
 echo "  memory:    ${MEMORY_MB}MB"
 echo "  Ctrl-A X  to quit QEMU"
 echo ""
 
 QEMU_CPU=""
-if [ -z "${CPU}" ] && [ "${ACCEL}" = "hvf" ]; then
-  QEMU_CPU="-cpu host"
-elif [ -z "${CPU}" ]; then
+if [ -z "${CPU}" ]; then
   QEMU_CPU="-cpu max"
 elif [ -n "${CPU}" ]; then
   QEMU_CPU="-cpu ${CPU}"
@@ -44,7 +44,7 @@ qemu-system-aarch64 \
   -nographic \
   -no-reboot \
   -kernel "${BUILD_OUT}/vmlinuz" \
-  -initrd "${BUILD_OUT}/initramfs.cpio.gz" \
+  -initrd "${INITRAMFS}" \
   -append "console=ttyAMA0,115200 init=/init quiet"
 
 echo ""

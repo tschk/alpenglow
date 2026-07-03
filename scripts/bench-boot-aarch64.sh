@@ -6,7 +6,8 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_OUT="${ROOT_DIR}/build/cross/aarch64"
 KERNEL="${BUILD_OUT}/vmlinuz"
-INITRAMFS="${BUILD_OUT}/initramfs.cpio.gz"
+INITRAMFS="${INITRAMFS:-${BUILD_OUT}/initramfs-proper.cpio.gz}"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${BUILD_OUT}/initramfs.cpio.gz"
 
 MEMORY_MB="${MEMORY_MB:-512}"
 SMP="${SMP:-2}"
@@ -26,9 +27,7 @@ rm -f "${OUTFILE}"
 START="$(date +%s%N)"
 
 QEMU_CPU=""
-if [ -z "${CPU}" ] && [ "${ACCEL}" = "hvf" ]; then
-  QEMU_CPU="-cpu host"
-elif [ -z "${CPU}" ]; then
+if [ -z "${CPU}" ]; then
   QEMU_CPU="-cpu max"
 elif [ -n "${CPU}" ]; then
   QEMU_CPU="-cpu ${CPU}"
@@ -58,6 +57,10 @@ while kill -0 "${QEMU_PID}" 2>/dev/null; do
   MAX_ITER=$((MAX_ITER - 1))
   [ "${MAX_ITER}" -le 0 ] && { kill "${QEMU_PID}" 2>/dev/null; break; }
 done
+# QEMU may exit immediately after login (e.g. aarch64 init halts/reboots)
+if [ "${LOGIN_FOUND}" = "0" ] && grep -q "login:" "${OUTFILE}" 2>/dev/null; then
+  LOGIN_FOUND=1
+fi
 
 END="$(date +%s%N)"
 kill "${QEMU_PID}" 2>/dev/null || true
