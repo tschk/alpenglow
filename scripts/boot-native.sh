@@ -36,8 +36,8 @@ EFI="${EFI:-1}"
 GRAPHICAL="${GRAPHICAL:-0}"
 FAST="${FAST:-0}"
 if [ "${FAST}" = "1" ]; then
-  EFI=1
-  KERNEL_UNCOMPRESSED=1
+  # SeaBIOS is faster than OVMF in this QEMU config; keep EFI off for speed.
+  EFI=0
   KERNEL_FASTINIT=1
   BUILD_PROFILE=minimal
   GRAPHICAL=0
