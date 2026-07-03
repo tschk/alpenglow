@@ -42,9 +42,17 @@ case "${BOARD}" in
 esac
 
 NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+if [ -n "${OPENSSL11_PREFIX:-}" ]; then
+  export HOSTCFLAGS="${HOSTCFLAGS:-} -I${OPENSSL11_PREFIX}/include"
+  export HOSTLDFLAGS="${HOSTLDFLAGS:-} -L${OPENSSL11_PREFIX}/lib"
+fi
 
 require_cmd git
 require_cmd make
+
+RKBIN_DIR="${REPO_ROOT}/build/rkbin"
+DDR_BLOB="bin/rk35/rk3566_ddr_1056MHz_v1.25.bin"
+BL31_BLOB="bin/rk35/rk3568_bl31_v1.46.elf"
 
 echo "=== U-Boot RK3566 build ==="
 echo "  board:   ${BOARD}"
@@ -75,19 +83,15 @@ fi
 rm -rf "${OUT_ABS}"
 mkdir -p "${OUT_ABS}/spl"
 
-if command -v docker >/dev/null 2>&1; then
+if [ ! -d "${RKBIN_DIR}/.git" ]; then
+  echo "→ Cloning rkbin for DDR init blobs..."
+  rm -rf "${RKBIN_DIR}"
+  mkdir -p "$(dirname "${RKBIN_DIR}")"
+  git clone --depth 1 https://github.com/rockchip-linux/rkbin.git "${RKBIN_DIR}" 2>&1 | tail -3
+fi
+
+if [ "${ALPENGLOW_USE_DOCKER:-1}" != "0" ] && command -v docker >/dev/null 2>&1; then
   echo "→ Building in Docker (Ubuntu 20.04 with OpenSSL 1.1)..."
-
-  RKBIN_DIR="${REPO_ROOT}/build/rkbin"
-  if [ ! -d "${RKBIN_DIR}/.git" ]; then
-    echo "→ Cloning rkbin for DDR init blobs..."
-    rm -rf "${RKBIN_DIR}"
-    mkdir -p "$(dirname "${RKBIN_DIR}")"
-    git clone --depth 1 https://github.com/rockchip-linux/rkbin.git "${RKBIN_DIR}" 2>&1 | tail -3
-  fi
-
-  DDR_BLOB="bin/rk35/rk3566_ddr_1056MHz_v1.25.bin"
-  BL31_BLOB="bin/rk35/rk3568_bl31_v1.46.elf"
 
   docker run --rm \
     -v "${U_BOOT_ABS}:/u-boot" \
@@ -106,9 +110,8 @@ if command -v docker >/dev/null 2>&1; then
       make ${DEFCONFIG} CROSS_COMPILE=${CROSS_COMPILE}
       make -j\$(nproc) CROSS_COMPILE=${CROSS_COMPILE} \
         BL31=/rkbin/${BL31_BLOB} \
-        ROCKCHIP_TPL=/rkbin/${DDR_BLOB} \
-        2>&1 | tail -10
-      for f in u-boot.bin u-boot.itb idbloader.img; do
+        ROCKCHIP_TPL=/rkbin/${DDR_BLOB}
+      for f in u-boot.bin u-boot.itb idbloader.img u-boot-rockchip.bin; do
         [ -f \$f ] && cp \$f /out/
       done
       [ -f spl/u-boot-spl.bin ] && cp spl/u-boot-spl.bin /out/spl/
@@ -129,7 +132,8 @@ else
     exit 1
   fi
 
-  if ! [ -f /usr/include/openssl/engine.h ] 2>/dev/null && \
+  if ! [ -f "${OPENSSL11_PREFIX:-}/include/openssl/engine.h" ] 2>/dev/null && \
+     ! [ -f /usr/include/openssl/engine.h ] 2>/dev/null && \
      ! [ -f /usr/local/include/openssl/engine.h ] 2>/dev/null; then
     echo "WARNING: openssl/engine.h not found (OpenSSL 3.x removed it)." >&2
     echo "  U-Boot host tools need OpenSSL 1.1. Install docker or a compat package." >&2
@@ -140,10 +144,12 @@ else
   make "${DEFCONFIG}" CROSS_COMPILE="${CROSS_COMPILE}"
 
   echo "→ Building (this takes a few minutes)..."
-  make -j"${NPROC}" CROSS_COMPILE="${CROSS_COMPILE}" 2>&1 | tail -10
+  make -j"${NPROC}" CROSS_COMPILE="${CROSS_COMPILE}" \
+    BL31="${RKBIN_DIR}/${BL31_BLOB}" \
+    ROCKCHIP_TPL="${RKBIN_DIR}/${DDR_BLOB}"
 
   echo "→ Collecting build artifacts..."
-  for f in u-boot.bin u-boot.itb; do
+  for f in u-boot.bin u-boot.itb idbloader.img u-boot-rockchip.bin; do
     if [ -f "${U_BOOT_ABS}/${f}" ]; then
       cp "${U_BOOT_ABS}/${f}" "${OUT_ABS}/"
       echo "  ${f}: $(du -h "${OUT_ABS}/${f}" | cut -f1)"
