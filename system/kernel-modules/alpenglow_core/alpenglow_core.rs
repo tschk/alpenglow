@@ -16,7 +16,7 @@ struct AlpenglowCore;
 
 impl kernel::Module for AlpenglowCore {
     fn init(_module: &'static ThisModule) -> Result<Self> {
-        let boot_ns = kernel::time::ktime_get_boot_ns();
+        let boot_ns = unsafe { kernel::bindings::ktime_get_boot_fast_ns() };
         let boot_ms = boot_ns / 1_000_000;
 
         pr_info!("alpenglow: boot_time_ns={}\n", boot_ns);
