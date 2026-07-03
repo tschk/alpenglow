@@ -6,6 +6,8 @@ set -eu
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_OUT="${REPO_ROOT}/build/cross/aarch64"
 MEMORY_MB="${MEMORY_MB:-512}"
+ACCEL="${ACCEL:-hvf}"
+CPU="${CPU:-}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 require_cmd qemu-system-aarch64
@@ -24,9 +26,19 @@ echo "  memory:    ${MEMORY_MB}MB"
 echo "  Ctrl-A X  to quit QEMU"
 echo ""
 
+QEMU_CPU=""
+if [ -z "${CPU}" ] && [ "${ACCEL}" = "hvf" ]; then
+  QEMU_CPU="-cpu host"
+elif [ -z "${CPU}" ]; then
+  QEMU_CPU="-cpu max"
+elif [ -n "${CPU}" ]; then
+  QEMU_CPU="-cpu ${CPU}"
+fi
+
 qemu-system-aarch64 \
   -M virt \
-  -cpu max \
+  -accel "${ACCEL}" \
+  ${QEMU_CPU} \
   -m "${MEMORY_MB}" \
   -smp 2 \
   -nographic \
