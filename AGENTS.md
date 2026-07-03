@@ -13,7 +13,7 @@ Early-stage. Not production-ready.
 | Boot | Diskless — rootfs in RAM via initramfs |
 | Root FS | GlowFS (kernel module). Fallback: erofs, squashfs |
 | Init | dinit — parallel dependency-graph |
-| Compiler | LLVM/Clang default. Inauguration as future codegen |
+| Compiler | LLVM/Clang default; Inauguration track selectable via COMPILER=inauguration |
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |

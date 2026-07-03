@@ -147,6 +147,14 @@ case "${BUILD_PROFILE}" in
     ;;
 esac
 
+# Compiler track: LLVM remains the default C/C++ toolchain; Inauguration is
+# available as an alternative codegen track for .in / Rust-shaped sources.
+COMPILER="${COMPILER:-llvm}"
+case "${COMPILER}" in
+  llvm|inauguration) ;;
+  *) echo "Unknown compiler: ${COMPILER}. Use llvm or inauguration." >&2; exit 1 ;;
+esac
+
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
@@ -172,11 +180,15 @@ done
   done
 } > "${ROOTFS}/etc/dinit.d/boot"
 
-# Default compiler: LLVM/Clang (with Inauguration as future path)
+# Compiler profile: LLVM remains the C/C++ toolchain; Inauguration is the
+# alternate codegen track for .in / Rust-shaped sources.
 mkdir -p "${ROOTFS}/etc/profile.d" "${ROOTFS}/etc/sysctl.d"
-cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
-# Alpenglow system compiler: LLVM/Clang (default)
-# Inauguration will be added as a future codegen backend.
+if [ "${COMPILER}" = "inauguration" ]; then
+  cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
+# Alpenglow system compiler: Inauguration track (LLVM still handles C/C++).
+ALPENGLOW_COMPILER=inauguration
+IN=/usr/local/bin/in
+IN_TARGET=x86_64-unknown-linux-gnu
 CC=clang
 CXX=clang++
 LD=lld
@@ -187,8 +199,26 @@ RANLIB=llvm-ranlib
 CFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
 CXXFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
 LDFLAGS="-fuse-ld=lld -Wl,-z,relro,-z,now"
-export CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
+export ALPENGLOW_COMPILER IN IN_TARGET CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
 COMPEOF
+else
+  cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
+# Alpenglow system compiler: LLVM/Clang (default)
+# Inauguration is available as an alternate codegen track.
+ALPENGLOW_COMPILER=llvm
+CC=clang
+CXX=clang++
+LD=lld
+AR=llvm-ar
+NM=llvm-nm
+OBJCOPY=llvm-objcopy
+RANLIB=llvm-ranlib
+CFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
+CXXFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
+LDFLAGS="-fuse-ld=lld -Wl,-z,relro,-z,now"
+export ALPENGLOW_COMPILER CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
+COMPEOF
+fi
 chmod 644 "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh"
 
 # Default shell
@@ -275,17 +305,27 @@ chmod 755 \
   "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh"
 
 # System configuration
-cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
+case "${COMPILER}" in
+  inauguration)
+    COMPILER_DEFAULT="inauguration"
+    COMPILER_POLICY="inauguration-primary"
+    ;;
+  *)
+    COMPILER_DEFAULT="clang"
+    COMPILER_POLICY="llvm-primary"
+    ;;
+esac
+cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
 {
   "backend": "alpenglow-native",
   "composition_model": "oasis-static",
   "boot_model": "diskless",
   "hardened": true,
   "compiler": {
-    "default": "clang",
+    "default": "${COMPILER_DEFAULT}",
     "linker": "lld",
-    "policy": "llvm-primary",
-    "future": ["inauguration"]
+    "policy": "${COMPILER_POLICY}",
+    "tracks": ["llvm", "inauguration"]
   },
   "filesystem": {
     "immutable_root": true,
