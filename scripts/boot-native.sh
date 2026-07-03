@@ -914,6 +914,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
+  QEMU_OPTS="${QEMU_OPTS} -boot order=n -device e1000,romfile= -netdev user,id=net0"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
 fi
 
@@ -939,7 +940,7 @@ if [ "${BOOT_MODE}" = "rootfs" ]; then
 fi
 
 if [ "${EFI}" = "1" ]; then
-  # UEFI boot via OVMF pflash (saves ~200ms vs SeaBIOS)
+  # UEFI boot via OVMF pflash (available, but measured slower than SeaBIOS)
   OVMF_CODE=""
   for p in /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/local/share/qemu/edk2-x86_64-code.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /opt/homebrew/Cellar/qemu/*/share/qemu/edk2-x86_64-code.fd; do
     [ -f "$p" ] && { OVMF_CODE="$p"; break; }
