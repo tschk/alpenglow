@@ -34,6 +34,7 @@ RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 modules_prepare > /tmp/kmod-modules_prepare.log 2>&1 || { tail -20 /tmp/kmod-modules_prepare.log; exit 1; }
 
 # Build Alpenglow core module
+rm -rf /tmp/alpenglow-kmod
 cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
 RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 || { tail -30 /tmp/kmod-build.log; exit 1; }
 test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
