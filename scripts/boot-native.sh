@@ -866,7 +866,11 @@ chmod 700 "${ROOTFS_DIR}/root/.ssh"
 
 # Build initramfs
 echo "→ Building initramfs..."
-(cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
+if command -v zstd >/dev/null 2>&1; then
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -1 -T0 > "${INITRAMFS}")
+else
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
+fi
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
