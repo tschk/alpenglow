@@ -112,14 +112,18 @@ MEM_FREE="$(grep -o 'MemFree: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | aw
 [ -z "${MEM_TOTAL}" ] && MEM_TOTAL="?"
 [ -z "${MEM_FREE}" ] && MEM_FREE="?"
 
-# Count unique files in initramfs
-INITRAMFS_FILES="$(zcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+# Count unique files in initramfs (handle both gzip and zstd)
+if command -v zstdcat >/dev/null 2>&1; then
+  INITRAMFS_FILES="$(zstdcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+else
+  INITRAMFS_FILES="$(zcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+fi
 
 echo ""
 echo "=== Resource Metrics ==="
-echo "  initramfs: $(du -sh "${INITRAMFS}" 2>/dev/null | cut -f1 || echo "?")"
+echo "  initramfs: $(du -sh "${INITRAMFS}" 2>/dev/null | awk '{print $1}' || echo "?")"
 echo "  initramfs files: ${INITRAMFS_FILES}"
-echo "  kernel:    $(du -sh "${KERNEL}" 2>/dev/null | cut -f1 || echo "?")"
+echo "  kernel:    $(du -sh "${KERNEL}" 2>/dev/null | awk '{print $1}' || echo "?")"
 echo "  memory:    ${MEM_TOTAL} total, ${MEM_FREE} free"
 
 echo ""
