@@ -30,6 +30,58 @@ hardware init) before dinit can start services in parallel. Adding vCPUs
 does not help until the appliance starts enough independent services that
 parallel startup becomes the dominant cost.
 
+## Fast boot config
+
+A single `FAST=1` env var is now wired into the build and benchmark scripts:
+
+```sh
+FAST=1 ./scripts/boot-native.sh
+FAST=1 ./scripts/bench-boot.sh
+```
+
+`FAST=1` enables:
+- `EFI=1` — OVMF instead of SeaBIOS.
+- `KERNEL_UNCOMPRESSED=1` — skip kernel payload decompress (requires x86
+  `HAVE_KERNEL_UNCOMPRESSED` in the chosen kernel version).
+- `KERNEL_FASTINIT=1` — async driver probes, no debug paths.
+- `BUILD_PROFILE=minimal`, no graphical stack.
+
+## Shell vs compiled boot scripts
+
+The actual PID 1 init is already **dinit** (compiled binary), not shell.
+The scripts that remain shell are host-side build/run orchestration:
+`boot-native.sh`, `bench-boot.sh`, `qemu.sh`. They are glue around
+Docker, curl, make, and QEMU.
+
+Alternatives:
+- **Zig**: can produce a small static binary that drives the same build
+  steps. Adds a dependency and binary size for glue that does not need to
+  run in the initramfs.
+- **Python**: available on most hosts, but heavier and slower.
+- **Rust**: larger binary, slower build, no benefit for build orchestration.
+- **dinit service files**: already used for the appliance runtime; the host
+  side has no dinit.
+- **Task runners** (just, make, ninja): same job, different syntax.
+
+Shell is the lazy choice here: it ships with the host, needs no build
+step, and the scripts are not the runtime init. Keep them unless the host
+environment is so constrained that a shell is not available.
+
+## Uncompressed kernel / OVMF / parallel hardware init
+
+These are now opt-in via env vars or the `FAST=1` shortcut:
+
+| Feature | Control | Caveat |
+|---------|---------|--------|
+| OVMF instead of SeaBIOS | `EFI=1` (default) | Kernel must have `CONFIG_EFI_STUB`; `efi.config` is now merged by default. |
+| Uncompressed kernel | `KERNEL_UNCOMPRESSED=1` | Only works on x86 if the kernel has `HAVE_KERNEL_UNCOMPRESSED` (Linux 7.0.12 status: verify with `make kernelversion` / check `arch/x86/Kconfig`). |
+| Parallel hardware init | `KERNEL_FASTINIT=1` | `CONFIG_DRIVER_ASYNC_PROBE=y` and disabled debug paths; still limited by inherently sequential early boot. |
+
+Real gains from OVMF vs SeaBIOS are usually 100–200 ms of firmware init
+ time. Uncompressed kernel removes the decompress step (usually < 100 ms
+ with LZ4). Parallel hardware init helps only when the appliance has many
+ independent devices/drivers.
+
 ### Speedup vs. previous revisions
 
 * **x86_64 appliance boot**: previously used the 171 MB graphical
