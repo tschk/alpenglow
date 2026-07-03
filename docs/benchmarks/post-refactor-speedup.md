@@ -12,6 +12,24 @@ Measured after the Zig common-module refactor and the boot-test fixes
 
 Latest x86_64 run: **1.25 s**, initramfs **11 MB / 218 files**, kernel **4.8 MB**, memory **2.1 GB total / 2.0 GB free**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
 
+## vCPU scaling
+
+Tested on ultramarine with KVM, 2 GB RAM, and 1/2/4/8 vCPUs. The boot
+path is **not CPU-bound on service parallelism**:
+
+| vCPUs | n=3 boot times | Median |
+|-------|----------------|--------|
+| 1 | 1249, 1249, 1251 ms | **1.25 s** |
+| 2 | 1251, 1353, 1355 ms | **1.35 s** |
+| 4 | 1250, 1353, 1356 ms | **1.35 s** |
+| 8 | 1251, 1354, 1356 ms | **1.35 s** |
+
+The wall-clock time is essentially flat. The bottleneck is the
+single-threaded early boot path (SeaBIOS, kernel decompression, early
+hardware init) before dinit can start services in parallel. Adding vCPUs
+does not help until the appliance starts enough independent services that
+parallel startup becomes the dominant cost.
+
 ### Speedup vs. previous revisions
 
 * **x86_64 appliance boot**: previously used the 171 MB graphical
