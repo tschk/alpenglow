@@ -389,26 +389,28 @@ for svc in "${BACKEND_DIR}/dinit/"*; do
 done
 
 # Install userspace services (if built via BUILD_SERVICES=1)
-if [ -d "${OUT_DIR}/iwd" ]; then
-  cp -R "${OUT_DIR}/iwd/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/iwd"
-  cp "${BACKEND_DIR}/rootfs-overlay/etc/iwd/main.conf" "${ROOTFS_DIR}/etc/iwd/" 2>/dev/null || true
-fi
-if [ -d "${OUT_DIR}/greetd" ]; then
-  cp -R "${OUT_DIR}/greetd/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/greetd"
-  cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
-fi
 if [ -d "${OUT_DIR}/dropbear" ]; then
   cp -R "${OUT_DIR}/dropbear/" "${ROOTFS_DIR}/"
   mkdir -p "${ROOTFS_DIR}/etc/dropbear"
 fi
-if [ -d "${OUT_DIR}/chrony" ]; then
-  cp -R "${OUT_DIR}/chrony/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/chrony"
-fi
-if [ -d "${OUT_DIR}/dnsmasq" ]; then
-  cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
+if [ "${BUILD_PROFILE}" != "minimal" ]; then
+  if [ -d "${OUT_DIR}/iwd" ]; then
+    cp -R "${OUT_DIR}/iwd/" "${ROOTFS_DIR}/"
+    mkdir -p "${ROOTFS_DIR}/etc/iwd"
+    cp "${BACKEND_DIR}/rootfs-overlay/etc/iwd/main.conf" "${ROOTFS_DIR}/etc/iwd/" 2>/dev/null || true
+  fi
+  if [ -d "${OUT_DIR}/greetd" ]; then
+    cp -R "${OUT_DIR}/greetd/" "${ROOTFS_DIR}/"
+    mkdir -p "${ROOTFS_DIR}/etc/greetd"
+    cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
+  fi
+  if [ -d "${OUT_DIR}/chrony" ]; then
+    cp -R "${OUT_DIR}/chrony/" "${ROOTFS_DIR}/"
+    mkdir -p "${ROOTFS_DIR}/etc/chrony"
+  fi
+  if [ -d "${OUT_DIR}/dnsmasq" ]; then
+    cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
+  fi
 fi
 
 # Graphical stack: cage (musl) + alpenglowed (glibc) + isolated libs
@@ -569,7 +571,7 @@ else
       [ -x "${candidate}" ] && { ALPENGLOWED_BIN="${candidate}"; break; }
     done
   fi
-  if [ -n "${ALPENGLOWED_BIN}" ] && [ -x "${ALPENGLOWED_BIN}" ]; then
+  if [ "${BUILD_PROFILE}" != "minimal" ] && [ -n "${ALPENGLOWED_BIN}" ] && [ -x "${ALPENGLOWED_BIN}" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/bin"
     cp "${ALPENGLOWED_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed"
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed"
@@ -689,9 +691,9 @@ done
 # Oil (native package manager)
 OIL_BIN="${ROOT_DIR}/build/native/oil"
 OIL_SRC="${ROOT_DIR}/system/oil"
-if [ -f "${OIL_BIN}" ]; then
+if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
   cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
-elif [ -d "${OIL_SRC}" ]; then
+elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   echo "→ Building Oil (native package manager)..."
   docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
