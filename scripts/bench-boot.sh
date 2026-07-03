@@ -30,7 +30,7 @@ touch "${OUTFILE}"
 
 START="$(date +%s%N)"
 
-qemu-system-x86_64 \
+stdbuf -oL qemu-system-x86_64 \
   -machine q35,accel="${ACCEL}" \
   -m "${MEMORY_MB}" \
   -smp "${SMP}" \
