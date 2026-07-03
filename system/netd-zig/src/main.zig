@@ -1,27 +1,65 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const linux = std.os.linux;
-const common = @import("common");
 
-const MyArrayList = common.MyArrayList;
-const SyscallError = common.SyscallError;
-const getErrno = common.getErrno;
-const checkSyscall = common.checkSyscall;
-const pathToZ = common.pathToZ;
-const sysOpen = common.sysOpen;
-const sysOpenat = common.sysOpenat;
-const sysRead = common.sysRead;
-const sysWrite = common.sysWrite;
-const sysClose = common.sysClose;
-const sysMkdir = common.sysMkdir;
-const sysGetdents64 = common.sysGetdents64;
-const makeDir = common.makeDir;
-const makePathRecursive = common.makePathRecursive;
-const writeFile = common.writeFile;
-const writeStderr = common.writeStderr;
+fn MyArrayList(comptime T: type) type {
+    if (comptime builtin.zig_version.minor >= 15) {
+        return struct {
+            const Inner = std.ArrayList(T);
+            inner: Inner,
+            gpa: std.mem.Allocator,
+
+            pub fn init(gpa: std.mem.Allocator) @This() {
+                return .{ .inner = Inner.empty, .gpa = gpa };
+            }
+            pub fn deinit(self: *@This()) void {
+                self.inner.deinit(self.gpa);
+            }
+            pub fn append(self: *@This(), item: T) !void {
+                return try self.inner.append(self.gpa, item);
+            }
+            pub fn appendSlice(self: *@This(), new_items: []const T) !void {
+                return try self.inner.appendSlice(self.gpa, new_items);
+            }
+            pub fn items(self: *const @This()) []T {
+                return self.inner.items;
+            }
+            pub fn toOwnedSlice(self: *@This()) ![]T {
+                return try self.inner.toOwnedSlice(self.gpa);
+            }
+        };
+    } else {
+        return struct {
+            const Inner = std.ArrayList(T);
+            inner: Inner,
+
+            pub fn init(gpa: std.mem.Allocator) @This() {
+                return .{ .inner = Inner.init(gpa) };
+            }
+            pub fn deinit(self: *@This()) void {
+                self.inner.deinit();
+            }
+            pub fn append(self: *@This(), item: T) !void {
+                return try self.inner.append(item);
+            }
+            pub fn appendSlice(self: *@This(), new_items: []const T) !void {
+                return try self.inner.appendSlice(new_items);
+            }
+            pub fn items(self: *const @This()) []T {
+                return self.inner.items;
+            }
+            pub fn toOwnedSlice(self: *@This()) ![]T {
+                return try self.inner.toOwnedSlice();
+            }
+        };
+    }
+}
 
 const DEFAULT_SYS_CLASS_NET = "/sys/class/net";
 const DEFAULT_STATE_JSON = "/run/alpenglow/netd/interfaces.json";
 const DEFAULT_RUNTIME_ENV = "/run/alpenglow/netd/runtime-state.env";
+
+extern "c" var environ: [*:null]?[*:0]u8;
 
 const Interface = struct {
     name: []const u8,
@@ -41,6 +79,143 @@ const Snapshot = struct {
     generated_unix_ms: u64,
     interfaces: []const Interface,
 };
+
+const SyscallError = error{
+    FileNotFound,
+    AccessDenied,
+    PathAlreadyExists,
+    NotDir,
+    IsDir,
+    InvalidArgument,
+    OutOfMemory,
+    FileTooBig,
+    InputOutput,
+    DeviceBusy,
+    WouldBlock,
+    Interrupted,
+    NameTooLong,
+    NotEmpty,
+    Unexpected,
+};
+
+fn getErrno(rc: usize) linux.E {
+    const signed: isize = @bitCast(rc);
+    if (signed > -4096 and signed < 0) {
+        return @enumFromInt(-signed);
+    }
+    return .SUCCESS;
+}
+
+fn checkSyscall(rc: usize) SyscallError!void {
+    switch (getErrno(rc)) {
+        .SUCCESS => return,
+        .NOENT => return error.FileNotFound,
+        .ACCES => return error.AccessDenied,
+        .EXIST => return error.PathAlreadyExists,
+        .NOTDIR => return error.NotDir,
+        .ISDIR => return error.IsDir,
+        .INVAL => return error.InvalidArgument,
+        .NOMEM => return error.OutOfMemory,
+        .FBIG => return error.FileTooBig,
+        .IO => return error.InputOutput,
+        .BUSY => return error.DeviceBusy,
+        .AGAIN => return error.WouldBlock,
+        .INTR => return error.Interrupted,
+        .NAMETOOLONG => return error.NameTooLong,
+        .NOTEMPTY => return error.NotEmpty,
+        else => return error.Unexpected,
+    }
+}
+
+fn getenv(key: []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (environ[i]) |entry| : (i += 1) {
+        const e = std.mem.span(entry);
+        if (std.mem.startsWith(u8, e, key) and e.len > key.len and e[key.len] == '=') {
+            return e[key.len + 1 ..];
+        }
+    }
+    return null;
+}
+
+fn pathToZ(path: []const u8, buf: []u8) ?[:0]const u8 {
+    if (path.len >= buf.len) return null;
+    @memcpy(buf[0..path.len], path);
+    buf[path.len] = 0;
+    return buf[0..path.len :0];
+}
+
+fn sysOpen(path: [*:0]const u8, flags: linux.O, mode: linux.mode_t) SyscallError!i32 {
+    const rc = linux.open(path, flags, mode);
+    try checkSyscall(rc);
+    return @intCast(rc);
+}
+
+fn sysOpenat(dirfd: i32, path: [*:0]const u8, flags: linux.O, mode: linux.mode_t) SyscallError!i32 {
+    const rc = linux.openat(dirfd, path, flags, mode);
+    try checkSyscall(rc);
+    return @intCast(rc);
+}
+
+fn sysRead(fd: i32, buf: []u8) SyscallError!usize {
+    const rc = linux.read(fd, buf.ptr, buf.len);
+    try checkSyscall(rc);
+    return rc;
+}
+
+fn sysWrite(fd: i32, data: []const u8) SyscallError!void {
+    var written: usize = 0;
+    while (written < data.len) {
+        const rc = linux.write(fd, data.ptr + written, data.len - written);
+        try checkSyscall(rc);
+        written += rc;
+    }
+}
+
+fn sysClose(fd: i32) void {
+    _ = linux.close(fd);
+}
+
+fn sysMkdir(path: [*:0]const u8, mode: linux.mode_t) SyscallError!void {
+    const rc = linux.mkdir(path, mode);
+    if (getErrno(rc) == .EXIST) return;
+    try checkSyscall(rc);
+}
+
+fn sysGetdents64(fd: i32, buf: []u8) SyscallError!usize {
+    const rc = linux.getdents64(fd, buf.ptr, buf.len);
+    try checkSyscall(rc);
+    return rc;
+}
+
+fn makeDir(path: []const u8) SyscallError!void {
+    var buf: [4096]u8 = undefined;
+    const path_z = pathToZ(path, &buf) orelse return error.NameTooLong;
+    try sysMkdir(path_z, 0o755);
+}
+
+fn makePathRecursive(path: []const u8) !void {
+    if (path.len == 0 or std.mem.eql(u8, path, "/")) return;
+    var i: usize = 1;
+    while (i < path.len) : (i += 1) {
+        if (path[i] == '/') {
+            makeDir(path[0..i]) catch |err| {
+                if (err != error.PathAlreadyExists) return err;
+            };
+        }
+    }
+    makeDir(path) catch |err| {
+        if (err != error.PathAlreadyExists) return err;
+    };
+}
+
+fn writeFile(path: []const u8, data: []const u8) !void {
+    var buf: [4096]u8 = undefined;
+    const path_z = pathToZ(path, &buf) orelse return error.NameTooLong;
+    const fd = try sysOpen(path_z, .{ .ACCMODE = .WRONLY, .CREAT = true, .TRUNC = true, .CLOEXEC = true }, 0o644);
+    defer sysClose(fd);
+    try sysWrite(fd, data);
+}
 
 fn readTrimmed(gpa: std.mem.Allocator, dir_fd: i32, sub_path: []const u8) ?[]const u8 {
     var path_buf: [4096]u8 = undefined;
@@ -309,19 +484,6 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
     }
 }
 
-extern "c" var environ: [*:null]?[*:0]u8;
-
-fn getenv(key: []const u8) ?[]const u8 {
-    var i: usize = 0;
-    while (environ[i]) |entry| : (i += 1) {
-        const e = std.mem.span(entry);
-        if (std.mem.startsWith(u8, e, key) and e.len > key.len and e[key.len] == '=') {
-            return e[key.len + 1 ..];
-        }
-    }
-    return null;
-}
-
 fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
     return getenv(key) orelse default;
 }
@@ -336,6 +498,9 @@ fn nowUnixMs() u64 {
     return sec * 1000 + nsec / 1_000_000;
 }
 
+fn writeStderr(msg: []const u8) void {
+    _ = linux.write(2, msg.ptr, msg.len);
+}
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;

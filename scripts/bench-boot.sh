@@ -4,8 +4,10 @@ set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 KERNEL="${ROOT_DIR}/build/native/vmlinuz"
-INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
-[ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
+# Prefer the small headless initramfs; the .gz graphical image is much larger
+# and not suitable for serial boot timing.
+INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
 OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
@@ -93,8 +95,8 @@ fi
 printf "  Total (power-on to login):     %5sms\n" "${TOTAL_MS}"
 
 # Parse memory from serial log
-MEM_TOTAL="$(grep -o 'MemTotal: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print \$2" "\$3}')"
-MEM_FREE="$(grep -o 'MemFree: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print \$2" "\$3}')"
+MEM_TOTAL="$(grep -o 'MemTotal: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print $2" "$3}')"
+MEM_FREE="$(grep -o 'MemFree: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print $2" "$3}')"
 [ -z "${MEM_TOTAL}" ] && MEM_TOTAL="?"
 [ -z "${MEM_FREE}" ] && MEM_FREE="?"
 
