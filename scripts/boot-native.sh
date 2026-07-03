@@ -24,9 +24,9 @@ MEMORY_MB="${MEMORY_MB:-2048}"
 # Auto-detect acceleration: prefer KVM, then HVF (macOS), fall back TCG
 ACCEL="${ACCEL:-}"
 if [ -z "$ACCEL" ]; then
-  if qemu-system-x86_64 -machine q35,accel=kvm -M none </dev/null 2>/dev/null; then
+  if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
     ACCEL=kvm
-  elif qemu-system-x86_64 -machine q35,accel=hvf -M none </dev/null 2>/dev/null; then
+  elif timeout 2 qemu-system-x86_64 -machine q35,accel=hvf -M none </dev/null >/dev/null 2>&1; then
     ACCEL=hvf
   else
     ACCEL=tcg
