@@ -7,13 +7,13 @@ Measured after the Zig common-module refactor and the boot-test fixes
 
 | Target | Host | Accel | RAM | vCPUs | Power-on → login | Notes |
 |--------|------|-------|-----|-------|------------------|-------|
-| x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **0.73 s** (n=5 median) | FAST config + `MACHINE=pc` + `-cpu host` |
+| x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **0.73 s** (n=5 median) | FAST config: `MACHINE=pc`, `-cpu host`, Zig init, embedded lz4 initramfs |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **1.05 s** (n=5 median) | FAST config, default `q35` machine + `-cpu host` |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **2.7 s** (n=5 median) | Standard config: EFI kernel, `q35` |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **6.0 s** (n=3 median) | OVMF: EFI firmware init overhead dominates |
-| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.88 s** (n=5 median) | Proper initramfs: toybox + dinit + login shell (2.0 MB) |
+| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.78 s** (n=5 median) | Proper initramfs: Zig init + toybox + dinit (2.1 MB, lz4) |
 
-Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`): **0.73 s**, initramfs **1.7 MB / 139 files**, kernel **4.9 MB**, memory **2.0 GB total / 2.0 GB free**. Latest aarch64 run (proper OS, `MACHINE=virt`, `-cpu max`): **0.88 s**, initramfs **2.0 MB**, kernel **9.6 MB**, memory **512 MB total**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
+Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`): **0.73 s**, kernel+initramfs **6.9 MB**, memory **2.0 GB total / 2.0 GB free**. Latest aarch64 run (proper OS, `MACHINE=virt`, `-cpu max`): **0.78 s**, initramfs **2.1 MB**, kernel **9.6 MB**, memory **512 MB total**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
 
 ## vCPU scaling
 
