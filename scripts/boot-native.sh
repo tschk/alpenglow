@@ -372,7 +372,11 @@ if [ -f "${VRO_SRC}" ]; then
 fi
 
 # Dinit
-cp "${OUT_DIR}/dinit" "${ROOTFS_DIR}/sbin/dinit"
+if [ -f "${OUT_DIR}/dinit" ]; then
+  cp "${OUT_DIR}/dinit" "${ROOTFS_DIR}/sbin/dinit"
+elif [ -f "${OUT_DIR}/dinit/dinit" ]; then
+  cp "${OUT_DIR}/dinit/dinit" "${ROOTFS_DIR}/sbin/dinit"
+fi
 if [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
   cp "${OUT_DIR}/dinit-install/sbin/dinitctl" "${ROOTFS_DIR}/sbin/"
 fi
