@@ -106,11 +106,15 @@ if [ -n "${SHELL_LINE}" ]; then
 fi
 printf "  Total (power-on to login):     %5sms\n" "${TOTAL_MS}"
 
-# Parse memory from serial log
-MEM_TOTAL="$(grep -o 'MemTotal: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print $2" "$3}')"
-MEM_FREE="$(grep -o 'MemFree: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print $2" "$3}')"
-[ -z "${MEM_TOTAL}" ] && MEM_TOTAL="?"
-[ -z "${MEM_FREE}" ] && MEM_FREE="?"
+# Parse memory from serial log. Newer kernels print "Memory: XK/YK available"
+# at boot; /proc/meminfo lines are not echoed to the console by default.
+MEM_LINE="$(grep -o 'Memory: [0-9]*K/[0-9]*K available' "${OUTFILE}" 2>/dev/null | head -1)"
+MEM_TOTAL="?"
+MEM_FREE="?"
+if [ -n "${MEM_LINE}" ]; then
+  MEM_FREE="$(echo "${MEM_LINE}" | awk -F'[ /K]' '{print $2"K"}')"
+  MEM_TOTAL="$(echo "${MEM_LINE}" | awk -F'[ /]' '{print $3}')"
+fi
 
 # Count unique files in initramfs (handle both gzip and zstd)
 if command -v zstdcat >/dev/null 2>&1; then
