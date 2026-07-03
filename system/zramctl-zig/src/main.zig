@@ -11,7 +11,11 @@ fn fileExists(io: std.Io, path: []const u8) bool {
 }
 
 fn readMemTotalKb(io: std.Io, gpa: std.mem.Allocator) !u64 {
-    const content = try std.Io.Dir.cwd().readFileAlloc(io, MEMINFO, gpa, .unlimited);
+    var file = try std.Io.Dir.cwd().openFile(io, MEMINFO, .{});
+    defer file.close(io);
+    var buf: [4096]u8 = undefined;
+    var reader = file.readerStreaming(io, &buf);
+    const content = try reader.interface.allocRemaining(gpa, .unlimited);
     defer gpa.free(content);
     var lines = std.mem.splitScalar(u8, content, '\n');
     while (lines.next()) |line| {
