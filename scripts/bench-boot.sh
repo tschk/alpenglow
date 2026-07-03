@@ -38,7 +38,7 @@ stdbuf -oL -eL qemu-system-x86_64 \
   -no-reboot \
   -kernel "${KERNEL}" \
   -initrd "${INITRAMFS}" \
-  -append "console=ttyS0 init=/init" \
+  -append "quiet console=ttyS0 init=/init" \
   < /dev/null > "${OUTFILE}" 2>&1 &
 QEMU_PID=$!
 
