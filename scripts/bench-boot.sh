@@ -19,9 +19,6 @@ fail() { echo "bench: $1" >&2; exit 1; }
 echo "==> Booting Alpenglow in QEMU and timing boot phases..."
 
 OUTFILE="${OUT_DIR}/bench-serial.log"
-rm -f "${OUTFILE}"
-touch "${OUTFILE}"
-
 START="$(date +%s%N)"
 
 qemu-system-x86_64 \
@@ -36,25 +33,16 @@ qemu-system-x86_64 \
   < /dev/null > "${OUTFILE}" 2>&1 &
 QEMU_PID=$!
 
-# Wait for the login prompt, then stop QEMU. The appliance does not
-# power off automatically, so the wall-clock time must be measured at
-# the login marker.
-MAX_ITER=600
-LOGIN_FOUND=0
+# Wait for QEMU to finish (or timeout)
+MAX_SECS=60
 while kill -0 "${QEMU_PID}" 2>/dev/null; do
-  if grep -q "login:" "${OUTFILE}" 2>/dev/null; then
-    LOGIN_FOUND=1
-    break
-  fi
-  sleep 0.1
-  MAX_ITER=$((MAX_ITER - 1))
-  [ "${MAX_ITER}" -le 0 ] && { kill "${QEMU_PID}" 2>/dev/null; break; }
+  sleep 1
+  MAX_SECS=$((MAX_SECS - 1))
+  [ "${MAX_SECS}" -le 0 ] && { kill "${QEMU_PID}" 2>/dev/null; break; }
 done
-
-END="$(date +%s%N)"
-kill "${QEMU_PID}" 2>/dev/null || true
 wait "${QEMU_PID}" 2>/dev/null || true
 
+END="$(date +%s%N)"
 TOTAL_MS=$(( (END - START) / 1000000 ))
 
 # Parse timestamps from serial log
