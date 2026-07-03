@@ -34,6 +34,15 @@ if [ -z "$ACCEL" ]; then
 fi
 EFI="${EFI:-1}"
 GRAPHICAL="${GRAPHICAL:-0}"
+FAST="${FAST:-0}"
+if [ "${FAST}" = "1" ]; then
+  EFI=1
+  KERNEL_UNCOMPRESSED=1
+  KERNEL_FASTINIT=1
+  BUILD_PROFILE=minimal
+  GRAPHICAL=0
+  BOOT_MODE=diskless
+fi
 for arg in "$@"; do
   case "$arg" in
     --graphical) GRAPHICAL=1 ;;

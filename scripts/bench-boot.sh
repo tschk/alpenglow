@@ -12,6 +12,11 @@ OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 SMP="${SMP:-2}"
+FAST="${FAST:-0}"
+if [ "${FAST}" = "1" ]; then
+  ACCEL="${ACCEL:-kvm}"
+  SMP="${SMP:-4}"
+fi
 
 fail() { echo "bench: $1" >&2; exit 1; }
 [ -f "${KERNEL}" ] || fail "kernel not found at ${KERNEL}"
