@@ -287,7 +287,7 @@ fn buildImage(gpa: std.mem.Allocator, src: []const u8, out: []const u8, mode: Mo
     }
     std.mem.writeInt(u64, buf.items()[40..48], @intCast(buf.items().len), .little);
 
-    try writeFile(out, buf.items());
+    try writeFile(out, buf.items(), true);
 
     var sb: [128]u8 = undefined;
     const s = try std.fmt.bufPrint(&sb, "glowfs image entries={d} size={d}\n", .{ nentries, buf.items().len });
@@ -400,7 +400,7 @@ fn writeFileToImage(gpa: std.mem.Allocator, image: []const u8, path: []const u8,
             @memcpy(data[eo + ent_off_digest .. eo + ent_len], &digest(value));
             std.mem.writeInt(u64, data[40..48], @intCast(needed), .little);
         }
-        try writeFile(image, data);
+        try writeFile(image, data, true);
         return;
     }
     return fatal("file not found: {s}", .{path});

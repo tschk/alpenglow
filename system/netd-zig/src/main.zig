@@ -271,10 +271,10 @@ fn writeSnapshot(gpa: std.mem.Allocator, snapshot: Snapshot, state_json: []const
     defer gpa.free(env);
 
     if (std.fs.path.dirname(state_json)) |parent| makePathRecursive(parent) catch {};
-    try writeFile(state_json, json);
+    try writeFile(state_json, json, true);
 
     if (std.fs.path.dirname(runtime_env)) |parent| makePathRecursive(parent) catch {};
-    try writeFile(runtime_env, env);
+    try writeFile(runtime_env, env, true);
 }
 
 fn updateSnapshot(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []const u8, runtime_env: []const u8) !void {

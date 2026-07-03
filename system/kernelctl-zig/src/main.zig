@@ -17,7 +17,6 @@ const sysMkdir = common.sysMkdir;
 const makeDir = common.makeDir;
 const makePathRecursive = common.makePathRecursive;
 const writeFile = common.writeFile;
-const writeFileNoTrunc = common.writeFileNoTrunc;
 const readFileLimited = common.readFileLimited;
 const writeStderr = common.writeStderr;
 
@@ -166,7 +165,7 @@ fn mainInner() !void {
                         p[idx] = if (ch == '.') '/' else ch;
                         idx += 1;
                     }
-                    writeFileNoTrunc(p[0..idx], s[1]) catch {};
+                    writeFile(p[0..idx], s[1], false) catch {};
                 }
             }
             try applyCgroups(allocator, groups.items(), dry);
@@ -218,12 +217,12 @@ fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) void {
         buf[val.len] = '\n';
     }
     const data = buf[0 .. val.len + @intFromBool(val.len == 0 or val[val.len - 1] != '\n')];
-    writeFileNoTrunc(combined, data) catch {};
+    writeFile(combined, data, false) catch {};
 }
 
 fn writeEnv(path: []const u8, key: []const u8, value: []const u8) !void {
     if (std.fs.path.dirname(path)) |parent| makePathRecursive(parent) catch {};
     const line = try std.fmt.allocPrint(std.heap.page_allocator, "{s}={s}\n", .{ key, value });
     defer std.heap.page_allocator.free(line);
-    try writeFile(path, line);
+    try writeFile(path, line, true);
 }

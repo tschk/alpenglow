@@ -57,54 +57,17 @@ wait "${QEMU_PID}" 2>/dev/null || true
 
 TOTAL_MS=$(( (END - START) / 1000000 ))
 
-# Parse timestamps from serial log
-find_marker() {
-  grep -m1 -n "$1" "${OUTFILE}" 2>/dev/null | head -1 | cut -d: -f1 || echo ""
-}
-
-KERNEL_LINE="$(find_marker 'Linux version')"
-[ -z "${KERNEL_LINE}" ] && KERNEL_LINE="$(find_marker 'Alpenglow boot')"
-INIT_LINE="$(find_marker 'Alpenglow boot')"
-MOUNT_LINE="$(find_marker 'mount-filesystems')"
-SHELL_LINE="$(find_marker 'shell-ttyS0')"
-LOGIN_LINE="$(find_marker 'login:')"
-
-# Calculate elapsed seconds between two line numbers
-elapsed_between() {
-  a="$1"
-  b="$2"
-  if [ -z "$a" ] || [ -z "$b" ]; then
-    echo "?"
-    return
-  fi
-  # Line-based timing isn't precise but gives relative ordering
-  diff=$((b - a))
-  # Each line roughly corresponds to wall time
-  # Use total time / total lines as calibration
-  total_lines=$(wc -l < "${OUTFILE}" 2>/dev/null || echo 1)
-  [ "${total_lines}" -le 0 ] && total_lines=1
-  ms_per_line=$((TOTAL_MS / total_lines))
-  elapsed_ms=$((diff * ms_per_line))
-  awk "BEGIN { printf \"%.1f\", ${elapsed_ms} / 1000 }"
-}
+# Check which boot markers were reached.
+has_marker() { grep -q "$1" "${OUTFILE}" 2>/dev/null; }
 
 echo ""
 echo "=== Boot Time Benchmarks ==="
 echo "  Wall clock: ${TOTAL_MS}ms"
-
-if [ -n "${KERNEL_LINE}" ]; then
-  printf "  Kernel decompress to init:     %5ss\n" "$(elapsed_between "${KERNEL_LINE}" "${INIT_LINE}")"
-fi
-if [ -n "${INIT_LINE}" ]; then
-  printf "  Init to mount-filesystems:     %5ss\n" "$(elapsed_between "${INIT_LINE}" "${MOUNT_LINE}")"
-fi
-if [ -n "${MOUNT_LINE}" ]; then
-  printf "  mount-filesystems to getty:    %5ss\n" "$(elapsed_between "${MOUNT_LINE}" "${SHELL_LINE}")"
-fi
-if [ -n "${SHELL_LINE}" ]; then
-  printf "  Getty to login:                %5ss\n" "$(elapsed_between "${SHELL_LINE}" "${LOGIN_LINE}")"
-fi
 printf "  Total (power-on to login):     %5sms\n" "${TOTAL_MS}"
+has_marker 'Alpenglow boot' && echo "  marker: Alpenglow boot"
+has_marker 'mount-filesystems' && echo "  marker: mount-filesystems"
+has_marker 'shell-ttyS0' && echo "  marker: shell-ttyS0"
+has_marker 'login:' && echo "  marker: login"
 
 # Parse memory from serial log. Newer kernels print "Memory: XK/YK available"
 # at boot; /proc/meminfo lines are not echoed to the console by default.

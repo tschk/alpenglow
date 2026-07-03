@@ -207,18 +207,12 @@ pub fn readFileLimited(allocator: std.mem.Allocator, path: []const u8, max: usiz
     return try out.toOwnedSlice();
 }
 
-pub fn writeFile(path: []const u8, data: []const u8) !void {
+pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
     var buf: [4096]u8 = undefined;
     const path_z = pathToZ(path, &buf) orelse return error.NameTooLong;
-    const fd = try sysOpen(path_z, .{ .ACCMODE = .WRONLY, .CREAT = true, .TRUNC = true, .CLOEXEC = true }, 0o644);
-    defer sysClose(fd);
-    try sysWrite(fd, data);
-}
-
-pub fn writeFileNoTrunc(path: []const u8, data: []const u8) !void {
-    var buf: [4096]u8 = undefined;
-    const path_z = pathToZ(path, &buf) orelse return error.NameTooLong;
-    const fd = try sysOpen(path_z, .{ .ACCMODE = .WRONLY, .CREAT = true, .CLOEXEC = true }, 0o644);
+    var flags: linux.O = .{ .ACCMODE = .WRONLY, .CREAT = true, .CLOEXEC = true };
+    if (truncate) flags.TRUNC = true;
+    const fd = try sysOpen(path_z, flags, 0o644);
     defer sysClose(fd);
     try sysWrite(fd, data);
 }

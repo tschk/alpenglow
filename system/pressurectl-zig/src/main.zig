@@ -90,7 +90,7 @@ fn update(gpa: std.mem.Allocator, pressure_path: []const u8, state_json: []const
     if (std.fs.path.dirname(state_json)) |parent| {
         makePathRecursive(parent) catch {};
     }
-    try writeFile(state_json, json);
+    try writeFile(state_json, json, true);
 }
 
 fn sleepSeconds(seconds: u64) void {
