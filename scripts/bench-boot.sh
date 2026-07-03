@@ -123,7 +123,7 @@ echo ""
 echo "=== Resource Metrics ==="
 echo "  initramfs: $(du -sh "${INITRAMFS}" 2>/dev/null | awk '{print $1}' || echo "?")"
 echo "  initramfs files: ${INITRAMFS_FILES}"
-echo "  kernel:    $(du -sh "${KERNEL}" 2>/dev/null | awk '{print $1}' || echo "?")"
+echo "  kernel:    $(du -shL "${KERNEL}" 2>/dev/null | awk '{print $1}' || echo "?")"
 echo "  memory:    ${MEM_TOTAL} total, ${MEM_FREE} free"
 
 echo ""
