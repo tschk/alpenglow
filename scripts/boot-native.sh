@@ -133,13 +133,21 @@ if [ ! -f "${KERNEL_IMAGE}" ]; then
     }
     cd "${KERNEL_SRC}"
     # GlowFS needs Linux 6.12 API — not in-tree for 7.0, built separately via ci-glowfs
-    make ARCH=x86_64 defconfig 2>/dev/null
-    make ARCH=x86_64 kvm_guest.config 2>/dev/null
-    make ARCH=x86_64 rust.config 2>/dev/null
+    if [ -f "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" ]; then
+      cp "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" .config
+      make ARCH=x86_64 olddefconfig 2>/dev/null
+    else
+      make ARCH=x86_64 defconfig 2>/dev/null
+      make ARCH=x86_64 kvm_guest.config 2>/dev/null
+      make ARCH=x86_64 rust.config 2>/dev/null
+    fi
     scripts/config \
       --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
       --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
       --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE
+    if [ "${EFI:-1}" = "0" ]; then
+      scripts/config --disable EFI --disable EFI_STUB --disable RUST
+    fi
     # Enable GlowFS in config
     sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
     # Config overrides: LZ4 + virt drivers + minimal + EFI (for OVMF) + optional fast boot
