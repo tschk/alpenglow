@@ -13,9 +13,8 @@ ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 SMP="${SMP:-2}"
 FAST="${FAST:-0}"
-if [ "${FAST}" = "1" ]; then
-  ACCEL="${ACCEL:-kvm}"
-  SMP="${SMP:-4}"
+if [ "${FAST}" = "1" ] && [ "${ACCEL}" = "tcg" ]; then
+  ACCEL="kvm"
 fi
 
 fail() { echo "bench: $1" >&2; exit 1; }
@@ -24,9 +23,8 @@ fail() { echo "bench: $1" >&2; exit 1; }
 
 echo "==> Booting Alpenglow in QEMU (${SMP} vCPU, ${MEMORY_MB}MB, ${ACCEL}) and timing boot phases..."
 
-OUTFILE="${OUT_DIR}/bench-serial.log"
+OUTFILE="$(mktemp -t alpenglow-bench-serial.XXXXXX)"
 rm -f "${OUTFILE}"
-touch "${OUTFILE}"
 
 START="$(date +%s%N)"
 
@@ -36,6 +34,8 @@ stdbuf -oL -eL qemu-system-x86_64 \
   -smp "${SMP}" \
   -nographic \
   -no-reboot \
+  -boot order=n \
+  -device e1000,romfile= -netdev user,id=net0 \
   -kernel "${KERNEL}" \
   -initrd "${INITRAMFS}" \
   -append "quiet console=ttyS0 init=/init" \
