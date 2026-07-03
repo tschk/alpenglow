@@ -23,8 +23,8 @@ docker run --rm \
     KERNEL_MAJOR="$(echo "${KERNEL_VERSION}" | cut -d. -f1)"
 
     cd /tmp
-    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -o linux.tar.xz
-    tar -xf linux.tar.xz
+    curl -fsSL "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git/snapshot/linux-${KERNEL_VERSION}.tar.gz" -o linux.tar.gz
+    tar -xzf linux.tar.gz
     cd "/tmp/linux-${KERNEL_VERSION}"
 
     # Use our appliance kernel config

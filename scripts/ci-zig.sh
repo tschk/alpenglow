@@ -15,14 +15,8 @@ fi
 ZIG_VERSION="$(zig version 2>&1)"
 echo "ci-zig: zig ${ZIG_VERSION}"
 
-# Determine release flag (0.14: -Doptimize=ReleaseSmall, 0.16: -Drelease=true)
-# ponytail: version-based flag, no probing (exits masked with | tail)
-ZIG_MAJOR="$(zig version | cut -d. -f2)"
-if [ "${ZIG_MAJOR}" -ge 16 ]; then
-  RELEASE_FLAG="-Drelease=true"
-else
-  RELEASE_FLAG="-Doptimize=ReleaseSmall"
-fi
+# standardOptimizeOption exposes -Drelease=true in Zig 0.14+.
+RELEASE_FLAG="-Drelease=true"
 echo "ci-zig: using ${RELEASE_FLAG}"
 
 # Build kernelctl-zig
