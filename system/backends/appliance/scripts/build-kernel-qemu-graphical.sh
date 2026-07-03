@@ -30,7 +30,7 @@ docker run --rm --platform linux/amd64 \
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
-      libncurses-dev dwarves rsync kmod wget xz-utils ca-certificates >/dev/null
+      libncurses-dev dwarves rsync kmod wget xz-utils ca-certificates lz4 >/dev/null
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
       wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O k.tar.xz
