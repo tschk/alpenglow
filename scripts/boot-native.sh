@@ -21,12 +21,13 @@ BOOT_MODE="${BOOT_MODE:-diskless}"  # diskless or rootfs
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
+QEMU_MACHINE="${QEMU_MACHINE:-q35}"
 # Auto-detect acceleration: prefer KVM, then HVF (macOS), fall back TCG
 ACCEL="${ACCEL:-}"
 if [ -z "$ACCEL" ]; then
   if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
     ACCEL=kvm
-  elif timeout 2 qemu-system-x86_64 -machine q35,accel=hvf -M none </dev/null >/dev/null 2>&1; then
+  elif timeout 2 qemu-system-x86_64 -machine ${QEMU_MACHINE},accel=hvf -M none </dev/null >/dev/null 2>&1; then
     ACCEL=hvf
   else
     ACCEL=tcg
@@ -903,7 +904,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
     fi
   done
   QEMU_DISPLAY="${QEMU_DISPLAY:-cocoa}"
-  QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
+  QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
   QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
   if [ -f "${KERNEL_VIRT_STAMP}" ]; then
     QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci"
@@ -913,7 +914,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   QEMU_OPTS="${QEMU_OPTS} -chardev stdio,id=char0,mux=on,signal=off -serial chardev:char0 -mon chardev=char0"
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
-  QEMU_OPTS="-machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
+  QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
   QEMU_OPTS="${QEMU_OPTS} -boot order=n -device e1000,romfile= -netdev user,id=net0"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
 fi

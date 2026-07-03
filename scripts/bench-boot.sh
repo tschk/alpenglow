@@ -12,6 +12,7 @@ OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
 SMP="${SMP:-2}"
+MACHINE="${MACHINE:-q35}"
 FAST="${FAST:-0}"
 if [ "${FAST}" = "1" ] && [ "${ACCEL}" = "tcg" ]; then
   ACCEL="kvm"
@@ -29,7 +30,7 @@ rm -f "${OUTFILE}"
 START="$(date +%s%N)"
 
 stdbuf -oL -eL qemu-system-x86_64 \
-  -machine q35,accel="${ACCEL}" \
+  -machine "${MACHINE},accel=${ACCEL}" \
   -m "${MEMORY_MB}" \
   -smp "${SMP}" \
   -nographic \
