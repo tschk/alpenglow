@@ -190,11 +190,11 @@ pub fn main() !void {
         writeStderr("\n");
         std.process.exit(1);
     };
-    const size_kb = mem_kb / 2;
-    if (size_kb == 0) {
+    if (mem_kb == 0) {
         writeStderr("zramctl: zero memory, aborting\n");
         std.process.exit(1);
     }
+    const size_kb = mem_kb / 2;
 
     writeZramDisksize(size_kb) catch |err| {
         writeStderr("zramctl: cannot set disksize: ");
@@ -204,7 +204,15 @@ pub fn main() !void {
     };
 
     if (fileExists("/usr/sbin/mkswap") and fileExists("/usr/sbin/swapon")) {
-        spawnAndWait(&.{ "/usr/sbin/mkswap", ZRAM0_DEV }) catch {};
-        spawnAndWait(&.{ "/usr/sbin/swapon", ZRAM0_DEV }) catch {};
+        spawnAndWait(&.{ "/usr/sbin/mkswap", ZRAM0_DEV }) catch |err| {
+            writeStderr("zramctl: mkswap failed: ");
+            writeStderr(@errorName(err));
+            writeStderr("\n");
+        };
+        spawnAndWait(&.{ "/usr/sbin/swapon", ZRAM0_DEV }) catch |err| {
+            writeStderr("zramctl: swapon failed: ");
+            writeStderr(@errorName(err));
+            writeStderr("\n");
+        };
     }
 }

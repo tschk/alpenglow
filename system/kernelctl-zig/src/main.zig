@@ -300,8 +300,10 @@ fn mainInner() !void {
         .attach => {
             if (group.len == 0 or pid == 0) return;
             const cg = try std.fmt.allocPrint(allocator, "/sys/fs/cgroup/alpenglow/{s}", .{group});
+            defer allocator.free(cg);
             makePathRecursive(cg) catch {};
             const buf = try std.fmt.allocPrint(allocator, "{d}\n", .{pid});
+            defer allocator.free(buf);
             writeKernelFile(cg, "cgroup.procs", buf);
         },
         .apply => {
