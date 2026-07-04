@@ -17,7 +17,7 @@ Early-stage. Not production-ready.
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |
-| Kernel | Hardened — minimal appliance config. Tracks kernel.org latest stable |
+| Kernel | Hardened — three profiles: `fast` (boot speed), `minimal` (SSH/net/time/logs), `desktop` (display/audio/WiFi). Tracks kernel.org latest stable |
 | Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
 | Display | Wayland + cage+foot |
 | Audio | ALSA + PipeWire |
