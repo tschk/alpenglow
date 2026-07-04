@@ -20,16 +20,16 @@ if [ ! -f "${OUT_DIR}/initramfs.cpio.gz" ]; then
   "${REPO_ROOT}/scripts/build-aarch64.sh" 2>&1 | tail -3
 fi
 
-# build-aarch64.sh outputs zig-init, alpenglow-kernelctl, vmlinuz-virt, initramfs.cpio.gz
+# build-aarch64.sh outputs zig-init, alpenglow-kernelctl, vmlinuz, initramfs.cpio.gz
 [ -f "${OUT_DIR}/zig-init" ]         || fail "init binary not found — run build-aarch64.sh first"
-[ -f "${OUT_DIR}/vmlinuz-virt" ]    || fail "kernel not found — run build-aarch64.sh first"
+[ -f "${OUT_DIR}/vmlinuz" ]         || fail "kernel not found — run build-aarch64.sh first"
 [ -f "${OUT_DIR}/initramfs.cpio.gz" ]|| fail "initramfs not found — run build-aarch64.sh first"
 
 echo "→ Booting QEMU aarch64 virt (timeout: ${TIMEOUT}s)..."
 
 OUTPUT=$(timeout "${TIMEOUT}" qemu-system-aarch64 \
   -M virt -cpu max -m 2G \
-  -kernel "${OUT_DIR}/vmlinuz-virt" \
+  -kernel "${OUT_DIR}/vmlinuz" \
   -initrd "${OUT_DIR}/initramfs.cpio.gz" \
   -append "console=ttyAMA0,115200 init=/init loglevel=8" \
   -nographic -no-reboot \

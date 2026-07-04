@@ -1,28 +1,27 @@
 # Immutable Rootfs And State Filesystem
 
-Alpenglow uses an image-based root filesystem plus a separate persistent state filesystem. The root image is sealed at build time and mounted read-only at `/`. Runtime writes are limited to tmpfs mounts and the state filesystem mounted at `/state`.
+Alpenglow has two deployment modes:
 
-## Image Contract
+- **Diskless/immutable** — root in RAM (initramfs), immutable image, read-only `/`. State on persistent partition.
+- **Rootfs/desktop** — normal r/w root on disk, package-managed, no image layers.
 
-The appliance root image is built from `build/alpine/rootfs` using `system/alpine/scripts/build-rootfs-image.sh`.
+This doc covers the immutable/appliance mode.
 
-The preferred format is GlowFS because the Alpenglow target is a read-mostly internet appliance with generation verification, browser-runtime provenance, and disposable cache semantics in the filesystem contract. EROFS remains the mature immutable fallback, and SquashFS remains the fallback for hosts or boot experiments that lack EROFS tooling.
+## Image Contract (appliance mode only)
 
-Concrete image outputs:
+The root image is sealed at build time by `system/backends/appliance/scripts/build-rootfs.sh`. Mounted read-only at `/`. Runtime writes limited to tmpfs + state partition at `/state`.
 
-- `ALPENGLOW_ROOTFS_FORMAT=glowfs system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images` creates `build/alpine/images/alpenglow-rootfs.glowfs`.
-- `ALPENGLOW_ROOTFS_FORMAT=erofs system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images` creates `build/alpine/images/alpenglow-rootfs.erofs`.
-- `ALPENGLOW_ROOTFS_FORMAT=squashfs system/alpine/scripts/build-rootfs-image.sh build/alpine/rootfs build/alpine/images` creates `build/alpine/images/alpenglow-rootfs.squashfs`.
+GlowIFS is the planned immutable format, but it is under development. Current appliance builds should treat EROFS or SquashFS as realistic immutable-image fallbacks while the repository's prototype `glowfs` code is still being renamed and redesigned.
 
-The source manifest is `system/alpine/filesystems/rootfs-layout.json`. The configured rootfs installs it as `/etc/alpenglow/filesystems/rootfs-layout.json`.
+GlowFS and GlowIFS are separate by design, but neither should be documented as production-ready yet. GlowIFS is the sealed appliance-root direction: immutable, read-only, digest-verified, and generation-oriented. GlowFS is the writable-filesystem direction: journaled, recoverable, allocation-aware, and suitable for normal POSIX writes. Appliance images should not depend on mutable GlowIFS behavior.
 
-## Runtime Mount Plan
+GlowIFS editability is planned as object policy rather than path-only policy. A path such as `/home` is just a binding to editable objects; the durable identity lives in the object manifest. The current bind-mount plan below is the practical compatibility shape until object-policy mounting exists.
 
-The booted filesystem plan is:
+## Runtime Mount Plan (appliance mode)
 
 | Mount | Type | Options | Purpose |
 | --- | --- | --- | --- |
-| `/state` | ext4 | `rw,nosuid,nodev` | Persistent user and system state |
+| `/state` | writable state filesystem | `rw,nosuid,nodev` | Persistent user and system state |
 | `/run` | tmpfs | `nosuid,nodev,mode=0755` | PID files, sockets, runtime telemetry |
 | `/tmp` | tmpfs | `nosuid,nodev,mode=0755` | Short-lived system scratch |
 | `/dev/shm` | tmpfs | `nosuid,nodev,mode=1777,size=256m` | Wayland and compositor shared memory |
@@ -31,38 +30,4 @@ The booted filesystem plan is:
 | `/var/cache/alpenglow` | bind from `/state/var/cache/alpenglow` | bind | Browser and service cache |
 | `/var/log/alpenglow` | bind from `/state/var/log/alpenglow` | bind | Appliance logs |
 
-The source state manifest is `system/alpine/filesystems/state-mounts.json`. The configured rootfs installs it as `/etc/alpenglow/filesystems/state-mounts.json`.
-
-## Persistent State Ownership
-
-Persistent directories are created with fixed ownership boundaries:
-
-| Path | Owner | Mode |
-| --- | --- | --- |
-| `/state/home` | `root:root` | `0755` |
-| `/state/var/lib/alpenglow/browser/profiles` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/lib/alpenglow/browser/cache` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/lib/alpenglow/browser/downloads` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/lib/alpenglow/browser/state` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/lib/alpenglow/browser/logs` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/lib/alpenglow/browser/terminal` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/lib/alpenglow/files` | `sold:sold` | `0700` |
-| `/state/var/lib/alpenglow/system` | `sold:sold` | `0700` |
-| `/state/var/lib/alpenglow/system/plugins` | `sold:sold` | `0700` |
-| `/state/var/lib/alpenglow/oil` | `root:root` | `0755` |
-| `/state/var/cache/alpenglow` | `alpenglow:alpenglow` | `0700` |
-| `/state/var/log/alpenglow` | `root:root` | `0700` |
-
-No persistent bind is allowed for `/etc`, `/usr`, `/opt`, `/root`, or `/var/tmp`. Updates replace root generations under `/sysroot/alpenglow`; they do not mutate the active `/` tree.
-
-## Validation
-
-`system/alpine/scripts/validate-filesystem-plan.sh` validates:
-
-- root and state manifests exist and name the required image formats, mountpoints, bind targets, and forbidden persistent paths,
-- configured rootfs copies both manifests into `/etc/alpenglow/filesystems`,
-- `/etc/alpenglow/filesystems/fstab.plan` records the immutable root, state filesystem, and state binds without changing the current cpio QEMU boot path,
-- `system.json` points services at the installed filesystem manifests,
-- configured rootfs directories have the expected modes.
-
-CI runs this validator through `scripts/ci-os-appliance.sh` after `configure-rootfs.sh` stages a temporary rootfs.
+Manifests: `system/appliance/filesystems/rootfs-layout.json` and `system/appliance/filesystems/state-mounts.json`.

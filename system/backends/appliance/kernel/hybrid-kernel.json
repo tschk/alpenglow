@@ -9,7 +9,7 @@
   "config": "alpenglow-internet-appliance.config",
   "kernel_source": {
     "mode": "external-or-in-tree",
-    "in_tree_path": "system/alpine/kernel/linux",
+    "in_tree_path": "system/backends/appliance/kernel/linux",
     "source_env": "ALPENGLOW_KERNEL_SOURCE",
     "imported": false
   },
@@ -20,7 +20,7 @@
   "runtime_state": "/run/alpenglow/runtime-state.env",
   "fallback_boot": {
     "enabled": true,
-    "artifact": "vmlinuz-virt"
+    "artifact": "vmlinuz"
   },
   "metrics_gates": [
     "cold_page_load_ms",

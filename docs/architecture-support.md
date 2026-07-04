@@ -167,4 +167,7 @@ and package recipes but the rootfs design is different.
 | toybox, dinit | C/C++ | `CROSS_COMPILE=aarch64-linux-musl-` or `riscv64-linux-musl-` |
 | Linux kernel | make | `ARCH=arm64 CROSS_COMPILE=aarch64-linux-musl-` or `ARCH=riscv CROSS_COMPILE=riscv64-linux-musl-` |
 
-See `scripts/cross-build.sh` for the automated pipeline.
+See `scripts/cross-build.sh` for the automated pipeline.  
+U-Boot: `scripts/build-uboot-rk3566.sh` (rk3566_quartz64_defconfig)  
+Flash: `scripts/flash-rk3566.sh`  
+Test: `scripts/test-rk3566.md`

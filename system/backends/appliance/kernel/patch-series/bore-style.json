@@ -5,11 +5,11 @@
   "lane": "direct-source-edit-or-patch-queue",
   "applies_to": "linux-alpenglow-appliance",
   "source_policy": "in-tree-source-expected",
-  "source_path": "system/alpine/kernel/linux",
-  "queue_path": "system/alpine/kernel/patches/series",
+  "source_path": "system/backends/appliance/kernel/linux",
+  "queue_path": "system/backends/appliance/kernel/patches/series",
   "patches": [],
   "config": [],
   "validation": [
-    "system/alpine/kernel/validate-kernel-config.sh"
+    "system/backends/appliance/kernel/validate-kernel-config.sh"
   ]
 }

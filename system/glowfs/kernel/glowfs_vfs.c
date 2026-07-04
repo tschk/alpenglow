@@ -14,6 +14,8 @@
 #include <linux/uio.h>
 #include <linux/version.h>
 #include <linux/writeback.h>
+#include <linux/hashtable.h>
+#include <linux/security.h>
 
 #include "glowfs_format.h"
 
@@ -65,6 +67,7 @@ struct glowfs_entry {
 	u32 gid;
 	u8 digest[32];
 	const char *name;
+	struct hlist_node hnode;
 };
 
 struct glowfs_sb_info {
@@ -75,8 +78,10 @@ struct glowfs_sb_info {
 	u64 v2_total_blocks;
 	u64 v2_free_blocks;
 	struct mutex allocation_lock;
+	struct mutex lookup_lock;
 	struct glowfs_entry *entries;
 	char *names;
+	DECLARE_HASHTABLE(inode_hash, 8);
 };
 
 static const struct inode_operations glowfs_dir_inode_ops;
@@ -178,12 +183,15 @@ static int glowfs_write_disk_entry(struct super_block *sb, struct glowfs_entry *
 static struct glowfs_entry *glowfs_find_inode(struct super_block *sb, u64 inode)
 {
 	struct glowfs_sb_info *sbi = glowfs_sbi(sb);
-	u32 i;
+	struct glowfs_entry *entry;
 
-	for (i = 0; i < sbi->entry_count; i++) {
-		if (sbi->entries[i].inode == inode)
-			return &sbi->entries[i];
-	}
+	mutex_lock(&sbi->lookup_lock);
+	hash_for_each_possible(sbi->inode_hash, entry, hnode, inode)
+		if (entry->inode == inode) {
+			mutex_unlock(&sbi->lookup_lock);
+			return entry;
+		}
+	mutex_unlock(&sbi->lookup_lock);
 	return NULL;
 }
 
@@ -359,27 +367,60 @@ static void glowfs_free_link(void *link)
 static const char *glowfs_get_link(struct dentry *dentry, struct inode *inode, struct delayed_call *done)
 {
 	struct glowfs_entry *entry = inode->i_private;
+	struct glowfs_sb_info *sbi = glowfs_sbi(inode->i_sb);
 	char *target;
 	int ret;
 
 	if (!dentry)
 		return ERR_PTR(-ECHILD);
-	if (entry->size > PATH_MAX)
+	
+	if (entry->size == 0 || entry->size > PATH_MAX - 1)
 		return ERR_PTR(-ENAMETOOLONG);
+	
+	if (entry->data_offset > U64_MAX - entry->size)
+		return ERR_PTR(-EFBIG);
+	
+	if (entry->data_offset + entry->size > sbi->image_size)
+		return ERR_PTR(-EFBIG);
+	
 	target = kmalloc(entry->size + 1, GFP_KERNEL);
 	if (!target)
 		return ERR_PTR(-ENOMEM);
+	
 	ret = glowfs_read_bytes(inode->i_sb, entry->data_offset, target, entry->size);
 	if (ret) {
 		kfree(target);
 		return ERR_PTR(ret);
 	}
+	
 	target[entry->size] = '\0';
+	
+	if (memchr(target, '\0', entry->size)) {
+		kfree(target);
+		return ERR_PTR(-EINVAL);
+	}
+	
 	set_delayed_call(done, glowfs_free_link, target);
 	return target;
 }
 
 /* Modern kernel: use filemap helpers directly */
+static int glowfs_permission_check(struct mnt_idmap *idmap, struct inode *inode, int mask)
+{
+	int ret;
+
+	if (mask & MAY_WRITE) {
+		if (!(inode->i_mode & 0222))
+			return -EACCES;
+	}
+
+	ret = security_inode_permission(inode, mask);
+	if (ret)
+		return ret;
+
+	return generic_permission(idmap, inode, mask);
+}
+
 static int glowfs_write_begin(struct file *file, struct address_space *mapping,
 				loff_t pos, unsigned int len, struct folio **foliop,
 				void **fsdata)
@@ -389,16 +430,27 @@ static int glowfs_write_begin(struct file *file, struct address_space *mapping,
 	struct glowfs_sb_info *sbi = glowfs_sbi(inode->i_sb);
 	pgoff_t index = pos >> PAGE_SHIFT;
 	struct folio *folio;
+	u64 end;
 	int ret;
 
 	if (pos < 0)
 		return -EINVAL;
 	if (!(sbi->flags & GLOWFS_FLAG_MUTABLE))
 		return -EROFS;
-	if (len > U64_MAX - pos)
+	
+	if (check_add_overflow((u64)pos, len, &end))
 		return -EFBIG;
-	if ((u64)pos + len > entry->size && pos != entry->size)
+	
+	if (end > entry->size && pos != entry->size)
 		return -EFBIG;
+	
+	if (end > entry->size) {
+		u64 new_data_end = entry->data_offset + end;
+		if (new_data_end < entry->data_offset)
+			return -EFBIG;
+		if (new_data_end > sbi->image_size && !(sbi->flags & GLOWFS_FLAG_MUTABLE))
+			return -EFBIG;
+	}
 
 	folio = __filemap_get_folio(mapping, index, FGP_WRITEBEGIN,
 				    mapping_gfp_mask(mapping));
@@ -428,68 +480,84 @@ static int glowfs_write_end(struct file *file, struct address_space *mapping,
 	u64 end;
 	u64 old_offset;
 	u64 old_size;
+	u64 new_offset;
+	u64 new_image_size;
 	int ret;
 
 	if (copied == 0)
 		goto out;
-	if (pos > entry->size || copied > U64_MAX - pos) {
+	
+	if (pos > entry->size || check_add_overflow((u64)pos, copied, &end)) {
 		copied = 0;
 		goto out;
 	}
-	end = pos + copied;
+
 	if (end > entry->size) {
-		mutex_lock(&sbi->allocation_lock);
 		old_offset = entry->data_offset;
 		old_size = entry->size;
-		entry->data_offset = glowfs_align8(sbi->image_size);
-		entry->size = end;
-		sbi->image_size = glowfs_align8(entry->data_offset + entry->size);
+		
+		new_offset = glowfs_align8(sbi->image_size);
+		if (check_add_overflow(new_offset, end, &new_image_size))
+			new_image_size = glowfs_align8(new_offset + end);
 
 		if (old_size > 0) {
-			u8 *copy = kmalloc(PAGE_SIZE, GFP_KERNEL);
+			u8 *copy_buf;
+			u64 chunk_size = min_t(u64, PAGE_SIZE * 4, old_size);
 			u64 done = 0;
 
-			if (!copy) {
-				entry->data_offset = old_offset;
-				entry->size = old_size;
-				mutex_unlock(&sbi->allocation_lock);
+			copy_buf = kmalloc(chunk_size, GFP_KERNEL);
+			if (!copy_buf) {
 				copied = 0;
 				goto out;
 			}
-			while (done < old_size) {
-				size_t chunk = min_t(u64, PAGE_SIZE, old_size - done);
 
-				ret = glowfs_read_bytes(inode->i_sb, old_offset + done, copy, chunk);
+			while (done < old_size) {
+				size_t chunk = min_t(u64, chunk_size, old_size - done);
+
+				ret = glowfs_read_bytes(inode->i_sb, old_offset + done, copy_buf, chunk);
 				if (!ret)
-					ret = glowfs_write_bytes(inode->i_sb, entry->data_offset + done, copy, chunk);
+					ret = glowfs_write_bytes(inode->i_sb, new_offset + done, copy_buf, chunk);
+				
 				if (ret) {
-					kfree(copy);
-					entry->data_offset = old_offset;
-					entry->size = old_size;
-					mutex_unlock(&sbi->allocation_lock);
+					kfree(copy_buf);
 					copied = 0;
 					goto out;
 				}
 				done += chunk;
 			}
-			kfree(copy);
+			kfree(copy_buf);
 		}
+
+		mutex_lock(&sbi->allocation_lock);
+		
+		if (sbi->image_size != glowfs_align8(old_offset + old_size)) {
+			mutex_unlock(&sbi->allocation_lock);
+			copied = 0;
+			goto out;
+		}
+
+		entry->data_offset = new_offset;
+		entry->size = end;
+		sbi->image_size = new_image_size;
 
 		ret = glowfs_write_header_image_size(inode->i_sb, sbi->image_size);
 		if (!ret)
 			ret = glowfs_write_disk_entry(inode->i_sb, entry);
-		mutex_unlock(&sbi->allocation_lock);
+		
 		if (ret) {
 			entry->data_offset = old_offset;
 			entry->size = old_size;
+			sbi->image_size = glowfs_align8(old_offset + old_size);
+			mutex_unlock(&sbi->allocation_lock);
 			i_size_write(inode, old_size);
 			copied = 0;
 			goto out;
 		}
+		
+		mutex_unlock(&sbi->allocation_lock);
 		i_size_write(inode, entry->size);
 	}
 
-	/* Write folio contents to disk */
 	{
 		loff_t wpos = folio_pos(folio);
 		size_t wsize = folio_size(folio);
@@ -541,10 +609,12 @@ static int glowfs_writepage(struct page *page, struct writeback_control *wbc)
 
 static const struct inode_operations glowfs_dir_inode_ops = {
 	.lookup = glowfs_lookup,
+	.permission = glowfs_permission_check,
 };
 
 static const struct inode_operations glowfs_symlink_inode_ops = {
 	.get_link = glowfs_get_link,
+	.permission = glowfs_permission_check,
 };
 
 static const struct file_operations glowfs_dir_ops = {
@@ -561,6 +631,7 @@ static const struct file_operations glowfs_file_ops = {
 	.splice_read = filemap_splice_read,
 	.fsync = generic_file_fsync,
 	.llseek = generic_file_llseek,
+	.open = generic_file_open,
 };
 
 static const struct address_space_operations glowfs_aops = {
@@ -596,6 +667,8 @@ static int glowfs_load_entries(struct super_block *sb, struct glowfs_disk_header
 	sbi->flags = flags;
 	sbi->image_size = image_size;
 	mutex_init(&sbi->allocation_lock);
+	mutex_init(&sbi->lookup_lock);
+	hash_init(sbi->inode_hash);
 	sbi->entries = kcalloc(entry_count, sizeof(*sbi->entries), GFP_KERNEL);
 	if (!sbi->entries)
 		return -ENOMEM;
@@ -643,6 +716,8 @@ static int glowfs_load_entries(struct super_block *sb, struct glowfs_disk_header
 		if (entry->name_len && memchr(sbi->names + entry->name_offset, '/', entry->name_len))
 			return -EINVAL;
 		entry->name = sbi->names + entry->name_offset;
+		
+		hash_add(sbi->inode_hash, &entry->hnode, entry->inode);
 	}
 
 	if (sbi->entries[0].inode != 1 || sbi->entries[0].parent != 1 || sbi->entries[0].kind != GLOWFS_KIND_DIR)

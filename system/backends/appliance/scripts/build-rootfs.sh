@@ -12,13 +12,19 @@ GENERATION_DIR="${OUT_DIR}/generations"
 GLOWFS_IMAGE="${OUT_DIR}/alpenglow-root.glowfs"
 
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
-ALPENGLOW_PROFILE="${ALPENGLOW_PROFILE:-standard}"
+BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+COMPILER="${COMPILER:-llvm}"
 OIL_CMD="${OIL_CMD:-wax}"
 
-case "${ALPENGLOW_PROFILE}" in
+case "${BUILD_PROFILE}" in
   minimal) PKG_LIST="${BACKEND_DIR}/packages-minimal.txt" ;;
   standard) PKG_LIST="${BACKEND_DIR}/packages-runtime.txt" ;;
-  *) echo "Unknown profile: ${ALPENGLOW_PROFILE}. Use minimal or standard." >&2; exit 1 ;;
+  *) echo "Unknown profile: ${BUILD_PROFILE}. Use minimal or standard." >&2; exit 1 ;;
+esac
+
+case "${COMPILER}" in
+  llvm|inauguration) ;;
+  *) echo "Unknown compiler: ${COMPILER}. Use llvm or inauguration." >&2; exit 1 ;;
 esac
 
 mkdir -p "${OUT_DIR}" "${GENERATION_DIR}"
@@ -28,7 +34,8 @@ mkdir -p "${ROOTFS_DIR}"
 echo "Alpenglow native appliance build"
 echo "  arch:   ${ALPENGLOW_ARCH}"
 echo "  oil:    ${OIL_CMD}"
-echo "  profile: ${ALPENGLOW_PROFILE}"
+echo "  profile: ${BUILD_PROFILE}"
+echo "  compiler: ${COMPILER}"
 echo "  pkg:    ${PKG_LIST}"
 echo ""
 
@@ -54,7 +61,7 @@ while IFS= read -r pkg || [ -n "${pkg}" ]; do
 done < "${PKG_LIST}"
 
 # ── Phase 2: Configure rootfs ───────────────────────────────────────
-"${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
+BUILD_PROFILE="${BUILD_PROFILE}" COMPILER="${COMPILER}" "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
 
 # ── Phase 3: Compose GlowFS image ───────────────────────────────────
 echo "→ Composing GlowFS image..."
@@ -77,6 +84,7 @@ cat > "${GENERATION_FILE}" <<EOF
   "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "arch": "${ALPENGLOW_ARCH}",
   "backend": "alpenglow-native",
+  "compiler": "${COMPILER}",
   "image": "${GLOWFS_IMAGE}",
   "packages": $(wc -l < "${PKG_LIST}")
 }
@@ -90,4 +98,4 @@ echo "  image:   ${GLOWFS_IMAGE}"
 echo "  gen:     ${GEN_ID}"
 echo ""
 echo "To boot:"
-echo "  qemu-system-x86_64 -kernel /boot/vmlinuz -initrd initramfs -append \"alpenglow.ram_root alpine.image=${GLOWFS_IMAGE}\""
+echo "  qemu-system-x86_64 -kernel /boot/vmlinuz -initrd initramfs -append \"alpenglow.ram_root alpenglow.image=${GLOWFS_IMAGE}\""

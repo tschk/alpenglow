@@ -1,0 +1,6 @@
+# earlyoom — out-of-memory killer guard
+# Kills the worst offender before the kernel hard-OOM path fires.
+type = process
+command = /usr/sbin/earlyoom -m 10 -s 0 -r 60
+restart = yes
+depends-on = mount-filesystems

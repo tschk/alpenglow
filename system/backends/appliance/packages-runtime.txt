@@ -39,6 +39,7 @@ wayland
 wayland-protocols
 glowfs-wayland
 foot
+alpenglowed
 
 # Session management
 greetd
@@ -102,3 +103,6 @@ chrony
 
 # Local DNS caching
 dnsmasq
+
+# OOM guard
+earlyoom

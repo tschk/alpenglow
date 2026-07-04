@@ -1,40 +1,12 @@
-# Alpenglow v0 architecture
+# Alpenglow Architecture (v0)
 
-## Goal
+**Build**: Docker cross-compile in CI. Kernel: tracks kernel.org latest stable + custom config.
+**Boot**: initramfs only (diskless) or ext4 root (rootfs mode).
+**Init**: dinit (PID 1) — parallel dependency graph.
+**Userland**: toybox + oksh. Static musl, no glibc.
+**Package mgr**: Oil (Rust, APK-compatible).
+**Net**: netd (Rust) reads /sys/class/net, emits JSON + env.
+**Kernel ctrl**: kernelctl (Zig) sets cgroups + sysctls.
+**Root FS**: GlowFS (kernel module), fallback erofs/squashfs.
 
-Deliver a minimal browser-only immutable OS experience on Alpine Linux:
-
-- wlroots kiosk compositor
-- command bar-first UX
-- constrained Rust system bridge
-- optional terminal mode through `os://term`
-
-## Boot flow
-
-1. Alpine/OpenRC boots.
-2. OpenRC starts `seatd`, `sold`, and network.
-3. OpenRC starts `alpenglow-session` (no login manager).
-
-The host root filesystem is read-only at runtime; writable state is limited to browser profile, cache, downloads, logs, and terminal/session data.
-
-## Security boundary
-
-- UI cannot access host filesystem directly.
-- UI talks only to `sold` over localhost APIs.
-- `sold` requires bearer token (`ALPENGLOW_TOKEN`).
-- API allowlist:
-  - `/v1/status/battery`
-  - `/v1/status/network`
-  - `/v1/power/*`
-  - `/v1/notify`
-  - `/v1/term/session*`
-
-## Command model
-
-The command bar is the main UX surface:
-
-- URL input -> navigate
-- free text -> search
-- `os://status` -> system status panel
-- `os://power/<action>` -> controlled power command
-- `os://term` -> PTY session (`zellij` preferred, backed by `sold`)
+See [AGENTS.md](../AGENTS.md) for full architecture table.
