@@ -140,7 +140,7 @@ SIZE_KB=$(( $(stat -f%z "${INITRAMFS}" 2>/dev/null || stat -c%s "${INITRAMFS}") 
 echo "  ${INITRAMFS} (${SIZE_KB}K)"
 
 # Build custom aarch64 kernel with embedded initramfs
-sh "${BACKEND_DIR}/scripts/build-kernel-aarch64.sh" "${BUILD_OUT}" "${REPO_ROOT}"
+KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-aarch64.sh" "${BUILD_OUT}" "${REPO_ROOT}"
 
 echo ""
 echo "To boot the proper aarch64 initramfs:"
