@@ -12,9 +12,10 @@ Measured after the Zig common-module refactor and the boot-test fixes
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **1.05 s** (n=5 median) | FAST config, default `q35` machine + `-cpu host` |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **2.7 s** (n=5 median) | Standard config: EFI kernel, `q35` |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **6.0 s** (n=3 median) | OVMF: EFI firmware init overhead dominates |
-| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.78 s** (n=5 median) | Proper initramfs: Zig init + toybox + dinit (2.1 MB, lz4) |
+| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.68 s** (n=5 median) | Custom 7.0.12 kernel + embedded LZ4 initramfs + Zig init |
+| aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.78 s** (n=5 median) | Alpine virt kernel + LZ4 initramfs + Zig init |
 
-Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`, aggressive disables): **0.53 s**, kernel+initramfs **6.2 MB**, memory **2.0 GB total / 2.0 GB free**. Previous x86_64 FAST without aggressive disables: **0.73 s**. Latest aarch64 run (proper OS, `MACHINE=virt`, `-cpu max`): **0.78 s**, initramfs **2.1 MB**, kernel **9.6 MB**, memory **512 MB total**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
+Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`, aggressive disables): **0.53 s**, kernel+initramfs **6.2 MB**. Latest aarch64 run (custom 7.0.12 kernel, `MACHINE=virt`, `-cpu max`): **0.68 s**, kernel+initramfs **10.3 MB**. Previous aarch64 with Alpine virt kernel: **0.78 s**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
 
 ## vCPU scaling
 
