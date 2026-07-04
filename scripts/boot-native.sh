@@ -178,7 +178,12 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     # Config overrides: LZ4 + virt drivers + minimal + EFI (for OVMF) + optional fast boot
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> .config 2>/dev/null || true
+    if [ "${BUILD_PROFILE}" = "standard" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> .config 2>/dev/null || true
+    else
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
+    fi
     if [ "${EFI:-1}" = "1" ]; then
       cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
     fi
@@ -216,6 +221,12 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    if [ "${BUILD_PROFILE}" = "standard" ]; then
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    else
+      cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
+    fi
     if [ "${EFI:-1}" = "1" ]; then
       cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     fi
@@ -913,7 +924,7 @@ echo ""
 
 # FAST kernel: tiny kernel with embedded initramfs
 if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
-  sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
+  KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
 fi
 
 # Boot
