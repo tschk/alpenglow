@@ -15,17 +15,13 @@ test -L CLAUDE.md || fail "CLAUDE.md must be a symlink"
 
 # Core backend contract
 for path in \
-  system/appliance/scripts/select-backend.sh \
   system/appliance/scripts/oil-installer.sh \
   system/appliance/README.md \
-  system/appliance/backend.schema.json \
-  system/appliance/backends.json \
   system/appliance/filesystems/rootfs-layout.json \
   system/appliance/filesystems/state-mounts.json
 do
   assert_file "${path}"
 done
-assert_executable system/appliance/scripts/select-backend.sh
 
 # Native appliance backend
 for path in \
@@ -34,30 +30,19 @@ for path in \
   system/backends/appliance/packages-dev.txt \
   system/backends/appliance/scripts/build-rootfs.sh \
   system/backends/appliance/scripts/configure-rootfs.sh \
+  system/backends/appliance/scripts/alpenglow-session-start \
   system/backends/appliance/scripts/mount-glowfs-root.sh \
   system/backends/appliance/scripts/mount-state.sh
 do
   assert_file "${path}"
 done
+assert_executable system/backends/appliance/scripts/alpenglow-session-start
+assert_file system/backends/appliance/rootfs-overlay/etc/greetd/config.toml
+assert_file system/backends/appliance/rootfs-overlay/etc/greetd/config-autologin.toml
 for dinit_svc in system/backends/appliance/dinit/*; do
   sh -n "${dinit_svc}" 2>/dev/null || sh -c ". ${dinit_svc}" 2>/dev/null || true
 done
 
-# Void reference backend
-for path in \
-  system/backends/void/backend.json \
-  system/backends/void/README.md \
-  system/backends/void/packages-runtime.txt \
-  system/backends/void/packages-dev.txt \
-  system/backends/void/scripts/build-rootfs.sh \
-  system/backends/void/scripts/configure-rootfs.sh
-do
-  assert_file "${path}"
-done
-for runit_svc in system/backends/void/runit/*/run; do
-  assert_file "${runit_svc}"
-  sh -n "${runit_svc}"
-done
 
 # Kernel config
 assert_file system/backends/appliance/kernel/alpenglow-internet-appliance.config
@@ -87,10 +72,10 @@ assert_contains system/backends/appliance/backend.json '"id": "alpenglow-native"
 assert_contains system/backends/appliance/backend.json '"libc": "musl"'
 assert_contains system/backends/appliance/backend.json '"init": "dinit"'
 assert_contains system/backends/appliance/backend.json '"package_manager": "oil"'
-
-# backends.json validation
-assert_contains system/appliance/backends.json '"default": "alpenglow-native"'
-assert_contains system/appliance/backends.json '"composition_model": "oasis-static"'
+assert_file system/backends/appliance/dinit/alpenglowed
+assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
+assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
+assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
 
 # rootfs-layout.json validation
 assert_contains system/appliance/filesystems/rootfs-layout.json '"role": "immutable-system"'
@@ -103,8 +88,12 @@ assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT INT TERM
-mkdir -p "${tmp_root}"/{bin,sbin,etc,dev,proc,sys,tmp,run}
+for dir in bin sbin etc dev proc sys tmp run; do
+  mkdir -p "${tmp_root}/${dir}"
+done
 cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
 system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
+assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor": "velox"'
 
 printf 'ci-os-appliance: ok\n'

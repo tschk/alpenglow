@@ -6,33 +6,55 @@ set -eu
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_OUT="${REPO_ROOT}/build/cross/aarch64"
 MEMORY_MB="${MEMORY_MB:-512}"
+ACCEL="${ACCEL:-hvf}"
+CPU="${CPU:-}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 require_cmd qemu-system-aarch64
 
-for f in vmlinuz-virt initramfs.cpio.gz; do
+for f in vmlinuz; do
   if [ ! -f "${BUILD_OUT}/${f}" ]; then
     echo "ERROR: ${BUILD_OUT}/${f} not found. Run scripts/build-aarch64.sh first." >&2
     exit 1
   fi
 done
+if [ ! -f "${BUILD_OUT}/initramfs-proper.cpio.lz4" ] && [ ! -f "${BUILD_OUT}/initramfs-proper.cpio.gz" ] && [ ! -f "${BUILD_OUT}/initramfs.cpio.gz" ]; then
+  echo "ERROR: no initramfs found in ${BUILD_OUT}. Run scripts/build-aarch64-fast.sh first." >&2
+  exit 1
+fi
 
 echo "=== Alpenglow aarch64 QEMU boot ==="
-echo "  kernel:    ${BUILD_OUT}/vmlinuz-virt"
-echo "  initramfs: ${BUILD_OUT}/initramfs.cpio.gz"
+INITRAMFS="${INITRAMFS:-${BUILD_OUT}/initramfs-proper.cpio.lz4}"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${BUILD_OUT}/initramfs-proper.cpio.gz"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${BUILD_OUT}/initramfs.cpio.gz"
+echo "  kernel:    ${BUILD_OUT}/vmlinuz"
+echo "  initramfs: ${INITRAMFS}"
 echo "  memory:    ${MEMORY_MB}MB"
 echo "  Ctrl-A X  to quit QEMU"
 echo ""
 
+QEMU_CPU=""
+if [ -z "${CPU}" ]; then
+  QEMU_CPU="-cpu max"
+elif [ -n "${CPU}" ]; then
+  QEMU_CPU="-cpu ${CPU}"
+fi
+
+INITRD_ARG=""
+if [ ! -f "${BUILD_OUT}/.kernel-aarch64.ok" ]; then
+  INITRD_ARG="-initrd ${INITRAMFS}"
+fi
+
 qemu-system-aarch64 \
   -M virt \
-  -cpu max \
+  -accel "${ACCEL}" \
+  ${QEMU_CPU} \
   -m "${MEMORY_MB}" \
   -smp 2 \
   -nographic \
   -no-reboot \
-  -kernel "${BUILD_OUT}/vmlinuz-virt" \
-  -initrd "${BUILD_OUT}/initramfs.cpio.gz" \
+  -kernel "${BUILD_OUT}/vmlinuz" \
+  ${INITRD_ARG} \
   -append "console=ttyAMA0,115200 init=/init quiet"
 
 echo ""

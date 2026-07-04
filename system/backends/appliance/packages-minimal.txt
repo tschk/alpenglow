@@ -39,3 +39,6 @@ chrony
 
 # Local DNS caching
 dnsmasq
+
+# OOM guard
+earlyoom

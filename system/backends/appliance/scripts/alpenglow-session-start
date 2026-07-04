@@ -1,0 +1,43 @@
+#!/bin/sh
+# Logged-in graphical session (after greetd). Starts compositor + alpenglowed shell.
+set -eu
+
+DEFAULTS_DIR="/usr/share/defaults/alpenglowed"
+USER_CONFIG_DIR="/etc/alpenglowed"
+FACTORY_RESET_MARKER="/var/lib/alpenglow/.factory-reset"
+
+# Copy shipped defaults to /etc if no user config exists yet.
+# On factory-reset, remove the user config and re-copy on next launch.
+copy_defaults() {
+  if [ -f "${FACTORY_RESET_MARKER}" ]; then
+    rm -rf "${USER_CONFIG_DIR}"
+    rm -f "${FACTORY_RESET_MARKER}"
+  fi
+  if [ ! -d "${USER_CONFIG_DIR}" ] && [ -d "${DEFAULTS_DIR}" ]; then
+    mkdir -p "${USER_CONFIG_DIR}"
+    cp -R "${DEFAULTS_DIR}/." "${USER_CONFIG_DIR}/"
+    chmod -R u+rw,go+r "${USER_CONFIG_DIR}"
+  fi
+}
+copy_defaults
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export GDK_BACKEND=wayland
+export QT_QPA_PLATFORM=wayland
+export SDL_VIDEODRIVER=wayland
+export _JAVA_AWT_WM_NONREPARENTING=1
+export CLUTTER_BACKEND=wayland
+export FREEDESKTOP_MONITORS="${FREEDESKTOP_MONITORS:-/run/user/$(id -u)/monitors}"
+
+mkdir -p "${XDG_RUNTIME_DIR}"
+chmod 700 "${XDG_RUNTIME_DIR}"
+
+if [ -x /usr/bin/cage-run.sh ]; then
+	exec /usr/bin/cage-run.sh
+fi
+
+if command -v alpenglowed >/dev/null 2>&1; then
+	exec alpenglowed
+fi
+
+exec cage

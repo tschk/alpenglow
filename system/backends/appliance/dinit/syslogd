@@ -1,5 +1,5 @@
 # System logger
 type = process
-command = /sbin/syslogd -n
-restart = always
+command = /usr/sbin/syslogd -n
+restart = yes
 depends-on = mount-filesystems

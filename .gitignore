@@ -56,6 +56,12 @@ system/kernelctl-zig/.zig-cache/
 system/kernelctl-zig/zig-out/
 system/glowfsctl-zig/.zig-cache/
 system/glowfsctl-zig/zig-out/
+system/netd-zig/.zig-cache/
+system/netd-zig/zig-out/
+system/zramctl-zig/.zig-cache/
+system/zramctl-zig/zig-out/
+system/pressurectl-zig/.zig-cache/
+system/pressurectl-zig/zig-out/
 third_party/ghostty/zig-out/
 
 # Kernel build artifacts
@@ -73,3 +79,7 @@ modules.order
 README.md
 .agents/
 system/backends/appliance/vro/vro
+
+# Local/tooling directories
+.poolside/
+piolium/

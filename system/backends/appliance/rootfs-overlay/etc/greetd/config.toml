@@ -1,7 +1,13 @@
+# Alpenglow graphical login (greetd + alpenglow-greeter).
+# Autologin: replace this file with config-autologin.toml (see /etc/alpenglow/autologin).
+
 [terminal]
 vt = 1
-default_session = /opt/alpenglow/session-init
 
 [default_session]
-command = /opt/alpenglow/session-init
-user = alpenglow
+command = "/usr/local/bin/alpenglow-session-start"
+user = "root"
+
+[greeter]
+command = "/usr/bin/alpenglow-greeter-cage.sh"
+user = "root"

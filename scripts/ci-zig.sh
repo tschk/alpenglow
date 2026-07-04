@@ -15,14 +15,8 @@ fi
 ZIG_VERSION="$(zig version 2>&1)"
 echo "ci-zig: zig ${ZIG_VERSION}"
 
-# Determine release flag (0.14: -Doptimize=ReleaseSmall, 0.16: -Drelease=true)
-# ponytail: version-based flag, no probing (exits masked with | tail)
-ZIG_MAJOR="$(zig version | cut -d. -f2)"
-if [ "${ZIG_MAJOR}" -ge 16 ]; then
-  RELEASE_FLAG="-Drelease=true"
-else
-  RELEASE_FLAG="-Doptimize=ReleaseSmall"
-fi
+# standardOptimizeOption exposes -Drelease=true in Zig 0.14+.
+RELEASE_FLAG="-Drelease=true"
 echo "ci-zig: using ${RELEASE_FLAG}"
 
 # Build kernelctl-zig
@@ -34,5 +28,20 @@ echo "ci-zig: kernelctl-zig built OK"
 echo "ci-zig: building glowfsctl-zig..."
 (cd "${REPO_ROOT}/system/glowfsctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
 echo "ci-zig: glowfsctl-zig built OK"
+
+# Build netd-zig
+echo "ci-zig: building netd-zig..."
+(cd "${REPO_ROOT}/system/netd-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
+echo "ci-zig: netd-zig built OK"
+
+# Build zramctl-zig
+echo "ci-zig: building zramctl-zig..."
+(cd "${REPO_ROOT}/system/zramctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
+echo "ci-zig: zramctl-zig built OK"
+
+# Build pressurectl-zig
+echo "ci-zig: building pressurectl-zig..."
+(cd "${REPO_ROOT}/system/pressurectl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
+echo "ci-zig: pressurectl-zig built OK"
 
 printf 'ci-zig: ok\n'

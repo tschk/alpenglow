@@ -1,39 +1,29 @@
 # Architecture Support
 
-General-purpose musl+LLVM Linux distribution supporting two deployment modes:
-- **Diskless/Appliance** — initramfs-only, RAM root, GlowFS overlay
-- **Rootfs/Desktop** — normal root-on-disk, package-managed
+## x86_64 — main branch (primary target)
 
-Both modes share the same kernel, toolchain, init system, and package manager.
-The only difference is the boot flow: initramfs with switch_root vs persistent root.
+QEMU: `qemu-system-x86_64 -machine q35,accel=kvm|hvf`  
+Kernel: custom kernel.org latest stable + CONFIG_RUST=y, or Alpine pre-built virt  
+Boot: `scripts/boot-native.sh` (build + QEMU boot)  
+UEFI: OVMF (saves ~200ms vs SeaBIOS)  
+Init: dinit + toybox + getty → ~1.3s to login (standard), ~0.6s (minimal Zig init)
 
-## Current (x86_64)
+## riscv64 — arch/riscv64 branch
 
-- **Boot:** Limine (UEFI) + SeaBIOS (QEMU), or direct initramfs
-- **Kernel:** Linux 7.0, CONFIG_RUST=y, defconfig+kvm_guest+rust (13MB)
-- **Init:** dinit (Zig 4.8KB fallback)
-- **Userland:** toybox musl static
-- **Toolchain:** LLVM/Clang, Zig 0.16, Rust 1.93
-- **Mode:** Diskless by default, rootfs supported
-- **Branch:** `main`
+QEMU: `qemu-system-riscv64 -M virt -bios opensbi`  
+Kernel: Alpenglow-built kernel.org latest stable (Image, cross-compiled)  
+Boot: `scripts/qemu-boot-riscv64.sh` (autobuilds kernel + initramfs)  
+Init: Zig init (4.8K static) → ~0.66s to login  
+Console: `earlycon=sbi console=ttyS0,115200`
 
-## Target: aarch64
+## aarch64 — arch/aarch64 branch
 
-| SoC/Board | Branch | Status |
-|-----------|--------|--------|
-| QEMU virt (dev) | `arch/aarch64` | Config ready, kernel builds |
-| RK3566 (Quartz64, SOQuartz, Radxa E25) | `board/rk3566` | Config + U-Boot script |
-| RK3588 (future) | TBD | Not started |
+QEMU: `qemu-system-aarch64 -M virt -cpu max`  
+Kernel: pre-built Alpine virt kernel  
+Boot: `scripts/qemu-boot-aarch64.sh`  
+Init: Zig init (4.8K static)
 
-### Kernel config
-```
-CONFIG_ARCH_ARM64=y
-CONFIG_ARM64_VA_BITS_48=y
-CONFIG_RUST=y
-CONFIG_SERIAL_AMBA_PL011=y
-CONFIG_VIRTIO_MMIO=y
-```
-Full config: `system/alpine/kernel/config-aarch64`
+## Rockchip RK3566 — board/rk3566 branch
 
 ### Boot
 - **QEMU virt:** `qemu-system-aarch64 -machine virt -cpu cortex-a57`
@@ -167,4 +157,7 @@ and package recipes but the rootfs design is different.
 | toybox, dinit | C/C++ | `CROSS_COMPILE=aarch64-linux-musl-` or `riscv64-linux-musl-` |
 | Linux kernel | make | `ARCH=arm64 CROSS_COMPILE=aarch64-linux-musl-` or `ARCH=riscv CROSS_COMPILE=riscv64-linux-musl-` |
 
-See `scripts/cross-build.sh` for the automated pipeline.
+See `scripts/cross-build.sh` for the automated pipeline.  
+U-Boot: `scripts/build-uboot-rk3566.sh` (rk3566_quartz64_defconfig)  
+Flash: `scripts/flash-rk3566.sh`  
+Test: `scripts/test-rk3566.md`
