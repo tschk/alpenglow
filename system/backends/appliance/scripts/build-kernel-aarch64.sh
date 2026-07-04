@@ -48,8 +48,7 @@ docker run --rm --platform linux/amd64 \
       tar -xf k.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
-    make ARCH=arm64 defconfig >/dev/null 2>&1
-    cat /kcfg/aarch64-virt.config >> .config 2>/dev/null || true
+    cp /kcfg/alpenglow-virt.config .config
     cat /kcfg/aarch64-fast.config >> .config 2>/dev/null || true
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig >/dev/null 2>&1
     ./scripts/config --disable OBJTOOL --disable STACK_VALIDATION --disable UNWINDER_ORC 2>/dev/null || true
