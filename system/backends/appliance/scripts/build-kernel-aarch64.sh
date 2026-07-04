@@ -36,7 +36,7 @@ docker run --rm --platform linux/amd64 \
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
-      libncurses-dev dwarves rsync kmod wget xz-utils ca-certificates \
+      libncurses-dev dwarves rsync kmod wget xz-utils ca-certificates python3 \
       gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu lz4
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
