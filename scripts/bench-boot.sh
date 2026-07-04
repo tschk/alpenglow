@@ -39,9 +39,12 @@ elif [ -n "${CPU}" ]; then
 fi
 
 EMBEDDED_INITRAMFS=""
-if [ -f "${OUT_DIR}/.kernel-fast.ok" ]; then
-  EMBEDDED_INITRAMFS="1"
-fi
+for stamp in "${OUT_DIR}/.kernel-fast.ok" "${OUT_DIR}/.kernel-minimal.ok" "${OUT_DIR}/.kernel-desktop.ok"; do
+  if [ -f "${stamp}" ]; then
+    EMBEDDED_INITRAMFS="1"
+    break
+  fi
+done
 
 INITRD_ARG=""
 if [ -z "${EMBEDDED_INITRAMFS}" ]; then
