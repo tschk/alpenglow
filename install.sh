@@ -31,8 +31,7 @@ doctor() {
     system/backends/appliance/scripts/qemu.sh \
     scripts/boot-native.sh \
     scripts/ci-qemu-appliance.sh \
-    system/backends/appliance/kernel/alpenglow-internet-appliance.config \
-  do
+    system/backends/appliance/kernel/alpenglow-internet-appliance.config; do
     [ -f "${ROOT_DIR}/${p}" ] && note "${p}" || bad "${p}"
   done
   echo ""
