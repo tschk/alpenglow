@@ -17,4 +17,4 @@ chown "${USER}" "${XDG_RUNTIME_DIR}"
 
 # Start session wrapper
 # This is called by greetd after authentication
-exec /usr/bin/velox 2>&1
+exec /usr/local/bin/alpenglow-session-start 2>&1

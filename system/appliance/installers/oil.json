@@ -6,7 +6,7 @@
   "state_root": "/var/lib/alpenglow/oil",
   "notes": [
     "The oil repository currently builds the wax binary.",
-    "Void base bootstrap still uses XBPS only as a fetcher until oil exposes a Void registry backend.",
+    "Alpenglow native rootfs composition uses Oil as the system package bridge.",
     "Oil-managed additions use WAX_SYSTEM_PREFIX against the composed rootfs."
   ]
 }

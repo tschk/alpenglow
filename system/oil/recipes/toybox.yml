@@ -1,0 +1,16 @@
+# Oil recipe — see docs/architecture/oil-recipe-format.md for the schema.
+name: toybox
+version: 0.8.13-r0
+description: BSD-licensed alternative to busybox coreutils
+
+source:
+  url: https://dl-cdn.alpinelinux.org/alpine/edge/testing/x86_64/toybox-0.8.13-r0.apk
+  sha256: c24fc17a556859e3b5fd6a1fdb079c5b60c02872dba1113a37fcfab222b6d73e
+
+# No build steps: Oil installs the prebuilt Alpine .apk directly.
+build: []
+
+install: /usr/local
+
+provides:
+  - cmd:toybox

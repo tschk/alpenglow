@@ -36,9 +36,6 @@ pub struct NetworkInterface {
 pub enum InterfaceKind {
     Loopback,
     Ethernet,
-    Wireless,
-    Other(i32),
-    Unknown,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -46,13 +43,6 @@ pub enum InterfaceKind {
 pub enum OperState {
     Up,
     Down,
-    Dormant,
-    #[serde(rename = "lower-layer-down")]
-    LowerLayerDown,
-    #[serde(rename = "not-present")]
-    NotPresent,
-    Testing,
-    Unknown,
 }
 
 pub fn read_snapshot(sys_class_net: impl AsRef<Path>) -> io::Result<NetworkSnapshot> {
@@ -66,8 +56,9 @@ pub fn read_snapshot(sys_class_net: impl AsRef<Path>) -> io::Result<NetworkSnaps
     }
     for entry in fs::read_dir(root)? {
         let entry = entry?;
+        let file_type = entry.file_type()?;
         let path = entry.path();
-        if !path.is_dir() {
+        if !file_type.is_dir() && !file_type.is_symlink() {
             continue;
         }
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -118,7 +109,10 @@ pub fn write_snapshot(
 ) -> io::Result<()> {
     let json = render_json(snapshot);
     write_file(state_json.as_ref(), json.as_bytes())?;
-    write_file(runtime_env.as_ref(), render_runtime_env(snapshot).as_bytes())
+    write_file(
+        runtime_env.as_ref(),
+        render_runtime_env(snapshot).as_bytes(),
+    )
 }
 
 fn read_interface(name: &str, path: &Path) -> io::Result<NetworkInterface> {
@@ -144,17 +138,13 @@ fn read_interface(name: &str, path: &Path) -> io::Result<NetworkInterface> {
 }
 
 fn read_kind(path: &Path) -> io::Result<InterfaceKind> {
-    if path.join("wireless").is_dir() {
-        return Ok(InterfaceKind::Wireless);
-    }
     let Some(value) = read_trimmed(path.join("type"))? else {
-        return Ok(InterfaceKind::Unknown);
+        return Ok(InterfaceKind::Ethernet);
     };
     Ok(match value.parse::<i32>() {
         Ok(1) => InterfaceKind::Ethernet,
         Ok(772) => InterfaceKind::Loopback,
-        Ok(kind) => InterfaceKind::Other(kind),
-        Err(_) => InterfaceKind::Unknown,
+        _ => InterfaceKind::Ethernet,
     })
 }
 
@@ -162,15 +152,10 @@ fn read_operstate(path: &Path) -> io::Result<OperState> {
     Ok(
         match read_trimmed(path.join("operstate"))?
             .as_deref()
-            .unwrap_or("unknown")
+            .unwrap_or("down")
         {
             "up" => OperState::Up,
-            "down" => OperState::Down,
-            "dormant" => OperState::Dormant,
-            "lowerlayerdown" => OperState::LowerLayerDown,
-            "notpresent" => OperState::NotPresent,
-            "testing" => OperState::Testing,
-            _ => OperState::Unknown,
+            _ => OperState::Down,
         },
     )
 }
@@ -178,7 +163,12 @@ fn read_operstate(path: &Path) -> io::Result<OperState> {
 fn read_trimmed(path: PathBuf) -> io::Result<Option<String>> {
     match fs::read_to_string(&path) {
         Ok(value) => Ok(Some(value.trim().to_owned())),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error)
+            if error.kind() == io::ErrorKind::NotFound
+                || error.kind() == io::ErrorKind::InvalidInput =>
+        {
+            Ok(None)
+        }
         Err(error) => Err(error),
     }
 }
@@ -286,21 +276,19 @@ mod tests {
     fn renders_json_with_kebab_case() {
         let snapshot = NetworkSnapshot {
             generated_unix_ms: 123,
-            interfaces: vec![
-                NetworkInterface {
-                    name: "eth0".to_owned(),
-                    index: Some(2),
-                    kind: InterfaceKind::Ethernet,
-                    mac_address: Some("02:00:00:00:00:01".to_owned()),
-                    operstate: OperState::Up,
-                    mtu: Some(1500),
-                    carrier: Some(true),
-                    speed_mbps: Some(1000),
-                    rx_bytes: Some(42),
-                    tx_bytes: Some(84),
-                    flags_hex: Some("0x1003".to_owned()),
-                },
-            ],
+            interfaces: vec![NetworkInterface {
+                name: "eth0".to_owned(),
+                index: Some(2),
+                kind: InterfaceKind::Ethernet,
+                mac_address: Some("02:00:00:00:00:01".to_owned()),
+                operstate: OperState::Up,
+                mtu: Some(1500),
+                carrier: Some(true),
+                speed_mbps: Some(1000),
+                rx_bytes: Some(42),
+                tx_bytes: Some(84),
+                flags_hex: Some("0x1003".to_owned()),
+            }],
         };
         let json = render_json(&snapshot);
         assert!(json.contains("\"name\": \"eth0\""));

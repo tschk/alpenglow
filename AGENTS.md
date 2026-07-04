@@ -13,16 +13,16 @@ Early-stage. Not production-ready.
 | Boot | Diskless — rootfs in RAM via initramfs |
 | Root FS | GlowFS (kernel module). Fallback: erofs, squashfs |
 | Init | dinit — parallel dependency-graph |
-| Compiler | LLVM/Clang default. Inauguration as future codegen |
+| Compiler | LLVM/Clang default; Inauguration track selectable via COMPILER=inauguration |
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |
-| Kernel | Hardened — minimal appliance config. Linux 7.0.12 |
+| Kernel | Hardened — minimal appliance config. Tracks kernel.org latest stable |
 | Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
 | Display | Wayland + cage+foot |
 | Audio | ALSA + PipeWire |
 | Networking | udhcpc + iwd |
-| Arch | Generic — x86_64, aarch64, etc. |
+| Arch | x86_64, aarch64 (aarch64 CI cross-compile only; x86_64 boot-tested in CI) |
 
 ### What's not in the base (by design)
 
@@ -60,12 +60,10 @@ system/
   oil/              Native package manager (Rust, APK-only)
   backends/
     appliance/      Primary target (dinit, toybox, LLVM, Oil, diskless)
-    void/           Void reference backend (deprecated)
-  alpine/           Legacy Alpine reference backend (kernel configs symlinked to appliance)
   glowfs/           GlowFS kernel module source
 docs/               Architecture, build, install docs
 
-Kernel configs live at `system/backends/appliance/kernel/`. The `system/alpine/kernel/` path is a symlink.
+Kernel configs live at `system/backends/appliance/kernel/`.
 ```
 
 ## CI
@@ -112,7 +110,7 @@ cargo test -p alpenglow-netd
 | Custom kernel build | ✅ | `KERNEL_BUILD=1` works, GlowFS in-tree |
 | GlowFS kernel module | ✅ | In-tree, weak C fallback for Rust |
 | Real hardware boot | ❌ | QEMU only for now |
-| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` (native) / `ALPENGLOW_PROFILE=minimal|standard` (Oil) |
+| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` |
 | Interactive installer | 🟡 | Planned |
 | Crepuscularity DE | 📝 | 4-phase GPUI desktop shell plan |
 
@@ -121,7 +119,7 @@ cargo test -p alpenglow-netd
 | Host | IP | User | OS | Tools |
 |------|-----|------|----|-------|
 | ultramarine | 192.168.4.134 | undivisible | Ultramarine (Fedora-like, glibc), WSL2, x86_64 | zig 0.14, cargo 1.93, docker, qemu+kvm |
-| chimera | 192.168.4.168 | undivisible | Chimera Linux (musl), kernel 7.0.12, x86_64 | cargo/rustc, /dev/kvm, no zig/docker/qemu |
+| chimera | 192.168.4.168 | undivisible | Chimera Linux (musl), x86_64 | cargo/rustc, /dev/kvm, no zig/docker/qemu |
 
 Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds and QEMU boot testing (has docker, qemu+kvm).
 

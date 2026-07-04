@@ -25,8 +25,7 @@ Platform support:
 ./scripts/boot-native.sh
 
 # Rootfs mode — install to disk
-curl -L alpenglow.example.org/installer | sh   # or:
-oil install alpenglow-core
+# I'll clean up these instructions later, and am gonna make a website or sm for this.
 
 # Custom kernel
 KERNEL_BUILD=1 ./scripts/boot-native.sh
@@ -39,14 +38,14 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Init | dinit | Parallel dependency graph, both modes |
 | Userland | toybox (838KB), oksh | Static musl, no glibc |
 | Package mgr | Oil | APK-compatible, standalone binary |
-| Kernel | Linux 7.0 + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
+| Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Rust), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | **Diskless:** GlowFS/erofs/squashfs in RAM. **Rootfs:** ext4 over LUKS |
 | Compositor | Wayland + cage + foot | Optional, not in base |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
-| Kernel | Linux 7.0+ with CONFIG_RUST=y, GlowFS in-tree |
+| Kernel | kernel.org latest stable with CONFIG_RUST=y, GlowFS in-tree |
 
 ## Project Layout
 
@@ -120,6 +119,7 @@ The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exis
 
 ## Status
 
-21/22 milestones complete. Last milestone: real hardware boot (QEMU only for now).
+It boots on real hardware! 22/22 milestones.
+Booted on 2012 Mac Mini.
 
 See [AGENTS.md](AGENTS.md) for full milestone table and [docs/](docs/) for architecture docs.

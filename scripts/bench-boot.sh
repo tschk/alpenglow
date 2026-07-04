@@ -4,108 +4,120 @@ set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 KERNEL="${ROOT_DIR}/build/native/vmlinuz"
-INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
+# Prefer the small headless initramfs; the .gz graphical image is much larger
+# and not suitable for serial boot timing.
+INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.lz4"
 [ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
+[ -f "${INITRAMFS}" ] || INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.gz"
 OUT_DIR="${ROOT_DIR}/build/native"
 ACCEL="${ACCEL:-tcg}"
 MEMORY_MB="${MEMORY_MB:-2048}"
+SMP="${SMP:-2}"
+MACHINE="${MACHINE:-q35}"
+CPU="${CPU:-}"
+FAST="${FAST:-0}"
+if [ "${FAST}" = "1" ] && [ "${ACCEL}" = "tcg" ]; then
+  ACCEL="kvm"
+fi
 
 fail() { echo "bench: $1" >&2; exit 1; }
 [ -f "${KERNEL}" ] || fail "kernel not found at ${KERNEL}"
 [ -f "${INITRAMFS}" ] || fail "initramfs not found at ${INITRAMFS}"
 
-echo "==> Booting Alpenglow in QEMU and timing boot phases..."
+echo "==> Booting Alpenglow in QEMU (${SMP} vCPU, ${MEMORY_MB}MB, ${ACCEL}) and timing boot phases..."
 
-OUTFILE="${OUT_DIR}/bench-serial.log"
+OUTFILE="$(mktemp -t alpenglow-bench-serial.XXXXXX)"
+rm -f "${OUTFILE}"
+
 START="$(date +%s%N)"
 
-qemu-system-x86_64 \
-  -machine q35,accel="${ACCEL}" \
+QEMU_CPU=""
+if [ -z "${CPU}" ] && [ "${ACCEL}" = "kvm" ]; then
+  QEMU_CPU="-cpu host"
+elif [ -n "${CPU}" ]; then
+  QEMU_CPU="-cpu ${CPU}"
+fi
+
+EMBEDDED_INITRAMFS=""
+if [ -f "${OUT_DIR}/.kernel-fast.ok" ]; then
+  EMBEDDED_INITRAMFS="1"
+fi
+
+INITRD_ARG=""
+if [ -z "${EMBEDDED_INITRAMFS}" ]; then
+  INITRD_ARG="-initrd ${INITRAMFS}"
+fi
+
+stdbuf -oL -eL qemu-system-x86_64 \
+  -machine "${MACHINE},accel=${ACCEL}" \
+  ${QEMU_CPU} \
   -m "${MEMORY_MB}" \
-  -smp 2 \
+  -smp "${SMP}" \
   -nographic \
   -no-reboot \
+  -boot order=n \
+  -device e1000,romfile=,netdev=net0 -netdev user,id=net0 \
   -kernel "${KERNEL}" \
-  -initrd "${INITRAMFS}" \
-  -append "console=ttyS0 init=/init" \
+  ${INITRD_ARG} \
+  -append "quiet console=ttyS0 init=/init" \
   < /dev/null > "${OUTFILE}" 2>&1 &
 QEMU_PID=$!
 
-# Wait for QEMU to finish (or timeout)
-MAX_SECS=60
+# Wait for the login prompt, then stop QEMU. The appliance does not
+# power off automatically, so the wall-clock time must be measured at
+# the login marker.
+MAX_ITER=600
+LOGIN_FOUND=0
 while kill -0 "${QEMU_PID}" 2>/dev/null; do
-  sleep 1
-  MAX_SECS=$((MAX_SECS - 1))
-  [ "${MAX_SECS}" -le 0 ] && { kill "${QEMU_PID}" 2>/dev/null; break; }
+  if grep -q "login:" "${OUTFILE}" 2>/dev/null; then
+    LOGIN_FOUND=1
+    break
+  fi
+  sleep 0.1
+  MAX_ITER=$((MAX_ITER - 1))
+  [ "${MAX_ITER}" -le 0 ] && { kill "${QEMU_PID}" 2>/dev/null; break; }
 done
-wait "${QEMU_PID}" 2>/dev/null || true
 
 END="$(date +%s%N)"
+kill "${QEMU_PID}" 2>/dev/null || true
+wait "${QEMU_PID}" 2>/dev/null || true
+
 TOTAL_MS=$(( (END - START) / 1000000 ))
 
-# Parse timestamps from serial log
-find_marker() {
-  grep -m1 -n "$1" "${OUTFILE}" 2>/dev/null | head -1 | cut -d: -f1 || echo ""
-}
-
-KERNEL_LINE="$(find_marker 'Linux version')"
-[ -z "${KERNEL_LINE}" ] && KERNEL_LINE="$(find_marker 'Alpenglow boot')"
-INIT_LINE="$(find_marker 'Alpenglow boot')"
-MOUNT_LINE="$(find_marker 'mount-filesystems')"
-SHELL_LINE="$(find_marker 'shell-ttyS0')"
-LOGIN_LINE="$(find_marker 'login:')"
-
-# Calculate elapsed seconds between two line numbers
-elapsed_between() {
-  a="$1"
-  b="$2"
-  if [ -z "$a" ] || [ -z "$b" ]; then
-    echo "?"
-    return
-  fi
-  # Line-based timing isn't precise but gives relative ordering
-  diff=$((b - a))
-  # Each line roughly corresponds to wall time
-  # Use total time / total lines as calibration
-  total_lines=$(wc -l < "${OUTFILE}" 2>/dev/null || echo 1)
-  [ "${total_lines}" -le 0 ] && total_lines=1
-  ms_per_line=$((TOTAL_MS / total_lines))
-  elapsed_ms=$((diff * ms_per_line))
-  awk "BEGIN { printf \"%.1f\", ${elapsed_ms} / 1000 }"
-}
+# Check which boot markers were reached.
+has_marker() { grep -q "$1" "${OUTFILE}" 2>/dev/null; }
 
 echo ""
 echo "=== Boot Time Benchmarks ==="
 echo "  Wall clock: ${TOTAL_MS}ms"
-
-if [ -n "${KERNEL_LINE}" ]; then
-  printf "  Kernel decompress to init:     %5ss\n" "$(elapsed_between "${KERNEL_LINE}" "${INIT_LINE}")"
-fi
-if [ -n "${INIT_LINE}" ]; then
-  printf "  Init to mount-filesystems:     %5ss\n" "$(elapsed_between "${INIT_LINE}" "${MOUNT_LINE}")"
-fi
-if [ -n "${MOUNT_LINE}" ]; then
-  printf "  mount-filesystems to getty:    %5ss\n" "$(elapsed_between "${MOUNT_LINE}" "${SHELL_LINE}")"
-fi
-if [ -n "${SHELL_LINE}" ]; then
-  printf "  Getty to login:                %5ss\n" "$(elapsed_between "${SHELL_LINE}" "${LOGIN_LINE}")"
-fi
 printf "  Total (power-on to login):     %5sms\n" "${TOTAL_MS}"
+has_marker 'Alpenglow boot' && echo "  marker: Alpenglow boot"
+has_marker 'mount-filesystems' && echo "  marker: mount-filesystems"
+has_marker 'shell-ttyS0' && echo "  marker: shell-ttyS0"
+has_marker 'login:' && echo "  marker: login"
 
-# Parse memory from serial log
-MEM_TOTAL="$(grep -o 'MemTotal: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print \$2" "\$3}')"
-MEM_FREE="$(grep -o 'MemFree: [0-9]* kB' "${OUTFILE}" 2>/dev/null | head -1 | awk '{print \$2" "\$3}')"
-[ -z "${MEM_TOTAL}" ] && MEM_TOTAL="?"
-[ -z "${MEM_FREE}" ] && MEM_FREE="?"
+# Parse memory from serial log. Newer kernels print "Memory: XK/YK available"
+# at boot; /proc/meminfo lines are not echoed to the console by default.
+MEM_LINE="$(grep -o 'Memory: [0-9]*K/[0-9]*K available' "${OUTFILE}" 2>/dev/null | head -1)"
+MEM_TOTAL="?"
+MEM_FREE="?"
+if [ -n "${MEM_LINE}" ]; then
+  MEM_FREE="$(echo "${MEM_LINE}" | awk -F'[ /K]' '{print $2"K"}')"
+  MEM_TOTAL="$(echo "${MEM_LINE}" | awk -F'[ /]' '{print $3}')"
+fi
 
-# Count unique files in initramfs
-INITRAMFS_FILES="$(zcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+# Count unique files in initramfs (handle both gzip and zstd)
+if command -v zstdcat >/dev/null 2>&1; then
+  INITRAMFS_FILES="$(zstdcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+else
+  INITRAMFS_FILES="$(zcat "${INITRAMFS}" 2>/dev/null | cpio -t 2>/dev/null | wc -l || echo "?")"
+fi
 
 echo ""
 echo "=== Resource Metrics ==="
-echo "  initramfs: $(du -sh "${INITRAMFS}" 2>/dev/null | cut -f1 || echo "?")"
+echo "  initramfs: $(du -sh "${INITRAMFS}" 2>/dev/null | awk '{print $1}' || echo "?")"
 echo "  initramfs files: ${INITRAMFS_FILES}"
-echo "  kernel:    $(du -sh "${KERNEL}" 2>/dev/null | cut -f1 || echo "?")"
+echo "  kernel:    $(du -shL "${KERNEL}" 2>/dev/null | awk '{print $1}' || echo "?")"
 echo "  memory:    ${MEM_TOTAL} total, ${MEM_FREE} free"
 
 echo ""

@@ -2,17 +2,15 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-BACKEND="${ALPENGLOW_BACKEND:-alpenglow-native}"
 
 usage() {
   cat <<'EOF'
-usage: ./install.sh [--check] [--doctor] [--prepare-rootfs] [--qemu-appliance] [--qemu-reference]
+usage: ./install.sh [--check] [--doctor] [--prepare-rootfs] [--qemu-appliance]
 
   --check            Static CI gates (no QEMU).
   --doctor           Report host tools and key repo paths.
-  --prepare-rootfs   Build the selected backend rootfs.
+  --prepare-rootfs   Build the appliance rootfs.
   --qemu-appliance   Headless QEMU boot smoke (ci-qemu-appliance).
-  --qemu-reference   Legacy Alpine cpio QEMU (not appliance).
 EOF
 }
 
@@ -33,7 +31,7 @@ doctor() {
     system/backends/appliance/scripts/qemu.sh \
     scripts/boot-native.sh \
     scripts/ci-qemu-appliance.sh \
-    system/backends/appliance/kernel/alpenglow-internet-appliance.config
+    system/backends/appliance/kernel/alpenglow-internet-appliance.config \
   do
     [ -f "${ROOT_DIR}/${p}" ] && note "${p}" || bad "${p}"
   done
@@ -52,21 +50,7 @@ check_ready() {
 }
 
 prepare_rootfs() {
-  case "${BACKEND}" in
-    native|alpenglow-native|appliance)
-      "${ROOT_DIR}/system/backends/appliance/scripts/build-rootfs.sh"
-      ;;
-    void|void-musl-runit)
-      "${ROOT_DIR}/system/backends/void/scripts/build-rootfs.sh"
-      ;;
-    alpine|alpine-openrc)
-      "${ROOT_DIR}/system/alpine/scripts/build-rootfs.sh"
-      ;;
-    *)
-      echo "unknown backend: ${BACKEND}" >&2
-      exit 1
-      ;;
-  esac
+  "${ROOT_DIR}/system/backends/appliance/scripts/build-rootfs.sh"
 }
 
 if [ "$#" -eq 0 ]; then
@@ -87,9 +71,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --qemu-appliance)
       "${ROOT_DIR}/scripts/ci-qemu-appliance.sh"
-      ;;
-    --qemu-reference)
-      "${ROOT_DIR}/system/alpine/scripts/qemu-v0.sh"
       ;;
     --help|-h|--usage)
       usage

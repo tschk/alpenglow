@@ -1,0 +1,13 @@
+# Skips GPUI greeter: greetd runs the desktop session directly.
+# Enable by: ln -sf config-autologin.toml /etc/greetd/config.toml
+# Or touch /etc/alpenglow/autologin at image build time.
+
+[terminal]
+vt = 1
+
+[initial_session]
+command = "/usr/local/bin/alpenglow-session-start"
+user = "root"
+
+# Dev: skip greetd and start desktop from dinit (set ALPENGLOW_SKIP_GREETD=1 at image build)
+# [default_session] is unused when initial_session is set

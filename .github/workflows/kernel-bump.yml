@@ -1,0 +1,52 @@
+name: Kernel latest-stable bump
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: Bump kernel version if a new stable release exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Check for new stable kernel
+        id: check
+        run: |
+          if scripts/check-kernel-latest.sh; then
+            echo "up_to_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply kernel version bump
+        if: steps.check.outputs.up_to_date == 'false'
+        run: scripts/check-kernel-latest.sh --apply
+
+      - name: Open bump PR
+        if: steps.check.outputs.up_to_date == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          LATEST=$(curl -fsSL https://www.kernel.org/releases.json | jq -r '.latest_stable.version')
+          BRANCH="kernel-bump/${LATEST}"
+          git checkout -b "${BRANCH}"
+          git add scripts/boot-native.sh
+          git commit -m "chore: bump default kernel to Linux ${LATEST}"
+          git push origin "${BRANCH}"
+          gh pr create --title "chore: bump default kernel to Linux ${LATEST}" \
+            --body "Weekly kernel.org check found a new stable release.\n\nCI must pass before merge." \
+            --base main

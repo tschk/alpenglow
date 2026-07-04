@@ -12,10 +12,10 @@ fi
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 BACKEND_DIR="$(CDPATH='' cd -- "${SCRIPT_DIR}/.." && pwd)"
 ROOT_DIR="$(CDPATH='' cd -- "${BACKEND_DIR}/../../.." && pwd)"
-ALPINE_DIR="${ROOT_DIR}/system/alpine"
-OVERLAY_DIR="${ALPINE_DIR}/rootfs-overlay"
+BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
+OVERLAY_DIR="${BACKEND_DIR}/rootfs-overlay"
 FILESYSTEM_MANIFEST_DIR="${ROOT_DIR}/system/appliance/filesystems"
-BIN_SRC="${ALPINE_DIR}/scripts"
+BIN_SRC="${BACKEND_DIR}/scripts"
 ALPENGLOW_UID="770"
 ALPENGLOW_GID="770"
 SOLD_UID="771"
@@ -38,6 +38,21 @@ if [ ! -d "${ROOTFS}" ]; then
   exit 1
 fi
 
+# ── usrmerge: canonicalize /bin, /sbin, /lib, /lib64 under /usr ─────
+# Oil (Phase 1 of build-rootfs.sh) already populated the rootfs before
+# this script runs, so /bin, /sbin, /lib, /lib64 may already hold real
+# files. Move whatever is there into the usr-prefixed real directory,
+# then replace the legacy top-level path with a symlink so nothing that
+# still hardcodes the old path breaks.
+mkdir -p "${ROOTFS}/usr/bin" "${ROOTFS}/usr/sbin" "${ROOTFS}/usr/lib" "${ROOTFS}/usr/lib64"
+for d in bin sbin lib lib64; do
+  if [ -d "${ROOTFS}/${d}" ] && [ ! -L "${ROOTFS}/${d}" ]; then
+    cp -R "${ROOTFS}/${d}/." "${ROOTFS}/usr/${d}/" 2>/dev/null || true
+    rm -rf "${ROOTFS}/${d}"
+  fi
+  [ -e "${ROOTFS}/${d}" ] || ln -s "usr/${d}" "${ROOTFS}/${d}"
+done
+
 ensure_group() { name="$1"; gid="$2"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/group" 2>/dev/null; then
     printf '%s:x:%s:\n' "${name}" "${gid}" >>"${ROOTFS}/etc/group"
@@ -45,7 +60,7 @@ ensure_group() { name="$1"; gid="$2"
 }
 ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/passwd" 2>/dev/null; then
-    printf '%s:x:%s:%s:%s:%s:/sbin/nologin\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" >>"${ROOTFS}/etc/passwd"
+    printf '%s:x:%s:%s:%s:%s:/usr/sbin/nologin\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" >>"${ROOTFS}/etc/passwd"
   fi
 }
 
@@ -115,41 +130,65 @@ chmod 700 "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
 chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/lib/alpenglow/browser" 2>/dev/null || true
 chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS}/var/lib/alpenglow/system" 2>/dev/null || true
 
+# Enable dinit boot services (profile-aware)
+BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+case "${BUILD_PROFILE}" in
+  minimal)
+    BOOT_SERVICES="glowfs-mount state-mount networking earlyoom dropbear chronyd syslogd crond dnsmasq"
+    WORLD_FILE="${BACKEND_DIR}/packages-minimal.txt"
+    ;;
+  standard)
+    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
+    WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
+    ;;
+  *)
+    echo "Unknown profile: ${BUILD_PROFILE}. Use minimal or standard." >&2
+    exit 1
+    ;;
+esac
+
+# Compiler track: LLVM remains the default C/C++ toolchain; Inauguration is
+# available as an alternative codegen track for .in / Rust-shaped sources.
+COMPILER="${COMPILER:-llvm}"
+case "${COMPILER}" in
+  llvm|inauguration) ;;
+  *) echo "Unknown compiler: ${COMPILER}. Use llvm or inauguration." >&2; exit 1 ;;
+esac
+
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
-cp "${BIN_SRC}/apply-kernel-policy.sh" "${ROOTFS}/usr/local/bin/"
-cp "${BIN_SRC}/apply-pressure-policy.sh" "${ROOTFS}/usr/local/bin/"
-cp "${BIN_SRC}/apply-zram-policy.sh" "${ROOTFS}/usr/local/bin/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
 cp "${SCRIPT_DIR}/mount-glowfs-root.sh" "${ROOTFS}/usr/local/bin/"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${BACKEND_DIR}/backend.json" "${ROOTFS}/etc/alpenglow/backend.json"
-cp "${BACKEND_DIR}/packages-runtime.txt" "${ROOTFS}/etc/alpenglow/world"
+cp "${WORLD_FILE}" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
 rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
-# Enable dinit boot services (profile-aware)
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
-ALPENGLOW_PROFILE="${ALPENGLOW_PROFILE:-standard}"
-case "${ALPENGLOW_PROFILE}" in
-  minimal)
-    BOOT_SERVICES="glowfs-mount state-mount networking dropbear chronyd syslogd crond dnsmasq"
-    ;;
-  standard)
-    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking iwd dropbear chronyd syslogd crond dnsmasq"
-    ;;
-esac
 for service in ${BOOT_SERVICES}; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
 done
+{
+  echo "type = scripted"
+  echo "command = /usr/bin/true"
+  echo "restart = no"
+  for service in ${BOOT_SERVICES}; do
+    echo "depends-on = ${service}"
+  done
+} > "${ROOTFS}/etc/dinit.d/boot"
 
-# Default compiler: LLVM/Clang (with Inauguration as future path)
-mkdir -p "${ROOTFS}/etc/profile.d"
-cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
-# Alpenglow system compiler: LLVM/Clang (default)
-# Inauguration will be added as a future codegen backend.
+# Compiler profile: LLVM remains the C/C++ toolchain; Inauguration is the
+# alternate codegen track for .in / Rust-shaped sources.
+mkdir -p "${ROOTFS}/etc/profile.d" "${ROOTFS}/etc/sysctl.d"
+if [ "${COMPILER}" = "inauguration" ]; then
+  cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
+# Alpenglow system compiler: Inauguration track (LLVM still handles C/C++).
+ALPENGLOW_COMPILER=inauguration
+IN=/usr/local/bin/in
+IN_TARGET=x86_64-unknown-linux-gnu
 CC=clang
 CXX=clang++
 LD=lld
@@ -160,13 +199,31 @@ RANLIB=llvm-ranlib
 CFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
 CXXFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
 LDFLAGS="-fuse-ld=lld -Wl,-z,relro,-z,now"
-export CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
+export ALPENGLOW_COMPILER IN IN_TARGET CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
 COMPEOF
+else
+  cat > "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh" <<'COMPEOF'
+# Alpenglow system compiler: LLVM/Clang (default)
+# Inauguration is available as an alternate codegen track.
+ALPENGLOW_COMPILER=llvm
+CC=clang
+CXX=clang++
+LD=lld
+AR=llvm-ar
+NM=llvm-nm
+OBJCOPY=llvm-objcopy
+RANLIB=llvm-ranlib
+CFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
+CXXFLAGS="-O2 -pipe -fomit-frame-pointer -fstack-protector-strong"
+LDFLAGS="-fuse-ld=lld -Wl,-z,relro,-z,now"
+export ALPENGLOW_COMPILER CC CXX LD AR NM OBJCOPY RANLIB CFLAGS CXXFLAGS LDFLAGS
+COMPEOF
+fi
 chmod 644 "${ROOTFS}/etc/profile.d/alpenglow-compiler.sh"
 
 # Default shell
-if [ ! -f "${ROOTFS}/bin/sh" ]; then
-  ln -s /bin/oksh "${ROOTFS}/bin/sh" 2>/dev/null || true
+if [ ! -f "${ROOTFS}/usr/bin/sh" ]; then
+  ln -s /usr/bin/oksh "${ROOTFS}/usr/bin/sh" 2>/dev/null || true
 fi
 
 # Hardened sysctl defaults
@@ -185,21 +242,90 @@ vm.unprivileged_userfaultfd=0
 SYSCTL
 
 chmod +x "${ROOTFS}/usr/local/bin/"*.sh
+chmod +x "${ROOTFS}/opt/alpenglow/session-init" 2>/dev/null || true
 chmod +x "${ROOTFS}/init" 2>/dev/null || true
 find "${ROOTFS}/etc/dinit.d" -type f -exec chmod +x {} \; 2>/dev/null || true
 
+cat > "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" <<'KERNELPOLICY'
+#!/bin/sh
+set -eu
+
+set_sysctl() {
+  key="$1"
+  value="$2"
+  path="/proc/sys/$(printf '%s' "${key}" | tr . /)"
+  [ -w "${path}" ] || return 0
+  printf '%s\n' "${value}" >"${path}" 2>/dev/null || true
+}
+
+set_sysctl kernel.kptr_restrict 2
+set_sysctl kernel.dmesg_restrict 1
+set_sysctl kernel.unprivileged_bpf_disabled 1
+set_sysctl net.core.bpf_jit_harden 2
+set_sysctl net.ipv4.tcp_syncookies 1
+set_sysctl net.ipv4.conf.all.rp_filter 1
+set_sysctl net.ipv4.conf.default.rp_filter 1
+set_sysctl net.ipv4.tcp_rfc1337 1
+set_sysctl vm.unprivileged_userfaultfd 0
+KERNELPOLICY
+
+cat > "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" <<'ZRAMPOLICY'
+#!/bin/sh
+set -eu
+
+if [ -d /sys/class/zram-control ] && [ ! -e /dev/zram0 ]; then
+  cat /sys/class/zram-control/hot_add >/dev/null 2>&1 || true
+fi
+
+if [ -e /sys/block/zram0/disksize ]; then
+  mem_kb=$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')
+  if [ "${mem_kb}" -gt 0 ]; then
+    size_kb=$((mem_kb / 2))
+    printf '%sK\n' "${size_kb}" >/sys/block/zram0/disksize 2>/dev/null || true
+  fi
+fi
+
+if [ -e /dev/zram0 ] && command -v mkswap >/dev/null 2>&1 && command -v swapon >/dev/null 2>&1; then
+  mkswap /dev/zram0 >/dev/null 2>&1 || true
+  swapon /dev/zram0 >/dev/null 2>&1 || true
+fi
+ZRAMPOLICY
+
+cat > "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh" <<'PRESSUREPOLICY'
+#!/bin/sh
+set -eu
+
+while :; do
+  sleep 60
+done
+PRESSUREPOLICY
+chmod 755 \
+  "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" \
+  "${ROOTFS}/usr/local/bin/apply-zram-policy.sh" \
+  "${ROOTFS}/usr/local/bin/apply-pressure-policy.sh"
+
 # System configuration
-cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
+case "${COMPILER}" in
+  inauguration)
+    COMPILER_DEFAULT="inauguration"
+    COMPILER_POLICY="inauguration-primary"
+    ;;
+  *)
+    COMPILER_DEFAULT="clang"
+    COMPILER_POLICY="llvm-primary"
+    ;;
+esac
+cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
 {
   "backend": "alpenglow-native",
   "composition_model": "oasis-static",
   "boot_model": "diskless",
   "hardened": true,
   "compiler": {
-    "default": "clang",
+    "default": "${COMPILER_DEFAULT}",
     "linker": "lld",
-    "policy": "llvm-primary",
-    "future": ["inauguration"]
+    "policy": "${COMPILER_POLICY}",
+    "tracks": ["llvm", "inauguration"]
   },
   "filesystem": {
     "immutable_root": true,
@@ -256,7 +382,7 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<'EOF'
   "services": {
     "essential": ["mount-filesystems", "state-mount", "elogind", "seatd", "networking"],
     "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "alpenglow-power", "iwd", "syslogd", "crond"],
-    "session": ["pipewire", "wireplumber", "greetd", "velox", "foot"],
+    "session": ["pipewire", "wireplumber", "greetd", "velox", "alpenglowed", "foot"],
     "network_services": ["dropbear", "chronyd", "dnsmasq"],
     "user_init": ["alpenglow-session"]
   }
@@ -324,11 +450,19 @@ chmod 600 "${ROOTFS}/etc/crontabs/root"
 
 # ── Rotate logs daily ──────────────────────────────────────────────
 cat > "${ROOTFS}/usr/local/bin/logrotate.sh" <<'LOGX'
-#!/bin/toybox sh
-# ponytail: naive logrotate, mv + signal
+#!/usr/bin/toybox sh
+# Advanced log rotation script
+MAX_LOGS=7
 for log in /var/log/alpenglow/*.log; do
   [ -f "${log}" ] || continue
-  mv "${log}" "${log}.old" 2>/dev/null || true
+  rm -f "${log}.${MAX_LOGS}" 2>/dev/null || true
+  i=${MAX_LOGS}
+  while [ "$i" -gt 1 ]; do
+    prev=$((i - 1))
+    [ -f "${log}.${prev}" ] && mv "${log}.${prev}" "${log}.${i}" 2>/dev/null || true
+    i=${prev}
+  done
+  mv "${log}" "${log}.1" 2>/dev/null || true
 done
 LOGX
 chmod 755 "${ROOTFS}/usr/local/bin/logrotate.sh"

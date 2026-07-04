@@ -6,7 +6,7 @@ cd "${REPO_ROOT}"
 
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-180}"
 QEMU_LOG="${QEMU_LOG:-${TMPDIR:-/tmp}/alpenglow-qemu-glowfs-disk-root.log}"
-QEMU_DIR="${QEMU_DIR:-build/alpine/qemu}"
+QEMU_DIR="${QEMU_DIR:-build/native}"
 ALPENGLOW_ROOTFS_IMAGE="${ALPENGLOW_ROOTFS_IMAGE:-${QEMU_DIR}/alpenglow-rootfs.glowfs}"
 
 fail() {
@@ -32,7 +32,7 @@ reject_log() {
 
 require_tool qemu-system-x86_64
 
-[ -f "${QEMU_DIR}/vmlinuz-virt" ] || fail "missing ${QEMU_DIR}/vmlinuz-virt"
+[ -f "${QEMU_DIR}/vmlinuz" ] || fail "missing ${QEMU_DIR}/vmlinuz"
 [ -f "${QEMU_DIR}/rootfs.cpio.gz" ] || fail "missing ${QEMU_DIR}/rootfs.cpio.gz"
 [ -f "${QEMU_DIR}/glowfs.ko" ] || fail "missing ${QEMU_DIR}/glowfs.ko"
 [ -f "${ALPENGLOW_ROOTFS_IMAGE}" ] || fail "missing ${ALPENGLOW_ROOTFS_IMAGE}"

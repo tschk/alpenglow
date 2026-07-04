@@ -1,12 +1,10 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use signal_hook::{consts::SIGINT, iterator::Signals};
 
 pub fn install_handler() {
-    let running = std::sync::Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    let _ = ctrlc::set_handler(move || {
-        if r.swap(false, Ordering::SeqCst) {
-            eprintln!("\ninterrupted");
-        } else {
+    let mut signals = Signals::new([SIGINT]).expect("Failed to register signal handler");
+    std::thread::spawn(move || {
+        if signals.forever().next().is_some() {
+            eprintln!("\nInterrupted");
             std::process::exit(130);
         }
     });

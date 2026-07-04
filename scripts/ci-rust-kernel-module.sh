@@ -1,9 +1,10 @@
 #!/bin/sh
-# CI: Validate Rust kernel module compilation against Linux 7.0
+# CI: Validate Rust kernel module compilation against a pinned Linux version
 set -eu
 
-KERNEL_VER="7.0"
-KERNEL_MAJOR="7"
+# Match GlowFS CI kernel version; 7.0 is not yet available on kernel.org mirrors.
+KERNEL_VER="6.12.93"
+KERNEL_MAJOR="6"
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 if ! command -v rustc >/dev/null 2>&1 || ! command -v bindgen >/dev/null 2>&1; then
@@ -17,8 +18,8 @@ mkdir -p linux-kmod-ci
 cd linux-kmod-ci
 
 echo "Downloading Linux ${KERNEL_VER}..."
-curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VER}.tar.xz" -o linux.tar.xz
-tar -xJf linux.tar.xz
+curl -fsSL "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git/snapshot/linux-${KERNEL_VER}.tar.gz" -o linux.tar.gz
+tar -xzf linux.tar.gz
 cd "linux-${KERNEL_VER}"
 
 # Minimal config with Rust support
@@ -30,10 +31,15 @@ scripts/config \
   --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL
 
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
-RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 modules_prepare 2>&1 | tail -3
+NPROC="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+echo "Building Linux ${KERNEL_VER} with Rust support (this may take a few minutes)..."
+RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" > /tmp/kmod-kernel.log 2>&1 || { tail -30 /tmp/kmod-kernel.log; exit 1; }
+RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" modules > /tmp/kmod-modules.log 2>&1 || { tail -30 /tmp/kmod-modules.log; exit 1; }
 
 # Build Alpenglow core module
+rm -rf /tmp/alpenglow-kmod
 cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
-RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" 2>&1 | tail -5
-test -f /tmp/alpenglow-kmod/alpenglow_core.ko && echo "Rust kernel module OK"
+RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 || { tail -30 /tmp/kmod-build.log; exit 1; }
+test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
+echo "Rust kernel module OK"
 echo "ci-rust-kernel-module: ok"

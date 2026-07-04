@@ -1,13 +1,13 @@
 #!/bin/sh
-# Build Alpenglow aarch64 components: Zig init + kernelctl, kernel fetch, initramfs.
-# Requires: zig, curl, cpio, gzip
+# Build Alpenglow aarch64 components: Zig init + kernelctl + initramfs.
+# Requires: zig, cpio, gzip
 # For QEMU: qemu-system-aarch64
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_OUT="${REPO_ROOT}/build/cross/aarch64"
 FORCE="${FORCE:-0}"
-ALPINE_VERSION="${ALPINE_VERSION:-3.21}"
+ALPENGLOW_AARCH64_KERNEL="${ALPENGLOW_AARCH64_KERNEL:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -52,16 +52,17 @@ else
 fi
 file "${KERNELCTL}" | grep -q aarch64 || { echo "ERROR: kernelctl not aarch64"; exit 1; }
 
-# ── 3. Fetch Alpine aarch64 virt kernel ────────────────────────────
-KERNEL="${BUILD_OUT}/vmlinuz-virt"
+# ── 3. Stage Alpenglow aarch64 kernel ──────────────────────────────
+KERNEL="${BUILD_OUT}/vmlinuz"
 if [ ! -f "${KERNEL}" ] || [ "${FORCE}" = "1" ]; then
-  echo "→ Fetching Alpine aarch64 virt kernel..."
-  require_cmd curl
-  KERNEL_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/aarch64/netboot/vmlinuz-virt"
-  curl -#fSL "${KERNEL_URL}" -o "${KERNEL}"
+  [ -n "${ALPENGLOW_AARCH64_KERNEL}" ] || {
+    echo "Set ALPENGLOW_AARCH64_KERNEL=/path/to/Alpenglow aarch64 Image before building." >&2
+    exit 1
+  }
+  cp "${ALPENGLOW_AARCH64_KERNEL}" "${KERNEL}"
   echo "  ${KERNEL}"
 else
-  echo "→ Kernel exists (${KERNEL}), --force to re-fetch"
+  echo "→ Kernel exists (${KERNEL}), --force to replace"
 fi
 
 # ── 4. Build initramfs ────────────────────────────────────────────
@@ -81,7 +82,7 @@ fi
 
 echo ""
 echo "=== Build complete ==="
-ls -lh "${BUILD_OUT}/zig-init" "${BUILD_OUT}/alpenglow-kernelctl" "${BUILD_OUT}/vmlinuz-virt" "${BUILD_OUT}/initramfs.cpio.gz"
+ls -lh "${BUILD_OUT}/zig-init" "${BUILD_OUT}/alpenglow-kernelctl" "${BUILD_OUT}/vmlinuz" "${BUILD_OUT}/initramfs.cpio.gz"
 echo ""
 echo "To boot in QEMU:"
 echo "  ${REPO_ROOT}/scripts/qemu-boot-aarch64.sh"

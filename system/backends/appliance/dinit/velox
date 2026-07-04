@@ -1,5 +1,5 @@
-# velox — Wayland compositor (Rust wlroots-based)
+# cage — Wayland compositor (wlroots-based kiosk)
 type = process
-command = /usr/bin/velox
+command = /usr/bin/cage
 restart = yes
 depends-on = seatd
