@@ -2,14 +2,14 @@
 
 Alpenglow has two deployment modes:
 
-- **Diskless/immutable** — root in RAM (initramfs), immutable image, read-only `/`. State on persistent partition.
+- **Diskless/immutable** — full OS in RAM (initramfs), immutable image, read-only `/`. State on persistent bcachefs.
 - **Rootfs/desktop** — normal r/w root on disk, package-managed, no image layers.
 
 This doc covers the immutable/appliance mode.
 
 ## Image Contract (appliance mode only)
 
-The root image is sealed at build time by `system/backends/appliance/scripts/build-rootfs.sh`. Mounted read-only at `/`. Runtime writes limited to tmpfs + state partition at `/state`.
+The root image is sealed at build time by `system/backends/appliance/scripts/build-rootfs.sh`. Mounted read-only at `/` from RAM. Runtime writes are limited to tmpfs and the bcachefs-backed state partition at `/state`.
 
 GlowIFS is the planned immutable format, but it is under development. Current appliance builds should treat EROFS or SquashFS as realistic immutable-image fallbacks while the repository's prototype `glowfs` code is still being renamed and redesigned.
 
@@ -21,7 +21,7 @@ GlowIFS editability is planned as object policy rather than path-only policy. A 
 
 | Mount | Type | Options | Purpose |
 | --- | --- | --- | --- |
-| `/state` | writable state filesystem | `rw,nosuid,nodev` | Persistent user and system state |
+| `/state` | bcachefs writable state filesystem | `rw,nosuid,nodev` | Persistent user and system state |
 | `/run` | tmpfs | `nosuid,nodev,mode=0755` | PID files, sockets, runtime telemetry |
 | `/tmp` | tmpfs | `nosuid,nodev,mode=0755` | Short-lived system scratch |
 | `/dev/shm` | tmpfs | `nosuid,nodev,mode=1777,size=256m` | Wayland and compositor shared memory |

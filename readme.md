@@ -4,8 +4,8 @@ General-purpose musl+LLVM Linux distribution. dinit init, Oil packages.
 **Boots to login in &lt;1s** on native virt (x86_64 KVM or aarch64 HVF).
 
 Two deployment modes:
-- **Diskless/immutable** — initramfs-only, RAM root, GlowFS overlay (appliance mode)
-- **Rootfs** — normal root-on-disk (ext4/btrfs/zfs), package-managed
+- **Diskless/immutable** — initramfs-only, full OS loaded into RAM, persistent state on bcachefs
+- **Rootfs** — normal root-on-disk, package-managed
 
 ```sh
 scripts/boot-native.sh           # build + boot initramfs (QEMU)
@@ -41,8 +41,8 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Rust), udhcpc, iwd | Zero-external-deps netd |
-| Root FS | **Diskless:** GlowFS/erofs/squashfs in RAM. **Rootfs:** ext4 over LUKS |
-| Compositor | Wayland + cage + foot | Optional, not in base |
+| Root FS | **Diskless:** GlowIFS/erofs/squashfs in RAM. **State:** bcachefs for `/home` and mutable state |
+| Desktop | Wayland + cage + alpenglowed + foot | `../alpenglowed` is the desktop environment |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y, GlowFS in-tree |
@@ -65,6 +65,24 @@ docs/                   Architecture, build, install docs
 ```
 
 Kernel configs live at `system/backends/appliance/kernel/`.
+
+## Profiles
+
+Build profiles select the userspace image:
+
+| Profile | Variable | Scope |
+|---------|----------|-------|
+| Minimal | `BUILD_PROFILE=minimal` | Headless boot, SSH, time, logs, DNS, OOM guard |
+| Standard | `BUILD_PROFILE=standard` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
+| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, cage, `../alpenglowed`, foot, and browser shell pieces |
+
+Kernel profiles select hardware and boot policy:
+
+| Profile | Variable | Scope |
+|---------|----------|-------|
+| Fast | `KERNEL_PROFILE=fast` | Smallest headless diskless boot path |
+| Minimal | `KERNEL_PROFILE=minimal` | Networked appliance kernel with cgroups, PSI, zram, seccomp, Landlock, and root image filesystems |
+| Desktop | `KERNEL_PROFILE=desktop` | Minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware, and desktop filesystems |
 
 ## Performance
 
@@ -95,9 +113,9 @@ Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard bu
 
 Alpenglow runs in two deployment modes sharing the same codebase:
 
-**Diskless/Appliance** — boot from initramfs, root in RAM (tmpfs), state on persistent partition. Uses GlowFS squashfs for verified immutable root. Target: embedded, edge, kiosk, containers.
+**Diskless/Appliance** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: embedded, edge, kiosk, containers.
 
-**Rootfs/Desktop** — install to disk (ext4 over LUKS), normal r/w root. dinit manages services, Oil installs packages. Target: workstation, server, development.
+**Rootfs/Desktop** — install to disk, normal r/w root. dinit manages services, Oil installs packages. Target: workstation, server, development.
 
 The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exists, it switches root; otherwise runs diskless. Both modes use the same kernel, toolchain, and package format.
 
@@ -111,7 +129,7 @@ The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exis
 | Logging (syslogd) | ✅ | ✅ | ✅ | dinit |
 | DHCP networking | ✅ | ✅ | ✅ | dinit |
 | WiFi (iwd) | ✅ | optional | ✅ | dinit |
-| Wayland + sway | ✅ | optional | ✅ | dinit |
+| Wayland + cage + alpenglowed | ✅ | optional | ✅ | dinit |
 | Audio (PipeWire) | ✅ | optional | ✅ | dinit |
 | Package manager (Oil) | ✅ | ✅ | ✅ | dinit |
 | Kernel policy (kernelctl) | ✅ | ✅ | ✅ | dinit |

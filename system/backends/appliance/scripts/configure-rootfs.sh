@@ -138,11 +138,15 @@ case "${BUILD_PROFILE}" in
     WORLD_FILE="${BACKEND_DIR}/packages-minimal.txt"
     ;;
   standard)
+    BOOT_SERVICES="glowfs-mount state-mount alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq"
+    WORLD_FILE="${BACKEND_DIR}/packages-standard.txt"
+    ;;
+  desktop)
     BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
     WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
     ;;
   *)
-    echo "Unknown profile: ${BUILD_PROFILE}. Use minimal or standard." >&2
+    echo "Unknown profile: ${BUILD_PROFILE}. Use minimal, standard, or desktop." >&2
     exit 1
     ;;
 esac
@@ -315,9 +319,48 @@ case "${COMPILER}" in
     COMPILER_POLICY="llvm-primary"
     ;;
 esac
+case "${BUILD_PROFILE}" in
+  desktop)
+    DISPLAY_JSON='{"server":"wayland","compositor":"velox","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+    AUDIO_JSON='{"server":"pipewire","session_manager":"wireplumber","backend":"alsa"}'
+    NETWORKING_JSON='{"dhcp":"sdhcp","wifi":"iwd"}'
+    POWER_JSON='{"manager":"elogind","script":"/usr/local/bin/alpenglow-power.sh"}'
+    KERNEL_TYPE="desktop-appliance"
+    KERNEL_FEATURES='["rust","sound","wireless","acpi","usb-hid"]'
+    ESSENTIAL_SERVICES='["mount-filesystems","state-mount","elogind","seatd","networking"]'
+    SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","iwd","syslogd","crond"]'
+    SESSION_SERVICES='["pipewire","wireplumber","greetd","velox","alpenglowed","foot"]'
+    USER_INIT='["alpenglow-session"]'
+    ;;
+  standard)
+    DISPLAY_JSON='null'
+    AUDIO_JSON='null'
+    NETWORKING_JSON='{"dhcp":"sdhcp"}'
+    POWER_JSON='{"script":"/usr/local/bin/alpenglow-power.sh"}'
+    KERNEL_TYPE="standard-appliance"
+    KERNEL_FEATURES='["rust","acpi"]'
+    ESSENTIAL_SERVICES='["mount-filesystems","state-mount","networking"]'
+    SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","syslogd","crond"]'
+    SESSION_SERVICES='[]'
+    USER_INIT='[]'
+    ;;
+  *)
+    DISPLAY_JSON='null'
+    AUDIO_JSON='null'
+    NETWORKING_JSON='{"dhcp":"sdhcp"}'
+    POWER_JSON='null'
+    KERNEL_TYPE="minimal-appliance"
+    KERNEL_FEATURES='["rust"]'
+    ESSENTIAL_SERVICES='["mount-filesystems","state-mount","networking"]'
+    SYSTEM_SERVICES='["syslogd","crond"]'
+    SESSION_SERVICES='[]'
+    USER_INIT='[]'
+    ;;
+esac
 cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
 {
   "backend": "alpenglow-native",
+  "profile": "${BUILD_PROFILE}",
   "composition_model": "oasis-static",
   "boot_model": "diskless",
   "hardened": true,
@@ -348,30 +391,14 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
     "bootstrap": "oil",
     "runtime_mutation": false
   },
-  "display": {
-    "server": "wayland",
-    "compositor": "velox",
-    "session_manager": "greetd",
-    "terminal": "foot",
-    "infrastructure": "seatd"
-  },
-  "audio": {
-    "server": "pipewire",
-    "session_manager": "wireplumber",
-    "backend": "alsa"
-  },
-  "networking": {
-    "dhcp": "sdhcp",
-    "wifi": "iwd"
-  },
-  "power": {
-    "manager": "elogind",
-    "script": "/usr/local/bin/alpenglow-power.sh"
-  },
+  "display": ${DISPLAY_JSON},
+  "audio": ${AUDIO_JSON},
+  "networking": ${NETWORKING_JSON},
+  "power": ${POWER_JSON},
   "kernel": {
     "policy": "hardened",
-    "type": "minimal-appliance",
-    "features": ["rust", "sound", "wireless", "acpi", "usb-hid"]
+    "type": "${KERNEL_TYPE}",
+    "features": ${KERNEL_FEATURES}
   },
   "userland": {
     "core": "toybox",
@@ -380,11 +407,11 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
     "crypto": "bearssl"
   },
   "services": {
-    "essential": ["mount-filesystems", "state-mount", "elogind", "seatd", "networking"],
-    "system": ["alpenglow-kernel-policy", "alpenglow-zram", "alpenglow-pressure", "alpenglow-netd", "alpenglow-power", "iwd", "syslogd", "crond"],
-    "session": ["pipewire", "wireplumber", "greetd", "velox", "alpenglowed", "foot"],
+    "essential": ${ESSENTIAL_SERVICES},
+    "system": ${SYSTEM_SERVICES},
+    "session": ${SESSION_SERVICES},
     "network_services": ["dropbear", "chronyd", "dnsmasq"],
-    "user_init": ["alpenglow-session"]
+    "user_init": ${USER_INIT}
   }
 }
 EOF

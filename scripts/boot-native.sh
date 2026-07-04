@@ -179,7 +179,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> .config 2>/dev/null || true
-    if [ "${BUILD_PROFILE}" = "standard" ]; then
+    if [ "${BUILD_PROFILE}" = "desktop" ]; then
       cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> .config 2>/dev/null || true
     else
       cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
@@ -222,7 +222,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    if [ "${BUILD_PROFILE}" = "standard" ]; then
+    if [ "${BUILD_PROFILE}" = "desktop" ]; then
       cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     else
       cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
@@ -630,6 +630,12 @@ case "${BUILD_PROFILE}" in
     BOOT_SERVICES="shell-ttyS0 mount-filesystems"
     ;;
   standard)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
+    [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
+    [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
+    [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
+    ;;
+  desktop)
     # Core services always available (inline definitions)
     BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
     # Conditionally add services that have binaries installed

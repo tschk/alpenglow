@@ -3,7 +3,7 @@
   "state_root": {
     "mountpoint": "/state",
     "role": "persistent-state",
-    "format": "ext4",
+    "format": "bcachefs",
     "mount_options": [
       "rw",
       "nosuid",

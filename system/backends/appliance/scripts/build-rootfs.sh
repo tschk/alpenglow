@@ -18,8 +18,9 @@ OIL_CMD="${OIL_CMD:-wax}"
 
 case "${BUILD_PROFILE}" in
   minimal) PKG_LIST="${BACKEND_DIR}/packages-minimal.txt" ;;
-  standard) PKG_LIST="${BACKEND_DIR}/packages-runtime.txt" ;;
-  *) echo "Unknown profile: ${BUILD_PROFILE}. Use minimal or standard." >&2; exit 1 ;;
+  standard) PKG_LIST="${BACKEND_DIR}/packages-standard.txt" ;;
+  desktop) PKG_LIST="${BACKEND_DIR}/packages-runtime.txt" ;;
+  *) echo "Unknown profile: ${BUILD_PROFILE}. Use minimal, standard, or desktop." >&2; exit 1 ;;
 esac
 
 case "${COMPILER}" in

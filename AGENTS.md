@@ -10,8 +10,8 @@ Early-stage. Not production-ready.
 
 | Decision | Choice |
 |----------|--------|
-| Boot | Diskless — rootfs in RAM via initramfs |
-| Root FS | GlowFS (kernel module). Fallback: erofs, squashfs |
+| Boot | Diskless — full OS in RAM via initramfs |
+| Root FS | GlowIFS/erofs/squashfs for immutable RAM root. bcachefs for `/state` and `/home` |
 | Init | dinit — parallel dependency-graph |
 | Compiler | LLVM/Clang default; Inauguration track selectable via COMPILER=inauguration |
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
@@ -19,24 +19,30 @@ Early-stage. Not production-ready.
 | Shell | oksh |
 | Kernel | Hardened — three profiles: `fast` (boot speed), `minimal` (SSH/net/time/logs), `desktop` (display/audio/WiFi). Tracks kernel.org latest stable |
 | Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
-| Display | Wayland + cage+foot |
+| Display | Wayland + cage + `../alpenglowed` + foot |
 | Audio | ALSA + PipeWire |
 | Networking | udhcpc + iwd |
 | Arch | x86_64, aarch64 (aarch64 CI cross-compile only; x86_64 boot-tested in CI) |
 
 ### What's not in the base (by design)
 
-Diskless appliance — rootfs lives in RAM, no disk to encrypt.
+Diskless appliance — system root lives in RAM. Persistent user and system state lives on disk under `/state`, with `/home` bind-mounted from bcachefs-backed state.
 VPN, Tailscale, WireGuard, custom firewall rules — users install
 via Oil or drop a binary in /usr/local. No need to bloat the base
 image with something only some deployments use. Same logic applies
 to any userspace service: base provides SSH + networking + package
 manager, user adds what they need.
 
-Build profile system (minimal vs standard) keeps the line clear:
+Build profile system keeps the line clear:
 minimal = what you need to boot, connect SSH, and have time+logs.
-standard = adds display/audio/WiFi/dev for a desktop experience.
+standard = more than minimal: compiler/tooling, network tools, filesystem tools, and system utilities.
+desktop = plug-and-play desktop: display/audio/WiFi/greetd/cage/alpenglowed/foot.
 Everything else is `oil install <pkg>` away.
+
+Kernel profiles are separate from build profiles:
+fast = smallest headless diskless boot path.
+minimal = networked appliance kernel with cgroups, PSI, zram, seccomp, Landlock, and root image filesystems.
+desktop = minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware, and desktop filesystems.
 
 ## Architecture
 
@@ -93,9 +99,9 @@ cargo test -p alpenglow-netd
 |-----------|--------|-------|
 | Boot to shell + login | ✅ | ~2s, dinit + getty |
 | DHCP networking | ✅ | udhcpc via dinit |
-| State persistence | ✅ | ext4 by label, bind mounts |
+| State persistence | ✅ | bcachefs target for `/state`, bind mounts for `/home` and mutable state |
 | Oil package mgr | ✅ | APK-only, in initramfs |
-| Wayland display | ✅ | cage + foot |
+| Wayland display | ✅ | cage + alpenglowed + foot |
 | Audio | ✅ | ALSA + PipeWire dinit services |
 | WiFi | ✅ | iwd daemon, 16+ drivers |
 | Power management | ✅ | /sys/power, no elogind |
@@ -110,9 +116,9 @@ cargo test -p alpenglow-netd
 | Custom kernel build | ✅ | `KERNEL_BUILD=1` works, GlowFS in-tree |
 | GlowFS kernel module | ✅ | In-tree, weak C fallback for Rust |
 | Real hardware boot | ❌ | QEMU only for now |
-| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard` |
+| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard|desktop` |
 | Interactive installer | 🟡 | Planned |
-| Crepuscularity DE | 📝 | 4-phase GPUI desktop shell plan |
+| Alpenglowed DE | ✅ | `../alpenglowed` desktop shell |
 
 ## SSH Hosts (for cross-compilation testing)
 
