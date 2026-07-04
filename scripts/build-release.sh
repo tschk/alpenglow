@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build a bootable Alpenglow disk image for real hardware.
-# Uses Limine bootloader, creates GPT disk with root + state partitions.
+# Uses Limine bootloader, creates GPT disk with boot + state partitions.
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -15,7 +15,7 @@ MNT_STATE="${OUT_DIR}/mnt/state"
 ALPENGLOW_VERSION="${ALPENGLOW_VERSION:-$(date +%Y%m%d)}"
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-x86_64}"
 IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-4096}"
-ROOT_SIZE_MB="${ROOT_SIZE_MB:-2048}"
+BOOT_SIZE_MB="${BOOT_SIZE_MB:-2048}"
 STATE_SIZE_MB="${STATE_SIZE_MB:-1024}"
 LIMINE_VERSION="${LIMINE_VERSION:-8.5.0}"
 
@@ -59,14 +59,14 @@ echo "→ Creating disk image (${IMAGE_SIZE_MB}MB)..."
 rm -f "${IMAGE}"
 dd if=/dev/zero of="${IMAGE}" bs=1M count="${IMAGE_SIZE_MB}" 2>/dev/null
 
-# Partition: GPT with root (ext4) + state (ext4) + Limine
+# Partition: GPT with boot + bcachefs state + Limine
 ROOT_START=2048
-ROOT_END=$(( ROOT_START + (ROOT_SIZE_MB * 2048) ))
+ROOT_END=$(( ROOT_START + (BOOT_SIZE_MB * 2048) ))
 STATE_START=$(( ROOT_END + 2048 ))
 STATE_END=$(( STATE_START + (STATE_SIZE_MB * 2048) ))
 
 sgdisk -o "${IMAGE}" 2>/dev/null
-sgdisk -n 1:${ROOT_START}:${ROOT_END} -t 1:8300 -c 1:"alpenglow-root" "${IMAGE}" 2>/dev/null
+sgdisk -n 1:${ROOT_START}:${ROOT_END} -t 1:8300 -c 1:"alpenglow-boot" "${IMAGE}" 2>/dev/null
 sgdisk -n 2:${STATE_START}:${STATE_END} -t 2:8300 -c 2:"alpenglow-state" "${IMAGE}" 2>/dev/null
 sgdisk -n 3:${STATE_END}: -t 3:8301 -c 3:"Limine" "${IMAGE}" 2>/dev/null
 sgdisk -A 3:set:2 "${IMAGE}" 2>/dev/null  # Legacy BIOS bootable
@@ -86,10 +86,10 @@ else
   LOOP_LIMINE="${LOOP_DEV}p3"
 fi
 
-sudo mkfs.ext4 -L alpenglow-root "${LOOP_ROOT}" >/dev/null 2>&1
-sudo mkfs.ext4 -L alpenglow-state "${LOOP_STATE}" >/dev/null 2>&1
+sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null 2>&1
+sudo mkfs.bcachefs -L alpenglow-state "${LOOP_STATE}" >/dev/null 2>&1
 
-# ── 5. Install system to root partition ────────────────────────────
+# ── 5. Install boot files ──────────────────────────────────────────
 echo "→ Installing system..."
 sudo mount "${LOOP_ROOT}" "${MNT_ROOT}"
 sudo mkdir -p "${MNT_ROOT}/boot" "${MNT_ROOT}/state"

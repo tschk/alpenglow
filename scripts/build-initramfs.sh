@@ -14,14 +14,14 @@ UKI_IMAGE="${OUT_DIR}/alpenglow.efi"
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
 KERNEL_SRC="${KERNEL_SRC:-${ROOT_DIR}/system/backends/appliance/kernel}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-${KERNEL_SRC}/alpenglow-internet-appliance.config}"
-GLOWFS_IMAGE="${GLOWFS_IMAGE:-${OUT_DIR}/alpenglow-root.glowfs}"
+ROOT_IMAGE="${ROOT_IMAGE:-${OUT_DIR}/alpenglow-root.erofs}"
 
 mkdir -p "${INITRAMFS_DIR}" "${OUT_DIR}"
 
 echo "Alpenglow initramfs build"
 echo "  arch:    ${ALPENGLOW_ARCH}"
 echo "  kernel:  ${KERNEL_CONFIG}"
-echo "  image:   ${GLOWFS_IMAGE}"
+echo "  image:   ${ROOT_IMAGE}"
 echo ""
 
 # ── Phase 1: Stage initramfs files ──────────────────────────────────
@@ -46,13 +46,6 @@ elif command -v toybox >/dev/null 2>&1; then
   cp "$(command -v toybox)" "${INITRAMFS_DIR}/bin/toybox"
   ln -sf toybox "${INITRAMFS_DIR}/bin/sh"
   # toybox has symlinks for all applets via its multicall binary
-fi
-
-# Copy GlowFS kernel module if built
-GLOWFS_KO="${ROOT_DIR}/target/release/glowfs.ko"
-if [ -f "${GLOWFS_KO}" ]; then
-  mkdir -p "${INITRAMFS_DIR}/lib/modules"
-  cp "${GLOWFS_KO}" "${INITRAMFS_DIR}/lib/modules/"
 fi
 
 # ── Phase 2: Build kernel (if source available) ─────────────────────
@@ -84,12 +77,12 @@ find . -print0 | cpio --null -o --format=newc 2>/dev/null | zstd -19 -o "${INITR
 echo "  initramfs: ${INITRAMFS_CPIO} ($(du -sh "${INITRAMFS_CPIO}" | cut -f1))"
 
 # ── Phase 4: Build unified kernel image (optional) ──────────────────
-if command -v ukify >/dev/null 2>&1 && [ -f "${KERNEL_IMAGE}" ] && [ -f "${GLOWFS_IMAGE}" ]; then
+if command -v ukify >/dev/null 2>&1 && [ -f "${KERNEL_IMAGE}" ] && [ -f "${ROOT_IMAGE}" ]; then
   echo "→ Building UKI..."
   ukify build \
     --linux="${KERNEL_IMAGE}" \
     --initrd="${INITRAMFS_CPIO}" \
-    --cmdline="alpenglow.image=${GLOWFS_IMAGE} alpenglow.state=LABEL=alpenglow-state quiet" \
+    --cmdline="alpenglow.image=${ROOT_IMAGE} alpenglow.state=LABEL=alpenglow-state quiet" \
     --output="${UKI_IMAGE}"
   echo "  uki: ${UKI_IMAGE}"
 fi
@@ -98,7 +91,7 @@ cd "${ROOT_DIR}"
 echo ""
 echo "✓ Build complete"
 echo "  To boot (QEMU):"
-echo "    qemu-system-${ALPENGLOW_ARCH} -m 4G -kernel ${KERNEL_IMAGE} -initrd ${INITRAMFS_CPIO} -append \"alpenglow.image=${GLOWFS_IMAGE} quiet\""
+echo "    qemu-system-${ALPENGLOW_ARCH} -m 4G -kernel ${KERNEL_IMAGE} -initrd ${INITRAMFS_CPIO} -append \"alpenglow.image=${ROOT_IMAGE} quiet\""
 echo ""
 echo "  To boot (UEFI, if UKI built):"
 echo "    qemu-system-${ALPENGLOW_ARCH} -m 4G -bios /usr/share/edk2/x64/OVMF.fd -kernel ${UKI_IMAGE}"

@@ -1,7 +1,5 @@
 #!/bin/sh
-# Build and boot Alpenglow native — supports two modes:
-#   Diskless (default): boot from initramfs, root in RAM
-#   Rootfs:            boot from persistent rootfs partition
+# Build and boot Alpenglow native.
 # Uses Docker for host-independent compilation.
 set -eu
 
@@ -17,7 +15,7 @@ KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
 KERNEL_7="${KERNEL_7:-1}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
-BOOT_MODE="${BOOT_MODE:-diskless}"  # diskless or rootfs
+BOOT_MODE="${BOOT_MODE:-diskless}"
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 MEMORY_MB="${MEMORY_MB:-2048}"
@@ -157,7 +155,6 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
-    # GlowFS needs Linux 6.12 API — not in-tree for 7.0, built separately via ci-glowfs
     if [ -f "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" ]; then
       cp "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" .config
       make ARCH=x86_64 olddefconfig 2>/dev/null
@@ -173,8 +170,6 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     if [ "${EFI:-1}" = "0" ]; then
       scripts/config --disable EFI --disable EFI_STUB --disable RUST
     fi
-    # Enable GlowFS in config
-    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
     # Config overrides: LZ4 + virt drivers + minimal + EFI (for OVMF) + optional fast boot
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
@@ -250,13 +245,6 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
   echo "  kernel: ${KERNEL_IMAGE}"
 fi
 
-# GlowFS module check
-GLOWFS_KO="${OUT_DIR}/glowfs.ko"
-if [ -f "${GLOWFS_KO}" ]; then
-  echo "  glowfs: ${GLOWFS_KO}"
-elif [ "${KERNEL_BUILD:-0}" != "1" ]; then
-  echo "→ GlowFS requires KERNEL_BUILD=1 (skipping)"
-fi
 if [ -f "${ALPENGLOW_MODULE}" ]; then
   echo "  alpenglow-core: ${ALPENGLOW_MODULE}"
 fi
@@ -843,7 +831,7 @@ if [ -z "$state_dev" ]; then
   state_dev="/dev/disk/by-label/alpenglow-state"
 fi
 if [ -b "$state_dev" ]; then
-  /bin/toybox mount -t ext4 -o rw,nosuid,nodev "$state_dev" /state 2>/dev/null && echo "Mounted state: $state_dev"
+  /bin/toybox mount -t bcachefs -o rw,nosuid,nodev "$state_dev" /state 2>/dev/null && echo "Mounted state: $state_dev"
 fi
 echo ""
 echo "Alpenglow boot"
@@ -974,27 +962,6 @@ else
   fi
   QEMU_OPTS="${QEMU_OPTS} -boot order=n -device e1000,romfile=,netdev=net0 -netdev user,id=net0"
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
-fi
-
-if [ "${BOOT_MODE}" = "rootfs" ]; then
-  # Rootfs mode: boot from a disk image with alpenglow-root label
-  ROOTFS_IMAGE="${OUT_DIR}/rootfs.img"
-  if [ ! -f "${ROOTFS_IMAGE}" ]; then
-    echo "→ Creating rootfs image..."
-    dd if=/dev/zero of="${ROOTFS_IMAGE}" bs=1M count=1024 2>/dev/null
-    mkfs.ext4 -L alpenglow-root "${ROOTFS_IMAGE}" 2>/dev/null
-    # Populate rootfs from built rootfs directory if exists
-    if [ -d "${ROOTFS_DIR}" ]; then
-      TMPMNT=$(mktemp -d)
-      mount -o loop "${ROOTFS_IMAGE}" "${TMPMNT}" 2>/dev/null
-      cp -a "${ROOTFS_DIR}/." "${TMPMNT}/" 2>/dev/null || true
-      umount "${TMPMNT}" 2>/dev/null || true
-      rmdir "${TMPMNT}" 2>/dev/null || true
-    fi
-    echo "  rootfs: ${ROOTFS_IMAGE}"
-  fi
-  QEMU_OPTS="${QEMU_OPTS} -drive file=${ROOTFS_IMAGE},format=raw,if=virtio"
-  KERNEL_CMDLINE="${KERNEL_CMDLINE} alpenglow.root=/dev/vda"
 fi
 
 EMBEDDED_INITRAMFS=""

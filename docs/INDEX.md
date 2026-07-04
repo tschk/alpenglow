@@ -8,5 +8,4 @@
 ## Runtime And Appliance
 
 - [Immutable Rootfs](./architecture/immutable-rootfs.md)
-- [GlowFS](./architecture/glowfs.md)
 - [Oil recipe format](./architecture/oil-recipe-format.md)

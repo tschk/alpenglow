@@ -9,10 +9,12 @@ for arg in $(cat /proc/cmdline 2>/dev/null); do
   esac
 done
 
-if [ -n "${STATE_DEV}" ]; then
-  mount -t ext4 -o rw,nosuid,nodev "${STATE_DEV}" /state 2>/dev/null || true
-else
-  mount -t ext4 -o rw,nosuid,nodev LABEL=alpenglow-state /state 2>/dev/null || true
+if ! grep -q ' /state ' /proc/mounts 2>/dev/null; then
+  if [ -n "${STATE_DEV}" ]; then
+    mount -t bcachefs -o rw,nosuid,nodev "${STATE_DEV}" /state 2>/dev/null || { echo "bcachefs state mount failed: ${STATE_DEV}" >&2; exit 1; }
+  else
+    mount -t bcachefs -o rw,nosuid,nodev LABEL=alpenglow-state /state 2>/dev/null || { echo "bcachefs state mount failed: LABEL=alpenglow-state" >&2; exit 1; }
+  fi
 fi
 
 # Create state directories if they don't exist

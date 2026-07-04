@@ -32,7 +32,6 @@ for path in \
   system/backends/appliance/scripts/build-rootfs.sh \
   system/backends/appliance/scripts/configure-rootfs.sh \
   system/backends/appliance/scripts/alpenglow-session-start \
-  system/backends/appliance/scripts/mount-glowfs-root.sh \
   system/backends/appliance/scripts/mount-state.sh
 do
   assert_file "${path}"
@@ -52,12 +51,6 @@ assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.co
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_VIRTIO_NET=y$'
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECCOMP_FILTER=y$'
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECURITY_LANDLOCK=y$'
-
-# GlowFS kernel module
-assert_file system/glowfs/kernel/glowfs_vfs.c
-assert_file system/glowfs/kernel/glowfs_core.rs
-assert_contains system/glowfs/kernel/glowfs_vfs.c 'get_tree_bdev'
-assert_contains system/glowfs/kernel/glowfs_core.rs '#!\[no_std\]'
 
 # Build scripts
 assert_file scripts/boot-native.sh
@@ -86,6 +79,7 @@ assert_contains system/appliance/filesystems/rootfs-layout.json '"default_mode":
 # state-mounts.json validation
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home"'
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
+assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
@@ -97,5 +91,6 @@ cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
 BUILD_PROFILE=desktop system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
 assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"velox"'
+scripts/ci-profile-matrix.sh
 
 printf 'ci-os-appliance: ok\n'

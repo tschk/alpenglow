@@ -3,9 +3,10 @@
 General-purpose musl+LLVM Linux distribution. dinit init, Oil packages.
 **Boots to login in &lt;1s** on native virt (x86_64 KVM or aarch64 HVF).
 
-Two deployment modes:
-- **Diskless/immutable** — initramfs-only, full OS loaded into RAM, persistent state on bcachefs
-- **Rootfs** — normal root-on-disk, package-managed
+Root model:
+- **Immutable rootfs** — initramfs loads the complete OS into RAM from an erofs or squashfs image
+- **Persistent state** — `/home`, package state, browser profiles, caches, and logs stay on disk under bcachefs-backed `/state`
+- **Desktop** — a build profile layered on the immutable model, not a separate root-on-disk mode
 
 ```sh
 scripts/boot-native.sh           # build + boot initramfs (QEMU)
@@ -24,9 +25,6 @@ Platform support:
 # Initramfs (diskless) mode — build + boot in QEMU
 ./scripts/boot-native.sh
 
-# Rootfs mode — install to disk
-# I'll clean up these instructions later, and am gonna make a website or sm for this.
-
 # Custom kernel
 KERNEL_BUILD=1 ./scripts/boot-native.sh
 ```
@@ -41,11 +39,11 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Rust), udhcpc, iwd | Zero-external-deps netd |
-| Root FS | **Diskless:** GlowIFS/erofs/squashfs in RAM. **State:** bcachefs for `/home` and mutable state |
+| Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
 | Desktop | Wayland + cage + alpenglowed + foot | `../alpenglowed` is the desktop environment |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
-| Kernel | kernel.org latest stable with CONFIG_RUST=y, GlowFS in-tree |
+| Kernel | kernel.org latest stable with CONFIG_RUST=y |
 
 ## Project Layout
 
@@ -55,9 +53,7 @@ system/
     appliance/          Primary profile (kernel configs, dinit services, scripts)
   kernelctl-zig/        Cgroup + kernel policy (Zig, 89KB static)
   netd/                 Network state daemon (Rust, zero deps)
-  glowfsctl-zig/        GlowFS image tooling (Zig, 164KB)
   oil/                  Package manager (Rust, APK-compatible)
-  glowfs/               GlowFS kernel module source (C+Rust)
   kernel-modules/       Rust kernel modules (alpenglow_core, alpenglow_bootstat)
   init/                 Zig init (4.8KB static, initramfs fallback)
 scripts/                Build, CI, benchmark scripts
@@ -103,21 +99,18 @@ Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard bu
 | Tool | Lang | Size | vs alternative |
 |------|------|------|----------------|
 | kernelctl | Zig | 89KB | 501KB (Rust) |
-| glowfsctl | Zig | 164KB | 501KB (Rust) |
 | init | Zig | 4.8KB | 937KB (toybox+sh) |
 | dinit | C++ | 1.6MB | 20MB+ (systemd) |
 | toybox | C | 838KB | 10MB+ (coreutils) |
 | alpenglow_core.ko | Rust | 9.2K | kernel built-in |
 
-## Modes
+## Root And Desktop Model
 
-Alpenglow runs in two deployment modes sharing the same codebase:
+Alpenglow has one root model:
 
-**Diskless/Appliance** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: embedded, edge, kiosk, containers.
+**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
 
-**Rootfs/Desktop** — install to disk, normal r/w root. dinit manages services, Oil installs packages. Target: workstation, server, development.
-
-The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exists, it switches root; otherwise runs diskless. Both modes use the same kernel, toolchain, and package format.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and `../alpenglowed` desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode.
 
 ## Services
 
@@ -133,7 +126,7 @@ The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exis
 | Audio (PipeWire) | ✅ | optional | ✅ | dinit |
 | Package manager (Oil) | ✅ | ✅ | ✅ | dinit |
 | Kernel policy (kernelctl) | ✅ | ✅ | ✅ | dinit |
-| GlowFS mount | ✅ | ✅ | optional | dinit |
+| Root image mount | ✅ | ✅ | ✅ | initramfs |
 
 ## Status
 

@@ -134,15 +134,15 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 case "${BUILD_PROFILE}" in
   minimal)
-    BOOT_SERVICES="glowfs-mount state-mount networking earlyoom dropbear chronyd syslogd crond dnsmasq"
+    BOOT_SERVICES="state-mount networking earlyoom dropbear chronyd syslogd crond dnsmasq"
     WORLD_FILE="${BACKEND_DIR}/packages-minimal.txt"
     ;;
   standard)
-    BOOT_SERVICES="glowfs-mount state-mount alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq"
+    BOOT_SERVICES="state-mount alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq"
     WORLD_FILE="${BACKEND_DIR}/packages-standard.txt"
     ;;
   desktop)
-    BOOT_SERVICES="glowfs-mount state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
+    BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
     WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
     ;;
   *)
@@ -162,7 +162,6 @@ esac
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
-cp "${SCRIPT_DIR}/mount-glowfs-root.sh" "${ROOTFS}/usr/local/bin/"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
@@ -373,7 +372,7 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
   "filesystem": {
     "immutable_root": true,
     "diskless": true,
-    "root_fs": "glowfs",
+    "root_fs": "erofs",
     "rootfs_layout": "/etc/alpenglow/filesystems/rootfs-layout.json",
     "state_mounts": "/etc/alpenglow/filesystems/state-mounts.json",
     "state_root": "/state"

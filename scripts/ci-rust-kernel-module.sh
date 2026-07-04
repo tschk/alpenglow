@@ -2,7 +2,7 @@
 # CI: Validate Rust kernel module compilation against a pinned Linux version
 set -eu
 
-# Match GlowFS CI kernel version; 7.0 is not yet available on kernel.org mirrors.
+# 7.0 is not yet available on kernel.org mirrors.
 KERNEL_VER="6.12.93"
 KERNEL_MAJOR="6"
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"

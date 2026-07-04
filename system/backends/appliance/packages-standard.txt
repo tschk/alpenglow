@@ -16,7 +16,6 @@ toybox
 linux-hardened
 linux-firmware
 alpenglow-initramfs
-glowfs-tools
 sdhcp
 dropbear
 iproute2

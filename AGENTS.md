@@ -2,7 +2,7 @@
 
 ## What is Alpenglow?
 
-Diskless, hardened, immutable Linux appliance. GlowFS root, dinit init, Oil native packages, toybox userland. ~2s boot to login.
+Diskless, hardened, immutable Linux appliance. erofs/squashfs RAM root, dinit init, Oil native packages, toybox userland. ~2s boot to login.
 
 Early-stage. Not production-ready.
 
@@ -11,7 +11,7 @@ Early-stage. Not production-ready.
 | Decision | Choice |
 |----------|--------|
 | Boot | Diskless — full OS in RAM via initramfs |
-| Root FS | GlowIFS/erofs/squashfs for immutable RAM root. bcachefs for `/state` and `/home` |
+| Root FS | erofs/squashfs for immutable RAM root. bcachefs for `/state` and `/home` |
 | Init | dinit — parallel dependency-graph |
 | Compiler | LLVM/Clang default; Inauguration track selectable via COMPILER=inauguration |
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
@@ -48,7 +48,7 @@ desktop = minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware, and 
 
 ```
 Initramfs — Custom boot layer (Limine+UEFI+extlinux)
-GlowFS — Kernel module for immutable root FS
+Immutable root image — erofs/squashfs loaded into RAM
 dinit — Dependency-graph init (PID 1)
 Oil — Native APK package manager (Rust)
 toybox — Minimal core userland
@@ -62,11 +62,9 @@ alpenglow-netd — Network state daemon (Rust)
 system/
   kernelctl-zig/    Cgroup + kernel policy (Zig, 89KB static)
   netd/             Network state daemon (Rust)
-  glowfsctl-zig/    GlowFS image tooling (Zig, 164KB)
   oil/              Native package manager (Rust, APK-only)
   backends/
     appliance/      Primary target (dinit, toybox, LLVM, Oil, diskless)
-  glowfs/           GlowFS kernel module source
 docs/               Architecture, build, install docs
 
 Kernel configs live at `system/backends/appliance/kernel/`.
@@ -78,9 +76,8 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 |------|--------|------|
 | Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
 | Rust audit | `.github/workflows/ci.yml` | cargo audit on dependencies |
-| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig + glowfsctl-zig |
+| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig and small system helpers |
 | OS appliance | `scripts/ci-os-appliance.sh` | Policy contract validation |
-| GlowFS module | `scripts/ci-glowfs-kernel-module.sh` | Compile vs Linux headers |
 | Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time measurement |
 ## Testing
 
@@ -88,7 +85,6 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 ./scripts/ci-rust-core.sh
 ./scripts/ci-zig.sh              # skip if no zig
 ./scripts/ci-os-appliance.sh
-./scripts/ci-glowfs-kernel-module.sh
 ./scripts/bench-boot.sh          # needs built disk image
 cargo test -p alpenglow-netd
 ```
@@ -113,8 +109,8 @@ cargo test -p alpenglow-netd
 | Editor (vro) | ✅ | replaces toybox vi |
 | Bootable disk image | ✅ | GPT + Limine |
 | kernelctl Zig | ✅ | 89KB static, built in CI |
-| Custom kernel build | ✅ | `KERNEL_BUILD=1` works, GlowFS in-tree |
-| GlowFS kernel module | ✅ | In-tree, weak C fallback for Rust |
+| Custom kernel build | ✅ | `KERNEL_BUILD=1` works |
+| Immutable root image | ✅ | erofs/squashfs active |
 | Real hardware boot | ❌ | QEMU only for now |
 | Build profiles | ✅ | `BUILD_PROFILE=minimal|standard|desktop` |
 | Interactive installer | 🟡 | Planned |
@@ -132,6 +128,6 @@ Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds and
 ## Language Tooling Notes
 
 - **Rust**: daemons (netd), Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
-- **Zig**: kernelctl, glowfsctl. Targets <100KB initramfs helpers.
+- **Zig**: kernelctl and small initramfs helpers. Targets <100KB initramfs helpers.
 - **Zig**: kernelctl (89KB static, 5.6x smaller than Rust). Targets <100KB initramfs helpers.
 - **Equilibrium** (external): Zig/Nim/D/Rust FFI bridge. Not integrated yet.

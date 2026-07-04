@@ -9,7 +9,7 @@ BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/appliance"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
 GENERATION_DIR="${OUT_DIR}/generations"
-GLOWFS_IMAGE="${OUT_DIR}/alpenglow-root.glowfs"
+ROOT_IMAGE="${OUT_DIR}/alpenglow-root.erofs"
 
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
@@ -64,17 +64,18 @@ done < "${PKG_LIST}"
 # ── Phase 2: Configure rootfs ───────────────────────────────────────
 BUILD_PROFILE="${BUILD_PROFILE}" COMPILER="${COMPILER}" "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
 
-# ── Phase 3: Compose GlowFS image ───────────────────────────────────
-echo "→ Composing GlowFS image..."
-GLOWFSCTL="${ROOT_DIR}/target/release/glowfsctl"
-if [ -f "${GLOWFSCTL}" ]; then
-  "${GLOWFSCTL}" create \
-    --input "${ROOTFS_DIR}" \
-    --output "${GLOWFS_IMAGE}" \
-    --label "alpenglow-$(date +%Y%m%d-%H%M%S)" \
-    --compression zstd
-  echo "  GlowFS image: ${GLOWFS_IMAGE}"
+# ── Phase 3: Compose immutable root image ──────────────────────────
+echo "→ Composing immutable root image..."
+if command -v mkfs.erofs >/dev/null 2>&1; then
+  mkfs.erofs -zlz4hc "${ROOT_IMAGE}" "${ROOTFS_DIR}" >/dev/null
+elif command -v mksquashfs >/dev/null 2>&1; then
+  ROOT_IMAGE="${OUT_DIR}/alpenglow-root.squashfs"
+  mksquashfs "${ROOTFS_DIR}" "${ROOT_IMAGE}" -noappend -comp zstd >/dev/null
+else
+  echo "missing mkfs.erofs or mksquashfs" >&2
+  exit 1
 fi
+echo "  image: ${ROOT_IMAGE}"
 
 # ── Phase 4: Register generation ────────────────────────────────────
 GEN_ID="alpenglow-$(date +%Y%m%d-%H%M%S)"
@@ -86,17 +87,17 @@ cat > "${GENERATION_FILE}" <<EOF
   "arch": "${ALPENGLOW_ARCH}",
   "backend": "alpenglow-native",
   "compiler": "${COMPILER}",
-  "image": "${GLOWFS_IMAGE}",
+  "image": "${ROOT_IMAGE}",
   "packages": $(wc -l < "${PKG_LIST}")
 }
 EOF
-ln -sf "${GLOWFS_IMAGE}" "${OUT_DIR}/current.glowfs"
+ln -sf "${ROOT_IMAGE}" "${OUT_DIR}/current.${ROOT_IMAGE##*.}"
 ln -sf "${GENERATION_FILE}" "${OUT_DIR}/current.json"
 
 echo "✓ Alpenglow native appliance built:"
 echo "  rootfs:  ${ROOTFS_DIR}"
-echo "  image:   ${GLOWFS_IMAGE}"
+echo "  image:   ${ROOT_IMAGE}"
 echo "  gen:     ${GEN_ID}"
 echo ""
 echo "To boot:"
-echo "  qemu-system-x86_64 -kernel /boot/vmlinuz -initrd initramfs -append \"alpenglow.ram_root alpenglow.image=${GLOWFS_IMAGE}\""
+echo "  qemu-system-x86_64 -kernel /boot/vmlinuz -initrd initramfs -append \"alpenglow.ram_root alpenglow.image=${ROOT_IMAGE}\""

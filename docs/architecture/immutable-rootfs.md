@@ -1,9 +1,9 @@
 # Immutable Rootfs And State Filesystem
 
-Alpenglow has two deployment modes:
+Alpenglow has one root model:
 
-- **Diskless/immutable** — full OS in RAM (initramfs), immutable image, read-only `/`. State on persistent bcachefs.
-- **Rootfs/desktop** — normal r/w root on disk, package-managed, no image layers.
+- **Immutable rootfs** — full OS in RAM (initramfs), immutable erofs/squashfs image, read-only `/`. State on persistent bcachefs.
+- **Desktop** — a build profile on top of the immutable rootfs model, not a separate root-on-disk mode.
 
 This doc covers the immutable/appliance mode.
 
@@ -11,11 +11,7 @@ This doc covers the immutable/appliance mode.
 
 The root image is sealed at build time by `system/backends/appliance/scripts/build-rootfs.sh`. Mounted read-only at `/` from RAM. Runtime writes are limited to tmpfs and the bcachefs-backed state partition at `/state`.
 
-GlowIFS is the planned immutable format, but it is under development. Current appliance builds should treat EROFS or SquashFS as realistic immutable-image fallbacks while the repository's prototype `glowfs` code is still being renamed and redesigned.
-
-GlowFS and GlowIFS are separate by design, but neither should be documented as production-ready yet. GlowIFS is the sealed appliance-root direction: immutable, read-only, digest-verified, and generation-oriented. GlowFS is the writable-filesystem direction: journaled, recoverable, allocation-aware, and suitable for normal POSIX writes. Appliance images should not depend on mutable GlowIFS behavior.
-
-GlowIFS editability is planned as object policy rather than path-only policy. A path such as `/home` is just a binding to editable objects; the durable identity lives in the object manifest. The current bind-mount plan below is the practical compatibility shape until object-policy mounting exists.
+Future filesystem experiments should stay separate from current immutable builds.
 
 ## Runtime Mount Plan (appliance mode)
 

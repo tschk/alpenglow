@@ -30,14 +30,12 @@ linux-firmware
 
 # Boot/initramfs
 alpenglow-initramfs
-glowfs-tools
 
 # Display and input
 seatd
 velox
 wayland
 wayland-protocols
-glowfs-wayland
 foot
 alpenglowed
 
@@ -82,7 +80,6 @@ samurai
 lua
 
 # Filesystem tools
-glowfs-tools
 erofs-utils
 squashfs-tools
 
