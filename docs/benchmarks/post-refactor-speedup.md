@@ -18,6 +18,20 @@ Measured after the Zig common-module refactor and the boot-test fixes
 
 Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`, aggressive disables): **0.53 s**, kernel+initramfs **6.2 MB**. Latest aarch64 run (custom 7.0.12 kernel, `MACHINE=virt`, `-cpu max`, aggressive disables): **0.56 s** best / **0.68 s** median, kernel+initramfs **7.9 MB**. Previous aarch64 with Alpine virt kernel: **0.78 s**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
 
+## Kernel profiles
+
+Three kernel profiles are now selectable via `KERNEL_PROFILE` (default: `fast`):
+
+| Profile | Purpose | x86_64 size | aarch64 size | Boot time* |
+|---------|---------|-------------|--------------|------------|
+| `fast` | Headless diskless boot, absolute minimum | 6.2 MB | 7.9 MB | ~0.7 s |
+| `minimal` | SSH + networking + time/logs, cgroup v2, PSI, MGLRU, zram, seccomp, Landlock, BBR/fq, EROFS/SquashFS | 6.2 MB | 12.6 MB | ~0.9 s |
+| `desktop` | Minimal + display, audio, USB, HID, WiFi, Bluetooth | 6.2 MB | 16.3 MB | ~0.9 s |
+
+*Boot time on aarch64 HVF, 512 MB RAM, 2 vCPUs. Times vary by host load and QEMU options.
+
+Profiles apply the original Alpenglow planning ideas: dinit service graphs, per-process namespaces, capability handles, immutable root filesystems, and browser-first boot paths.
+
 ## vCPU scaling
 
 Tested on ultramarine with KVM, 2 GB RAM, and 1/2/4/8 vCPUs. The boot
