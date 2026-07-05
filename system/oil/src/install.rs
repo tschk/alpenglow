@@ -79,8 +79,8 @@ impl InstallState {
         self.packages.clear();
     }
 
-    pub fn get(&self, name: &str) -> Option<InstalledPackage> {
-        self.packages.get(name).cloned()
+    pub fn get(&self, name: &str) -> Option<&InstalledPackage> {
+        self.packages.get(name)
     }
 }
 
@@ -211,6 +211,36 @@ mod tests {
             state.packages.is_empty(),
             "State should be empty after clear"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_install_state_load_method() -> Result<()> {
+        let _guard = EnvGuard::new();
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        std::env::set_var("HOME", temp_dir.path());
+
+        let mut state = InstallState::new().expect("Failed to create new InstallState");
+
+        // Before adding anything
+        let loaded = state.load().expect("Failed to load");
+        assert!(loaded.is_empty());
+
+        // Add some packages
+        state.mark_installed("pkg-x", Some("1.0.0"));
+        state.mark_installed("pkg-y", Some("2.0.0"));
+
+        let loaded = state.load().expect("Failed to load");
+        assert_eq!(loaded.len(), 2);
+
+        let pkg_x = loaded.get("pkg-x").expect("pkg-x should exist in loaded map");
+        assert_eq!(pkg_x.name, "pkg-x");
+        assert_eq!(pkg_x.version, "1.0.0");
+
+        let pkg_y = loaded.get("pkg-y").expect("pkg-y should exist in loaded map");
+        assert_eq!(pkg_y.name, "pkg-y");
+        assert_eq!(pkg_y.version, "2.0.0");
 
         Ok(())
     }

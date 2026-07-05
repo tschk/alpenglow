@@ -47,7 +47,7 @@ function sendSerial(data) {
   emulator?.serial0_send(data);
 }
 
-function terminalFontSize() {
+function computeTerminalMetrics() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const pad = Math.min(72, Math.max(24, Math.min(w, h) * 0.06));
@@ -57,25 +57,32 @@ function terminalFontSize() {
   const rows = Math.max(14, Math.floor(innerH / 18));
   const fromWidth = innerW / cols;
   const fromHeight = innerH / rows;
-  return Math.min(26, Math.max(11, Math.round(Math.min(fromWidth, fromHeight) * 0.92)));
+  const fontSize = Math.min(26, Math.max(11, Math.round(Math.min(fromWidth, fromHeight) * 0.92)));
+  return { cols, rows, fontSize, pad };
 }
+
+function terminalSize() {
+  const { cols, rows } = computeTerminalMetrics();
+  return { cols, rows };
+}
+
+function terminalFontSize() {
+  return computeTerminalMetrics().fontSize;
+}
+
+let emulatorReady = false;
 
 function applyTerminalScale() {
   if (!term || !fitAddon) {
     return;
   }
-  const size = terminalFontSize();
-  if (term.options && term.options.fontSize !== size) {
-    term.options.fontSize = size;
+  const { fontSize } = computeTerminalMetrics();
+  if (term.options && term.options.fontSize !== fontSize) {
+    term.options.fontSize = fontSize;
   }
   fitAddon.fit();
   if (typeof term.resize === "function" && term.cols && term.rows) {
     term.resize(term.cols, term.rows);
-  }
-  if (emulator?.serial0_send && term.cols) {
-    const cols = Math.max(40, term.cols);
-    const rows = Math.max(12, term.rows || 24);
-    emulator.serial0_send(`\x1b[8;${rows};${cols}t`);
   }
 }
 
@@ -108,10 +115,10 @@ async function mountTerminal() {
     scrollback: 10000,
     allowTransparency: false,
     theme: {
-      background: "#09090b",
+      background: "#000000",
       foreground: "#e4e4e7",
       cursor: "#fafafa",
-      cursorAccent: "#09090b",
+      cursorAccent: "#000000",
       selectionBackground: "#3f3f46",
       selectionForeground: "#fafafa",
       black: "#18181b",
@@ -140,7 +147,9 @@ async function mountTerminal() {
   if (fitAddon.observeResize) {
     fitAddon.observeResize();
   }
-  window.addEventListener("resize", () => applyTerminalScale());
+  window.addEventListener("resize", () => {
+    applyTerminalScale();
+  });
 
   term.writeln("Alpenglow loading…");
   term.focus();
@@ -200,8 +209,11 @@ if (!screen) {
 setStatus("loading Alpenglow", 0);
 const useXterm = await mountTerminal();
 
+const { cols, rows } = terminalSize();
+const cmdline = `console=ttyS0 rdinit=/init quiet loglevel=2 alpenglow.cols=${cols} alpenglow.rows=${rows}`;
+
 try {
-  const { V86 } = await import(asset("/v86/libv86.mjs"));
+  const { V86 } = await import("./v86/libv86.mjs");
 
   emulator = new V86({
     wasm_path: asset("/v86/v86.wasm"),
@@ -210,12 +222,15 @@ try {
     vga_bios: { url: asset("/v86/vgabios.bin") },
     bzimage: { url: asset("/v86/alpenglow-v86-vmlinuz") },
     initrd: { url: asset("/v86/alpenglow-v86-initrd.cpio.gz") },
-    cmdline: "console=ttyS0 rdinit=/init quiet",
+    cmdline,
     memory_size: 256 * 1024 * 1024,
     autostart: true,
   });
 
   emulator.add_listener("serial0-output-byte", (byte) => {
+    if (byte === 0xff) {
+      return;
+    }
     const ch = String.fromCharCode(byte);
     if (term) {
       term.write(ch);
@@ -246,6 +261,7 @@ try {
   });
 
   emulator.add_listener("emulator-ready", () => {
+    emulatorReady = true;
     finishStatus("booting alpenglow shell");
     applyTerminalScale();
     term?.focus();

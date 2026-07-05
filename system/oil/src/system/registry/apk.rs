@@ -59,6 +59,14 @@ impl ApkRegistry {
         false
     }
 
+    pub fn refresh(&self) -> Result<PackageIndex> {
+        let cache_path = self.cache_path()?;
+        if cache_path.exists() {
+            std::fs::remove_file(&cache_path)?;
+        }
+        self.load()
+    }
+
     pub fn load(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
 
