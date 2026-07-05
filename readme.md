@@ -82,7 +82,7 @@ Kernel profiles select hardware and boot policy:
 
 ## Performance
 
-### Boot to login (QEMU KVM, quiet)
+### Boot target (QEMU KVM, quiet)
 
 | OS | Boot | Initramfs | Kernel | RAM at login |
 |----|------|-----------|--------|----------|
@@ -92,13 +92,15 @@ Kernel profiles select hardware and boot policy:
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
-| Solus Desktop | not measured | not measured | not measured | not measured |
-| Fedora Workstation | not measured | not measured | not measured | not measured |
-| Ubuntu Desktop | not measured | not measured | not measured | not measured |
+| Fedora minimal GNOME | 7.24s | 34MB | 18MB | ~716MB |
+| Manjaro minimal XFCE | 6.82s | 24MB | 16MB | ~439MB |
+| Ubuntu minimal GNOME | 35.38s | 63MB | 15MB | ~196MB |
 
 Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
 
 Desktop serial-login proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`) reached login in 1.25s with Zig-backed kernel policy, netd, zram, and pressure services enabled. The measured image had a 223MB rootfs, 66MB zstd initramfs, 6.0MB kernel, and ~258MB RAM used. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
+
+Fedora, Manjaro, and Ubuntu desktop rows are installed package-manager roots, not live ISOs or netinstall timings. They were built on `ultramarine` as minimal desktop images, copied to ext4 disks, and booted with the same QEMU shape used for Alpenglow comparison (`q35`, KVM, 4096MB RAM, 2 vCPU, virtio GPU, serial console). Boot time stops at systemd `graphical.target`; RAM is the last serial `/proc/meminfo` sample before that target. Fedora used GNOME/GDM from `fedora:43` packages with a 2.2GB root and 2.4GB sparse image. Manjaro used XFCE/LightDM from `manjarolinux/base:latest` packages with a 2.0GB root and 2.2GB sparse image. Ubuntu used GNOME/GDM from `ubuntu:24.04` packages with a 2.0GB root and 2.1GB sparse image.
 
 | Desktop graphics payload | Size | Includes |
 |--------------------------|------|----------|
