@@ -2,12 +2,14 @@
 # Build greetd as static musl binary
 set -eu
 
-OUT_DIR="${1:-/tmp/out}"
+OUT_DIR="${1:-$(mktemp -d)}"
 VERSION="${2:-0.10.3}"
 
 echo "→ Building greetd ${VERSION}..."
 
-cd /tmp
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+cd "$BUILD_DIR"
 curl -fsSL "https://gitlab.com/mobian1/greetd/-/archive/v${VERSION}/greetd-v${VERSION}.tar.gz" -o greetd.tar.gz
 tar -xf greetd.tar.gz
 cd "greetd-v${VERSION}"
