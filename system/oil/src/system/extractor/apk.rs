@@ -157,6 +157,8 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     let mut entries_buf: Vec<Vec<u8>> = Vec::new();
+    let mut created_dirs = std::collections::HashSet::new();
+    created_dirs.insert(dest_dir.to_path_buf());
 
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
@@ -174,12 +176,26 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
 
         let dest = dest_dir.join(stripped);
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)?;
+            if !created_dirs.contains(parent) {
+                std::fs::create_dir_all(parent)?;
+                let mut current = parent.to_path_buf();
+                while !created_dirs.contains(&current) {
+                    created_dirs.insert(current.clone());
+                    if let Some(p) = current.parent() {
+                        current = p.to_path_buf();
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
 
         let kind = entry.header().entry_type();
         if kind.is_dir() {
-            std::fs::create_dir_all(&dest)?;
+            if !created_dirs.contains(&dest) {
+                std::fs::create_dir_all(&dest)?;
+                created_dirs.insert(dest.clone());
+            }
             dirs.push(dest);
         } else if kind.is_symlink() {
             if let Some(link_target) = entry.link_name()? {
@@ -213,7 +229,18 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             }
             let dest = dest_dir.join(stripped);
             if let Some(parent) = dest.parent() {
-                std::fs::create_dir_all(parent)?;
+                if !created_dirs.contains(parent) {
+                    std::fs::create_dir_all(parent)?;
+                    let mut current = parent.to_path_buf();
+                    while !created_dirs.contains(&current) {
+                        created_dirs.insert(current.clone());
+                        if let Some(p) = current.parent() {
+                            current = p.to_path_buf();
+                        } else {
+                            break;
+                        }
+                    }
+                }
             }
             entry.unpack(&dest)?;
             if !entry.header().entry_type().is_dir() {
