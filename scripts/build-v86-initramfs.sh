@@ -30,10 +30,10 @@ fi
 mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOTFS}/sys" \
   "${ROOTFS}/run" "${ROOTFS}/tmp" "${ROOTFS}/usr/local/bin" "${ROOTFS}/usr/share/alpenglow/browser"
 
-if [ ! -x "${BUSYBOX}" ]; then
+if [ ! -x "${BUSYBOX}" ] || [ "${FORCE_V86_BUSYBOX:-}" = 1 ]; then
   need_docker
-  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" debian:bookworm-slim sh -lc \
-    'apt-get update -qq && apt-get install -y -qq busybox-static >/dev/null && cp /bin/busybox /out/busybox-i386 && chmod +x /out/busybox-i386'
+  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc \
+    'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
 fi
 
 sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
@@ -120,16 +120,16 @@ mkdir -p "${ROOTFS}/etc/fastfetch"
 cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
 {
   "\$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
-  "logo": { "type": "small", "padding": { "top": 1, "left": 0 } },
-  "display": { "separator": "  " },
+  "logo": { "type": "none" },
+  "display": { "separator": ": ", "key": { "width": 14 } },
   "modules": [
-    { "type": "custom", "format": "alpenglow@alpenglow" },
-    { "type": "custom", "format": "OS: Alpenglow ${ALP_VERSION} (browser i686)" },
+    { "type": "custom", "format": "Alpenglow ${ALP_VERSION}" },
+    { "type": "custom", "format": "Host: alpenglow (browser i686)" },
     { "type": "kernel" },
     { "type": "uptime" },
     { "type": "memory" },
     { "type": "shell" },
-    { "type": "packages", "format": "{1} (apk)" }
+    { "type": "packages", "format": "{1} (oil/apk)" }
   ]
 }
 EOF
