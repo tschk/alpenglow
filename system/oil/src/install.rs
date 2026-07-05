@@ -79,8 +79,8 @@ impl InstallState {
         self.packages.clear();
     }
 
-    pub fn get(&self, name: &str) -> Option<InstalledPackage> {
-        self.packages.get(name).cloned()
+    pub fn get(&self, name: &str) -> Option<&InstalledPackage> {
+        self.packages.get(name)
     }
 }
 
