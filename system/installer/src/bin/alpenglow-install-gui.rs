@@ -23,7 +23,7 @@ fn main() {
                         div text-sm text-[#d4d4d8]
                             "Use the terminal installer for disk writes until the GPUI event layer is wired."
                         div text-sm text-[#facc15]
-                            "alpenglow-install-tui /run/alpenglow/alpenglow.img /dev/sdX"
+                            "alpenglow-install-tui /run/alpenglow/alpenglow.img.zst /dev/sdX"
             "#}
         }
     }

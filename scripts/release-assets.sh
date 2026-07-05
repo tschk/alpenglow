@@ -4,13 +4,14 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
+PROFILE="${BUILD_PROFILE:-standard}"
 OUT_DIR="${ROOT_DIR}/build/release"
 ASSET_DIR="${OUT_DIR}/assets"
 IMAGE="${OUT_DIR}/alpenglow.img"
 KERNEL="${OUT_DIR}/vmlinuz"
 INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
 LIMINE_DIR="${OUT_DIR}/limine"
-ASSET_BASE="alpenglow-${VERSION}-${ARCH}"
+ASSET_BASE="alpenglow-${VERSION}-${PROFILE}-${ARCH}"
 COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
 
 case "${ARCH}" in
@@ -18,7 +19,7 @@ case "${ARCH}" in
   arm64) ARCH=aarch64 ;;
 esac
 
-ASSET_BASE="alpenglow-${VERSION}-${ARCH}"
+ASSET_BASE="alpenglow-${VERSION}-${PROFILE}-${ARCH}"
 COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
 
 require_cmd() {
@@ -38,16 +39,15 @@ sha256_file() {
 
 require_cmd zstd
 
-CREPUS_DIR="${CREPUSCULARITY_DIR:-$(dirname "${ROOT_DIR}")/crepuscularity}"
-if [ ! -f "${CREPUS_DIR}/crates/crepuscularity-tui/Cargo.toml" ]; then
-  echo "crepuscularity not found at ${CREPUS_DIR}; clone sibling repo or set CREPUSCULARITY_DIR" >&2
-  exit 1
-fi
-
-ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" "${ROOT_DIR}/scripts/build-release.sh"
+BUILD_PROFILE="${PROFILE}" ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" "${ROOT_DIR}/scripts/build-release.sh"
 cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
   --target-dir "${ROOT_DIR}/target" \
   --bin alpenglow-install --bin alpenglow-install-tui
+if [ "${PROFILE}" = "desktop" ]; then
+  cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+    --target-dir "${ROOT_DIR}/target" \
+    --features gui --bin alpenglow-install-gui
+fi
 
 test -f "${IMAGE}" || {
   echo "missing built image: ${IMAGE}" >&2
@@ -67,6 +67,9 @@ if command -v xorriso >/dev/null 2>&1; then
   cp "${COMPRESSED_IMAGE}" "${COMPRESSED_IMAGE}.sha256" "${ISO_ROOT}/run/alpenglow/"
   cp "${ROOT_DIR}/target/release/alpenglow-install" "${ISO_ROOT}/usr/bin/"
   cp "${ROOT_DIR}/target/release/alpenglow-install-tui" "${ISO_ROOT}/usr/bin/"
+  if [ "${PROFILE}" = "desktop" ] && [ -f "${ROOT_DIR}/target/release/alpenglow-install-gui" ]; then
+    cp "${ROOT_DIR}/target/release/alpenglow-install-gui" "${ISO_ROOT}/usr/bin/"
+  fi
   if [ -f "${KERNEL}" ] && [ -f "${INITRAMFS}" ]; then
     cp "${KERNEL}" "${ISO_ROOT}/boot/vmlinuz"
     cp "${INITRAMFS}" "${ISO_ROOT}/boot/initramfs.cpio.gz"

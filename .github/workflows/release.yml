@@ -13,6 +13,10 @@ on:
         description: "Image architecture"
         required: false
         default: "x86_64"
+      profile:
+        description: "Build profile"
+        required: false
+        default: "standard"
 
 permissions:
   contents: write
@@ -33,6 +37,7 @@ jobs:
       - name: Build release assets
         env:
           ALPENGLOW_ARCH: ${{ github.event.inputs.arch || 'x86_64' }}
+          BUILD_PROFILE: ${{ github.event.inputs.profile || 'standard' }}
         run: |
           version="${{ github.event.inputs.version || github.ref_name }}"
           sh scripts/release-assets.sh "${version}"
