@@ -213,7 +213,7 @@ const { cols, rows } = terminalSize();
 const cmdline = `console=ttyS0 rdinit=/init quiet alpenglow.cols=${cols} alpenglow.rows=${rows}`;
 
 try {
-  const { V86 } = await import(asset("/v86/libv86.mjs"));
+  const { V86 } = await import("./v86/libv86.mjs");
 
   emulator = new V86({
     wasm_path: asset("/v86/v86.wasm"),

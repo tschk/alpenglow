@@ -10,9 +10,6 @@
   Content-Type: application/wasm
   Cache-Control: public, max-age=31536000, immutable
 
-/v86/libv86.mjs
-  Cache-Control: public, max-age=86400
-
 /v86/seabios.bin
   Cache-Control: public, max-age=86400
 
