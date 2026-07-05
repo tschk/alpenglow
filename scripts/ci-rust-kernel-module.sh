@@ -31,16 +31,38 @@ scripts/config \
   --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL
 
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
+grep -q '^CONFIG_RUST=y' .config || {
+  echo "ci-rust-kernel-module: CONFIG_RUST not enabled after olddefconfig"
+  exit 1
+}
+
+ensure_rust_target_json() {
+  if [ -f scripts/target.json ]; then
+    return 0
+  fi
+  echo "Generating scripts/target.json via kbuild..."
+  RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 scripts/target.json > /tmp/kmod-target-json.log 2>&1 \
+    || RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 rust/core.o >> /tmp/kmod-target-json.log 2>&1 \
+    || true
+  if [ ! -f scripts/target.json ]; then
+    RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 scripts/generate_rust_target >> /tmp/kmod-target-json.log 2>&1
+    ./scripts/generate_rust_target include/config/auto.conf > scripts/target.json \
+      || { tail -20 /tmp/kmod-target-json.log; exit 1; }
+  fi
+  test -f scripts/target.json || { echo "ci-rust-kernel-module: missing scripts/target.json"; tail -20 /tmp/kmod-target-json.log; exit 1; }
+}
+
 NPROC="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 echo "Building Linux ${KERNEL_VER} with Rust support (this may take a few minutes)..."
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" > /tmp/kmod-kernel.log 2>&1 || { tail -30 /tmp/kmod-kernel.log; exit 1; }
+ensure_rust_target_json
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" modules > /tmp/kmod-modules.log 2>&1 || { tail -30 /tmp/kmod-modules.log; exit 1; }
 
-# Build Alpenglow core module (kbuild looks for scripts/target.json next to the module tree)
+# Out-of-tree Rust modules need ./scripts/target.json beside the module sources.
 rm -rf /tmp/alpenglow-kmod
 cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
 mkdir -p /tmp/alpenglow-kmod/scripts
-cp "${PWD}/scripts/target.json" /tmp/alpenglow-kmod/scripts/target.json
+cp scripts/target.json /tmp/alpenglow-kmod/scripts/target.json
 RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 || { tail -30 /tmp/kmod-build.log; exit 1; }
 test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
 echo "Rust kernel module OK"
