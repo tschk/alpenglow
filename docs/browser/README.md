@@ -4,14 +4,14 @@ You are running Alpenglow's own userspace in the browser (busybox ash, Oil, wax)
 
 ## What Alpenglow is
 
-**Fastest and lightest** immutable Linux appliance we know how to ship: ~2s boot to login on real hardware, tiny userspace (toybox/oksh, dinit, Oil), hardened kernel profiles, no systemd bloat.
+**Fastest and lightest** immutable Linux we ship: ~2s boot on headless hardware, tiny userspace (toybox/oksh, dinit, Oil), hardened kernels -- plus a **full desktop profile** (Alpenglowed, foot, audio, Wi-Fi).
 
 **Ideology (short):**
 
 - **Immutable system image** in RAM (erofs/squashfs) -- upgrades replace the image, not `apt upgrade` on a live root.
 - **Mutable life on disk** under `/state` (bcachefs): home, Oil metadata, logs, caches -- your data survives OS swaps.
 - **Native package manager (Oil / wax)** -- sync HTTP, APK payloads, recipes in-repo; no mystery remote rootfs.
-- **Appliance-first** -- SSH, net, time, logs in minimal; desktop is optional profile, not a kitchen-sink live ISO.
+- **Headless or desktop** -- same immutable root; `BUILD_PROFILE=desktop` is a first-class product path, not an afterthought.
 - **You add VPN, firewall extras, Tailscale** -- base stays small; that is intentional.
 
 ## Desktop is a hybrid (not "all RAM")

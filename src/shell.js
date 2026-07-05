@@ -69,6 +69,14 @@ function applyTerminalScale() {
     term.options.fontSize = size;
   }
   fitAddon.fit();
+  if (typeof term.resize === "function" && term.cols && term.rows) {
+    term.resize(term.cols, term.rows);
+  }
+  if (emulator?.serial0_send && term.cols) {
+    const cols = Math.max(40, term.cols);
+    const rows = Math.max(12, term.rows || 24);
+    emulator.serial0_send(`\x1b[8;${rows};${cols}t`);
+  }
 }
 
 async function mountTerminal() {

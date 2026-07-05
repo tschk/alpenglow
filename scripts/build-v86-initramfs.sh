@@ -176,8 +176,16 @@ for f in /etc/profile.d/*.sh; do
   [ -r "$f" ] && . "$f"
 done
 PROF
+cat > "${ROOTFS}/etc/profile.d/serial-tty.sh" <<'TTY'
+CON=/dev/ttyS0
+[ -c "$CON" ] || CON=/dev/console
+if /bin/stty -F "$CON" sane 2>/dev/null; then
+  dims="$(/bin/stty -F "$CON" size 2>/dev/null)"
+  set -- $dims
+  [ -n "$2" ] && export LINES="$1" COLUMNS="$2"
+fi
+TTY
 cat > "${ROOTFS}/etc/profile.d/prompt.sh" <<'PROMPT'
-# busybox sh: starship does not support sh; use a simple prompt.
 export PS1='alpenglow:~# '
 PROMPT
 
@@ -204,7 +212,7 @@ cd /
 {
   /bin/echo "Alpenglow"
   /bin/echo
-  /bin/echo "Alpenglow: fast, light immutable appliance (hybrid desktop = RAM root + disk /state)."
+  /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
   /bin/echo "Docs (case-sensitive): cat README.md  cat ideology.md  cat root-model.md  cat desktop.md"
   /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
   /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."
@@ -217,6 +225,7 @@ cd /
 export ENV=/etc/profile
 if [ -c "$CON" ]; then
   /bin/stty -F "$CON" sane 2>/dev/null || true
+  /bin/stty -F "$CON" columns 100 rows 30 2>/dev/null || true
 fi
 printf '\n' >"$CON"
 # ash (busybox) for job control on serial tty when available
