@@ -1,15 +1,11 @@
-# Packages
+# Packages (demo)
 
-Oil is Alpenglow's package manager.
+**Oil** is Alpenglow’s package manager. Recipes under `system/oil/recipes/` describe APK payloads Oil fetches and extracts; registry mirrors are used only as a package source, not as the OS.
 
-The full system uses Oil for APK-compatible package metadata, installation
-state, and immutable-image package selection. Package state belongs under
-`/state`, not inside the replaceable root image.
-
-This browser shell includes the real Oil binary, a real fastfetch package, and
-a seeded package cache for the included packages:
-oil search fetch
+```sh
+oil search fastfetch
 oil info fastfetch
 oil install fastfetch
+```
 
-`fastfetch` is installed by default.
+`fastfetch` is installed at image build time via `oil install-recipe`. On a full system, install state lives under `/state`, not in the immutable root image.

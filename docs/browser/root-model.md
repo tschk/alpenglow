@@ -1,10 +1,7 @@
-# Root Model
+# Root model
 
-Alpenglow boots from an immutable image loaded into RAM.
+Alpenglow boots from an **immutable root image** loaded into RAM (erofs or squashfs in production initramfs).
 
-The root filesystem is replaceable. Mutable data is not stored there. Real
-installations keep `/home` and machine state under bcachefs-backed `/state`,
-then bind the needed paths into the running system.
+Mutable data—`/home`, Oil state, logs, caches—is kept on **bcachefs-backed `/state`** and bind-mounted into the running system. Replacing the OS image does not wipe user data or package metadata.
 
-This gives Alpenglow a simple update model: build a new image, boot it, keep
-the user's data and package state.
+The browser demo uses a single writable tmpfs layout inside a small initramfs to illustrate commands and documentation; it does not mount bcachefs.

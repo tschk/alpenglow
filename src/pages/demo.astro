@@ -1,0 +1,131 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base
+  title="Alpenglow — Demo"
+  description="In-browser Alpenglow demo: 32-bit initramfs with Oil, fastfetch, and a Wayland compositor."
+>
+  <main id="screen_container" class="demo-shell" aria-label="Alpenglow demo">
+    <div></div>
+    <canvas></canvas>
+    <pre id="terminal" tabindex="0" aria-label="Alpenglow serial console"></pre>
+    <form id="command_form" autocomplete="off">
+      <input
+        id="command_input"
+        autocapitalize="none"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        inputmode="text"
+        aria-label="Command"
+      />
+      <button type="submit">run</button>
+    </form>
+    <section id="boot_status" aria-live="polite">
+      <p id="boot_message">Loading demo initramfs</p>
+      <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
+    </section>
+  </main>
+  <script src="/app.js?v=20260705-demo" type="module"></script>
+</Base>
+
+<style>
+  :global(body:has(.demo-shell)) {
+    overflow: hidden;
+  }
+
+  :global(body:has(.demo-shell) .site-header),
+  :global(body:has(.demo-shell) .site-footer) {
+    display: none;
+  }
+
+  .demo-shell {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    color: #fff;
+  }
+
+  .demo-shell > div,
+  .demo-shell > canvas,
+  .demo-shell canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  #terminal {
+    display: none;
+  }
+
+  #command_form {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: none;
+    grid-template-columns: 1fr auto;
+    height: 44px;
+    border-top: 1px solid #fff;
+    background: #000;
+    z-index: 2;
+  }
+
+  #command_input,
+  #command_form button {
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+    color: #fff;
+    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
+  }
+
+  #command_input {
+    padding: 0 12px;
+    outline: 0;
+  }
+
+  #command_form button {
+    width: 64px;
+    border-left: 1px solid #fff;
+  }
+
+  @media (max-width: 700px), (pointer: coarse) {
+    #command_form {
+      display: grid;
+    }
+  }
+
+  #boot_status {
+    position: fixed;
+    left: clamp(14px, 2.4vw, 30px);
+    right: clamp(14px, 2.4vw, 30px);
+    bottom: clamp(14px, 2.4vw, 30px);
+    display: grid;
+    gap: 10px;
+    max-width: 520px;
+    pointer-events: none;
+    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
+    z-index: 3;
+  }
+
+  #boot_status[hidden] {
+    display: none;
+  }
+
+  #boot_message {
+    margin: 0;
+    color: #fff;
+  }
+
+  #boot_progress {
+    width: 100%;
+    height: 12px;
+    accent-color: #fff;
+  }
+</style>

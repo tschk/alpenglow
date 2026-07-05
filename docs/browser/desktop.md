@@ -1,12 +1,5 @@
-# Desktop
+# Desktop (demo vs production)
 
-Alpenglowed is the desktop environment for Alpenglow.
+The **browser demo** runs **cage** and **foot** under dinit with software rendering so v86 can show a framebuffer.
 
-The desktop profile adds the graphical stack on top of the same immutable
-root model. It is not a separate root-on-disk mode.
-
-Alpenglowed is a Wayland + Smithay desktop path:
-https://github.com/tschk/alpenglowed
-
-Build target:
-BUILD_PROFILE=desktop KERNEL_PROFILE=desktop
+**Production** (`BUILD_PROFILE=desktop`) uses greetd, seatd, PipeWire, and **[Alpenglowed](https://github.com/tschk/alpenglowed)** on the immutable RAM-root image—not cage as the product compositor.

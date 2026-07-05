@@ -1,7 +1,8 @@
 {
   "scripts": {
     "dev": "astro dev",
-    "build": "astro check --minimumSeverity error && astro build",
+    "build:v86": "sh scripts/build-v86-initramfs.sh",
+    "build": "sh scripts/build-v86-initramfs.sh && astro check --minimumSeverity error && astro build",
     "preview": "astro preview",
     "deploy": "bun run build && wrangler pages deploy dist --project-name alpenglow"
   },

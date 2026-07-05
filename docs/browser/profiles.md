@@ -1,13 +1,17 @@
 # Profiles
 
-Alpenglow separates build profiles from kernel profiles.
+Alpenglow separates **build profiles** (userspace image) from **kernel profiles** (hardware and boot policy).
 
-Build profiles:
-minimal - boot, shell, network, SSH, time, logs, DNS, OOM guard
-standard - minimal plus compiler/tooling, network tools, filesystem tools
-desktop - standard plus Wayland, audio, WiFi, greetd, Alpenglowed, foot
+| Build profile | Scope |
+|---------------|--------|
+| `minimal` | Headless appliance: shell, network, SSH, time, logs, DNS |
+| `standard` | Minimal plus toolchain and system utilities |
+| `desktop` | Standard plus graphics, audio, Wi‑Fi, greetd, Alpenglowed, foot |
 
-Kernel profiles:
-fast - smallest headless diskless boot path
-minimal - networked appliance kernel with cgroups, PSI, zram, seccomp, Landlock
-desktop - minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware
+| Kernel profile | Scope |
+|----------------|--------|
+| `fast` | Smallest diskless boot path |
+| `minimal` | Networked appliance: cgroups, PSI, zram, seccomp, Landlock |
+| `desktop` | Minimal plus display, audio, USB, HID, Wi‑Fi, firmware |
+
+The v86 demo does not expose profile switching; it ships one fixed 32-bit initramfs described in `README.md`.

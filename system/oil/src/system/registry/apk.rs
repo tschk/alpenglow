@@ -16,6 +16,7 @@ impl ApkRegistry {
     pub fn new(mirror: &str, branch: &str) -> Self {
         let arch = match std::env::consts::ARCH {
             "x86_64" => "x86_64",
+            "x86" | "i686" | "i386" => "x86",
             "aarch64" => "aarch64",
             "arm" => "armv7",
             other => other,
@@ -126,6 +127,12 @@ fn alpine_branch_from_os_release() -> Option<String> {
 }
 
 fn branch_from_os_release(os_release: &str) -> Option<String> {
+    if os_release.lines().any(|line| {
+        let t = line.trim();
+        t == "ID=alpenglow" || t == "ID=\"alpenglow\""
+    }) {
+        return Some("v3.20".to_string());
+    }
     let version = os_release.lines().find_map(|line| {
         let value = line.strip_prefix("VERSION_ID=")?;
         Some(value.trim_matches('"'))
@@ -287,6 +294,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_branch_from_os_release_alpenglow_id() {
+        let os_release = "ID=alpenglow\nVERSION_ID=0.1\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
+    }
+
+    #[test]
     fn test_branch_from_os_release_uses_major_minor() {
         let os_release = "ID=alpine\nVERSION_ID=3.20.3\n";
         assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
@@ -339,6 +352,7 @@ mod tests {
         let registry = ApkRegistry::new("https://dl-cdn.alpinelinux.org/alpine", "v3.24");
         let arch = match std::env::consts::ARCH {
             "x86_64" => "x86_64",
+            "x86" | "i686" | "i386" => "x86",
             "aarch64" => "aarch64",
             "arm" => "armv7",
             other => other,
