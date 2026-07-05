@@ -60,7 +60,7 @@ fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
-for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack; do
+for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack vi; do
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 cp "${OIL}" "${ROOTFS}/bin/oil"
@@ -159,13 +159,10 @@ if [ ! -x "${VRO_CACHE}" ]; then
     need_docker
     docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
       apk add --no-cache curl tar >/dev/null
-      tag="$(curl -fsSL https://api.github.com/repos/undivisible/vro/releases/latest | sed -n "s/.*\"tag_name\": \"\([^\"]*\)\".*/\1/p" | head -1)"
+      tag="$(curl -fsSL -A "Alpenglow-Build/1.0" https://api.github.com/repos/undivisible/vro/releases/latest | sed -n "s/.*\"tag_name\": \"\([^\"]*\)\".*/\1/p" | head -1)"
       [ -n "$tag" ] || exit 1
-      url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86_64"
-      if ! curl -fsSL -o /out/vro-i686 "$url"; then
-        url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86"
-        curl -fsSL -o /out/vro-i686 "$url" || exit 1
-      fi
+      url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86"
+      curl -fsSL -A "Alpenglow-Build/1.0" -o /out/vro-i686 "$url" || exit 1
       chmod +x /out/vro-i686
     ' || true
   fi
@@ -174,6 +171,9 @@ if [ -x "${VRO_CACHE}" ]; then
   cp "${VRO_CACHE}" "${ROOTFS}/usr/local/bin/vro"
   chmod 755 "${ROOTFS}/usr/local/bin/vro"
   ln -sf vro "${ROOTFS}/usr/local/bin/vi" 2>/dev/null || true
+else
+  ln -sf busybox "${ROOTFS}/usr/local/bin/vro"
+  ln -sf busybox "${ROOTFS}/usr/local/bin/vi"
 fi
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
@@ -239,7 +239,7 @@ cd /
   /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
   /bin/echo "Docs (case-sensitive): cat README.md  cat ideology.md  cat root-model.md  cat desktop.md"
   /bin/echo "Try: fastfetch   wax info vro   oil search firefox"
-  /bin/echo "     vro via wax on real hosts; tap support available in standard profile."
+  /bin/echo "     vro included; tap support available in standard profile."
   /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
