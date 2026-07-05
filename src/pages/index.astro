@@ -11,6 +11,11 @@
     <title>Alpenglow</title>
   </head>
   <body class="m-0 h-full overflow-hidden bg-black text-white antialiased">
+    <header class="boot-top-bar" aria-label="Alpenglow links">
+      <a href="https://github.com/tschk/alpenglow" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <span class="boot-top-sep" aria-hidden="true">·</span>
+      <a href="https://tsc.hk" target="_blank" rel="noopener noreferrer">tsc.hk</a>
+    </header>
     <main id="screen_container" class="page-shell" aria-label="Alpenglow OS">
       <div class="hidden"></div>
       <canvas class="hidden"></canvas>
@@ -46,6 +51,37 @@
   :root {
     color-scheme: dark;
     font-family: "Geist Mono", ui-monospace, monospace;
+  }
+
+  .boot-top-bar {
+    position: fixed;
+    top: clamp(14px, 2.4vw, 30px);
+    right: clamp(14px, 2.4vw, 30px);
+    z-index: 11;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem 0.5rem;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: clamp(0.75rem, 1.6vw, 0.9rem);
+    color: #a1a1aa;
+    pointer-events: auto;
+  }
+
+  .boot-top-bar a {
+    color: #fafafa;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .boot-top-bar a:hover {
+    color: #fff;
+  }
+
+  .boot-top-sep {
+    color: #52525b;
+    user-select: none;
   }
 
   #boot_status[hidden] {
