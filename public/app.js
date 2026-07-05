@@ -3,7 +3,7 @@ const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-shell-progress";
+const assetVersion = "20260705-shell-progress-2";
 const asset = (path) => `${path}?v=${assetVersion}`;
 
 function setStatus(message, percent) {
