@@ -86,3 +86,4 @@ system/backends/appliance/vro/vro
 # Local/tooling directories
 .poolside/
 piolium/
+zig-linux-x86_64-0.14.0/
