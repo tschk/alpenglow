@@ -23,19 +23,31 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh 
 
   # Copy all runtime shared libs from /usr/lib
   mkdir -p /out/usr/lib
-  cp /usr/lib/lib*.so* /out/usr/lib/ 2>/dev/null || true
+  copy_deps() {
+    for bin in "$@"; do
+      [ -e "$bin" ] || continue
+      ldd "$bin" 2>/dev/null | awk "{print \$3}" | grep "^/" | while read dep; do
+        cp -a "$dep" /out/usr/lib/ 2>/dev/null || true
+      done
+    done
+  }
+  copy_deps /usr/bin/cage /usr/bin/Xwayland /usr/bin/seatd /usr/bin/seatd-launch
 
   # Copy DRI drivers
   mkdir -p /out/usr/lib/dri
-  cp /usr/lib/dri/*_dri.so /out/usr/lib/dri/ 2>/dev/null || true
+  cp /usr/lib/dri/swrast_dri.so /out/usr/lib/dri/ 2>/dev/null || true
+  cp /usr/lib/dri/kms_swrast_dri.so /out/usr/lib/dri/ 2>/dev/null || true
+  copy_deps /usr/lib/dri/swrast_dri.so /usr/lib/dri/kms_swrast_dri.so
 
   # Copy gallium pipe loaders
   mkdir -p /out/usr/lib/gallium-pipe
-  cp /usr/lib/gallium-pipe/*.so /out/usr/lib/gallium-pipe/ 2>/dev/null || true
+  cp /usr/lib/gallium-pipe/pipe_swrast.so /out/usr/lib/gallium-pipe/ 2>/dev/null || true
+  copy_deps /usr/lib/gallium-pipe/pipe_swrast.so
 
   # Copy gbm backends
   mkdir -p /out/usr/lib/gbm
-  cp /usr/lib/gbm/*.so /out/usr/lib/gbm/ 2>/dev/null || true
+  cp /usr/lib/gbm/gbm_dri.so /out/usr/lib/gbm/ 2>/dev/null || true
+  copy_deps /usr/lib/gbm/gbm_dri.so
 
   # Copy Xwayland xorg config
   mkdir -p /out/usr/share/X11/xorg.conf.d
