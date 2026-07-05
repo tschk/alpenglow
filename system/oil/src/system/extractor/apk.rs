@@ -161,13 +161,13 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
         let entry_path = entry.path()?;
-        let entry_str = entry_path.to_string_lossy().to_string();
+        let entry_str = entry_path.to_string_lossy();
 
         if entry_str == ".PKGINFO" || entry_str == ".INSTALL" || entry_str.starts_with(".SIGN.") {
             continue;
         }
 
-        let stripped = entry_str.strip_prefix("./").unwrap_or(&entry_str).trim_start_matches('/');
+        let stripped = entry_str.strip_prefix("./").unwrap_or(entry_str.as_ref()).trim_start_matches('/');
         if stripped.is_empty() || stripped.contains("..") {
             continue;
         }
@@ -205,8 +205,9 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
         let mut archive = Archive::new(&data[..]);
         for entry_ in archive.entries()? {
             let mut entry = entry_?;
-            let path = entry.path()?.to_string_lossy().to_string();
-            let stripped = path.strip_prefix("./").unwrap_or(&path).trim_start_matches('/');
+            let entry_path = entry.path()?;
+            let path = entry_path.to_string_lossy();
+            let stripped = path.strip_prefix("./").unwrap_or(path.as_ref()).trim_start_matches('/');
             if stripped.is_empty() || stripped.contains("..") {
                 continue;
             }
