@@ -38,7 +38,7 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Package mgr | Oil | APK-compatible, standalone binary |
 | Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
-| Network | netd (Rust), udhcpc, iwd | Zero-external-deps netd |
+| Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
 | Desktop | Wayland + Smithay target via alpenglowed | `../alpenglowed` is the desktop environment |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
@@ -52,7 +52,7 @@ system/
   backends/
     appliance/          Primary profile (kernel configs, dinit services, scripts)
   kernelctl-zig/        Cgroup + kernel policy (Zig, 89KB static)
-  netd/                 Network state daemon (Rust, zero deps)
+  netd-zig/             Network state daemon (Zig, zero deps)
   oil/                  Package manager (Rust, APK-compatible)
   kernel-modules/       Rust kernel modules (alpenglow_core, alpenglow_bootstat)
   init/                 Zig init (4.8KB static, initramfs fallback)
@@ -88,7 +88,7 @@ Kernel profiles select hardware and boot policy:
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
 | **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
-| **Alpenglow** desktop | **1.36s** | 66MB | 6.0MB | ~259MB |
+| **Alpenglow** desktop | **1.25s** | 66MB | 6.0MB | ~258MB |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
@@ -98,7 +98,7 @@ Kernel profiles select hardware and boot policy:
 
 Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
 
-Desktop serial-login proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`, commit `794e272`) reached login in 1.36s with a 223MB rootfs, 66MB zstd initramfs, 6.0MB kernel, and ~259MB RAM used. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
+Desktop serial-login proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`) reached login in 1.25s with Zig-backed kernel policy, netd, zram, and pressure services enabled. The measured image had a 223MB rootfs, 66MB zstd initramfs, 6.0MB kernel, and ~258MB RAM used. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
 
 | Desktop graphics payload | Size | Includes |
 |--------------------------|------|----------|
@@ -111,7 +111,10 @@ Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use the 
 
 | Tool | Lang | Size | vs alternative |
 |------|------|------|----------------|
-| kernelctl | Zig | 89KB | 501KB (Rust) |
+| kernelctl | Zig | 72KB | 501KB (Rust) |
+| netd | Zig | 40KB | Rust version still in tree |
+| zramctl | Zig | 16KB | shell wrapper replaced |
+| pressurectl | Zig | 48KB | shell wrapper replaced |
 | init | Zig | 4.8KB | 937KB (toybox+sh) |
 | dinit | C++ | 1.6MB | 20MB+ (systemd) |
 | toybox | C | 838KB | 10MB+ (coreutils) |

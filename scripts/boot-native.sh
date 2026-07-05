@@ -147,6 +147,14 @@ if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
     echo "  init: ${OUT_DIR}/alpenglow-init"
   fi
 fi
+if command -v "${ZIG}" >/dev/null 2>&1; then
+  for helper in kernelctl-zig netd-zig zramctl-zig pressurectl-zig; do
+    if [ ! -d "${OUT_DIR}/${helper}" ]; then
+      echo "→ Building ${helper}..."
+      (cd "${ROOT_DIR}/system/${helper}" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/${helper}") 2>&1 | tail -5
+    fi
+  done
+fi
 
 # Kernel
 if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
@@ -551,6 +559,23 @@ else
   fi
 fi
 
+mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
+cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
+for pair in \
+  "kernelctl-zig/alpenglow-kernelctl:alpenglow-kernelctl" \
+  "netd-zig/alpenglow-netd-zig:alpenglow-netd" \
+  "zramctl-zig/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
+  "pressurectl-zig/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
+do
+  src="${pair%%:*}"
+  dst="${pair##*:}"
+  if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
+    cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
+  fi
+done
+
 # Define enabled services per profile
 # Only include services whose binaries actually exist in the rootfs
 case "${BUILD_PROFILE}" in
@@ -560,12 +585,20 @@ case "${BUILD_PROFILE}" in
     ;;
   standard)
     BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
     [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
     [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
     [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
     ;;
   desktop)
     BOOT_SERVICES="shell-ttyS0 mount-filesystems"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
     ;;
 esac
 

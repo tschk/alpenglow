@@ -73,6 +73,11 @@ assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'
 assert_not_contains system/backends/appliance/packages-runtime.txt '^clang$'
 assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
+assert_contains system/backends/appliance/dinit/alpenglow-kernel-policy 'command = /usr/local/bin/alpenglow-kernelctl'
+assert_contains system/backends/appliance/dinit/alpenglow-netd 'command = /usr/local/bin/alpenglow-netd'
+assert_not_contains system/backends/appliance/dinit/alpenglow-netd 'depends-on = networking'
+assert_contains system/backends/appliance/dinit/alpenglow-zram 'alpenglow-zramctl-zig'
+assert_contains system/backends/appliance/dinit/alpenglow-pressure 'command = /usr/local/bin/alpenglow-pressurectl-zig'
 
 # rootfs-layout.json validation
 assert_contains system/appliance/filesystems/rootfs-layout.json '"role": "immutable-system"'

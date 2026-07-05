@@ -18,7 +18,7 @@ Early-stage. Not production-ready.
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |
 | Kernel | Hardened — three profiles: `fast` (boot speed), `minimal` (SSH/net/time/logs), `desktop` (display/audio/WiFi). Tracks kernel.org latest stable |
-| Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
+| Kernel ctrl | kernelctl — Zig (72KB static) + Rust (501KB static) |
 | Display | Wayland + Smithay target via `../alpenglowed` + foot |
 | Audio | ALSA + PipeWire |
 | Networking | udhcpc + iwd |
@@ -55,15 +55,15 @@ dinit — Dependency-graph init (PID 1)
 Oil — Native APK package manager (Rust)
 toybox — Minimal core userland
 kernelctl — Kernel policy + cgroup tooling (Zig+Rust)
-alpenglow-netd — Network state daemon (Rust)
+alpenglow-netd — Network state daemon (Zig)
 ```
 
 ## Project Layout
 
 ```
 system/
-  kernelctl-zig/    Cgroup + kernel policy (Zig, 89KB static)
-  netd/             Network state daemon (Rust)
+  kernelctl-zig/    Cgroup + kernel policy (Zig, 72KB static)
+  netd-zig/         Network state daemon (Zig)
   oil/              Native package manager (Rust, APK-only)
   backends/
     appliance/      Primary target (dinit, toybox, Oil, diskless)
@@ -88,7 +88,6 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 ./scripts/ci-zig.sh              # skip if no zig
 ./scripts/ci-os-appliance.sh
 ./scripts/bench-boot.sh          # needs built disk image
-cargo test -p alpenglow-netd
 ```
 
 ## Status
@@ -110,7 +109,7 @@ cargo test -p alpenglow-netd
 | DNS caching (dnsmasq) | ✅ | dnsmasq, dinit-managed |
 | Editor (vro) | ✅ | replaces toybox vi |
 | Bootable disk image | ✅ | GPT + Limine |
-| kernelctl Zig | ✅ | 89KB static, built in CI |
+| kernelctl Zig | ✅ | 72KB static, built in CI |
 | Custom kernel build | ✅ | `KERNEL_BUILD=1` works |
 | Immutable root image | ✅ | erofs/squashfs active |
 | Real hardware boot | ❌ | QEMU only for now |
@@ -129,7 +128,7 @@ Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds and
 
 ## Language Tooling Notes
 
-- **Rust**: daemons (netd), Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
-- **Zig**: kernelctl and small initramfs helpers. Targets <100KB initramfs helpers.
-- **Zig**: kernelctl (89KB static, 5.6x smaller than Rust). Targets <100KB initramfs helpers.
+- **Rust**: Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
+- **Zig**: kernelctl, netd, zramctl, pressurectl, and small initramfs helpers. Targets <100KB initramfs helpers.
+- **Zig**: kernelctl (72KB static, 7x smaller than Rust). Targets <100KB initramfs helpers.
 - **Equilibrium** (external): Zig/Nim/D/Rust FFI bridge. Not integrated yet.

@@ -2,6 +2,5 @@
 type = process
 command = /usr/local/bin/alpenglow-netd
 depends-on = alpenglow-kernel-policy
-depends-on = networking
 restart = yes
 run-as = root

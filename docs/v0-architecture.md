@@ -5,7 +5,7 @@
 **Init**: dinit (PID 1) — parallel dependency graph.
 **Userland**: toybox + oksh. Static musl, no glibc.
 **Package mgr**: Oil (Rust, APK-compatible).
-**Net**: netd (Rust) reads /sys/class/net, emits JSON + env.
+**Net**: netd (Zig) reads /sys/class/net, emits JSON + env.
 **Kernel ctrl**: kernelctl (Zig) sets cgroups + sysctls.
 **Root FS**: erofs/squashfs immutable image in RAM; bcachefs for `/state` and `/home`.
 

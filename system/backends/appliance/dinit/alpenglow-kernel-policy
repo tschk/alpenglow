@@ -1,4 +1,4 @@
 # Alpenglow kernel hardening policy
 type = scripted
-command = /usr/local/bin/apply-kernel-policy.sh
+command = /usr/local/bin/alpenglow-kernelctl
 restart = no
