@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check --minimumSeverity error && astro build",
+    "preview": "astro preview",
+    "deploy": "bun run build && wrangler pages deploy dist --project-name alpenglow"
+  },
+  "dependencies": {
+    "@astrojs/check": "latest",
+    "astro": "latest",
+    "typescript": "latest",
+    "v86": "latest"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}

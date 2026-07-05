@@ -1,0 +1,354 @@
+---
+const docs = [
+  ["welcome.md", "Welcome"],
+  ["root-model.md", "Root Model"],
+  ["profiles.md", "Profiles"],
+  ["benchmarks.md", "Benchmarks"],
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Alpenglow is a RAM-root musl Linux distribution with immutable system images and persistent bcachefs-backed home state." />
+    <title>Alpenglow</title>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero" aria-labelledby="title">
+        <div class="hero-copy">
+          <p class="kicker">RAM-root Linux distribution</p>
+          <h1 id="title">Alpenglow</h1>
+          <p class="lede">
+            A musl Linux system that loads the complete OS into RAM, keeps `/home`
+            and mutable state on disk, and boots through a small immutable image.
+          </p>
+          <div class="actions">
+            <a href="#vm">Open browser VM</a>
+            <a href="https://github.com/tschk/alpenglowed">Alpenglowed desktop</a>
+          </div>
+        </div>
+        <div class="boot-card" aria-label="Boot summary">
+          <div class="card-top">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <pre id="boot-message">fetch /home/welcome.md
+alpenglow: home ready, no auth required</pre>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="Alpenglow home folder">
+        <aside class="files">
+          <p>/home/alpenglow</p>
+          {docs.map(([file, label]) => (
+            <button type="button" data-doc={file}>{label}</button>
+          ))}
+        </aside>
+        <article class="document">
+          <div class="docbar">
+            <span id="doc-name">welcome.md</span>
+            <span>markdown</span>
+          </div>
+          <pre id="doc-content">Loading /home/welcome.md...</pre>
+        </article>
+      </section>
+
+      <section id="vm" class="vm" aria-labelledby="vm-title">
+        <div>
+          <p class="kicker">v86 browser VM</p>
+          <h2 id="vm-title">Boot the web demo</h2>
+          <p>
+            This browser VM uses v86's 32-bit x86 emulator path. The real
+            Alpenglow distro remains the x86_64/aarch64 musl build documented in
+            the repository.
+          </p>
+        </div>
+        <div class="vm-panel">
+          <div class="vm-toolbar">
+            <button id="start-vm" type="button">Start VM</button>
+            <span id="vm-status">idle</span>
+          </div>
+          <div id="screen_container" class="screen">
+            <div></div>
+            <canvas></canvas>
+          </div>
+          <textarea id="serial" spellcheck="false" aria-label="VM serial console"></textarea>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
+
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #f5f0e8;
+    --muted: #b4aca0;
+    --line: rgba(245, 240, 232, 0.16);
+    --panel: rgba(21, 24, 22, 0.88);
+    --panel-2: #0d1110;
+    --accent: #f0b35a;
+    --accent-2: #79d1bd;
+    --ground: #111512;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(240, 179, 90, 0.18), transparent 32rem),
+      radial-gradient(circle at 78% 18%, rgba(121, 209, 189, 0.12), transparent 34rem),
+      linear-gradient(135deg, #171511, #08100f 55%, #15100b);
+    color: var(--ink);
+    font-family: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, monospace;
+  }
+
+  .shell {
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 28px 0 56px;
+  }
+
+  .hero {
+    min-height: min(760px, calc(100vh - 40px));
+    display: grid;
+    grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.98fr);
+    gap: 28px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .kicker {
+    color: var(--accent-2);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.76rem;
+    font-weight: 700;
+    margin: 0 0 18px;
+  }
+
+  h1,
+  h2 {
+    margin: 0;
+    letter-spacing: 0;
+    line-height: 0.95;
+  }
+
+  h1 {
+    font-size: clamp(4rem, 13vw, 10.5rem);
+  }
+
+  h2 {
+    font-size: clamp(2.4rem, 6vw, 5.6rem);
+  }
+
+  .lede,
+  .vm p {
+    max-width: 660px;
+    color: var(--muted);
+    font-family: ui-serif, Georgia, serif;
+    font-size: clamp(1.1rem, 2.2vw, 1.55rem);
+    line-height: 1.45;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 30px;
+  }
+
+  .actions a,
+  button {
+    border: 1px solid var(--line);
+    background: var(--ink);
+    color: #111512;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font: inherit;
+    font-weight: 800;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .actions a + a,
+  .files button,
+  .vm-toolbar button {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .boot-card,
+  .document,
+  .vm-panel,
+  .files {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+  }
+
+  .boot-card {
+    overflow: hidden;
+    transform: rotate(-1.2deg);
+  }
+
+  .card-top,
+  .docbar,
+  .vm-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .card-top span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .card-top span:nth-child(2) {
+    background: var(--accent-2);
+  }
+
+  .card-top span:nth-child(3) {
+    background: var(--muted);
+  }
+
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .boot-card pre {
+    min-height: 310px;
+    padding: 28px;
+    color: var(--accent);
+    font-size: clamp(1rem, 2vw, 1.35rem);
+    line-height: 1.7;
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 18px;
+    padding: 42px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .files {
+    padding: 14px;
+  }
+
+  .files p {
+    margin: 0 0 12px;
+    color: var(--accent-2);
+    font-size: 0.84rem;
+  }
+
+  .files button {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    text-align: left;
+  }
+
+  .document {
+    min-height: 420px;
+    overflow: hidden;
+  }
+
+  .docbar {
+    justify-content: space-between;
+    color: var(--muted);
+  }
+
+  #doc-content {
+    padding: 22px;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+
+  .vm {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(360px, 1.2fr);
+    gap: 26px;
+    padding-top: 44px;
+    align-items: start;
+  }
+
+  .vm-panel {
+    overflow: hidden;
+  }
+
+  .vm-toolbar {
+    justify-content: space-between;
+  }
+
+  .vm-toolbar span {
+    color: var(--accent-2);
+  }
+
+  .screen {
+    height: 320px;
+    background: #050706;
+    border-bottom: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .screen canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  #serial {
+    display: block;
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    padding: 16px;
+    border: 0;
+    outline: 0;
+    background: var(--panel-2);
+    color: var(--accent);
+    font: 0.9rem/1.45 ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+
+  @media (max-width: 860px) {
+    .hero,
+    .workspace,
+    .vm {
+      grid-template-columns: 1fr;
+    }
+
+    .hero {
+      padding: 54px 0 36px;
+    }
+
+    .boot-card {
+      transform: none;
+    }
+  }
+</style>
