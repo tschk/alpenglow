@@ -10,9 +10,7 @@ You are in a **serial console** inside **Alpenglow Linux 7.0.12 (i686)** in the 
 
 ## Shell here
 
-Login shell is **bash** (with colors: `TERM=xterm-256color`, `LS_COLORS`). Production minimal images use **oksh**; bash is in the demo for familiarity and **starship**-compatible prompts.
-
-On a full system: `oil install …` for zsh, nushell, etc. into `/state` -- not preloaded in this tiny initramfs.
+Login shell is **bash** (colors: `TERM=xterm-256color`, `LS_COLORS`). Production minimal images use **oksh**.
 
 ## Try
 
