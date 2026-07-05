@@ -3,11 +3,14 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
+#[cfg(feature = "wax")]
+mod tap;
 
 use clap::{Parser, Subcommand};
 use error::Result;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use system::registry::PackageIndex;
 
 #[derive(Parser)]
 #[command(name = "oil")]
@@ -62,6 +65,28 @@ enum Commands {
     },
     /// List packages with available updates
     Outdated,
+    /// Update the package index
+    Update,
+    #[cfg(feature = "wax")]
+    /// Manage third-party package taps
+    Tap {
+        tap: Option<String>,
+        #[command(subcommand)]
+        action: Option<TapAction>,
+    },
+}
+
+#[cfg(feature = "wax")]
+#[derive(Debug, PartialEq, Clone, Subcommand)]
+enum TapAction {
+    /// Add a tap
+    Add { tap: String },
+    /// Remove a tap
+    Remove { tap: String },
+    /// List configured taps
+    List,
+    /// Update all tap indexes (or one tap)
+    Update { tap: Option<String> },
 }
 
 fn main() {
@@ -91,6 +116,9 @@ trait CommandRunner {
     fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()>;
     fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
     fn outdated(&self) -> Result<()>;
+    fn update(&self) -> Result<()>;
+    #[cfg(feature = "wax")]
+    fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()>;
 }
 
 struct DefaultRunner;
@@ -120,6 +148,13 @@ impl CommandRunner for DefaultRunner {
     fn outdated(&self) -> Result<()> {
         run_outdated()
     }
+    fn update(&self) -> Result<()> {
+        run_update()
+    }
+    #[cfg(feature = "wax")]
+    fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()> {
+        run_tap(tap, action)
+    }
 }
 
 fn execute_command<R: CommandRunner>(cmd: Commands, runner: &R) -> Result<()> {
@@ -132,6 +167,9 @@ fn execute_command<R: CommandRunner>(cmd: Commands, runner: &R) -> Result<()> {
         Commands::Reinstall { packages, all } => runner.reinstall(packages, all),
         Commands::Upgrade { packages, dry_run } => runner.upgrade(packages, dry_run),
         Commands::Outdated => runner.outdated(),
+        Commands::Update => runner.update(),
+        #[cfg(feature = "wax")]
+        Commands::Tap { tap, action } => runner.tap(tap, action),
     }
 }
 
@@ -140,9 +178,60 @@ fn run_command(cmd: Commands) -> Result<()> {
     execute_command(cmd, &runner)
 }
 
+#[cfg(feature = "wax")]
+fn load_registry() -> Result<PackageIndex> {
+    let apk = system::registry::apk::ApkRegistry::alpine_default().load()?;
+    let mut all = apk.packages;
+    let taps = tap::Taps::new()?;
+    for tap in taps.list() {
+        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
+        match registry.load() {
+            Ok(index) => {
+                eprintln!("Loaded {} packages from tap {}", index.packages.len(), tap.name);
+                all.extend(index.packages);
+            }
+            Err(e) => eprintln!("warning: failed to load tap {}: {}", tap.name, e),
+        }
+    }
+    Ok(PackageIndex::new(all))
+}
+
+#[cfg(not(feature = "wax"))]
+fn load_registry() -> Result<PackageIndex> {
+    system::registry::apk::ApkRegistry::alpine_default().load()
+}
+
+#[cfg(feature = "wax")]
+fn refresh_registry() -> Result<PackageIndex> {
+    let apk = system::registry::apk::ApkRegistry::alpine_default().refresh()?;
+    let mut all = apk.packages;
+    let taps = tap::Taps::new()?;
+    for tap in taps.list() {
+        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
+        match registry.update() {
+            Ok(index) => {
+                eprintln!("Refreshed {} packages from tap {}", index.packages.len(), tap.name);
+                all.extend(index.packages);
+            }
+            Err(e) => eprintln!("warning: failed to refresh tap {}: {}", tap.name, e),
+        }
+    }
+    Ok(PackageIndex::new(all))
+}
+
+#[cfg(not(feature = "wax"))]
+fn refresh_registry() -> Result<PackageIndex> {
+    system::registry::apk::ApkRegistry::alpine_default().refresh()
+}
+
+fn run_update() -> Result<()> {
+    let index = refresh_registry()?;
+    println!("Updated package index: {} packages", index.packages.len());
+    Ok(())
+}
+
 fn run_search(query: String) -> Result<()> {
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     let q = query.to_lowercase();
     let mut results: Vec<_> = index
         .packages
@@ -157,8 +246,7 @@ fn run_search(query: String) -> Result<()> {
 }
 
 fn run_info(formula: String) -> Result<()> {
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     match index.find(&formula) {
         Some(pkg) => {
             println!("Name: {}", pkg.name);
@@ -188,8 +276,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     for name in &pending {
         let pkg = index
             .find(name)
@@ -255,8 +342,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     } else {
         packages
     };
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
@@ -271,39 +357,54 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
-    let mut state = install::InstallState::new()?;
-    let installed = state.load()?;
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
-    let targets: Vec<String> = if packages.is_empty() {
-        installed.keys().cloned().collect()
-    } else {
-        packages
-    };
-    for name in &targets {
+fn compute_upgrades<'a>(
+    targets: &[String],
+    installed: &std::collections::HashMap<String, install::InstalledPackage>,
+    index: &'a system::registry::PackageIndex,
+) -> Vec<(&'a system::registry::PackageMetadata, String)> {
+    let mut upgrades = Vec::new();
+    for name in targets {
         if let Some(current) = installed.get(name) {
             if current.pinned {
                 continue;
             }
             if let Some(latest) = index.find(name) {
                 if latest.version != current.version {
-                    if dry_run {
-                        println!(
-                            "Would upgrade {name}: {} → {}",
-                            &current.version, &latest.version
-                        );
-                    } else {
-                        let dest = std::path::PathBuf::from("/usr/local");
-                        install_package(latest, &dest)?;
-                        state.mark_installed(name, Some(latest.version.as_str()));
-                        println!(
-                            "Upgraded {name}: {} → {}",
-                            current.version, latest.version
-                        );
-                    }
+                    upgrades.push((latest, current.version.clone()));
                 }
             }
+        }
+    }
+    upgrades
+}
+
+fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
+    let mut state = install::InstallState::new()?;
+    let installed = state.load()?;
+    let index = load_registry()?;
+    let targets: Vec<String> = if packages.is_empty() {
+        installed.keys().cloned().collect()
+    } else {
+        packages
+    };
+
+    let upgrades = compute_upgrades(&targets, &installed, &index);
+
+    for (latest, current_version) in upgrades {
+        let name = &latest.name;
+        if dry_run {
+            println!(
+                "Would upgrade {name}: {} → {}",
+                current_version, latest.version
+            );
+        } else {
+            let dest = std::path::PathBuf::from("/usr/local");
+            install_package(latest, &dest)?;
+            state.mark_installed(name, Some(latest.version.as_str()));
+            println!(
+                "Upgraded {name}: {} → {}",
+                current_version, latest.version
+            );
         }
     }
     state.save()?;
@@ -313,12 +414,78 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
 fn run_outdated() -> Result<()> {
     let state = install::InstallState::new()?;
     let installed = state.load()?;
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     for (name, pkg) in &installed {
         if let Some(latest) = index.find(name) {
             if latest.version != pkg.version {
                 println!("{} {} -> {}", name, pkg.version, latest.version);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "wax")]
+fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
+    let mut taps = tap::Taps::new()?;
+
+    match action {
+        Some(TapAction::Add { tap: name }) => {
+            let (name, url) = tap::normalize_tap(&name);
+            taps.add(&name, &url);
+            taps.save()?;
+            println!("Tapped {} ({})", name, url);
+        }
+        Some(TapAction::Remove { tap: name }) => {
+            taps.remove(&name);
+            taps.save()?;
+            println!("Untapped {}", name);
+        }
+        Some(TapAction::Update { tap }) => {
+            if let Some(name) = tap {
+                let entry = taps.list().into_iter().find(|t| t.name == name);
+                if let Some(entry) = entry {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    let index = registry.update()?;
+                    println!("Updated {} ({} packages)", name, index.packages.len());
+                } else {
+                    return Err(error::OilError::Install(format!("tap not found: {}", name)));
+                }
+            } else {
+                for entry in taps.list() {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    match registry.update() {
+                        Ok(index) => println!("Updated {} ({} packages)", entry.name, index.packages.len()),
+                        Err(e) => eprintln!("warning: failed to update tap {}: {}", entry.name, e),
+                    }
+                }
+            }
+        }
+        Some(TapAction::List) => {
+            let list = taps.list();
+            if list.is_empty() {
+                println!("No taps configured.");
+            } else {
+                for t in list {
+                    println!("{} {}", t.name, t.url);
+                }
+            }
+        }
+        None => {
+            if let Some(name) = tap {
+                let (name, url) = tap::normalize_tap(&name);
+                taps.add(&name, &url);
+                taps.save()?;
+                println!("Tapped {} ({})", name, url);
+            } else {
+                let list = taps.list();
+                if list.is_empty() {
+                    println!("No taps configured.");
+                } else {
+                    for t in list {
+                        println!("{} {}", t.name, t.url);
+                    }
+                }
             }
         }
     }
@@ -369,6 +536,9 @@ mod tests {
         Reinstall(Vec<String>, bool),
         Upgrade(Vec<String>, bool),
         Outdated,
+        Update,
+        #[cfg(feature = "wax")]
+        Tap(Option<String>, Option<TapAction>),
     }
 
     struct MockRunner {
@@ -418,6 +588,15 @@ mod tests {
         }
         fn outdated(&self) -> Result<()> {
             self.calls.borrow_mut().push(MockCall::Outdated);
+            Ok(())
+        }
+        fn update(&self) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Update);
+            Ok(())
+        }
+        #[cfg(feature = "wax")]
+        fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Tap(tap, action));
             Ok(())
         }
     }
@@ -514,6 +693,29 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_command_update() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Update;
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(runner.get_calls(), vec![MockCall::Update]);
+    }
+
+    #[cfg(feature = "wax")]
+    #[test]
+    fn test_execute_command_tap_bare_shorthand() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Tap {
+            tap: Some("undivisible/tap".to_string()),
+            action: None,
+        };
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Tap(Some("undivisible/tap".to_string()), None)]
+        );
+    }
+
+    #[test]
     fn test_run_install_recipe_dry_run_does_not_touch_network() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("pkg.yml");
@@ -531,5 +733,81 @@ mod tests {
     fn test_run_install_recipe_missing_file() {
         let result = run_install_recipe(PathBuf::from("/nonexistent/recipe.yml"), true);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compute_upgrades() {
+        use std::collections::HashMap;
+        use crate::install::InstalledPackage;
+        use crate::system::registry::{PackageIndex, PackageMetadata};
+
+        let mut installed = HashMap::new();
+        // Needs upgrade
+        installed.insert("pkg_upgrade".to_string(), InstalledPackage {
+            name: "pkg_upgrade".to_string(),
+            version: "1.0.0".to_string(),
+            install_date: 0,
+            pinned: false,
+        });
+        // Up to date
+        installed.insert("pkg_current".to_string(), InstalledPackage {
+            name: "pkg_current".to_string(),
+            version: "2.0.0".to_string(),
+            install_date: 0,
+            pinned: false,
+        });
+        // Pinned, should be ignored even if out of date
+        installed.insert("pkg_pinned".to_string(), InstalledPackage {
+            name: "pkg_pinned".to_string(),
+            version: "1.0.0".to_string(),
+            install_date: 0,
+            pinned: true,
+        });
+
+        let pkgs = vec![
+            PackageMetadata {
+                name: "pkg_upgrade".to_string(),
+                version: "1.1.0".to_string(),
+                description: "".to_string(),
+                download_url: "".to_string(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+            PackageMetadata {
+                name: "pkg_current".to_string(),
+                version: "2.0.0".to_string(),
+                description: "".to_string(),
+                download_url: "".to_string(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+            PackageMetadata {
+                name: "pkg_pinned".to_string(),
+                version: "1.1.0".to_string(),
+                description: "".to_string(),
+                download_url: "".to_string(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+        ];
+        let index = PackageIndex::new(pkgs);
+        let targets = vec![
+            "pkg_upgrade".to_string(),
+            "pkg_current".to_string(),
+            "pkg_pinned".to_string(),
+        ];
+
+        let upgrades = compute_upgrades(&targets, &installed, &index);
+
+        assert_eq!(upgrades.len(), 1, "Only one package should be upgraded");
+        assert_eq!(upgrades[0].0.name, "pkg_upgrade");
+        assert_eq!(upgrades[0].0.version, "1.1.0");
+        assert_eq!(upgrades[0].1, "1.0.0");
     }
 }
