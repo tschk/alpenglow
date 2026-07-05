@@ -5,7 +5,7 @@ const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-os-docs";
+const assetVersion = "20260705-real-tools";
 const asset = (path) => `${path}?v=${assetVersion}`;
 const ansiPattern = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])/g;
 const urlPattern = /https:\/\/[^\s<>"')]+/g;
