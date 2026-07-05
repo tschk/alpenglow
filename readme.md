@@ -88,6 +88,7 @@ Kernel profiles select hardware and boot policy:
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
 | **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
+| **Alpenglow** desktop | not measured | 66MB | desktop profile | not measured |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
