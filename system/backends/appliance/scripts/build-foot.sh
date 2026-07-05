@@ -2,13 +2,13 @@
 # Build foot (Wayland terminal) as static musl binary
 set -eu
 
-OUT_DIR="${1:-$(mktemp -d)}"
+OUT_DIR="${1:-/build/out}"
 VERSION="${2:-1.18.0}"
 
 echo "→ Building foot ${VERSION}..."
 
 BUILD_DIR="$(mktemp -d)"
-trap 'rm -rf "$BUILD_DIR"' EXIT
+trap 'rm -rf -- "$BUILD_DIR"' EXIT
 cd "$BUILD_DIR"
 curl -fsSL "https://codeberg.org/dnkl/foot/archive/v${VERSION}.tar.gz" -o foot.tar.gz
 tar -xf foot.tar.gz

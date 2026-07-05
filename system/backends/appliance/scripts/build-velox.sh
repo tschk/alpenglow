@@ -2,12 +2,12 @@
 # Build velox (Wayland compositor) from source as static musl binary
 set -eu
 
-OUT_DIR="${1:-$(mktemp -d)}"
+OUT_DIR="${1:-/build/out}"
 
 echo "→ Building velox..."
 
 BUILD_DIR="$(mktemp -d)"
-trap 'rm -rf "$BUILD_DIR"' EXIT
+trap 'rm -rf -- "$BUILD_DIR"' EXIT
 cd "$BUILD_DIR"
 git clone --depth=1 https://github.com/velox-rs/velox.git velox-src
 cd velox-src
