@@ -25,8 +25,8 @@ default = []
 gui = ["dep:crepuscularity-gpui", "dep:gpui"]
 
 [dependencies]
-crepuscularity-tui = { path = "../../../crepuscularity/crates/crepuscularity-tui" }
-crepuscularity-gpui = { path = "../../../crepuscularity/crates/crepuscularity-gpui", optional = true, features = ["wayland"] }
+crepuscularity-tui = "0.4.12"
+crepuscularity-gpui = { version = "0.5.0", optional = true, features = ["wayland"] }
 gpui = { version = "=0.2.2", default-features = false, optional = true, features = ["font-kit", "wayland"] }
 
 [dev-dependencies]
