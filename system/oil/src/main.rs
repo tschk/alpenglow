@@ -357,6 +357,27 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     Ok(())
 }
 
+fn compute_upgrades<'a>(
+    targets: &[String],
+    installed: &std::collections::HashMap<String, install::InstalledPackage>,
+    index: &'a system::registry::PackageIndex,
+) -> Vec<(&'a system::registry::PackageMetadata, String)> {
+    let mut upgrades = Vec::new();
+    for name in targets {
+        if let Some(current) = installed.get(name) {
+            if current.pinned {
+                continue;
+            }
+            if let Some(latest) = index.find(name) {
+                if latest.version != current.version {
+                    upgrades.push((latest, current.version.clone()));
+                }
+            }
+        }
+    }
+    upgrades
+}
+
 fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let mut state = install::InstallState::new()?;
     let installed = state.load()?;
@@ -366,29 +387,24 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     } else {
         packages
     };
-    for name in &targets {
-        if let Some(current) = installed.get(name) {
-            if current.pinned {
-                continue;
-            }
-            if let Some(latest) = index.find(name) {
-                if latest.version != current.version {
-                    if dry_run {
-                        println!(
-                            "Would upgrade {name}: {} → {}",
-                            &current.version, &latest.version
-                        );
-                    } else {
-                        let dest = std::path::PathBuf::from("/usr/local");
-                        install_package(latest, &dest)?;
-                        state.mark_installed(name, Some(latest.version.as_str()));
-                        println!(
-                            "Upgraded {name}: {} → {}",
-                            current.version, latest.version
-                        );
-                    }
-                }
-            }
+
+    let upgrades = compute_upgrades(&targets, &installed, &index);
+
+    for (latest, current_version) in upgrades {
+        let name = &latest.name;
+        if dry_run {
+            println!(
+                "Would upgrade {name}: {} → {}",
+                current_version, latest.version
+            );
+        } else {
+            let dest = std::path::PathBuf::from("/usr/local");
+            install_package(latest, &dest)?;
+            state.mark_installed(name, Some(latest.version.as_str()));
+            println!(
+                "Upgraded {name}: {} → {}",
+                current_version, latest.version
+            );
         }
     }
     state.save()?;
@@ -717,5 +733,81 @@ mod tests {
     fn test_run_install_recipe_missing_file() {
         let result = run_install_recipe(PathBuf::from("/nonexistent/recipe.yml"), true);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compute_upgrades() {
+        use std::collections::HashMap;
+        use crate::install::InstalledPackage;
+        use crate::system::registry::{PackageIndex, PackageMetadata};
+
+        let mut installed = HashMap::new();
+        // Needs upgrade
+        installed.insert("pkg_upgrade".to_string(), InstalledPackage {
+            name: "pkg_upgrade".to_string(),
+            version: "1.0.0".to_string(),
+            install_date: 0,
+            pinned: false,
+        });
+        // Up to date
+        installed.insert("pkg_current".to_string(), InstalledPackage {
+            name: "pkg_current".to_string(),
+            version: "2.0.0".to_string(),
+            install_date: 0,
+            pinned: false,
+        });
+        // Pinned, should be ignored even if out of date
+        installed.insert("pkg_pinned".to_string(), InstalledPackage {
+            name: "pkg_pinned".to_string(),
+            version: "1.0.0".to_string(),
+            install_date: 0,
+            pinned: true,
+        });
+
+        let pkgs = vec![
+            PackageMetadata {
+                name: "pkg_upgrade".to_string(),
+                version: "1.1.0".to_string(),
+                description: "".to_string(),
+                download_url: "".to_string(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+            PackageMetadata {
+                name: "pkg_current".to_string(),
+                version: "2.0.0".to_string(),
+                description: "".to_string(),
+                download_url: "".to_string(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+            PackageMetadata {
+                name: "pkg_pinned".to_string(),
+                version: "1.1.0".to_string(),
+                description: "".to_string(),
+                download_url: "".to_string(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+        ];
+        let index = PackageIndex::new(pkgs);
+        let targets = vec![
+            "pkg_upgrade".to_string(),
+            "pkg_current".to_string(),
+            "pkg_pinned".to_string(),
+        ];
+
+        let upgrades = compute_upgrades(&targets, &installed, &index);
+
+        assert_eq!(upgrades.len(), 1, "Only one package should be upgraded");
+        assert_eq!(upgrades[0].0.name, "pkg_upgrade");
+        assert_eq!(upgrades[0].0.version, "1.1.0");
+        assert_eq!(upgrades[0].1, "1.0.0");
     }
 }
