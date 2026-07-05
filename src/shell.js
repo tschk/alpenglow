@@ -228,6 +228,9 @@ try {
   });
 
   emulator.add_listener("serial0-output-byte", (byte) => {
+    if (byte === 0xff) {
+      return;
+    }
     const ch = String.fromCharCode(byte);
     if (term) {
       term.write(ch);

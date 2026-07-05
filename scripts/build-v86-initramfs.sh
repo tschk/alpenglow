@@ -60,7 +60,7 @@ fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
-for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack vi; do
+for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack; do
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 cp "${OIL}" "${ROOTFS}/bin/oil"
@@ -170,10 +170,8 @@ fi
 if [ -x "${VRO_CACHE}" ]; then
   cp "${VRO_CACHE}" "${ROOTFS}/usr/local/bin/vro"
   chmod 755 "${ROOTFS}/usr/local/bin/vro"
-  ln -sf vro "${ROOTFS}/usr/local/bin/vi" 2>/dev/null || true
 else
-  ln -sf busybox "${ROOTFS}/usr/local/bin/vro"
-  ln -sf busybox "${ROOTFS}/usr/local/bin/vi"
+  ln -sf /bin/busybox "${ROOTFS}/usr/local/bin/vro"
 fi
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
@@ -237,7 +235,7 @@ cd /
   /bin/echo "Alpenglow"
   /bin/echo
   /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
-  /bin/echo "Docs (case-sensitive): cat README.md  cat ideology.md  cat root-model.md  cat desktop.md"
+  /bin/echo "Docs: cat readme.md  cat ideology.md  cat root-model.md  cat desktop.md  cat benchmarks.md"
   /bin/echo "Try: fastfetch   wax info vro   oil search firefox"
   /bin/echo "     vro included; tap support available in standard profile."
   /bin/echo
