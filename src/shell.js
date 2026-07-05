@@ -39,12 +39,36 @@ function finishStatus(message) {
     if (bootStatus) {
       bootStatus.hidden = true;
     }
-    fitAddon?.fit();
+    applyTerminalScale();
   }, 700);
 }
 
 function sendSerial(data) {
   emulator?.serial0_send(data);
+}
+
+function terminalFontSize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const pad = Math.min(72, Math.max(24, Math.min(w, h) * 0.06));
+  const innerW = Math.max(200, w - pad * 2);
+  const innerH = Math.max(120, h - pad * 2);
+  const cols = Math.max(48, Math.floor(innerW / 8.2));
+  const rows = Math.max(14, Math.floor(innerH / 18));
+  const fromWidth = innerW / cols;
+  const fromHeight = innerH / rows;
+  return Math.min(26, Math.max(11, Math.round(Math.min(fromWidth, fromHeight) * 0.92)));
+}
+
+function applyTerminalScale() {
+  if (!term || !fitAddon) {
+    return;
+  }
+  const size = terminalFontSize();
+  if (term.options && term.options.fontSize !== size) {
+    term.options.fontSize = size;
+  }
+  fitAddon.fit();
 }
 
 async function mountTerminal() {
@@ -69,9 +93,8 @@ async function mountTerminal() {
     screen.appendChild(host);
   }
 
-  const fontSize = Math.min(22, Math.max(16, Math.round(window.innerWidth / 64)));
   term = new Terminal({
-    fontSize,
+    fontSize: terminalFontSize(),
     fontFamily: '"Geist Mono", ui-monospace, monospace',
     cursorBlink: true,
     scrollback: 10000,
@@ -85,10 +108,11 @@ async function mountTerminal() {
   fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
   term.open(host);
-  fitAddon.fit();
+  applyTerminalScale();
   if (fitAddon.observeResize) {
     fitAddon.observeResize();
   }
+  window.addEventListener("resize", () => applyTerminalScale());
 
   term.writeln("Alpenglow loading…");
   term.focus();
@@ -159,7 +183,7 @@ try {
     bzimage: { url: asset("/v86/alpenglow-v86-vmlinuz") },
     initrd: { url: asset("/v86/alpenglow-v86-initrd.cpio.gz") },
     cmdline: "console=ttyS0 rdinit=/init quiet",
-    memory_size: 128 * 1024 * 1024,
+    memory_size: 256 * 1024 * 1024,
     autostart: true,
   });
 
@@ -195,7 +219,7 @@ try {
 
   emulator.add_listener("emulator-ready", () => {
     finishStatus("booting alpenglow shell");
-    fitAddon?.fit();
+    applyTerminalScale();
     term?.focus();
   });
 } catch (error) {

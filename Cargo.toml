@@ -10,7 +10,7 @@ members = [
 
 [workspace.package]
 edition = "2021"
-version = "0.1.285"
+version = "0.1.286"
 license-file = "LICENSE"
 
 [profile.release]
