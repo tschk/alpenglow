@@ -130,7 +130,7 @@ cd /
   /bin/echo
   /bin/echo "Immutable RAM-root Linux appliance (browser demo, i686)."
   /bin/echo "Docs: cat README.md  cat root-model.md  cat packages.md  cat desktop.md"
-  /bin/echo "Try: fastfetch   oil search fastfetch   oil info fastfetch   ls *.md"
+  /bin/echo "Try: fastfetch   oil search firefox   oil info alpenglowed   ls *.md"
   /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
