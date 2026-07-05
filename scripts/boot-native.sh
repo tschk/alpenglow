@@ -278,7 +278,8 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
     GRETD_VERSION="0.10.3"
     cd /tmp
     curl -fsSL "https://gitlab.com/mobian1/greetd/-/archive/v${GRETD_VERSION}/greetd-v${GRETD_VERSION}.tar.gz" -o greetd.tar.gz 2>/dev/null
-    tar -xf greetd.tar.gz
+    tar -xf greetd.tar.gz 2>/dev/null || exit 0
+    [ -d "greetd-v${GRETD_VERSION}" ] || exit 0
     cd "greetd-v${GRETD_VERSION}"
     RUSTFLAGS="-C target-feature=+crt-static -C link-self-contained=yes" \
     cargo build --release --target x86_64-unknown-linux-musl 2>/dev/null || true
