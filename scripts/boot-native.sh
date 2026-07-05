@@ -935,16 +935,22 @@ echo ""
 
 if [ "${GRAPHICAL}" = "1" ]; then
   # Pick a display backend available on this host
-  QEMU_DISPLAY=""
-  for backend in cocoa gtk sdl; do
-    if timeout 2 qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
-      QEMU_DISPLAY="${backend}"
-      break
-    fi
-  done
-  QEMU_DISPLAY="${QEMU_DISPLAY:-cocoa}"
+  QEMU_DISPLAY="${QEMU_DISPLAY:-}"
+  if [ -z "${QEMU_DISPLAY}" ]; then
+    for backend in gtk sdl cocoa; do
+      if timeout 2 qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
+        QEMU_DISPLAY="${backend}"
+        break
+      fi
+    done
+  fi
+  QEMU_DISPLAY="${QEMU_DISPLAY:-none}"
   QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
-  QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
+  if [ "${QEMU_DISPLAY}" = "none" ]; then
+    QEMU_OPTS="${QEMU_OPTS} -display none"
+  else
+    QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
+  fi
   if [ -f "${KERNEL_VIRT_STAMP}" ]; then
     QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci"
   else
