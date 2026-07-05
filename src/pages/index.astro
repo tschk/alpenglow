@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Alpenglow running in the browser." />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
     <title>Alpenglow</title>
   </head>
   <body>
@@ -12,8 +12,12 @@
       <div></div>
       <canvas></canvas>
       <textarea id="serial" spellcheck="false" aria-label="Alpenglow console"></textarea>
+      <section id="boot_status" aria-live="polite">
+        <p id="boot_message">loading alpenglow shell</p>
+        <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
+      </section>
     </main>
-    <script src="/app.js" type="module"></script>
+    <script src="/app.js?v=20260705-shell-progress" type="module"></script>
   </body>
 </html>
 
@@ -38,6 +42,7 @@
 
   body {
     background: #050706;
+    color: #f5f5f5;
   }
 
   #screen_container {
@@ -62,5 +67,32 @@
     color: #f0b35a;
     font: clamp(13px, 1.55vw, 18px) / 1.45 ui-monospace, "SFMono-Regular", Menlo, monospace;
     letter-spacing: 0;
+  }
+
+  #boot_status {
+    position: fixed;
+    left: clamp(14px, 2.4vw, 30px);
+    right: clamp(14px, 2.4vw, 30px);
+    bottom: clamp(14px, 2.4vw, 30px);
+    display: grid;
+    gap: 10px;
+    max-width: 520px;
+    pointer-events: none;
+    font: 14px / 1.4 ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  #boot_status[hidden] {
+    display: none;
+  }
+
+  #boot_message {
+    margin: 0;
+    color: #f5f5f5;
+  }
+
+  #boot_progress {
+    width: 100%;
+    height: 12px;
+    accent-color: #f5f5f5;
   }
 </style>
