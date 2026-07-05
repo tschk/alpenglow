@@ -7,7 +7,6 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/native"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
@@ -18,6 +17,15 @@ ARCH="${KERNEL_ARCH:-x86_64}"
 BOOT_MODE="${BOOT_MODE:-diskless}"
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+if [ "${INITRAMFS:-}" = "" ]; then
+  if [ "${BUILD_PROFILE}" = "desktop" ]; then
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+  elif command -v lz4 >/dev/null 2>&1; then
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
+  else
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+  fi
+fi
 MEMORY_MB="${MEMORY_MB:-2048}"
 QEMU_MACHINE="${QEMU_MACHINE:-q35}"
 QEMU_CPU="${QEMU_CPU:-}"
@@ -128,7 +136,7 @@ if ! command -v "${ZIG}" >/dev/null 2>&1; then
     ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
   fi
 fi
-if command -v "${ZIG}" >/dev/null 2>&1; then
+if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   echo "→ Building Zig init..."
   "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
     -target x86_64-linux-musl -O ReleaseSmall -fstrip \
@@ -357,7 +365,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   echo "→ Building graphical stack (cage + alpenglowed + graphics libs)..."
 
   # cage + musl shared libs from Alpine
-  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ]; then
+  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ] || [ ! -f "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" ]; then
     sh "${BACKEND_DIR}/scripts/build-cage.sh" "${OUT_DIR}"
   fi
   echo "  cage: ${OUT_DIR}/cage/usr/bin/cage"
@@ -804,7 +812,7 @@ fi
 
 # Init — dinit as primary PID 1, manages all services.
 # Use the Zig init binary if available; otherwise fall back to shell.
-if [ -f "${OUT_DIR}/alpenglow-init" ]; then
+if [ "${ZIG_INIT:-0}" = "1" ] && [ -f "${OUT_DIR}/alpenglow-init" ]; then
   cp "${OUT_DIR}/alpenglow-init" "${ROOTFS_DIR}/init"
   chmod 755 "${ROOTFS_DIR}/init"
 else
@@ -813,6 +821,7 @@ else
 /bin/toybox mount -t proc proc /proc
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
+exec </dev/ttyS0 >/dev/ttyS0 2>&1
 /bin/toybox mount -t tmpfs tmpfs /run
 /bin/toybox mkdir -p /dev/shm 2>/dev/null
 /bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
@@ -908,11 +917,14 @@ chmod 700 "${ROOTFS_DIR}/root/.ssh"
 
 # Build initramfs
 echo "→ Building initramfs..."
-if command -v lz4 >/dev/null 2>&1; then
+case "${INITRAMFS}" in
+  *.zst)
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
+  ;;
+  *)
   (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${INITRAMFS}")
-else
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -1 -T0 > "${INITRAMFS}")
-fi
+  ;;
+esac
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
@@ -957,7 +969,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   else
     QEMU_OPTS="${QEMU_OPTS} -vga std"
   fi
-  QEMU_OPTS="${QEMU_OPTS} -chardev stdio,id=char0,mux=on,signal=off -serial chardev:char0 -mon chardev=char0"
+  QEMU_OPTS="${QEMU_OPTS} -chardev stdio,id=char0,mux=on,signal=off -serial chardev:char0 -mon chardev=char0 -boot order=n -device e1000,romfile=,netdev=net0 -netdev user,id=net0"
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"

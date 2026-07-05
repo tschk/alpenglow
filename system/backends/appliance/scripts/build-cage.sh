@@ -43,7 +43,7 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh 
 
   # Copy musl dynamic linker (Alpine 3.21 is already usrmerged: /lib -> usr/lib)
   mkdir -p /out/lib
-  cp /usr/lib/ld-musl-x86_64.so.1 /out/lib/ 2>/dev/null || true
+  cp /usr/lib/ld-musl-x86_64.so.1 /out/lib/ 2>/dev/null || cp /lib/ld-musl-x86_64.so.1 /out/lib/
 
   echo "  cage: $(ls -la /out/usr/bin/cage | awk "{print \$5}") bytes"
   echo "  libs: $(ls /out/usr/lib/lib*.so* 2>/dev/null | wc -l) files"
