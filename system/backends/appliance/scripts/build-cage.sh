@@ -34,20 +34,22 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh 
   copy_deps /usr/bin/cage /usr/bin/Xwayland /usr/bin/seatd /usr/bin/seatd-launch
 
   # Copy DRI drivers
-  mkdir -p /out/usr/lib/dri
-  cp /usr/lib/dri/swrast_dri.so /out/usr/lib/dri/ 2>/dev/null || true
-  cp /usr/lib/dri/kms_swrast_dri.so /out/usr/lib/dri/ 2>/dev/null || true
-  copy_deps /usr/lib/dri/swrast_dri.so /usr/lib/dri/kms_swrast_dri.so
+  if [ "${CAGE_MESA:-0}" = "1" ]; then
+    mkdir -p /out/usr/lib/dri
+    cp /usr/lib/dri/swrast_dri.so /out/usr/lib/dri/ 2>/dev/null || true
+    cp /usr/lib/dri/kms_swrast_dri.so /out/usr/lib/dri/ 2>/dev/null || true
+    copy_deps /usr/lib/dri/swrast_dri.so /usr/lib/dri/kms_swrast_dri.so
 
-  # Copy gallium pipe loaders
-  mkdir -p /out/usr/lib/gallium-pipe
-  cp /usr/lib/gallium-pipe/pipe_swrast.so /out/usr/lib/gallium-pipe/ 2>/dev/null || true
-  copy_deps /usr/lib/gallium-pipe/pipe_swrast.so
+    # Copy gallium pipe loaders
+    mkdir -p /out/usr/lib/gallium-pipe
+    cp /usr/lib/gallium-pipe/pipe_swrast.so /out/usr/lib/gallium-pipe/ 2>/dev/null || true
+    copy_deps /usr/lib/gallium-pipe/pipe_swrast.so
 
-  # Copy gbm backends
-  mkdir -p /out/usr/lib/gbm
-  cp /usr/lib/gbm/gbm_dri.so /out/usr/lib/gbm/ 2>/dev/null || true
-  copy_deps /usr/lib/gbm/gbm_dri.so
+    # Copy gbm backends
+    mkdir -p /out/usr/lib/gbm
+    cp /usr/lib/gbm/gbm_dri.so /out/usr/lib/gbm/ 2>/dev/null || true
+    copy_deps /usr/lib/gbm/gbm_dri.so
+  fi
 
   # Copy Xwayland xorg config
   mkdir -p /out/usr/share/X11/xorg.conf.d

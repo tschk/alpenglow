@@ -365,7 +365,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   echo "→ Building graphical stack (cage + alpenglowed + graphics libs)..."
 
   # cage + musl shared libs from Alpine
-  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ] || [ ! -f "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/gallium-pipe/pipe_radeonsi.so" ]; then
+  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ] || [ ! -f "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/libLLVM.so.19.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/gallium-pipe/pipe_radeonsi.so" ]; then
     rm -rf "${OUT_DIR}/cage"
     sh "${BACKEND_DIR}/scripts/build-cage.sh" "${OUT_DIR}"
   fi
@@ -530,6 +530,7 @@ unset WAYLAND_DISPLAY
 export XDG_RUNTIME_DIR=/run
 export LIBSEAT_BACKEND=seatd
 export WLR_LIBINPUT_NO_DEVICES=1
+export WLR_RENDERER=pixman
 export LD_LIBRARY_PATH=/usr/lib/musl
 export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
 export EGL_DRIVER=swrast
@@ -569,6 +570,7 @@ unset WAYLAND_DISPLAY
 export XDG_RUNTIME_DIR=/run
 export LIBSEAT_BACKEND=seatd
 export WLR_LIBINPUT_NO_DEVICES=1
+export WLR_RENDERER=pixman
 export LD_LIBRARY_PATH=/usr/lib/musl
 export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
 export EGL_DRIVER=swrast
