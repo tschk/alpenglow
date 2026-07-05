@@ -64,6 +64,7 @@ async function mountTerminal() {
   if (!host) {
     host = document.createElement("div");
     host.id = "xterm_host";
+    host.className = "term-host";
     host.setAttribute("aria-label", "Alpenglow serial console");
     screen.appendChild(host);
   }

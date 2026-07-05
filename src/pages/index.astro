@@ -1,5 +1,8 @@
+---
+---
+
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,18 +10,22 @@
     <link rel="icon" href="/favicon.png" type="image/png" />
     <title>Alpenglow</title>
   </head>
-  <body>
-    <main id="screen_container" aria-label="Alpenglow OS">
-      <div></div>
-      <canvas></canvas>
-      <pre id="terminal" tabindex="0" aria-label="Alpenglow console"></pre>
-      <form id="command_form" autocomplete="off">
+  <body class="m-0 h-full overflow-hidden bg-black text-white antialiased">
+    <main id="screen_container" class="page-shell" aria-label="Alpenglow OS">
+      <div class="hidden"></div>
+      <canvas class="hidden"></canvas>
+      <pre id="terminal" class="hidden" tabindex="0" aria-label="Alpenglow console"></pre>
+      <form id="command_form" class="hidden" autocomplete="off">
         <input id="command_input" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Command" />
         <button type="submit">run</button>
       </form>
-      <section id="boot_status" aria-live="polite">
-        <p id="boot_message">loading alpenglow shell</p>
-        <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
+      <section
+        id="boot_status"
+        class="pointer-events-none fixed bottom-[clamp(14px,2.4vw,30px)] left-[clamp(14px,2.4vw,30px)] right-[clamp(14px,2.4vw,30px)] z-10 grid max-w-130 gap-2.5 font-mono-ui"
+        aria-live="polite"
+      >
+        <p id="boot_message" class="m-0 text-white">loading alpenglow shell</p>
+        <meter id="boot_progress" class="h-3 w-full accent-white" min="0" max="100" value="0">0%</meter>
       </section>
     </main>
     <script>
@@ -27,7 +34,7 @@
   </body>
 </html>
 
-<style>
+<style is:global>
   @font-face {
     font-family: "Geist Mono";
     font-style: normal;
@@ -38,153 +45,28 @@
 
   :root {
     color-scheme: dark;
-    background: #000;
+    font-family: "Geist Mono", ui-monospace, monospace;
   }
 
-  * {
-    box-sizing: border-box;
-  }
-
-  html,
-  body,
-  #screen_container {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
-  }
-
-  body {
-    background: #000;
-    color: #fff;
-  }
-
-  #screen_container {
-    position: fixed;
-    inset: 0;
-  }
-
-  #screen_container > div,
-  #screen_container > canvas,
-  canvas {
-    display: none;
+  #boot_status[hidden] {
+    display: none !important;
   }
 
   #xterm_host {
     position: fixed;
     inset: 0;
     box-sizing: border-box;
-    padding: clamp(20px, 4vw, 48px);
-    background: #000;
     display: flex;
     flex-direction: column;
     min-height: 100dvh;
     min-width: 100vw;
-  }
-
-  #xterm_host .xterm {
-    flex: 1;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
+    padding: clamp(28px, 5vw, 64px);
+    background: #000;
   }
 
   #xterm_host canvas {
     display: block;
     width: 100% !important;
     height: 100% !important;
-  }
-
-  #terminal {
-    display: none;
-    width: 100vw;
-    height: 100vh;
-    padding: clamp(12px, 2vw, 22px);
-    margin: 0;
-    border: 0;
-    outline: 0;
-    overflow: auto;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    background: #000;
-    color: #fff;
-    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
-    letter-spacing: 0;
-    user-select: text;
-  }
-
-  #terminal a {
-    color: #fff;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  #command_form {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    display: none !important;
-    grid-template-columns: 1fr auto;
-    height: 44px;
-    border-top: 1px solid #fff;
-    background: #000;
-  }
-
-  #command_input,
-  #command_form button {
-    min-width: 0;
-    border: 0;
-    border-radius: 0;
-    background: #000;
-    color: #fff;
-    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
-  }
-
-  #command_input {
-    padding: 0 12px;
-    outline: 0;
-  }
-
-  #command_form button {
-    width: 64px;
-    border-left: 1px solid #fff;
-  }
-
-  @media (max-width: 700px), (pointer: coarse) {
-    #terminal {
-      height: calc(100vh - 44px);
-    }
-
-    #command_form {
-      display: grid;
-    }
-  }
-
-  #boot_status {
-    position: fixed;
-    left: clamp(14px, 2.4vw, 30px);
-    right: clamp(14px, 2.4vw, 30px);
-    bottom: clamp(14px, 2.4vw, 30px);
-    display: grid;
-    gap: 10px;
-    max-width: 520px;
-    pointer-events: none;
-    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
-  }
-
-  #boot_status[hidden] {
-    display: none;
-  }
-
-  #boot_message {
-    margin: 0;
-    color: #fff;
-  }
-
-  #boot_progress {
-    width: 100%;
-    height: 12px;
-    accent-color: #fff;
   }
 </style>

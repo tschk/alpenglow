@@ -25,7 +25,7 @@ else
   rm -rf "${ROOTFS}"
 fi
 mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOTFS}/sys" \
-  "${ROOTFS}/run" "${ROOTFS}/tmp" "${ROOTFS}/usr/share/alpenglow/browser"
+  "${ROOTFS}/run" "${ROOTFS}/tmp" "${ROOTFS}/usr/local/bin" "${ROOTFS}/usr/share/alpenglow/browser"
 
 if [ ! -x "${BUSYBOX}" ]; then
   need_docker
@@ -54,18 +54,26 @@ for applet in sh mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear 
 done
 cp "${OIL}" "${ROOTFS}/bin/oil"
 chmod 755 "${ROOTFS}/bin/oil"
+ln -sf oil "${ROOTFS}/bin/wax"
 
 need_docker
-FASTFETCH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 sh -lc '
-  mkdir -p /rootfs/etc/apk/keys /rootfs/lib/apk/db /rootfs/var/cache/apk /rootfs/usr/lib
-  cp -a /etc/apk/keys/* /rootfs/etc/apk/keys/
-  cat > /rootfs/etc/apk/repositories <<REPOS
+apk_root_install() {
+  docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 sh -lc '
+    mkdir -p /rootfs/etc/apk/keys /rootfs/lib/apk/db /rootfs/var/cache/apk /rootfs/usr/lib
+    cp -a /etc/apk/keys/* /rootfs/etc/apk/keys/ 2>/dev/null || true
+    if [ ! -f /rootfs/etc/apk/repositories ]; then
+      cat > /rootfs/etc/apk/repositories <<REPOS
 https://dl-cdn.alpinelinux.org/alpine/v3.20/main
 https://dl-cdn.alpinelinux.org/alpine/v3.20/community
 REPOS
-  apk add --root /rootfs --initdb --no-cache fastfetch >/dev/null
-  apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed "s/^fastfetch-//"
-')"
+      apk add --root /rootfs --initdb --no-cache >/dev/null
+    fi
+    apk add --root /rootfs --no-cache "$@" >/dev/null
+  ' sh "$@"
+}
+
+FASTFETCH_VERSION="$(apk_root_install fastfetch && docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
+STARSHIP_VERSION="$(apk_root_install starship && docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v starship 2>/dev/null | sed 's/^starship-//')"
 if [ -d "${ROOTFS}/etc" ] && [ ! -w "${ROOTFS}/etc" ]; then
   if command -v sudo >/dev/null 2>&1; then
     sudo chown -R "$(id -u):$(id -g)" "${ROOTFS}"
@@ -79,6 +87,12 @@ cat > "${ROOTFS}/.oil/installed.json" <<EOF
   "fastfetch": {
     "name": "fastfetch",
     "version": "${FASTFETCH_VERSION}",
+    "install_date": 0,
+    "pinned": false
+  },
+  "starship": {
+    "name": "starship",
+    "version": "${STARSHIP_VERSION}",
     "install_date": 0,
     "pinned": false
   }
@@ -97,47 +111,119 @@ docker run --rm --platform linux/386 -v "${ROOTFS}/.oil/cache/system:/cache" alp
 }]
 EOF'
 
-cat > "${ROOTFS}/etc/os-release" <<'EOF'
+ALP_VERSION="0.1.284"
+cat > "${ROOTFS}/etc/os-release" <<EOF
 NAME="Alpenglow"
 ID=alpenglow
-VERSION_ID="3.20"
-PRETTY_NAME="Alpenglow"
+VERSION_ID="${ALP_VERSION}"
+VERSION="${ALP_VERSION}"
+PRETTY_NAME="Alpenglow ${ALP_VERSION}"
+BUILD_ID="browser-v86"
 EOF
+mkdir -p "${ROOTFS}/etc/fastfetch"
+cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
+{
+  "\$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": { "type": "small", "padding": { "top": 1, "left": 0 } },
+  "display": { "separator": "  " },
+  "modules": [
+    { "type": "title", "format": "{user-name-colored}{at-symbol-colored}{host-name-colored}" },
+    { "type": "custom", "format": "OS: Alpenglow ${ALP_VERSION} (browser i686)" },
+    { "type": "kernel" },
+    { "type": "uptime" },
+    { "type": "memory" },
+    { "type": "shell" },
+    { "type": "packages", "format": "{1} (apk)" }
+  ]
+}
+EOF
+
+VRO_SRC="${ROOT_DIR}/../vro/vro"
+VRO_CACHE="${BUILD_DIR}/vro-i686"
+if [ ! -x "${VRO_CACHE}" ]; then
+  mkdir -p "${BUILD_DIR}"
+  if [ -x "${VRO_SRC}" ] && file "${VRO_SRC}" 2>/dev/null | grep -q 'ELF.*386'; then
+    cp "${VRO_SRC}" "${VRO_CACHE}"
+  else
+    need_docker
+    docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
+      apk add --no-cache curl tar >/dev/null
+      tag="$(curl -fsSL https://api.github.com/repos/undivisible/vro/releases/latest | sed -n "s/.*\"tag_name\": \"\([^\"]*\)\".*/\1/p" | head -1)"
+      [ -n "$tag" ] || exit 1
+      url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86_64"
+      if ! curl -fsSL -o /out/vro-i686 "$url"; then
+        url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86"
+        curl -fsSL -o /out/vro-i686 "$url" || exit 1
+      fi
+      chmod +x /out/vro-i686
+    ' || true
+  fi
+fi
+if [ -x "${VRO_CACHE}" ]; then
+  cp "${VRO_CACHE}" "${ROOTFS}/usr/local/bin/vro"
+  chmod 755 "${ROOTFS}/usr/local/bin/vro"
+  ln -sf vro "${ROOTFS}/usr/local/bin/vi" 2>/dev/null || true
+fi
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
 
-cat > "${ROOTFS}/init" <<'INIT'
-#!/bin/sh
+mkdir -p "${ROOTFS}/etc/profile.d"
+cat > "${ROOTFS}/etc/profile" <<'PROF'
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
-export PS1='# '
+export TERM=xterm-256color
+for f in /etc/profile.d/*.sh; do
+  [ -r "$f" ] && . "$f"
+done
+PROF
+cat > "${ROOTFS}/etc/profile.d/starship.sh" <<'STAR'
+if command -v starship >/dev/null 2>&1; then
+  eval "$(starship init sh)"
+else
+  export PS1='# '
+fi
+STAR
+
+cat > "${ROOTFS}/init" <<'INIT'
+#!/bin/sh
+CON=/dev/ttyS0
+export PATH=/bin:/usr/bin:/usr/local/bin
+export HOME=/
 export TERM=xterm-256color
 export NO_COLOR=1
 export LS_COLORS=
 /bin/mount -t proc proc /proc 2>/dev/null
 /bin/mount -t sysfs sysfs /sys 2>/dev/null
 /bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null || {
+  /bin/mkdir -p /dev 2>/dev/null
   /bin/mknod /dev/console c 5 1 2>/dev/null
   /bin/mknod /dev/ttyS0 c 4 64 2>/dev/null
   /bin/mknod /dev/null c 1 3 2>/dev/null
 }
 /bin/mount -t tmpfs tmpfs /run 2>/dev/null
 /bin/hostname alpenglow 2>/dev/null
+[ -c "$CON" ] || CON=/dev/console
 cd /
 {
   /bin/echo "Alpenglow"
   /bin/echo
   /bin/echo "Immutable RAM-root Linux appliance (browser demo, i686)."
   /bin/echo "Docs: cat README.md  cat root-model.md  cat packages.md  cat desktop.md"
-  /bin/echo "Try: fastfetch   oil search firefox   oil info alpenglowed   ls *.md"
+  /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox   vro README.md"
+  /bin/echo "     wax tap undivisible/tap — third-party tap (Homebrew-style); vro via Linuxbrew/wax on real hosts."
   /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
   /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
   /bin/echo
-} >/dev/console 2>&1
-exec /bin/sh </dev/console >/dev/console 2>&1
+} >"$CON" 2>&1
+export ENV=/etc/profile
+if [ -c "$CON" ]; then
+  /bin/stty -F "$CON" sane 2>/dev/null || true
+fi
+printf '\n' >"$CON"
+exec /bin/sh -i 0<"$CON" 1>"$CON" 2>&1
 INIT
 chmod 755 "${ROOTFS}/init"
 # Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
