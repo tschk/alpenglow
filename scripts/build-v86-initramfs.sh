@@ -33,7 +33,21 @@ mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOT
 if [ ! -x "${BUSYBOX}" ] || [ "${FORCE_V86_BUSYBOX:-}" = 1 ]; then
   need_docker
   docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc \
-    'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
+    'set -e
+     apk add --no-cache build-base linux-headers musl-dev curl tar bzip2 >/dev/null
+     cd /out
+     BB_VERSION="1.36.1"
+     if [ ! -d "busybox-${BB_VERSION}" ]; then
+       curl -fsSL "https://busybox.net/downloads/busybox-${BB_VERSION}.tar.bz2" -o busybox.tar.bz2
+       tar -xjf busybox.tar.bz2
+     fi
+     cd "busybox-${BB_VERSION}"
+     make defconfig >/dev/null
+     # Brand the binary as Alpenglow instead of the distro builder.
+     sed -i "s|#define BB_EXTRA_VERSION \" (\"AUTOCONF_TIMESTAMP\")\"|#define BB_EXTRA_VERSION \" (Alpenglow)\"|" libbb/messages.c
+     make CONFIG_STATIC=y -j"$(nproc)" >/dev/null
+     cp busybox /out/busybox-i386
+     chmod +x /out/busybox-i386'
 fi
 
 sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
@@ -41,12 +55,12 @@ sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
 if [ ! -x "${OIL}" ] || find "${ROOT_DIR}/system/oil/src" "${ROOT_DIR}/system/oil/Cargo.toml" "${ROOT_DIR}/Cargo.lock" -newer "${OIL}" 2>/dev/null | grep -q .; then
   need_docker
   docker run --rm -v "${ROOT_DIR}:/home/rust/src" -w /home/rust/src/system/oil messense/rust-musl-cross:i686-musl sh -lc \
-    'cargo build --release --target i686-unknown-linux-musl'
+    'cargo build --release --target i686-unknown-linux-musl --no-default-features'
 fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
-for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty; do
+for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack; do
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 cp "${OIL}" "${ROOTFS}/bin/oil"
@@ -122,7 +136,7 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
 {
   "\$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": { "type": "none" },
-  "display": { "separator": ": ", "key": { "width": 14 } },
+  "display": { "separator": ": " },
   "modules": [
     { "type": "custom", "format": "Alpenglow ${ALP_VERSION}" },
     { "type": "custom", "format": "Host: alpenglow (browser i686)" },
@@ -135,38 +149,45 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
 }
 EOF
 
-VRO_SRC="${ROOT_DIR}/../vro/vro"
+VRO_SRC="${ROOT_DIR}/../vro"
 VRO_CACHE="${BUILD_DIR}/vro-i686"
-if [ ! -x "${VRO_CACHE}" ]; then
+build_vro_i686() {
+  local ssh_host="${VRO_SSH_HOST:-undivisible@192.168.4.134}"
+  local remote_src="/tmp/alpenglow-vro-build"
+  local remote_c="${remote_src}/vro-headless.c"
   mkdir -p "${BUILD_DIR}"
-  if [ -x "${VRO_SRC}" ] && file "${VRO_SRC}" 2>/dev/null | grep -q 'ELF.*386'; then
-    cp "${VRO_SRC}" "${VRO_CACHE}"
+  echo "Building vro i686 via ${ssh_host} ..."
+  rsync -az --exclude='.git' "${VRO_SRC}/" "${ssh_host}:${remote_src}/"
+  ssh "${ssh_host}" "cd ${remote_src} && v -gc none -os linux -d headless -o vro-headless.c ."
+  scp "${ssh_host}:${remote_c}" "${BUILD_DIR}/vro-headless.c"
+  need_docker
+  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
+    apk add --no-cache gcc musl-dev binutils >/dev/null
+    sed -i "s/typedef u8 bool;/\/* typedef u8 bool; *\//" /out/vro-headless.c
+    sed -i "1i #include <stdbool.h>\n\n/* Stubs for backtrace(3) symbols not provided by musl on i386. */\nint backtrace(void **buffer, int size) { (void)buffer; (void)size; return 0; }\nchar **backtrace_symbols(void *const *buffer, int size) { (void)buffer; (void)size; return 0; }\n" /out/vro-headless.c
+    gcc -m32 -std=gnu99 -o /out/vro-i686 /out/vro-headless.c -lm -lpthread
+    strip /out/vro-i686
+    chmod +x /out/vro-i686
+  '
+}
+if [ ! -x "${VRO_CACHE}" ]; then
+  if [ -x "${VRO_SRC}/vro" ] && file "${VRO_SRC}/vro" 2>/dev/null | grep -q 'ELF.*386'; then
+    cp "${VRO_SRC}/vro" "${VRO_CACHE}"
+  elif [ -d "${VRO_SRC}" ] && ssh -o ConnectTimeout=5 "${VRO_SSH_HOST:-undivisible@192.168.4.134}" 'exit 0' 2>/dev/null; then
+    build_vro_i686
   else
-    need_docker
-    docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
-      apk add --no-cache curl tar >/dev/null
-      tag="$(curl -fsSL https://api.github.com/repos/undivisible/vro/releases/latest | sed -n "s/.*\"tag_name\": \"\([^\"]*\)\".*/\1/p" | head -1)"
-      [ -n "$tag" ] || exit 1
-      url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86_64"
-      if ! curl -fsSL -o /out/vro-i686 "$url"; then
-        url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86"
-        curl -fsSL -o /out/vro-i686 "$url" || exit 1
-      fi
-      chmod +x /out/vro-i686
-    ' || true
+    echo "warning: no i686 vro source or SSH host available, falling back to busybox" >&2
   fi
 fi
 if [ -x "${VRO_CACHE}" ]; then
   cp "${VRO_CACHE}" "${ROOTFS}/usr/local/bin/vro"
   chmod 755 "${ROOTFS}/usr/local/bin/vro"
-  ln -sf vro "${ROOTFS}/usr/local/bin/vi" 2>/dev/null || true
+else
+  ln -sf /bin/busybox "${ROOTFS}/usr/local/bin/vro"
 fi
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
-if [ -f "${ROOTFS}/README.md" ]; then
-  ln -sf README.md "${ROOTFS}/readme.md"
-fi
 
 mkdir -p "${ROOTFS}/etc/profile.d"
 ln -sf bash "${ROOTFS}/bin/login-shell" 2>/dev/null || true
@@ -226,9 +247,9 @@ cd /
   /bin/echo "Alpenglow"
   /bin/echo
   /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
-  /bin/echo "Docs (case-sensitive): cat README.md  cat ideology.md  cat root-model.md  cat desktop.md"
-  /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
-  /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."
+  /bin/echo "Best: boot to shell in ~0.5s on minimal profile; idle RAM <64 MiB."
+  /bin/echo "Docs: cat readme.md  cat ideology.md  cat root-model.md  cat desktop.md  cat benchmarks.md"
+  /bin/echo "Try: fastfetch   wax info vro   oil search firefox   vro readme.md"
   /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
@@ -238,18 +259,31 @@ cd /
 export ENV=/etc/profile
 if [ -c "$CON" ]; then
   /bin/stty -F "$CON" sane 2>/dev/null || true
-  /bin/stty -F "$CON" columns 100 rows 30 2>/dev/null || true
+  # Use terminal size provided by the host via kernel cmdline if available.
+  cols=80
+  rows=24
+  for arg in $(cat /proc/cmdline 2>/dev/null); do
+    case "$arg" in
+      alpenglow.cols=*) cols="${arg#*=}" ;;
+      alpenglow.rows=*) rows="${arg#*=}" ;;
+    esac
+  done
+  /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
 printf '\n' >"$CON"
 if [ -x /bin/bash ]; then
-  exec /bin/bash --login -i 0<"$CON" 1>"$CON" 2>&1
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
 fi
-exec /bin/sh -i 0<"$CON" 1>"$CON" 2>&1
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
 INIT
 chmod 755 "${ROOTFS}/init"
 # Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
 ln -sf busybox "${ROOTFS}/bin/sh"
 chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
 
 BUILD_ID="$(date +%Y%m%d%H%M%S)"
 echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"

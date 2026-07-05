@@ -87,3 +87,4 @@ system/backends/appliance/vro/vro
 .poolside/
 piolium/
 zig-linux-x86_64-0.14.0/
+*.orig
