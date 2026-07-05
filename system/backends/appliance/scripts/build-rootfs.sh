@@ -46,7 +46,7 @@ echo ""
 
 if ! command -v "${OIL_CMD}" >/dev/null 2>&1; then
   echo "Oil (${OIL_CMD}) not found." >&2
-  echo "Install Oil first: curl -fsSL https://oil.sh/install.sh | sh" >&2
+  echo "Install Oil first. Please see https://oil.sh/ for secure installation instructions." >&2
   exit 1
 fi
 
