@@ -88,14 +88,18 @@ Kernel profiles select hardware and boot policy:
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
 | **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
-| **Alpenglow** desktop payload | serial login reached | 66MB | desktop profile | ~270MB used |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
 
 Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
 
-Latest desktop payload QEMU proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 QEMU_DISPLAY=none`, commit `75b3ee5`) reaches serial login with a 223MB rootfs and 66MB zstd initramfs. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. Default software Vulkan still carries lavapipe, LLVM, and Z3; hardware-targeted builds can use `GRAPHICS_BACKEND=hardware` to omit lavapipe and let the Vulkan loader pick an Intel, virtio, nouveau, or gfxstream ICD. This is not yet a graphical-session idle benchmark.
+Desktop payload size proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 QEMU_DISPLAY=none`, commit `75b3ee5`) produced a 223MB rootfs and 66MB zstd initramfs. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
+
+| Desktop graphics payload | Size | Includes |
+|--------------------------|------|----------|
+| `GRAPHICS_BACKEND=software` | 175MB | lavapipe, LLVM, Z3 |
+| `GRAPHICS_BACKEND=hardware` | 69MB | Intel, virtio, nouveau, gfxstream ICDs; no lavapipe/LLVM/Z3 |
 
 Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use the standard profile for that. `COMPILER=inauguration` selects the `../inauguration` compiler track for compiler-capable images, but it does not remove lavapipe's Mesa LLVM dependency from the graphical runtime.
 
