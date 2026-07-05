@@ -2,6 +2,10 @@
 # Alpenglow v86 browser initramfs (i686 for v86 CPU): busybox + oil + docs
 set -eu
 
+if [ "${V86_SSH:-}" = 1 ] && [ -z "${V86_SKIP_SSH:-}" ]; then
+  exec sh "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/build-v86-ssh.sh"
+fi
+
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
 BUILD_DIR="${ROOT_DIR}/build/v86"
@@ -10,8 +14,6 @@ OUT="${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
 KERNEL_OUT="${ROOT_DIR}/public/v86/alpenglow-v86-vmlinuz"
 BUSYBOX="${BUILD_DIR}/busybox-i386"
 OIL="${ROOT_DIR}/target/i686-unknown-linux-musl/release/oil"
-ISO="${BUILD_DIR}/alpine-virt-x86.iso"
-ISO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86/alpine-virt-3.20.10-x86.iso"
 
 need_docker() {
   command -v docker >/dev/null 2>&1 || {
@@ -30,22 +32,11 @@ mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOT
 
 if [ ! -x "${BUSYBOX}" ]; then
   need_docker
-  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc \
-    'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
+  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" debian:bookworm-slim sh -lc \
+    'apt-get update -qq && apt-get install -y -qq busybox-static >/dev/null && cp /bin/busybox /out/busybox-i386 && chmod +x /out/busybox-i386'
 fi
 
-if [ ! -f "${KERNEL_OUT}" ] || [ "${FORCE_V86_KERNEL:-}" = 1 ]; then
-  if [ "${V86_KERNEL:-alpine}" = linux7 ]; then
-    sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
-  else
-    [ -f "${ISO}" ] || curl -L --fail -o "${ISO}" "${ISO_URL}"
-    rm -rf "${BUILD_DIR}/iso"
-    mkdir -p "${BUILD_DIR}/iso"
-    bsdtar -xf "${ISO}" -C "${BUILD_DIR}/iso" boot/vmlinuz-virt
-    cp "${BUILD_DIR}/iso/boot/vmlinuz-virt" "${KERNEL_OUT}"
-    chmod u+w "${KERNEL_OUT}" 2>/dev/null || true
-  fi
-fi
+sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
 
 if [ ! -x "${OIL}" ] || find "${ROOT_DIR}/system/oil/src" "${ROOT_DIR}/system/oil/Cargo.toml" "${ROOT_DIR}/Cargo.lock" -newer "${OIL}" 2>/dev/null | grep -q .; then
   need_docker
@@ -134,7 +125,6 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
   "modules": [
     { "type": "custom", "format": "alpenglow@alpenglow" },
     { "type": "custom", "format": "OS: Alpenglow ${ALP_VERSION} (browser i686)" },
-    { "type": "custom", "format": "Appliance kernel: Linux 7.0.12 (native QEMU); browser uses i686 boot kernel" },
     { "type": "kernel" },
     { "type": "uptime" },
     { "type": "memory" },
@@ -214,7 +204,7 @@ cd /
 {
   /bin/echo "Alpenglow"
   /bin/echo
-  /bin/echo "Immutable RAM-root Linux appliance (browser demo, i686 v86)."
+  /bin/echo "Immutable RAM-root Linux appliance (browser demo, Alpenglow Linux 7 i686)."
   /bin/echo "Docs (case-sensitive): cat README.md  cat root-model.md  cat packages.md"
   /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
   /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."
