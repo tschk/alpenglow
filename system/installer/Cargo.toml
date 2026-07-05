@@ -1,0 +1,33 @@
+[package]
+name = "alpenglow-installer"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "alpenglow-install"
+path = "src/bin/alpenglow-install.rs"
+
+[[bin]]
+name = "alpenglow-install-tui"
+path = "src/bin/alpenglow-install-tui.rs"
+
+[[bin]]
+name = "alpenglow-install-gui"
+path = "src/bin/alpenglow-install-gui.rs"
+required-features = ["gui"]
+
+[features]
+default = []
+gui = ["dep:crepuscularity-gpui", "dep:gpui"]
+
+[dependencies]
+crepuscularity-tui = { path = "../../../crepuscularity/crates/crepuscularity-tui" }
+crepuscularity-gpui = { path = "../../../crepuscularity/crates/crepuscularity-gpui", optional = true, features = ["wayland"] }
+gpui = { version = "=0.2.2", default-features = false, optional = true, features = ["font-kit", "wayland"] }
+
+[dev-dependencies]
+tempfile = "3"
