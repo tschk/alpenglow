@@ -39,6 +39,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install kernel build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev
       - name: Install bindgen
         run: cargo install bindgen-cli --locked 2>/dev/null
       - name: Build Rust kernel module
