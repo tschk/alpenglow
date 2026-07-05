@@ -38,8 +38,16 @@ sha256_file() {
 
 require_cmd zstd
 
+CREPUS_DIR="${CREPUSCULARITY_DIR:-$(dirname "${ROOT_DIR}")/crepuscularity}"
+if [ ! -f "${CREPUS_DIR}/crates/crepuscularity-tui/Cargo.toml" ]; then
+  echo "crepuscularity not found at ${CREPUS_DIR}; clone sibling repo or set CREPUSCULARITY_DIR" >&2
+  exit 1
+fi
+
 ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" "${ROOT_DIR}/scripts/build-release.sh"
-cargo build --release -p alpenglow-installer --bin alpenglow-install --bin alpenglow-install-tui
+cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+  --target-dir "${ROOT_DIR}/target" \
+  --bin alpenglow-install --bin alpenglow-install-tui
 
 test -f "${IMAGE}" || {
   echo "missing built image: ${IMAGE}" >&2

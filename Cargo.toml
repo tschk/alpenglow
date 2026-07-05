@@ -4,7 +4,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "system/installer",
     "system/netd",
     "system/oil",
 ]

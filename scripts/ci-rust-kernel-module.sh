@@ -36,9 +36,11 @@ echo "Building Linux ${KERNEL_VER} with Rust support (this may take a few minute
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" > /tmp/kmod-kernel.log 2>&1 || { tail -30 /tmp/kmod-kernel.log; exit 1; }
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" modules > /tmp/kmod-modules.log 2>&1 || { tail -30 /tmp/kmod-modules.log; exit 1; }
 
-# Build Alpenglow core module
+# Build Alpenglow core module (kbuild looks for scripts/target.json next to the module tree)
 rm -rf /tmp/alpenglow-kmod
 cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
+mkdir -p /tmp/alpenglow-kmod/scripts
+cp "${PWD}/scripts/target.json" /tmp/alpenglow-kmod/scripts/target.json
 RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 || { tail -30 /tmp/kmod-build.log; exit 1; }
 test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
 echo "Rust kernel module OK"
