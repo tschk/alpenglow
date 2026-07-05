@@ -92,6 +92,9 @@ Kernel profiles select hardware and boot policy:
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
+| Solus Desktop | not measured | not measured | not measured | not measured |
+| Fedora Workstation | not measured | not measured | not measured | not measured |
+| Ubuntu Desktop | not measured | not measured | not measured | not measured |
 
 Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
 
