@@ -5,7 +5,7 @@ const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-demo";
+const assetVersion = "20260705-boot";
 const asset = (path) => `${path}?v=${assetVersion}`;
 const ansiPattern = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])/g;
 const urlPattern = /https:\/\/[^\s<>"')]+/g;
@@ -39,10 +39,6 @@ function writeTerminal(text) {
     .replace(/\r/g, "")
     .replace("/bin/sh: can't access tty; job control turned off\n", "");
 
-  if (!terminal) {
-    return;
-  }
-
   terminal.innerHTML = terminalText
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -57,17 +53,15 @@ function sendInput(data) {
   }
 }
 
-if (!screen) {
-  throw new Error("Alpenglow demo mount point is missing");
+if (!terminal || !screen) {
+  throw new Error("Alpenglow shell mount point is missing");
 }
 
-if (terminal) {
-  terminal.focus();
-  writeTerminal("Alpenglow demo loading…\n");
-}
-setStatus("Loading demo initramfs", 0);
+terminal.focus();
+writeTerminal("Alpenglow loading...\n");
+setStatus("loading Alpenglow", 0);
 
-terminal?.addEventListener("pointerdown", () => terminal.focus());
+terminal.addEventListener("pointerdown", () => terminal.focus());
 commandForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   const command = commandInput?.value || "";
@@ -75,10 +69,10 @@ commandForm?.addEventListener("submit", (event) => {
     commandInput.value = "";
   }
   sendInput(`${command}\r`);
-  terminal?.focus();
+  terminal.focus();
 });
 
-terminal?.addEventListener("keydown", (event) => {
+terminal.addEventListener("keydown", (event) => {
   if (event.metaKey || event.altKey) {
     return;
   }
@@ -115,14 +109,13 @@ try {
 
   emulator = new V86({
     wasm_path: asset("/v86/v86.wasm"),
-    screen_container: screen,
+    screen_container: null,
     bios: { url: asset("/v86/seabios.bin") },
     vga_bios: { url: asset("/v86/vgabios.bin") },
     bzimage: { url: asset("/v86/alpenglow-v86-vmlinuz") },
     initrd: { url: asset("/v86/alpenglow-v86-initrd.cpio.gz") },
-    cmdline: "console=tty0 console=ttyS0 rdinit=/init quiet",
-    memory_size: 256 * 1024 * 1024,
-    vga_memory_size: 8 * 1024 * 1024,
+    cmdline: "console=ttyS0 rdinit=/init quiet",
+    memory_size: 128 * 1024 * 1024,
     autostart: true,
   });
 
@@ -133,25 +126,23 @@ try {
   emulator.add_listener("download-progress", (event) => {
     if (event.lengthComputable && event.total) {
       const percent = ((event.file_index + event.loaded / event.total) / event.file_count) * 100;
-      setStatus(`Loading demo ${Math.round(percent)}%`, percent);
+      setStatus(`loading Alpenglow ${Math.round(percent)}%`, percent);
       return;
     }
 
-    setStatus("Loading demo initramfs", bootProgress?.value || 0);
+    setStatus("loading Alpenglow", bootProgress?.value || 0);
   });
 
   emulator.add_listener("download-error", (event) => {
-    setStatus("Failed to load demo assets", bootProgress?.value || 0);
-    console.error("v86 download error", event);
+    setStatus("failed to load Alpenglow", bootProgress?.value || 0);
   });
 
   emulator.add_listener("emulator-ready", () => {
-    finishStatus("Booting");
-    screen?.focus?.();
+    finishStatus("booting alpenglow shell");
   });
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  writeTerminal(`\nAlpenglow demo failed to start: ${message}\n`);
-  setStatus(`Failed: ${message}`, bootProgress?.value || 0);
+  writeTerminal(`\nAlpenglow failed to start: ${message}\n`);
+  setStatus(`failed: ${message}`, bootProgress?.value || 0);
   throw error;
 }

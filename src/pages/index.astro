@@ -1,85 +1,163 @@
----
-import Base from "../layouts/Base.astro";
----
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Alpenglow is an immutable RAM-root Linux distribution with persistent bcachefs-backed state." />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <title>Alpenglow</title>
+  </head>
+  <body>
+    <main id="screen_container" aria-label="Alpenglow OS">
+      <div></div>
+      <canvas></canvas>
+      <pre id="terminal" tabindex="0" aria-label="Alpenglow console"></pre>
+      <form id="command_form" autocomplete="off">
+        <input id="command_input" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Command" />
+        <button type="submit">run</button>
+      </form>
+      <section id="boot_status" aria-live="polite">
+        <p id="boot_message">loading alpenglow shell</p>
+        <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
+      </section>
+    </main>
+    <script src="/app.js?v=20260705-boot" type="module"></script>
+  </body>
+</html>
 
-<Base
-  title="Alpenglow"
-  description="Alpenglow is a musl Linux distribution with an immutable RAM-loaded root image and persistent bcachefs-backed state."
->
-  <main class="page">
-    <h1>Alpenglow</h1>
-    <p class="lede">
-      A general-purpose Linux distribution built around a diskless boot model: the system image is loaded into
-      memory at startup, while user data and package state persist on disk under <code>/state</code>.
-    </p>
+<style>
+  @font-face {
+    font-family: "Geist Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/geist-mono-latin-400-normal.woff2") format("woff2");
+  }
 
-    <div class="cta-row">
-      <a class="button primary" href="/demo/">Try the in-browser demo</a>
-      <a class="button" href="https://github.com/tschk/alpenglow">Repository</a>
-    </div>
+  :root {
+    color-scheme: dark;
+    background: #000;
+  }
 
-    <section id="model">
-      <h2>Immutable root, persistent state</h2>
-      <p>
-        Alpenglow separates the replaceable operating system from durable machine state. The root filesystem is
-        delivered as an erofs or squashfs image in the initramfs and mounted read-only in RAM. Home directories,
-        package metadata, logs, and caches live outside that image on bcachefs-backed storage, then bind into the
-        running system.
-      </p>
-      <p>
-        Updates are image swaps: build a new root image, boot it, and keep user data and Oil state intact.
-      </p>
-    </section>
+  * {
+    box-sizing: border-box;
+  }
 
-    <section id="stack">
-      <h2>Stack</h2>
+  html,
+  body,
+  #screen_container {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
 
-      <h3>dinit</h3>
-      <p>
-        Service supervision uses a parallel dependency graph. Init brings up networking, persistence mounts, and
-        profile-selected daemons without a heavyweight default target tree.
-      </p>
+  body {
+    background: #000;
+    color: #fff;
+  }
 
-      <h3>Oil</h3>
-      <p>
-        Oil is Alpenglow&apos;s native package manager. It speaks APK-compatible metadata, keeps install state under
-        <code>/state</code>, and installs into the mutable layer without baking packages into the immutable root
-        image.
-      </p>
+  #screen_container {
+    position: fixed;
+    inset: 0;
+  }
 
-      <h3>Alpenglowed</h3>
-      <p>
-        The desktop profile adds Wayland via <a href="https://github.com/tschk/alpenglowed">Alpenglowed</a> (Smithay),
-        greetd, seatd, PipeWire, and foot on the same immutable root model—not a separate root-on-disk distribution.
-      </p>
+  #screen_container > div,
+  #screen_container > canvas,
+  canvas {
+    display: none;
+  }
 
-      <h3>Kernel policy</h3>
-      <p>
-        Small Zig helpers (<code>kernelctl</code>, <code>netd</code>, zram and pressure tooling) enforce cgroup
-        policy, network state, and resource limits with static binaries suitable for initramfs use.
-      </p>
-    </section>
+  #terminal {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    padding: clamp(12px, 2vw, 22px);
+    margin: 0;
+    border: 0;
+    outline: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: #000;
+    color: #fff;
+    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
+    letter-spacing: 0;
+    user-select: text;
+  }
 
-    <section id="profiles">
-      <h2>Profiles</h2>
-      <ul>
-        <li><strong>minimal</strong> — headless appliance: SSH, time sync, logging, DNS, OOM guard.</li>
-        <li><strong>standard</strong> — minimal plus compiler tooling, network utilities, and filesystem tools.</li>
-        <li><strong>desktop</strong> — standard plus graphics, audio, Wi‑Fi, greetd, Alpenglowed, and foot.</li>
-      </ul>
-      <p>
-        Kernel profiles (<code>fast</code>, <code>minimal</code>, <code>desktop</code>) select hardware and boot
-        policy independently of the userspace image.
-      </p>
-    </section>
+  #terminal a {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 
-    <section id="platforms">
-      <h2>Platforms</h2>
-      <p>
-        Primary targets are x86_64 and aarch64, with QEMU and real-hardware bring-up (including Orange Pi 3B and Mac
-        mini 2012). The public demo is a 32-bit Alpenglow minimal initramfs (toybox, dinit, Oil) in v86—not a third-party
-        distro rootfs. Production images use the full musl appliance build.
-      </p>
-    </section>
-  </main>
-</Base>
+  #command_form {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: none;
+    grid-template-columns: 1fr auto;
+    height: 44px;
+    border-top: 1px solid #fff;
+    background: #000;
+  }
+
+  #command_input,
+  #command_form button {
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+    color: #fff;
+    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
+  }
+
+  #command_input {
+    padding: 0 12px;
+    outline: 0;
+  }
+
+  #command_form button {
+    width: 64px;
+    border-left: 1px solid #fff;
+  }
+
+  @media (max-width: 700px), (pointer: coarse) {
+    #terminal {
+      height: calc(100vh - 44px);
+    }
+
+    #command_form {
+      display: grid;
+    }
+  }
+
+  #boot_status {
+    position: fixed;
+    left: clamp(14px, 2.4vw, 30px);
+    right: clamp(14px, 2.4vw, 30px);
+    bottom: clamp(14px, 2.4vw, 30px);
+    display: grid;
+    gap: 10px;
+    max-width: 520px;
+    pointer-events: none;
+    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
+  }
+
+  #boot_status[hidden] {
+    display: none;
+  }
+
+  #boot_message {
+    margin: 0;
+    color: #fff;
+  }
+
+  #boot_progress {
+    width: 100%;
+    height: 12px;
+    accent-color: #fff;
+  }
+</style>

@@ -84,3 +84,13 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq file
       - name: Cross-compile aarch64 Zig init and kernelctl
         run: scripts/ci-aarch64-cross.sh
+
+  v86-initramfs:
+    name: v86 browser initramfs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build v86 initramfs and verify /init
+        run: scripts/ci-v86-initramfs.sh
