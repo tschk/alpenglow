@@ -1,42 +1,40 @@
 # Why Alpenglow
 
-## Intentions
+Alpenglow is an immutable Linux stack built for **speed**, **small RAM footprint**, and a **modern desktop** -- not a fork of a general-purpose distro.
 
-1. **Ship a small, fast OS** -- headless appliance *or* a real **desktop** (Wayland, Alpenglowed, foot) on the same immutable-root model.
-2. **Make the OS replaceable** -- the running root is a versioned artifact; rollback is "boot the previous image", not surgery on `/usr`.
-3. **Keep user and package state durable** -- `/state` on bcachefs so reinstall/upgrade does not nuke home or Oil pins.
-4. **Stay honest about scope** -- no baked-in VPN mesh in base; add what your deployment needs via Oil or `/usr/local`.
+## How we are fast and light
 
-## Headless and desktop (both first-class)
+| Layer | Choice | Why |
+|-------|--------|-----|
+| Boot | Diskless initramfs + erofs/squashfs root in RAM | No mutable `/usr` on disk; image is a versioned blob |
+| Init | **dinit** dependency graph | Parallel service bring-up, not sequential sysv |
+| Userland | **toybox** (production) | One binary, BSD coreutils surface, musl |
+| Shell | **oksh** (production) | Small, POSIX, no bash weight in minimal images |
+| Packages | **Oil / wax** (Rust, ~2.3k LOC) | Sync HTTP, APK payloads, recipes in-repo |
+| Kernel | **Linux 7.x** profiles (`fast` / `minimal` / `desktop`) | Trimmed drivers per role; hardened options |
+| Policy | **kernelctl** (Zig ~72KB static) + netd | cgroups, PSI, network state without bloat |
 
-| Profile | What you get |
-|---------|----------------|
-| `minimal` / `standard` | Appliance: SSH, net, time, logs, Oil -- smallest boot path |
-| `desktop` | Above plus greetd, PipeWire, Wi-Fi stack, **Alpenglowed** compositor, foot terminal |
+Target on real hardware: **~2s to login** on headless minimal.
 
-We are **not** "appliance only with desktop as an afterthought". Desktop is a **product profile** with the same hybrid root model as headless.
+## How we are modern (desktop)
 
-## What makes us different
+Production desktop is not wallpaper + panel + tray. **[Alpenglowed](../alpenglowed)** (`../alpenglowed` in the monorepo) is a **GPU-accelerated bar launcher** (Crepuscularity GPUI + Wayland):
 
-| Typical distro | Alpenglow |
-|----------------|-----------|
-| Mutable `/usr`, rolling updates on live system | Immutable RAM root image |
-| Package manager owns the whole tree | Oil installs into composed root; system image is separate |
-| Large desktop live ISO | Profiles on one philosophy: minimal / standard / desktop |
-| Generic cloud or desktop image | Purpose-built: dinit graph, kernel profiles, kernelctl |
+- Super+Space summon bar: launch, fuzzy search, calculator, shell, plugins
+- Status pills: time, battery, CPU, Wi-Fi, weather
+- **Smithay** compositor path (`cargo run --features compositor`) for embedded Wayland
+- **foot** terminal on the immutable root image; greetd, PipeWire, iwd in desktop profile
 
-We optimize for **cold boot time**, **RAM footprint**, and **clear split** (image vs `/state`) over base-image feature bloat.
+Same immutable-root / **`/state` on bcachefs** hybrid as headless: OS image swaps; home and Oil state stay.
 
-## Fastest and lightest
+## Headless and desktop
 
-Targets (real hardware, not this browser VM):
+Both are **first-class build profiles** (`BUILD_PROFILE=minimal|standard|desktop`), not "server distro + optional DE".
 
-- Sub-~2s to login on headless minimal
-- Musl userspace, toybox core, parallel dinit
-- Kernel profiles: `fast`, `minimal`, `desktop` (GPU/audio/Wi-Fi when needed)
+## What we skip in the base (on purpose)
 
-Browser demo is **i686 v86** for accessibility; not the performance reference.
+VPN meshes, Tailscale, custom firewall products in the base image. Install via Oil or drop binaries in `/usr/local` when you need them.
 
-## Hybrid model (headless and desktop)
+## Browser demo (this VM)
 
-**Root** = immutable erofs/squashfs in RAM. **`/state`** = bcachefs on disk (home, Oil, caches). Desktop sessions use the same split: reproducible OS layer, durable user data -- not "everything in RAM forever" and not a classic mutable distro desktop either.
+i686 **v86** serial shell: busybox + **bash**, Oil, fastfetch, docs. Not the performance or UX reference for Alpenglowed Wayland -- that is x86_64/aarch64 `scripts/boot-native.sh` + desktop profile.

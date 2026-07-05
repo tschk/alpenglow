@@ -1,6 +1,6 @@
 # Profiles
 
-Alpenglow separates **build profiles** (userspace image) from **kernel profiles** (hardware and boot policy).
+Alpenglow separates **build profiles** (userspace image) from **kernel profiles** (hardware and boot policy). Desktop means **Alpenglowed** + foot + audio/Wi-Fi -- see `desktop.md`.
 
 | Build profile | Scope |
 |---------------|--------|

@@ -1,36 +1,29 @@
 # Alpenglow browser demo
 
-You are running Alpenglow's own userspace in the browser (busybox ash, Oil, wax) on **Linux 7.0.12 i686**. The shell is **busybox** (build-time static binary); `help` shows the busybox version string, not "Debian" as your OS. APK packages (e.g. fastfetch) are fetched by Oil as payloads only. Production appliances are **x86_64 / aarch64** musl images from `scripts/boot-native.sh`.
+You are in a **serial console** inside **Alpenglow Linux 7.0.12 (i686)** in the browser. This is a taste of the userspace (Oil/wax, bash, docs) -- not the full **Alpenglowed** desktop (see `desktop.md`).
 
-## What Alpenglow is
+## The real product (from this repo + alpenglowed)
 
-**Fastest and lightest** immutable Linux we ship: ~2s boot on headless hardware, tiny userspace (toybox/oksh, dinit, Oil), hardened kernels -- plus a **full desktop profile** (Alpenglowed, foot, audio, Wi-Fi).
+- **Immutable RAM root** (erofs/squashfs) + **bcachefs `/state`** for home and package metadata
+- **dinit**, toybox, oksh, Oil, kernelctl, netd-zig -- see repo `AGENTS.md`
+- **Desktop**: `BUILD_PROFILE=desktop` + **[Alpenglowed](https://github.com/tschk/alpenglowed)** -- Raycast-style GPUI bar, Smithay compositor feature, foot, PipeWire, iwd
 
-**Ideology (short):**
+## Shell here
 
-- **Immutable system image** in RAM (erofs/squashfs) -- upgrades replace the image, not `apt upgrade` on a live root.
-- **Mutable life on disk** under `/state` (bcachefs): home, Oil metadata, logs, caches -- your data survives OS swaps.
-- **Native package manager (Oil / wax)** -- sync HTTP, APK payloads, recipes in-repo; no mystery remote rootfs.
-- **Headless or desktop** -- same immutable root; `BUILD_PROFILE=desktop` is a first-class product path, not an afterthought.
-- **You add VPN, firewall extras, Tailscale** -- base stays small; that is intentional.
+Login shell is **bash** (with colors: `TERM=xterm-256color`, `LS_COLORS`). Production minimal images use **oksh**; bash is in the demo for familiarity and **starship**-compatible prompts.
 
-## Desktop is a hybrid (not "all RAM")
+On a full system: `oil install …` for zsh, nushell, etc. into `/state` -- not preloaded in this tiny initramfs.
 
-Even with `BUILD_PROFILE=desktop`, Alpenglow is **not** a fully diskless RAM-only desktop:
+## Try
 
-| Layer | Model |
-|-------|--------|
-| OS root (`/usr`, `/bin`, system tree) | Immutable image in RAM |
-| User + package state (`/home`, Oil, caches) | Persistent **bcachefs `/state`** on disk |
-| Desktop session | Wayland (Alpenglowed + foot), audio, Wi-Fi -- same hybrid: fixed root, mutable state |
+```sh
+fastfetch
+wax info fastfetch
+cat ideology.md
+cat desktop.md
+ls --color=auto
+```
 
-So: **diskless immutable core + disk-backed state** -- fastest boot, reproducible system, without wiping your files every reboot.
+Paths are **case-sensitive** (`README.md` not `readme.md` -- `readme.md` is a symlink).
 
-## This demo
-
-- **Oil / wax** -- `wax info vro`, `wax tap undivisible/tap`, `oil search …`
-- **fastfetch** -- preinstalled in the image
-- **Docs** -- `cat README.md`, `cat root-model.md`, `cat ideology.md` (paths are **case-sensitive**)
-- Writable tmpfs only here; no bcachefs in v86.
-
-More: `/usr/share/alpenglow/browser/`
+Docs also under `/usr/share/alpenglow/browser/`.

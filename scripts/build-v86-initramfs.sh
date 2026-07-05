@@ -69,8 +69,9 @@ REPOS
   ' sh "$@"
 }
 
-FASTFETCH_VERSION="$(apk_root_install fastfetch && docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
-STARSHIP_VERSION="$(apk_root_install starship && docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v starship 2>/dev/null | sed 's/^starship-//')"
+apk_root_install fastfetch bash
+FASTFETCH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
+BASH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v bash 2>/dev/null | sed 's/^bash-//')"
 if [ -d "${ROOTFS}/etc" ] && [ ! -w "${ROOTFS}/etc" ]; then
   if command -v sudo >/dev/null 2>&1; then
     sudo chown -R "$(id -u):$(id -g)" "${ROOTFS}"
@@ -87,9 +88,9 @@ cat > "${ROOTFS}/.oil/installed.json" <<EOF
     "install_date": 0,
     "pinned": false
   },
-  "starship": {
-    "name": "starship",
-    "version": "${STARSHIP_VERSION}",
+  "bash": {
+    "name": "bash",
+    "version": "${BASH_VERSION}",
     "install_date": 0,
     "pinned": false
   }
@@ -168,14 +169,23 @@ if [ -f "${ROOTFS}/README.md" ]; then
 fi
 
 mkdir -p "${ROOTFS}/etc/profile.d"
+ln -sf bash "${ROOTFS}/bin/login-shell" 2>/dev/null || true
 cat > "${ROOTFS}/etc/profile" <<'PROF'
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
+export SHELL=/bin/bash
 export TERM=xterm-256color
+export COLORTERM=truecolor
+export CLICOLOR=1
+export FORCE_COLOR=1
 for f in /etc/profile.d/*.sh; do
   [ -r "$f" ] && . "$f"
 done
 PROF
+cat > "${ROOTFS}/etc/profile.d/colors.sh" <<'CLR'
+# busybox ls honors LS_COLORS when set
+export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=1;33:ex=1;32:*.md=0;33'
+CLR
 cat > "${ROOTFS}/etc/profile.d/serial-tty.sh" <<'TTY'
 CON=/dev/ttyS0
 [ -c "$CON" ] || CON=/dev/console
@@ -186,7 +196,11 @@ if /bin/stty -F "$CON" sane 2>/dev/null; then
 fi
 TTY
 cat > "${ROOTFS}/etc/profile.d/prompt.sh" <<'PROMPT'
-export PS1='alpenglow:~# '
+if [ -n "${BASH_VERSION}" ]; then
+  export PS1='\[\033[1;36m\]alpenglow\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]# '
+else
+  export PS1='alpenglow:~# '
+fi
 PROMPT
 
 cat > "${ROOTFS}/init" <<'INIT'
@@ -195,8 +209,7 @@ CON=/dev/ttyS0
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
 export TERM=xterm-256color
-export NO_COLOR=1
-export LS_COLORS=
+export COLORTERM=truecolor
 /bin/mount -t proc proc /proc 2>/dev/null
 /bin/mount -t sysfs sysfs /sys 2>/dev/null
 /bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null || {
@@ -228,9 +241,8 @@ if [ -c "$CON" ]; then
   /bin/stty -F "$CON" columns 100 rows 30 2>/dev/null || true
 fi
 printf '\n' >"$CON"
-# ash (busybox) for job control on serial tty when available
-if /bin/ash -c 'exit 0' 2>/dev/null; then
-  exec /bin/ash -i 0<"$CON" 1>"$CON" 2>&1
+if [ -x /bin/bash ]; then
+  exec /bin/bash --login -i 0<"$CON" 1>"$CON" 2>&1
 fi
 exec /bin/sh -i 0<"$CON" 1>"$CON" 2>&1
 INIT

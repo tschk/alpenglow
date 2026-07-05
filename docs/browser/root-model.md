@@ -1,22 +1,15 @@
 # Root model
 
-## Production appliance
+## Production
 
-1. **Immutable root** -- erofs or squashfs loaded into RAM at boot (diskless system image).
-2. **Mutable state** -- bcachefs volume **`/state`**, with `/home` and Oil paths bind-mounted from it.
-3. **Upgrade** -- new root image + same `/state` = new OS, same data.
+1. **Immutable root** -- erofs or squashfs loaded into RAM at boot.
+2. **`/state`** -- bcachefs volume; `/home` and Oil paths bind-mounted from it.
+3. **Upgrade** -- replace root image artifact; keep `/state`.
 
-Replacing the image does not wipe package metadata or home directories.
+## Desktop uses the same split
 
-## Hybrid desktop
+Alpenglowed, foot, PipeWire binaries are in the **image**. Your files and package choices are on **`/state`**. Fast boot + reproducible OS layer without wiping home.
 
-Desktop builds use the **same split**:
+## v86 demo
 
-- Compositor, foot, PipeWire, Wi-Fi stack live in the **immutable root image** (versioned, replaced as a unit).
-- Sessions, dotfiles, user packages, caches live under **`/state`**.
-
-So desktop Alpenglow is **not** fully diskless end-to-end; it is **RAM-immutable OS + disk-backed user/system state**. Headless minimal is the same pattern with a smaller image.
-
-## Browser demo
-
-Single writable layout inside a small initramfs for `cat *.md` and shell play. No bcachefs here -- illustrates commands only.
+Writable tmpfs initramfs for docs and shell play -- no bcachefs mount.

@@ -1,20 +1,30 @@
-# Desktop (demo vs production)
+# Desktop: Alpenglowed
 
-## Hybrid model (important)
+## Not a traditional DE
 
-Alpenglow desktop is **not** "everything diskless in RAM". It is:
+Alpenglow desktop profile ships **Alpenglowed** -- a single fullscreen **GPUI** bar (Crepuscularity) over Wayland:
 
-- **Immutable RAM root** -- OS tree, compositor binaries, system services baked into the image.
-- **Persistent `/state`** -- home, Oil, logs, user config on bcachefs.
+- Launcher + fuzzy app search from PATH
+- Calculator, `> shell` commands, plugins (Rust / Crepus / web)
+- Pills: clock, date, battery, CPU, Wi-Fi, weather
+- Notifications daemon, clipboard history, file search (`/query`), emoji picker
+- **Compositor**: `alpenglowed --compositor` with embedded **Smithay** (Wayland socket under `$XDG_RUNTIME_DIR/alpenglowed/`)
 
-Fast boot and reproducible system layer; your files and package choices survive image updates.
+Read `../alpenglowed/README.md` for phases and architecture.
+
+## Stack on the image
+
+| Piece | Role |
+|-------|------|
+| greetd | Session |
+| seatd | Seat permissions |
+| foot | Terminal emulator |
+| PipeWire + ALSA | Audio |
+| iwd | Wi-Fi |
+| Alpenglowed | Shell UI + compositor path |
+
+All of that lives in the **immutable root image**. Sessions, dotfiles, and Oil state live on **`/state`**.
 
 ## Browser demo
 
-Serial shell only in v86 (this page). No Wayland in the browser initramfs today.
-
-## Production (`BUILD_PROFILE=desktop`)
-
-greetd, seatd, PipeWire, iwd, **Alpenglowed** + foot on the immutable RAM-root image. Optional cage-style demos exist for QEMU smoke tests; product path is Alpenglowed (Smithay), not cage as the shipping compositor.
-
-See `ideology.md` and `root-model.md` for why we call this a hybrid.
+No Wayland in v86 -- serial bash only. Desktop is documented so you know what production `BUILD_PROFILE=desktop` targets.
