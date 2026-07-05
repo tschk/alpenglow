@@ -178,9 +178,6 @@ fi
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
-if [ -f "${ROOTFS}/README.md" ]; then
-  ln -sf README.md "${ROOTFS}/readme.md"
-fi
 
 mkdir -p "${ROOTFS}/etc/profile.d"
 ln -sf bash "${ROOTFS}/bin/login-shell" 2>/dev/null || true
