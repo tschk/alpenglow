@@ -360,16 +360,9 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   fi
 fi
 
-# Graphical builds: cage (musl) + alpenglowed (glibc) + graphics libs
+# Graphical builds: alpenglowed (glibc) + graphics libs
 if [ "${GRAPHICAL}" = "1" ]; then
-  echo "→ Building graphical stack (cage + alpenglowed + graphics libs)..."
-
-  # cage + musl shared libs from Alpine
-  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ] || [ ! -f "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" ] || [ -f "${OUT_DIR}/cage/usr/bin/Xwayland" ] || [ -f "${OUT_DIR}/cage/usr/lib/libLLVM.so.19.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/gallium-pipe/pipe_radeonsi.so" ]; then
-    rm -rf "${OUT_DIR}/cage"
-    sh "${BACKEND_DIR}/scripts/build-cage.sh" "${OUT_DIR}"
-  fi
-  echo "  cage: ${OUT_DIR}/cage/usr/bin/cage"
+  echo "→ Building graphical stack (alpenglowed + graphics libs)..."
 
   # alpenglowed with glibc dynamic linking
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
@@ -455,32 +448,9 @@ if [ "${BUILD_PROFILE}" != "minimal" ]; then
   fi
 fi
 
-# Graphical stack: cage (musl) + alpenglowed (glibc) + isolated libs
+# Graphical stack: alpenglowed (glibc) + isolated libs
 # Installed before BOOT_SERVICES so availability checks work
 if [ "${GRAPHICAL}" = "1" ]; then
-  if [ -d "${OUT_DIR}/cage" ]; then
-    mkdir -p "${ROOTFS_DIR}/usr/bin" "${ROOTFS_DIR}/usr/lib/musl" "${ROOTFS_DIR}/lib"
-    cp "${OUT_DIR}/cage/usr/bin/cage" "${ROOTFS_DIR}/usr/bin/"
-    cp "${OUT_DIR}/cage/usr/bin/seatd" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/usr/bin/seatd-launch" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" "${ROOTFS_DIR}/lib/" 2>/dev/null || true
-    # musl libc: ld-musl is the same binary, symlink the libc name
-    ln -sf ld-musl-x86_64.so.1 "${ROOTFS_DIR}/lib/libc.musl-x86_64.so.1" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/usr/lib/lib"*.so* "${ROOTFS_DIR}/usr/lib/musl/" 2>/dev/null || true
-    if [ -d "${OUT_DIR}/cage/usr/lib/dri" ]; then
-      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/dri"
-      cp "${OUT_DIR}/cage/usr/lib/dri/"*.so "${ROOTFS_DIR}/usr/lib/musl/dri/" 2>/dev/null || true
-    fi
-    if [ -d "${OUT_DIR}/cage/usr/lib/gallium-pipe" ]; then
-      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/gallium-pipe"
-      cp "${OUT_DIR}/cage/usr/lib/gallium-pipe/"*.so "${ROOTFS_DIR}/usr/lib/musl/gallium-pipe/" 2>/dev/null || true
-    fi
-    if [ -d "${OUT_DIR}/cage/usr/lib/gbm" ]; then
-      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/gbm"
-      cp "${OUT_DIR}/cage/usr/lib/gbm/"*.so "${ROOTFS_DIR}/usr/lib/musl/gbm/" 2>/dev/null || true
-    fi
-  fi
-
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
   if [ -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/bin"
@@ -523,33 +493,13 @@ if [ "${GRAPHICAL}" = "1" ]; then
     fi
   fi
 
-  cat > "${ROOTFS_DIR}/usr/bin/cage-run.sh" << 'CAGEWRAP'
-#!/bin/sh
-unset WAYLAND_DISPLAY
-export XDG_RUNTIME_DIR=/run
-export LIBSEAT_BACKEND=seatd
-export WLR_LIBINPUT_NO_DEVICES=1
-export WLR_RENDERER=pixman
-export LD_LIBRARY_PATH=/usr/lib/musl
-export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
-export EGL_DRIVER=swrast
-mkdir -p /run
-chmod 700 /run
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  [ -S /run/seatd.sock ] && break
-  sleep 0.5
-done
-exec /usr/bin/cage /usr/bin/alpenglowed-run.sh
-CAGEWRAP
-  chmod 755 "${ROOTFS_DIR}/usr/bin/cage-run.sh"
-
   cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
 #!/bin/sh
 export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
-exec /usr/bin/alpenglowed-bin "$@"
+exec /usr/bin/alpenglowed-bin --compositor "$@"
 ALPWRAP
   chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
 
@@ -563,47 +513,10 @@ exec /usr/bin/alpenglow-greeter-bin "$@"
 GWRAP
   chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh"
 
-  cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-cage.sh" << 'GCAGE'
-#!/bin/sh
-unset WAYLAND_DISPLAY
-export XDG_RUNTIME_DIR=/run
-export LIBSEAT_BACKEND=seatd
-export WLR_LIBINPUT_NO_DEVICES=1
-export WLR_RENDERER=pixman
-export LD_LIBRARY_PATH=/usr/lib/musl
-export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
-export EGL_DRIVER=swrast
-mkdir -p /run
-chmod 700 /run
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  [ -S /run/seatd.sock ] && break
-  sleep 0.5
-done
-exec /usr/bin/cage /usr/bin/alpenglow-greeter-run.sh
-GCAGE
-  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-cage.sh"
-
-  # Override seatd service: run as root with musl LD_LIBRARY_PATH
-  cat > "${ROOTFS_DIR}/etc/dinit.d/seatd" << 'SEATD'
-# Seat management daemon
-type = process
-command = /usr/bin/seatd -g seat
-restart = yes
-run-as = root
-SEATD
-
-  cat > "${ROOTFS_DIR}/etc/dinit.d/velox" << 'VELUX'
-# cage — Wayland compositor (wlroots-based kiosk)
-type = process
-command = /usr/bin/cage-run.sh
-restart = yes
-depends-on = seatd
-VELUX
   cat > "${ROOTFS_DIR}/etc/dinit.d/alpenglowed" << 'ALPENGLOW'
 type = process
 command = /usr/bin/alpenglowed-run.sh
 restart = yes
-depends-on = velox
 ALPENGLOW
 else
   ALPENGLOWED_BIN="${ALPENGLOWED_BIN:-}"

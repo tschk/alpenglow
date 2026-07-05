@@ -69,7 +69,7 @@ assert_contains system/backends/appliance/backend.json '"package_manager": "oil"
 assert_file system/backends/appliance/dinit/alpenglowed
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
-assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
+assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
 
 # rootfs-layout.json validation
@@ -90,7 +90,7 @@ done
 cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
 BUILD_PROFILE=desktop system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
-assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"velox"'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"alpenglowed"'
 scripts/ci-profile-matrix.sh
 
 printf 'ci-os-appliance: ok\n'

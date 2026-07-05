@@ -32,12 +32,8 @@ export FREEDESKTOP_MONITORS="${FREEDESKTOP_MONITORS:-/run/user/$(id -u)/monitors
 mkdir -p "${XDG_RUNTIME_DIR}"
 chmod 700 "${XDG_RUNTIME_DIR}"
 
-if [ -x /usr/bin/cage-run.sh ]; then
-	exec /usr/bin/cage-run.sh
-fi
-
 if command -v alpenglowed >/dev/null 2>&1; then
-	exec alpenglowed
+	exec alpenglowed --compositor
 fi
 
-exec cage
+exec alpenglowed-bin --compositor

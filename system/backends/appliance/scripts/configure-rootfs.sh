@@ -142,7 +142,7 @@ case "${BUILD_PROFILE}" in
     WORLD_FILE="${BACKEND_DIR}/packages-standard.txt"
     ;;
   desktop)
-    BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd velox alpenglowed foot"
+    BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
     WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
     ;;
   *)
@@ -320,7 +320,7 @@ case "${COMPILER}" in
 esac
 case "${BUILD_PROFILE}" in
   desktop)
-    DISPLAY_JSON='{"server":"wayland","compositor":"velox","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+    DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
     AUDIO_JSON='{"server":"pipewire","session_manager":"wireplumber","backend":"alsa"}'
     NETWORKING_JSON='{"dhcp":"sdhcp","wifi":"iwd"}'
     POWER_JSON='{"manager":"elogind","script":"/usr/local/bin/alpenglow-power.sh"}'
@@ -328,7 +328,7 @@ case "${BUILD_PROFILE}" in
     KERNEL_FEATURES='["rust","sound","wireless","acpi","usb-hid"]'
     ESSENTIAL_SERVICES='["mount-filesystems","state-mount","elogind","seatd","networking"]'
     SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","iwd","syslogd","crond"]'
-    SESSION_SERVICES='["pipewire","wireplumber","greetd","velox","alpenglowed","foot"]'
+    SESSION_SERVICES='["pipewire","wireplumber","greetd","alpenglowed","foot"]'
     USER_INIT='["alpenglow-session"]'
     ;;
   standard)

@@ -56,7 +56,7 @@ docker run --rm --platform linux/amd64 ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglo
   apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev pkg-config 2>/dev/null >/dev/null
 
   cd /build/alpenglowed
-  cargo build --release 2>&1 | tail -5
+  cargo build --release --features compositor 2>&1 | tail -5
 
   mkdir -p /out/usr/bin
   cp target/release/alpenglowed /out/usr/bin/
