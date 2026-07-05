@@ -19,7 +19,7 @@ Early-stage. Not production-ready.
 | Shell | oksh |
 | Kernel | Hardened — three profiles: `fast` (boot speed), `minimal` (SSH/net/time/logs), `desktop` (display/audio/WiFi). Tracks kernel.org latest stable |
 | Kernel ctrl | kernelctl — Zig (72KB static) + Rust (501KB static) |
-| Display | Wayland + Smithay target via `../alpenglowed` + foot |
+| Display | Wayland + Smithay target via Alpenglowed + foot |
 | Audio | ALSA + PipeWire |
 | Networking | udhcpc + iwd |
 | Arch | x86_64, aarch64 (aarch64 CI cross-compile only; x86_64 boot-tested in CI) |
@@ -112,10 +112,10 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 | kernelctl Zig | ✅ | 72KB static, built in CI |
 | Custom kernel build | ✅ | `KERNEL_BUILD=1` works |
 | Immutable root image | ✅ | erofs/squashfs active |
-| Real hardware boot | ❌ | QEMU only for now |
+| Real hardware boot | ✅ | Tested on Orange Pi 3B and Mac mini 2012 |
 | Build profiles | ✅ | `BUILD_PROFILE=minimal|standard|desktop` |
 | Interactive installer | 🟡 | Planned |
-| Alpenglowed DE | ✅ | `../alpenglowed` desktop shell |
+| Alpenglowed DE | ✅ | Alpenglowed desktop shell |
 
 ## SSH Hosts (for cross-compilation testing)
 

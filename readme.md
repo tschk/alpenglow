@@ -40,7 +40,7 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
-| Desktop | Wayland + Smithay target via [alpenglowed](https://github.com/tschk/alpenglowed) | `../alpenglowed` is the desktop environment |
+| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Alpenglowed is the desktop environment |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y |
@@ -70,7 +70,7 @@ Build profiles select the userspace image:
 |---------|----------|-------|
 | Minimal | `BUILD_PROFILE=minimal` | Headless boot, SSH, time, logs, DNS, OOM guard |
 | Standard | `BUILD_PROFILE=standard` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
-| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, [`../alpenglowed`](https://github.com/tschk/alpenglowed), foot, and browser shell pieces |
+| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, [Alpenglowed](https://github.com/tschk/alpenglowed), foot, and browser shell pieces |
 
 Kernel profiles select hardware and boot policy:
 
@@ -87,20 +87,20 @@ Kernel profiles select hardware and boot policy:
 | OS | Boot | Initramfs | Kernel | RAM at target |
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
-| **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
-| **Alpenglow** desktop | **1.25s** | 66MB | 6.0MB | ~258MB |
+| **Alpenglow** std | **1.15s** | 22MB | 6.0MB | ~87MB |
+| **Alpenglowed Desktop with Alpenglowed** | **1.98s** | 66MB | 6.0MB | ~253MB |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
-| Fedora minimal GNOME | 7.24s | 34MB | 18MB | ~716MB |
-| Manjaro minimal XFCE | 6.82s | 24MB | 16MB | ~439MB |
-| Ubuntu minimal GNOME | 35.38s | 63MB | 15MB | ~196MB |
+| Fedora minimal GNOME | 7.44s | 34MB | 18MB | ~705MB |
+| Manjaro minimal XFCE | 7.44s | 24MB | 16MB | ~477MB |
+| Ubuntu minimal GNOME | 35.32s | 63MB | 15MB | ~198MB |
 
-Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
+Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.15s as a five-run median. Alpine matches boot speed but has a larger initramfs and uses more RAM. Both modes use the same toolchain — the difference is just initramfs contents.
 
-Desktop serial-login proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`) reached login in 1.25s with Zig-backed kernel policy, netd, zram, and pressure services enabled. The measured image had a 223MB rootfs, 66MB zstd initramfs, 6.0MB kernel, and ~258MB RAM used. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
+Alpenglow standard and Alpenglowed Desktop rows are five-run medians on `ultramarine` with KVM, 4096MB RAM, 2 vCPU, and explicit initramfs boot. Alpenglowed Desktop (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`) reached serial login with Zig-backed kernel policy, netd, zram, and pressure services enabled. The measured desktop image had a 223MB rootfs, 66MB zstd initramfs, and 6.0MB kernel. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
 
-Fedora, Manjaro, and Ubuntu desktop rows are installed package-manager roots, not live ISOs or netinstall timings. They were built on `ultramarine` as minimal desktop images, copied to ext4 disks, and booted with the same QEMU shape used for Alpenglow comparison (`q35`, KVM, 4096MB RAM, 2 vCPU, virtio GPU, serial console). Boot time stops at systemd `graphical.target`; RAM is the last serial `/proc/meminfo` sample before that target. Fedora used GNOME/GDM from `fedora:43` packages with a 2.2GB root and 2.4GB sparse image. Manjaro used XFCE/LightDM from `manjarolinux/base:latest` packages with a 2.0GB root and 2.2GB sparse image. Ubuntu used GNOME/GDM from `ubuntu:24.04` packages with a 2.0GB root and 2.1GB sparse image.
+Fedora, Manjaro, and Ubuntu desktop rows are five-run medians from installed package-manager roots, not live ISOs or netinstall timings. They were built on `ultramarine` as minimal desktop images, copied to ext4 disks, and booted with the same QEMU shape used for Alpenglow comparison (`q35`, KVM, 4096MB RAM, 2 vCPU, virtio GPU, serial console). Boot time stops at systemd `graphical.target`; RAM is the last serial `/proc/meminfo` sample before that target. Fedora used GNOME/GDM from `fedora:43` packages with a 2.2GB root and 2.4GB sparse image. Manjaro used XFCE/LightDM from `manjarolinux/base:latest` packages with a 2.0GB root and 2.2GB sparse image. Ubuntu used GNOME/GDM from `ubuntu:24.04` packages with a 2.0GB root and 2.2GB sparse image.
 
 | Desktop graphics payload | Size | Includes |
 |--------------------------|------|----------|
@@ -128,7 +128,7 @@ Alpenglow has one root model:
 
 **Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
 
-**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [`../alpenglowed`](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in alpenglowed.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in Alpenglowed.
 
 ## Services
 
@@ -140,7 +140,7 @@ Alpenglow has one root model:
 | Logging (syslogd) | ✅ | ✅ | ✅ | dinit |
 | DHCP networking | ✅ | ✅ | ✅ | dinit |
 | WiFi (iwd) | ✅ | optional | ✅ | dinit |
-| Wayland + alpenglowed | ✅ | optional | ✅ | dinit |
+| Wayland + Alpenglowed | ✅ | optional | ✅ | dinit |
 | Audio (PipeWire) | ✅ | optional | ✅ | dinit |
 | Package manager (Oil) | ✅ | ✅ | ✅ | dinit |
 | Kernel policy (kernelctl) | ✅ | ✅ | ✅ | dinit |

@@ -401,6 +401,7 @@ for applet in sh ls cat cp mv rm mkdir rmdir ln mount umount ps kill sleep echo 
   date cal reboot halt poweroff passwd syslogd crond logger; do
   ln -sf /bin/toybox "${ROOTFS_DIR}/bin/${applet}" 2>/dev/null || true
 done
+toybox_has() { "${OUT_DIR}/toybox" "$1" --help >/dev/null 2>&1; }
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/init"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/getty"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/modprobe"
@@ -585,6 +586,9 @@ case "${BUILD_PROFILE}" in
     ;;
   standard)
     BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
+    toybox_has udhcpc || BOOT_SERVICES="$(printf '%s\n' "${BOOT_SERVICES}" | sed 's/ networking//')"
+    toybox_has syslogd || BOOT_SERVICES="$(printf '%s\n' "${BOOT_SERVICES}" | sed 's/ syslogd//')"
+    toybox_has crond || BOOT_SERVICES="$(printf '%s\n' "${BOOT_SERVICES}" | sed 's/ crond//')"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
