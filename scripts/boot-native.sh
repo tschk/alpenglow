@@ -797,9 +797,6 @@ GROUP
 # root home
 mkdir -p "${ROOTFS_DIR}/root"
 mkdir -p "${ROOTFS_DIR}/lib/modules"
-if [ -f "${GLOWFS_KO}" ]; then
-  cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
-fi
 if [ -f "${ALPENGLOW_MODULE}" ]; then
   cp "${ALPENGLOW_MODULE}" "${ROOTFS_DIR}/lib/modules/"
 fi
