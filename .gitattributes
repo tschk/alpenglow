@@ -1,6 +1,10 @@
 *.js linguist-language=Ignore
+*.mjs linguist-language=Ignore
+*.cjs linguist-language=Ignore
 *.astro linguist-language=Ignore
 *.sh linguist-language=Ignore
+src/v86/** linguist-vendored linguist-detectable=false
+public/v86/** linguist-vendored linguist-detectable=false
 public/v86/* linguist-language=Ignore
 system/backends/appliance/initramfs/init linguist-language=Ignore
 system/backends/appliance/scripts/alpenglow-session-start linguist-language=Ignore
