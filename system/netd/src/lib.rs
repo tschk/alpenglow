@@ -233,6 +233,19 @@ mod tests {
     }
 
     #[test]
+    fn read_snapshot_non_existent_root() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "alpenglow-netd-test-nonexistent-{}-{}",
+            std::process::id(),
+            now_unix_ms()
+        ));
+
+        let snapshot = read_snapshot(&path).expect("snapshot should parse gracefully when root does not exist");
+        assert!(snapshot.interfaces.is_empty());
+    }
+
+    #[test]
     fn renders_runtime_state_for_shell_consumers() {
         let snapshot = NetworkSnapshot {
             generated_unix_ms: 123,
