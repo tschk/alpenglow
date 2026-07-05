@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+      arch:
+        description: "Image architecture"
+        required: false
+        default: "x86_64"
+
+permissions:
+  contents: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install release tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bcachefs-tools curl gdisk kpartx qemu-utils xorriso zstd
+
+      - name: Build release assets
+        env:
+          ALPENGLOW_ARCH: ${{ github.event.inputs.arch || 'x86_64' }}
+        run: |
+          version="${{ github.event.inputs.version || github.ref_name }}"
+          sh scripts/release-assets.sh "${version}"
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ github.event.inputs.version || github.ref_name }}"
+          if ! gh release view "${version}" >/dev/null 2>&1; then
+            gh release create "${version}" --title "Alpenglow ${version}" --notes ""
+          fi
+          gh release upload "${version}" build/release/assets/* --clobber
