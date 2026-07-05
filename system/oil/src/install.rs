@@ -153,7 +153,10 @@ mod tests {
         std::env::set_var("HOME", temp_dir.path());
 
         let state = InstallState::new().expect("Failed to create new InstallState");
-        assert!(state.packages.is_empty(), "New state should have empty packages");
+        assert!(
+            state.packages.is_empty(),
+            "New state should have empty packages"
+        );
         Ok(())
     }
 
@@ -194,7 +197,9 @@ mod tests {
         assert_eq!(pkg.version, "2.0.0");
 
         state.mark_installed("pkg-c", Some("2.1.0"));
-        let pkg = state.get("pkg-c").expect("pkg-c should exist and be updated");
+        let pkg = state
+            .get("pkg-c")
+            .expect("pkg-c should exist and be updated");
         assert_eq!(pkg.version, "2.1.0");
 
         state.remove("pkg-c").expect("Failed to remove pkg-c");
@@ -202,7 +207,10 @@ mod tests {
 
         state.mark_installed("pkg-d", Some("3.0.0"));
         state.clear();
-        assert!(state.packages.is_empty(), "State should be empty after clear");
+        assert!(
+            state.packages.is_empty(),
+            "State should be empty after clear"
+        );
 
         Ok(())
     }

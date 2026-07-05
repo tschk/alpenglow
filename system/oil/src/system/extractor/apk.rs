@@ -78,7 +78,7 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
 
     let mut starts: Vec<usize> = Vec::new();
     let mut last_pos = 0;
-    
+
     for i in 0..data.len().saturating_sub(1) {
         if data[i] == 0x1f && data[i + 1] == 0x8b {
             if i < last_pos {
@@ -86,13 +86,13 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
             }
             starts.push(i);
             last_pos = i;
-            
+
             if starts.len() >= count {
                 break;
             }
         }
     }
-    
+
     if starts.len() < count {
         return Err(OilError::Install(format!(
             "APK has {} gzip streams, expected {count}",
@@ -102,14 +102,14 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
 
     let mut out = Vec::with_capacity(count);
     let mut total_decompressed: usize = 0;
-    
+
     for i in 0..count {
         let slice = &data[starts[i]..];
         let mut decoder = flate2::read::GzDecoder::new(slice);
         let mut buf = Vec::new();
-        
+
         decoder.read_to_end(&mut buf)?;
-        
+
         if buf.len() > MAX_STREAM_SIZE {
             return Err(OilError::Install(format!(
                 "Stream {} size {} exceeds maximum {}",
@@ -118,19 +118,18 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
                 MAX_STREAM_SIZE
             )));
         }
-        
+
         total_decompressed += buf.len();
         if total_decompressed > MAX_TOTAL_SIZE {
             return Err(OilError::Install(format!(
                 "Total decompressed size {} exceeds maximum {}",
-                total_decompressed,
-                MAX_TOTAL_SIZE
+                total_decompressed, MAX_TOTAL_SIZE
             )));
         }
-        
+
         out.push(buf);
     }
-    
+
     Ok((out.remove(0), out.remove(0), out.remove(0)))
 }
 
@@ -167,7 +166,10 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             continue;
         }
 
-        let stripped = entry_str.strip_prefix("./").unwrap_or(&entry_str).trim_start_matches('/');
+        let stripped = entry_str
+            .strip_prefix("./")
+            .unwrap_or(&entry_str)
+            .trim_start_matches('/');
         if stripped.is_empty() || stripped.contains("..") {
             continue;
         }
@@ -206,7 +208,10 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
         for entry_ in archive.entries()? {
             let mut entry = entry_?;
             let path = entry.path()?.to_string_lossy().to_string();
-            let stripped = path.strip_prefix("./").unwrap_or(&path).trim_start_matches('/');
+            let stripped = path
+                .strip_prefix("./")
+                .unwrap_or(&path)
+                .trim_start_matches('/');
             if stripped.is_empty() || stripped.contains("..") {
                 continue;
             }
@@ -234,7 +239,9 @@ mod tests {
 
     fn create_gz_stream(data: &[u8]) -> Vec<u8> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(data).expect("Failed to write data to gzip encoder");
+        encoder
+            .write_all(data)
+            .expect("Failed to write data to gzip encoder");
         encoder.finish().expect("Failed to finish gzip encoding")
     }
 
@@ -264,7 +271,11 @@ mod tests {
         let result = split_gzip_streams(&stream, 4);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("Requested 4 streams, maximum is 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("Requested 4 streams, maximum is 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
     }
 
     #[test]
@@ -278,7 +289,11 @@ mod tests {
         let result = split_gzip_streams(&combined, 3);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("APK has 2 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 2 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
     }
 
     #[test]
@@ -308,12 +323,21 @@ mod tests {
         let data = b"dummy signature data";
         header.set_size(data.len() as u64);
         header.set_cksum();
-        tar_builder.append_data(&mut header, ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub", &data[..]).unwrap();
+        tar_builder
+            .append_data(
+                &mut header,
+                ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+                &data[..],
+            )
+            .unwrap();
         let tar_data = tar_builder.into_inner().unwrap();
         let result = extract_signature_info(&tar_data);
         assert!(result.is_some());
         let (keyname, sig) = result.unwrap();
-        assert_eq!(keyname, "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub");
+        assert_eq!(
+            keyname,
+            "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub"
+        );
         assert_eq!(sig, data);
     }
 
@@ -324,7 +348,9 @@ mod tests {
         let data = b"some other file";
         header.set_size(data.len() as u64);
         header.set_cksum();
-        tar_builder.append_data(&mut header, "some_other_file.txt", &data[..]).unwrap();
+        tar_builder
+            .append_data(&mut header, "some_other_file.txt", &data[..])
+            .unwrap();
         let tar_data = tar_builder.into_inner().unwrap();
         let result = extract_signature_info(&tar_data);
         assert!(result.is_none());

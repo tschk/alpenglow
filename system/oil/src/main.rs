@@ -147,7 +147,20 @@ fn run_search(query: String) -> Result<()> {
     let mut results: Vec<_> = index
         .packages
         .iter()
-        .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
+        .filter(|p| {
+            if q.is_empty() {
+                return true;
+            }
+            let q_bytes = q.as_bytes();
+            p.name
+                .as_bytes()
+                .windows(q_bytes.len())
+                .any(|w| w.eq_ignore_ascii_case(q_bytes))
+                || p.description
+                    .as_bytes()
+                    .windows(q_bytes.len())
+                    .any(|w| w.eq_ignore_ascii_case(q_bytes))
+        })
         .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
     for pkg in &results {
@@ -297,10 +310,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                         let dest = std::path::PathBuf::from("/usr/local");
                         install_package(latest, &dest)?;
                         state.mark_installed(name, Some(latest.version.as_str()));
-                        println!(
-                            "Upgraded {name}: {} → {}",
-                            current.version, latest.version
-                        );
+                        println!("Upgraded {name}: {} → {}", current.version, latest.version);
                     }
                 }
             }
@@ -397,23 +407,33 @@ mod tests {
             Ok(())
         }
         fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Install(packages, dry_run));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Install(packages, dry_run));
             Ok(())
         }
         fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::InstallRecipe(recipe, dry_run));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::InstallRecipe(recipe, dry_run));
             Ok(())
         }
         fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Uninstall(formulae, all));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Uninstall(formulae, all));
             Ok(())
         }
         fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Reinstall(packages, all));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Reinstall(packages, all));
             Ok(())
         }
         fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Upgrade(packages, dry_run));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Upgrade(packages, dry_run));
             Ok(())
         }
         fn outdated(&self) -> Result<()> {
@@ -425,15 +445,22 @@ mod tests {
     #[test]
     fn test_execute_command_search() {
         let runner = MockRunner::new();
-        let cmd = Commands::Search { query: "foo".to_string() };
+        let cmd = Commands::Search {
+            query: "foo".to_string(),
+        };
         execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Search("foo".to_string())]);
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Search("foo".to_string())]
+        );
     }
 
     #[test]
     fn test_execute_command_info() {
         let runner = MockRunner::new();
-        let cmd = Commands::Info { formula: "bar".to_string() };
+        let cmd = Commands::Info {
+            formula: "bar".to_string(),
+        };
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(runner.get_calls(), vec![MockCall::Info("bar".to_string())]);
     }
@@ -448,7 +475,10 @@ mod tests {
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(
             runner.get_calls(),
-            vec![MockCall::Install(vec!["pkg1".to_string(), "pkg2".to_string()], true)]
+            vec![MockCall::Install(
+                vec!["pkg1".to_string(), "pkg2".to_string()],
+                true
+            )]
         );
     }
 
@@ -462,7 +492,10 @@ mod tests {
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(
             runner.get_calls(),
-            vec![MockCall::InstallRecipe(PathBuf::from("recipes/toybox.yml"), true)]
+            vec![MockCall::InstallRecipe(
+                PathBuf::from("recipes/toybox.yml"),
+                true
+            )]
         );
     }
 
