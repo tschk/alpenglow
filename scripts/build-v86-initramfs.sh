@@ -11,7 +11,7 @@ ISO="${BUILD_DIR}/alpine-virt-x86.iso"
 ISO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86/alpine-virt-3.20.10-x86.iso"
 
 rm -rf "${ROOTFS}"
-mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOTFS}/sys" "${ROOTFS}/run" "${ROOTFS}/tmp" "${ROOTFS}/home/alpenglow"
+mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOTFS}/sys" "${ROOTFS}/run" "${ROOTFS}/tmp"
 
 if [ ! -x "${BUSYBOX}" ]; then
   docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc 'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
@@ -30,11 +30,14 @@ for applet in sh mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear 
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 
-cp "${ROOT_DIR}/public/home/"*.md "${ROOTFS}/home/alpenglow/"
+cp "${ROOT_DIR}/public/root/"* "${ROOTFS}/"
+chmod +x "${ROOTFS}/alpenglowed.sh"
 
 cat > "${ROOTFS}/init" <<'INIT'
 #!/bin/busybox sh
 export PATH=/bin
+export HOME=/
+export PS1='/ # '
 /bin/mount -t proc proc /proc 2>/dev/null
 /bin/mount -t sysfs sysfs /sys 2>/dev/null
 /bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null || {
@@ -44,15 +47,17 @@ export PATH=/bin
 }
 /bin/mount -t tmpfs tmpfs /run 2>/dev/null
 /bin/hostname alpenglow-v86 2>/dev/null
-cd /home/alpenglow
+cd /
 {
-  /bin/echo "Alpenglow v86 32-bit browser build"
-  /bin/echo "home: /home/alpenglow"
-  /bin/echo "auth: none"
+  /bin/echo "Alpenglow shell"
+  /bin/echo
+  /bin/echo "RAM-root Linux. Immutable OS image in memory; /home and state stay on disk in real builds."
+  /bin/echo "This v86 build is 32-bit x86 for browser compatibility."
   /bin/echo
   /bin/ls
   /bin/echo
-  /bin/echo "Type: cat welcome.md"
+  /bin/echo "Read: cat README.md"
+  /bin/echo "Desktop: ./alpenglowed.sh"
   /bin/echo
 } >/dev/console 2>&1
 exec /bin/sh </dev/console >/dev/console 2>&1
