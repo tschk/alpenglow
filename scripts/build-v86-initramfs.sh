@@ -37,7 +37,10 @@ cat > "${ROOTFS}/init" <<'INIT'
 #!/bin/busybox sh
 export PATH=/bin
 export HOME=/
-export PS1='/ # '
+export PS1='# '
+export TERM=dumb
+export NO_COLOR=1
+export LS_COLORS=
 /bin/mount -t proc proc /proc 2>/dev/null
 /bin/mount -t sysfs sysfs /sys 2>/dev/null
 /bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null || {
@@ -49,12 +52,12 @@ export PS1='/ # '
 /bin/hostname alpenglow-v86 2>/dev/null
 cd /
 {
-  /bin/echo "Alpenglow shell"
+  /bin/echo "Alpenglow browser shell"
   /bin/echo
-  /bin/echo "RAM-root Linux. Immutable OS image in memory; /home and state stay on disk in real builds."
-  /bin/echo "This v86 build is 32-bit x86 for browser compatibility."
+  /bin/echo "v86-compatible demo image, not the full x86_64/aarch64 system build."
+  /bin/echo "Model: immutable RAM root; real builds keep /home and state on bcachefs."
   /bin/echo
-  /bin/ls
+  /bin/ls -1 --color=never
   /bin/echo
   /bin/echo "Read: cat README.md"
   /bin/echo "Desktop: ./alpenglowed.sh"

@@ -3,8 +3,9 @@ const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-shell-progress-2";
+const assetVersion = "20260705-bios-clean";
 const asset = (path) => `${path}?v=${assetVersion}`;
+const ansiPattern = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])/g;
 
 function setStatus(message, percent) {
   if (bootMessage) {
@@ -26,12 +27,29 @@ function finishStatus(message) {
   }, 700);
 }
 
+function cleanSerial() {
+  const clean = serial.value.replace(ansiPattern, "");
+
+  if (clean === serial.value) {
+    return;
+  }
+
+  const atEnd = serial.selectionStart === serial.value.length && serial.selectionEnd === serial.value.length;
+  serial.value = clean;
+
+  if (atEnd) {
+    serial.selectionStart = clean.length;
+    serial.selectionEnd = clean.length;
+  }
+}
+
 if (!serial || !screen) {
   throw new Error("Alpenglow shell mount point is missing");
 }
 
 serial.value = "Alpenglow shell loading...\n";
 setStatus("loading v86", 0);
+setInterval(cleanSerial, 80);
 
 try {
   const { V86 } = await import("/v86/libv86.mjs");
