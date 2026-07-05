@@ -52,10 +52,10 @@ export LS_COLORS=
 /bin/hostname alpenglow-v86 2>/dev/null
 cd /
 {
-  /bin/echo "Alpenglow browser shell"
+  /bin/echo "Alpenglow minimal browser image"
   /bin/echo
-  /bin/echo "v86-compatible demo image, not the full x86_64/aarch64 system build."
-  /bin/echo "Model: immutable RAM root; real builds keep /home and state on bcachefs."
+  /bin/echo "Immutable RAM root. Real builds keep /home and state on bcachefs."
+  /bin/echo "v86 uses a 32-bit compatibility kernel; normal targets are x86_64 and aarch64."
   /bin/echo
   /bin/ls -1 --color=never
   /bin/echo

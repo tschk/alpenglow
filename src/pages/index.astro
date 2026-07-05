@@ -11,7 +11,7 @@
     <main id="screen_container" aria-label="Alpenglow OS">
       <div></div>
       <canvas></canvas>
-      <textarea id="serial" spellcheck="false" aria-label="Alpenglow console"></textarea>
+      <pre id="terminal" tabindex="0" aria-label="Alpenglow console"></pre>
       <section id="boot_status" aria-live="polite">
         <p id="boot_message">loading alpenglow shell</p>
         <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
@@ -59,22 +59,33 @@
   }
 
   #screen_container > div,
-  #screen_container > canvas {
+  #screen_container > canvas,
+  canvas {
     display: none;
   }
 
-  #serial {
+  #terminal {
     display: block;
     width: 100vw;
     height: 100vh;
     padding: clamp(12px, 2vw, 22px);
+    margin: 0;
     border: 0;
     outline: 0;
-    resize: none;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     background: #000;
     color: #fff;
     font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
     letter-spacing: 0;
+    user-select: text;
+  }
+
+  #terminal a {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   #boot_status {

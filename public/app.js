@@ -1,11 +1,14 @@
-const serial = document.getElementById("serial");
+const terminal = document.getElementById("terminal");
 const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-bios-clean";
+const assetVersion = "20260705-plain-terminal";
 const asset = (path) => `${path}?v=${assetVersion}`;
 const ansiPattern = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])/g;
+const urlPattern = /https:\/\/[^\s<>"')]+/g;
+let terminalText = "";
+let emulator;
 
 function setStatus(message, percent) {
   if (bootMessage) {
@@ -27,37 +30,74 @@ function finishStatus(message) {
   }, 700);
 }
 
-function cleanSerial() {
-  const clean = serial.value.replace(ansiPattern, "");
+function writeTerminal(text) {
+  terminalText = (terminalText + text)
+    .replace(ansiPattern, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "")
+    .replace("/bin/sh: can't access tty; job control turned off\n", "");
 
-  if (clean === serial.value) {
-    return;
-  }
+  terminal.innerHTML = terminalText
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(urlPattern, (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`);
+  terminal.scrollTop = terminal.scrollHeight;
+}
 
-  const atEnd = serial.selectionStart === serial.value.length && serial.selectionEnd === serial.value.length;
-  serial.value = clean;
-
-  if (atEnd) {
-    serial.selectionStart = clean.length;
-    serial.selectionEnd = clean.length;
+function sendInput(data) {
+  if (emulator) {
+    emulator.serial0_send(data);
   }
 }
 
-if (!serial || !screen) {
+if (!terminal || !screen) {
   throw new Error("Alpenglow shell mount point is missing");
 }
 
-serial.value = "Alpenglow shell loading...\n";
+terminal.focus();
+writeTerminal("Alpenglow shell loading...\n");
 setStatus("loading v86", 0);
-setInterval(cleanSerial, 80);
+
+terminal.addEventListener("pointerdown", () => terminal.focus());
+terminal.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.altKey) {
+    return;
+  }
+
+  if (event.ctrlKey) {
+    const key = event.key.toLowerCase();
+    if (key >= "a" && key <= "z") {
+      sendInput(String.fromCharCode(key.charCodeAt(0) - 96));
+      event.preventDefault();
+    }
+    return;
+  }
+
+  const keys = {
+    Enter: "\r",
+    Backspace: "\x7F",
+    Tab: "\t",
+  };
+
+  if (keys[event.key]) {
+    sendInput(keys[event.key]);
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key.length === 1) {
+    sendInput(event.key);
+    event.preventDefault();
+  }
+});
 
 try {
   const { V86 } = await import("/v86/libv86.mjs");
 
-  const emulator = new V86({
+  emulator = new V86({
     wasm_path: asset("/v86/v86.wasm"),
-    screen_container: screen,
-    serial_container: serial,
+    screen_container: null,
     bios: { url: asset("/v86/seabios.bin") },
     vga_bios: { url: asset("/v86/vgabios.bin") },
     bzimage: { url: asset("/v86/alpenglow-v86-vmlinuz") },
@@ -65,6 +105,10 @@ try {
     cmdline: "console=ttyS0 rdinit=/init quiet",
     memory_size: 128 * 1024 * 1024,
     autostart: true,
+  });
+
+  emulator.add_listener("serial0-output-byte", (byte) => {
+    writeTerminal(String.fromCharCode(byte));
   });
 
   emulator.add_listener("download-progress", (event) => {
@@ -86,7 +130,7 @@ try {
   });
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  serial.value += `\nAlpenglow failed to start: ${message}\n`;
+  writeTerminal(`\nAlpenglow failed to start: ${message}\n`);
   setStatus(`failed: ${message}`, bootProgress?.value || 0);
   throw error;
 }

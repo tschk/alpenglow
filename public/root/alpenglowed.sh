@@ -1,10 +1,11 @@
 #!/bin/sh
 cat <<'EOF'
-Alpenglowed desktop
+Alpenglowed
 
-This browser image is shell-only. The desktop build uses Alpenglowed:
+The minimal browser image boots to a shell. The desktop profile adds the
+Alpenglowed Wayland compositor:
 https://github.com/tschk/alpenglowed
 
-Boot a real desktop image with:
+Desktop build target:
   BUILD_PROFILE=desktop KERNEL_PROFILE=desktop
 EOF
