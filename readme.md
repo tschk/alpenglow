@@ -40,7 +40,7 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
-| Desktop | Wayland + Smithay target via alpenglowed | `../alpenglowed` is the desktop environment |
+| Desktop | Wayland + Smithay target via [alpenglowed](https://github.com/tschk/alpenglowed) | `../alpenglowed` is the desktop environment |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y |
@@ -70,7 +70,7 @@ Build profiles select the userspace image:
 |---------|----------|-------|
 | Minimal | `BUILD_PROFILE=minimal` | Headless boot, SSH, time, logs, DNS, OOM guard |
 | Standard | `BUILD_PROFILE=standard` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
-| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, `../alpenglowed`, foot, and browser shell pieces |
+| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, [`../alpenglowed`](https://github.com/tschk/alpenglowed), foot, and browser shell pieces |
 
 Kernel profiles select hardware and boot policy:
 
@@ -84,7 +84,7 @@ Kernel profiles select hardware and boot policy:
 
 ### Boot target (QEMU KVM, quiet)
 
-| OS | Boot | Initramfs | Kernel | RAM at login |
+| OS | Boot | Initramfs | Kernel | RAM at target |
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
 | **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
@@ -128,7 +128,7 @@ Alpenglow has one root model:
 
 **Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
 
-**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and `../alpenglowed` desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in alpenglowed.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [`../alpenglowed`](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in alpenglowed.
 
 ## Services
 
@@ -148,6 +148,6 @@ Alpenglow has one root model:
 
 ## Status
 
-QEMU boot is verified. Real hardware boot is still pending.
+QEMU boot is verified. Real hardware boot has also been tested on Orange Pi 3B and Mac mini 2012.
 
 See [AGENTS.md](AGENTS.md) for full milestone table and [docs/](docs/) for architecture docs.
