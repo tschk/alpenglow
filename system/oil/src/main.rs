@@ -140,9 +140,13 @@ fn run_command(cmd: Commands) -> Result<()> {
     execute_command(cmd, &runner)
 }
 
-fn run_search(query: String) -> Result<()> {
+fn load_registry() -> Result<system::registry::PackageIndex> {
     let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    registry.load()
+}
+
+fn run_search(query: String) -> Result<()> {
+    let index = load_registry()?;
     let q = query.to_lowercase();
     let mut results: Vec<_> = index
         .packages
@@ -157,8 +161,7 @@ fn run_search(query: String) -> Result<()> {
 }
 
 fn run_info(formula: String) -> Result<()> {
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     match index.find(&formula) {
         Some(pkg) => {
             println!("Name: {}", pkg.name);
@@ -188,8 +191,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     for name in &pending {
         let pkg = index
             .find(name)
@@ -255,8 +257,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     } else {
         packages
     };
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
@@ -274,8 +275,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
 fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let mut state = install::InstallState::new()?;
     let installed = state.load()?;
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     let targets: Vec<String> = if packages.is_empty() {
         installed.keys().cloned().collect()
     } else {
@@ -313,8 +313,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
 fn run_outdated() -> Result<()> {
     let state = install::InstallState::new()?;
     let installed = state.load()?;
-    let registry = system::registry::apk::ApkRegistry::alpine_default();
-    let index = registry.load()?;
+    let index = load_registry()?;
     for (name, pkg) in &installed {
         if let Some(latest) = index.find(name) {
             if latest.version != pkg.version {
