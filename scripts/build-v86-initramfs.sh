@@ -49,7 +49,7 @@ fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
-for applet in sh mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep; do
+for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty; do
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 cp "${OIL}" "${ROOTFS}/bin/oil"
@@ -127,7 +127,7 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
   "logo": { "type": "small", "padding": { "top": 1, "left": 0 } },
   "display": { "separator": "  " },
   "modules": [
-    { "type": "title", "format": "{user-name-colored}{at-symbol-colored}{host-name-colored}" },
+    { "type": "custom", "format": "alpenglow@alpenglow" },
     { "type": "custom", "format": "OS: Alpenglow ${ALP_VERSION} (browser i686)" },
     { "type": "kernel" },
     { "type": "uptime" },
@@ -167,6 +167,9 @@ fi
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
+if [ -f "${ROOTFS}/README.md" ]; then
+  ln -sf README.md "${ROOTFS}/readme.md"
+fi
 
 mkdir -p "${ROOTFS}/etc/profile.d"
 cat > "${ROOTFS}/etc/profile" <<'PROF'
@@ -177,13 +180,10 @@ for f in /etc/profile.d/*.sh; do
   [ -r "$f" ] && . "$f"
 done
 PROF
-cat > "${ROOTFS}/etc/profile.d/starship.sh" <<'STAR'
-if command -v starship >/dev/null 2>&1; then
-  eval "$(starship init sh)"
-else
-  export PS1='# '
-fi
-STAR
+cat > "${ROOTFS}/etc/profile.d/prompt.sh" <<'PROMPT'
+# busybox sh: starship does not support sh; use a simple prompt.
+export PS1='alpenglow:~# '
+PROMPT
 
 cat > "${ROOTFS}/init" <<'INIT'
 #!/bin/sh
@@ -209,9 +209,9 @@ cd /
   /bin/echo "Alpenglow"
   /bin/echo
   /bin/echo "Immutable RAM-root Linux appliance (browser demo, i686)."
-  /bin/echo "Docs: cat README.md  cat root-model.md  cat packages.md  cat desktop.md"
-  /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox   vro README.md"
-  /bin/echo "     wax tap undivisible/tap — third-party tap (Homebrew-style); vro via Linuxbrew/wax on real hosts."
+  /bin/echo "Docs (case-sensitive): cat README.md  cat root-model.md  cat packages.md"
+  /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
+  /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."
   /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
@@ -223,6 +223,10 @@ if [ -c "$CON" ]; then
   /bin/stty -F "$CON" sane 2>/dev/null || true
 fi
 printf '\n' >"$CON"
+# ash (busybox) for job control on serial tty when available
+if /bin/ash -c 'exit 0' 2>/dev/null; then
+  exec /bin/ash -i 0<"$CON" 1>"$CON" 2>&1
+fi
 exec /bin/sh -i 0<"$CON" 1>"$CON" 2>&1
 INIT
 chmod 755 "${ROOTFS}/init"
