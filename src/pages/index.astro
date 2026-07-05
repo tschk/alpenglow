@@ -13,6 +13,7 @@ const docs = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Alpenglow is a RAM-root musl Linux distribution with immutable system images and persistent bcachefs-backed home state." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Alpenglow</title>
   </head>
   <body>
@@ -62,9 +63,9 @@ alpenglow: home ready, no auth required</pre>
           <p class="kicker">v86 browser VM</p>
           <h2 id="vm-title">Boot the web demo</h2>
           <p>
-            This browser VM uses v86's 32-bit x86 emulator path. The real
-            Alpenglow distro remains the x86_64/aarch64 musl build documented in
-            the repository.
+            This browser VM boots a 32-bit x86 Alpenglow initramfs made for v86.
+            The main Alpenglow distro remains the x86_64/aarch64 musl build
+            documented in the repository.
           </p>
         </div>
         <div class="vm-panel">

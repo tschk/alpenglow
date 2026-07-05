@@ -37,8 +37,9 @@ startButton.addEventListener("click", async () => {
     serial_container: document.getElementById("serial"),
     bios: { url: "/v86/seabios.bin" },
     vga_bios: { url: "/v86/vgabios.bin" },
-    bzimage: { url: "/v86/buildroot-bzimage68.bin" },
-    cmdline: "console=ttyS0 quiet",
+    bzimage: { url: "/v86/alpenglow-v86-vmlinuz" },
+    initrd: { url: "/v86/alpenglow-v86-initrd.cpio.gz" },
+    cmdline: "console=ttyS0 rdinit=/init quiet",
     memory_size: 128 * 1024 * 1024,
     autostart: true,
   });
