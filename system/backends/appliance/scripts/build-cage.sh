@@ -59,6 +59,7 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh 
 
   echo "  cage: $(ls -la /out/usr/bin/cage | awk "{print \$5}") bytes"
   echo "  libs: $(ls /out/usr/lib/lib*.so* 2>/dev/null | wc -l) files"
+  chown -R "$(stat -c %u /out):$(stat -c %g /out)" /out 2>/dev/null || true
 '
 
 echo "  output: ${OUT_DIR}/cage"
