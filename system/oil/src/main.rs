@@ -83,6 +83,8 @@ enum TapAction {
     Remove { tap: String },
     /// List configured taps
     List,
+    /// Update all tap indexes (or one tap)
+    Update { tap: Option<String> },
 }
 
 fn main() {
@@ -374,20 +376,51 @@ fn run_outdated() -> Result<()> {
 #[cfg(feature = "wax")]
 fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
     let mut taps = tap::Taps::new()?;
-    let target = match &action {
-        Some(TapAction::Add { tap }) | Some(TapAction::Remove { tap }) => Some(tap.clone()),
-        _ => tap,
-    };
 
     match action {
-        Some(TapAction::Remove { .. }) => {
-            let name = target.ok_or_else(|| error::OilError::Install("tap name required".into()))?;
+        Some(TapAction::Add { tap: name }) => {
+            let (name, url) = tap::normalize_tap(&name);
+            taps.add(&name, &url);
+            taps.save()?;
+            println!("Tapped {} ({})", name, url);
+        }
+        Some(TapAction::Remove { tap: name }) => {
             taps.remove(&name);
             taps.save()?;
             println!("Untapped {}", name);
         }
-        _ => {
-            if let Some(name) = target {
+        Some(TapAction::Update { tap }) => {
+            if let Some(name) = tap {
+                let entry = taps.list().into_iter().find(|t| t.name == name);
+                if let Some(entry) = entry {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    let index = registry.update()?;
+                    println!("Updated {} ({} packages)", name, index.packages.len());
+                } else {
+                    return Err(error::OilError::Install(format!("tap not found: {}", name)));
+                }
+            } else {
+                for entry in taps.list() {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    match registry.update() {
+                        Ok(index) => println!("Updated {} ({} packages)", entry.name, index.packages.len()),
+                        Err(e) => eprintln!("warning: failed to update tap {}: {}", entry.name, e),
+                    }
+                }
+            }
+        }
+        Some(TapAction::List) => {
+            let list = taps.list();
+            if list.is_empty() {
+                println!("No taps configured.");
+            } else {
+                for t in list {
+                    println!("{} {}", t.name, t.url);
+                }
+            }
+        }
+        None => {
+            if let Some(name) = tap {
                 let (name, url) = tap::normalize_tap(&name);
                 taps.add(&name, &url);
                 taps.save()?;

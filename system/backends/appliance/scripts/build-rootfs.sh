@@ -61,6 +61,26 @@ while IFS= read -r pkg || [ -n "${pkg}" ]; do
   "${OIL_CMD}" system add "${pkg}" --prefix "${ROOTFS_DIR}"
 done < "${PKG_LIST}"
 
+# ── Phase 1.5: Install Oil/Wax (standard/desktop only) ──────────────
+if [ "${BUILD_PROFILE}" != "minimal" ]; then
+  echo "→ Installing Oil (wax) package manager..."
+  OIL_BIN="${ALPENGLOW_OIL_BIN:-}"
+  if [ -z "${OIL_BIN}" ]; then
+    OIL_BIN="${OUT_DIR}/oil"
+    if [ ! -x "${OIL_BIN}" ]; then
+      cargo build --release \
+        --manifest-path "${ROOT_DIR}/system/oil/Cargo.toml" \
+        --no-default-features --features system-apk,wax >/dev/null 2>&1
+      cp "${ROOT_DIR}/system/oil/target/release/oil" "${OIL_BIN}"
+    fi
+  fi
+  mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+  cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+  ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
+  echo "  + oil (wax) from ${OIL_BIN}"
+fi
+
 # ── Phase 2: Configure rootfs ───────────────────────────────────────
 BUILD_PROFILE="${BUILD_PROFILE}" COMPILER="${COMPILER}" "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
 

@@ -119,14 +119,8 @@ impl TapRegistry {
         false
     }
 
-    pub fn load(&self) -> Result<PackageIndex> {
+    pub fn update(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
-        if Self::is_cache_fresh(&cache_path) {
-            let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
-            return Ok(PackageIndex::new(packages));
-        }
-
         let url = self.index_url();
         eprintln!("Fetching tap index: {url}");
         let resp = ureq::get(&url).call().map_err(|e| {
@@ -144,6 +138,16 @@ impl TapRegistry {
         }
         std::fs::write(&cache_path, &body)?;
         Ok(PackageIndex::new(packages))
+    }
+
+    pub fn load(&self) -> Result<PackageIndex> {
+        let cache_path = self.cache_path()?;
+        if Self::is_cache_fresh(&cache_path) {
+            let data = std::fs::read_to_string(&cache_path)?;
+            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
+            return Ok(PackageIndex::new(packages));
+        }
+        self.update()
     }
 }
 
