@@ -149,22 +149,34 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
 }
 EOF
 
-VRO_SRC="${ROOT_DIR}/../vro/vro"
+VRO_SRC="${ROOT_DIR}/../vro"
 VRO_CACHE="${BUILD_DIR}/vro-i686"
-if [ ! -x "${VRO_CACHE}" ]; then
+build_vro_i686() {
+  local ssh_host="${VRO_SSH_HOST:-undivisible@192.168.4.134}"
+  local remote_src="/tmp/alpenglow-vro-build"
+  local remote_c="${remote_src}/vro-headless.c"
   mkdir -p "${BUILD_DIR}"
-  if [ -x "${VRO_SRC}" ] && file "${VRO_SRC}" 2>/dev/null | grep -q 'ELF.*386'; then
-    cp "${VRO_SRC}" "${VRO_CACHE}"
+  echo "Building vro i686 via ${ssh_host} ..."
+  rsync -az --exclude='.git' "${VRO_SRC}/" "${ssh_host}:${remote_src}/"
+  ssh "${ssh_host}" "cd ${remote_src} && v -gc none -os linux -d headless -o vro-headless.c ."
+  scp "${ssh_host}:${remote_c}" "${BUILD_DIR}/vro-headless.c"
+  need_docker
+  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
+    apk add --no-cache gcc musl-dev binutils >/dev/null
+    sed -i "s/typedef u8 bool;/\/* typedef u8 bool; *\//" /out/vro-headless.c
+    sed -i "1i #include <stdbool.h>\n\n/* Stubs for backtrace(3) symbols not provided by musl on i386. */\nint backtrace(void **buffer, int size) { (void)buffer; (void)size; return 0; }\nchar **backtrace_symbols(void *const *buffer, int size) { (void)buffer; (void)size; return 0; }\n" /out/vro-headless.c
+    gcc -m32 -std=gnu99 -o /out/vro-i686 /out/vro-headless.c -lm -lpthread
+    strip /out/vro-i686
+    chmod +x /out/vro-i686
+  '
+}
+if [ ! -x "${VRO_CACHE}" ]; then
+  if [ -x "${VRO_SRC}/vro" ] && file "${VRO_SRC}/vro" 2>/dev/null | grep -q 'ELF.*386'; then
+    cp "${VRO_SRC}/vro" "${VRO_CACHE}"
+  elif [ -d "${VRO_SRC}" ] && ssh -o ConnectTimeout=5 "${VRO_SSH_HOST:-undivisible@192.168.4.134}" 'exit 0' 2>/dev/null; then
+    build_vro_i686
   else
-    need_docker
-    docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
-      apk add --no-cache curl tar >/dev/null
-      tag="$(curl -fsSL -A "Alpenglow-Build/1.0" https://api.github.com/repos/undivisible/vro/releases/latest | sed -n "s/.*\"tag_name\": \"\([^\"]*\)\".*/\1/p" | head -1)"
-      [ -n "$tag" ] || exit 1
-      url="https://github.com/undivisible/vro/releases/download/${tag}/vro-linux-x86"
-      curl -fsSL -A "Alpenglow-Build/1.0" -o /out/vro-i686 "$url" || exit 1
-      chmod +x /out/vro-i686
-    ' || true
+    echo "warning: no i686 vro source or SSH host available, falling back to busybox" >&2
   fi
 fi
 if [ -x "${VRO_CACHE}" ]; then
