@@ -635,25 +635,7 @@ case "${BUILD_PROFILE}" in
     [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
     ;;
   desktop)
-    # Core services always available (inline definitions)
-    BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
-    # Conditionally add services that have binaries installed
-    [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
-    [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
-    [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
-    [ -f "${ROOTFS_DIR}/usr/bin/seatd" ] && BOOT_SERVICES="${BOOT_SERVICES} seatd"
-    if [ -f "${ROOTFS_DIR}/usr/bin/greetd" ] && [ -f "${ROOTFS_DIR}/etc/greetd/config.toml" ]; then
-      BOOT_SERVICES="${BOOT_SERVICES} greetd"
-    else
-      [ -f "${ROOTFS_DIR}/usr/bin/cage-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} velox"
-      [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"
-    fi
-    # Optional services (only if binaries exist)
-    [ -f "${ROOTFS_DIR}/usr/libexec/iwd" ] && BOOT_SERVICES="${BOOT_SERVICES} iwd"
-    [ -f "${ROOTFS_DIR}/usr/bin/pipewire" ] && BOOT_SERVICES="${BOOT_SERVICES} pipewire"
-    [ -f "${ROOTFS_DIR}/usr/bin/wireplumber" ] && BOOT_SERVICES="${BOOT_SERVICES} wireplumber"
-    [ -f "${ROOTFS_DIR}/usr/bin/foot" ] && BOOT_SERVICES="${BOOT_SERVICES} foot"
-    [ -f "${ROOTFS_DIR}/usr/sbin/elogind" ] && BOOT_SERVICES="${BOOT_SERVICES} elogind"
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems"
     ;;
 esac
 
