@@ -265,9 +265,9 @@ if [ -c "$CON" ]; then
 fi
 printf '\n' >"$CON"
 if [ -x /bin/bash ]; then
-  exec /bin/cttyhack /bin/bash --login -i <"$CON" >"$CON" 2>&1
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
 fi
-exec /bin/cttyhack /bin/sh -i <"$CON" >"$CON" 2>&1
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
 INIT
 chmod 755 "${ROOTFS}/init"
 # Kernel must execute /init; script shebang needs /bin/sh -> busybox present.

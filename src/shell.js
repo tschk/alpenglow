@@ -71,9 +71,6 @@ function terminalFontSize() {
 }
 
 let emulatorReady = false;
-let shellReady = false;
-let resizeTimeout = null;
-let lastResize = { cols: 0, rows: 0 };
 
 function applyTerminalScale() {
   if (!term || !fitAddon) {
@@ -86,46 +83,6 @@ function applyTerminalScale() {
   fitAddon.fit();
   if (typeof term.resize === "function" && term.cols && term.rows) {
     term.resize(term.cols, term.rows);
-  }
-}
-
-function notifyGuestSize() {
-  if (!emulatorReady || !shellReady || !emulator?.serial0_send || !term) {
-    return;
-  }
-  const cols = Math.max(40, term.cols);
-  const rows = Math.max(12, term.rows || 24);
-  if (cols === lastResize.cols && rows === lastResize.rows) {
-    return;
-  }
-  lastResize = { cols, rows };
-  if (resizeTimeout) {
-    clearTimeout(resizeTimeout);
-  }
-  resizeTimeout = setTimeout(() => {
-    emulator.serial0_send(`\x1b[8;${rows};${cols}t`);
-    resizeTimeout = null;
-  }, 150);
-}
-
-const serialBuffer = [];
-const MAX_SERIAL_BUFFER = 128;
-// Colored prompt: cyan "alpenglow", reset, ":", blue path, reset, "# "
-const PROMPT_RE = /alpenglow\x1b\[0m:\x1b\[1;34m[^\x1b]*\x1b\[0m# $/;
-
-function updateSerialBuffer(ch) {
-  serialBuffer.push(ch);
-  if (serialBuffer.length > MAX_SERIAL_BUFFER) {
-    serialBuffer.shift();
-  }
-}
-
-function checkPrompt() {
-  if (shellReady) return;
-  const text = serialBuffer.join("");
-  if (PROMPT_RE.test(text)) {
-    shellReady = true;
-    notifyGuestSize();
   }
 }
 
@@ -192,7 +149,6 @@ async function mountTerminal() {
   }
   window.addEventListener("resize", () => {
     applyTerminalScale();
-    notifyGuestSize();
   });
 
   term.writeln("Alpenglow loading…");
@@ -273,8 +229,6 @@ try {
 
   emulator.add_listener("serial0-output-byte", (byte) => {
     const ch = String.fromCharCode(byte);
-    updateSerialBuffer(ch);
-    checkPrompt();
     if (term) {
       term.write(ch);
       return;
