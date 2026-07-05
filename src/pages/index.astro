@@ -6,9 +6,6 @@
     <meta name="description" content="Alpenglow is an immutable RAM-root Linux distribution with persistent bcachefs-backed state." />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <title>Alpenglow</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
   </head>
   <body>
     <main id="screen_container" aria-label="Alpenglow OS">
@@ -24,7 +21,9 @@
         <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
       </section>
     </main>
-    <script src="/app.js" type="module"></script>
+    <script>
+      import "../shell.js";
+    </script>
   </body>
 </html>
 
