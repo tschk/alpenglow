@@ -692,7 +692,7 @@ elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
     cd /oil-src
-    cargo build --release --no-default-features --features system-apk 2>/dev/null
+    cargo build --release --no-default-features --features system-apk,wax 2>/dev/null
     cp target/release/oil /out/oil 2>/dev/null
   ' 2>&1 | tail -1
   if [ -f "${OUT_DIR}/oil" ]; then
