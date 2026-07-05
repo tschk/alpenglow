@@ -1,6 +1,6 @@
-*.js linguist-vendored
-*.astro linguist-vendored
-*.sh linguist-vendored
-public/v86/* linguist-vendored
-system/backends/appliance/initramfs/init linguist-vendored
-system/backends/appliance/scripts/alpenglow-session-start linguist-vendored
+*.js linguist-language=Ignore
+*.astro linguist-language=Ignore
+*.sh linguist-language=Ignore
+public/v86/* linguist-language=Ignore
+system/backends/appliance/initramfs/init linguist-language=Ignore
+system/backends/appliance/scripts/alpenglow-session-start linguist-language=Ignore
