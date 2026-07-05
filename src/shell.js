@@ -1,6 +1,4 @@
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import "@xterm/xterm/css/xterm.css";
+import { init, Terminal, FitAddon } from "ghostty-web";
 
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
@@ -41,6 +39,7 @@ function finishStatus(message) {
     if (bootStatus) {
       bootStatus.hidden = true;
     }
+    fitAddon?.fit();
   }, 700);
 }
 
@@ -48,7 +47,7 @@ function sendSerial(data) {
   emulator?.serial0_send(data);
 }
 
-function mountTerminal() {
+async function mountTerminal() {
   if (!screen) {
     return false;
   }
@@ -59,6 +58,8 @@ function mountTerminal() {
     commandForm.hidden = true;
   }
 
+  await init();
+
   let host = document.getElementById("xterm_host");
   if (!host) {
     host = document.createElement("div");
@@ -67,21 +68,30 @@ function mountTerminal() {
     screen.appendChild(host);
   }
 
+  const fontSize = Math.min(22, Math.max(16, Math.round(window.innerWidth / 64)));
   term = new Terminal({
-    cursorBlink: true,
+    fontSize,
     fontFamily: '"Geist Mono", ui-monospace, monospace',
-    fontSize: 13,
-    theme: { background: "#000000", foreground: "#f2f2f2", cursor: "#ffffff" },
-    scrollback: 8000,
+    cursorBlink: true,
+    scrollback: 10000,
+    theme: {
+      background: "#000000",
+      foreground: "#f2f2f2",
+      cursor: "#ffffff",
+    },
   });
+
   fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
   term.open(host);
   fitAddon.fit();
+  if (fitAddon.observeResize) {
+    fitAddon.observeResize();
+  }
+
   term.writeln("Alpenglow loading…");
   term.focus();
   term.onData(sendSerial);
-  new ResizeObserver(() => fitAddon.fit()).observe(host);
   host.addEventListener("pointerdown", () => term.focus());
   return true;
 }
@@ -135,7 +145,7 @@ if (!screen) {
 }
 
 setStatus("loading Alpenglow", 0);
-const useXterm = mountTerminal();
+const useXterm = await mountTerminal();
 
 try {
   const { V86 } = await import(asset("/v86/libv86.mjs"));

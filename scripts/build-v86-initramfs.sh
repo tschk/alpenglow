@@ -112,7 +112,7 @@ cat > "${ROOTFS}/init" <<'INIT'
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
 export PS1='# '
-export TERM=dumb
+export TERM=xterm-256color
 export NO_COLOR=1
 export LS_COLORS=
 /bin/mount -t proc proc /proc 2>/dev/null

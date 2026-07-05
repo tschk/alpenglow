@@ -9,9 +9,8 @@
   "dependencies": {
     "@astrojs/check": "latest",
     "@fontsource/geist-mono": "^5.2.8",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
     "astro": "latest",
+    "ghostty-web": "^0.4.0",
     "typescript": "latest",
     "v86": "latest"
   },
