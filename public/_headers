@@ -5,5 +5,5 @@
 /v86/*
   Cache-Control: public, max-age=31536000, immutable
 
-/home/*
+/root/*
   Cache-Control: public, max-age=300
