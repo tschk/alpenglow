@@ -480,12 +480,14 @@ if [ "${GRAPHICAL}" = "1" ]; then
   fi
 
   GREETER_GLIBC_BIN="${OUT_DIR}/alpenglow-greeter-glibc/usr/bin/alpenglow-greeter"
-  if [ ! -f "${GREETER_GLIBC_BIN}" ]; then
+  if [ ! -f "${GREETER_GLIBC_BIN}" ] && [ -d "${ROOT_DIR}/../alpenglowed/alpenglow-greeter" ]; then
     sh "${BACKEND_DIR}/scripts/build-alpenglow-greeter-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
   fi
   if [ -f "${GREETER_GLIBC_BIN}" ]; then
     cp "${GREETER_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
+  else
+    ALPENGLOW_AUTOLOGIN=1
   fi
 
   mkdir -p "${ROOTFS_DIR}/usr/local/bin" "${ROOTFS_DIR}/etc/alpenglow" "${ROOTFS_DIR}/etc/greetd"
