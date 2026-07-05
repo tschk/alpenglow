@@ -1,3 +1,6 @@
 *.js linguist-vendored
 *.astro linguist-vendored
+*.sh linguist-vendored
 public/v86/* linguist-vendored
+system/backends/appliance/initramfs/init linguist-vendored
+system/backends/appliance/scripts/alpenglow-session-start linguist-vendored
