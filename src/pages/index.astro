@@ -71,7 +71,7 @@
   #terminal {
     display: block;
     width: 100vw;
-    height: calc(100vh - 44px);
+    height: 100vh;
     padding: clamp(12px, 2vw, 22px);
     margin: 0;
     border: 0;
@@ -97,7 +97,7 @@
     right: 0;
     bottom: 0;
     left: 0;
-    display: grid;
+    display: none;
     grid-template-columns: 1fr auto;
     height: 44px;
     border-top: 1px solid #fff;
@@ -122,6 +122,16 @@
   #command_form button {
     width: 64px;
     border-left: 1px solid #fff;
+  }
+
+  @media (max-width: 700px), (pointer: coarse) {
+    #terminal {
+      height: calc(100vh - 44px);
+    }
+
+    #command_form {
+      display: grid;
+    }
   }
 
   #boot_status {

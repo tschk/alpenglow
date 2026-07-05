@@ -173,10 +173,24 @@ fn run_info(formula: String) -> Result<()> {
 }
 
 fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
+    let mut state = install::InstallState::new()?;
+    let mut pending = Vec::new();
+
+    for name in packages {
+        if let Some(pkg) = state.get(&name) {
+            println!("{} {} already installed", pkg.name, pkg.version);
+        } else {
+            pending.push(name);
+        }
+    }
+
+    if pending.is_empty() {
+        return Ok(());
+    }
+
     let registry = system::registry::apk::ApkRegistry::alpine_default();
     let index = registry.load()?;
-    let mut state = install::InstallState::new()?;
-    for name in &packages {
+    for name in &pending {
         let pkg = index
             .find(name)
             .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;

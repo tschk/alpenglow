@@ -7,6 +7,7 @@ ROOTFS="${BUILD_DIR}/rootfs"
 OUT="${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
 KERNEL_OUT="${ROOT_DIR}/public/v86/alpenglow-v86-vmlinuz"
 BUSYBOX="${BUILD_DIR}/busybox-i386"
+OIL="${ROOT_DIR}/target/i686-unknown-linux-musl/release/oil"
 ISO="${BUILD_DIR}/alpine-virt-x86.iso"
 ISO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86/alpine-virt-3.20.10-x86.iso"
 
@@ -25,10 +26,45 @@ if [ ! -f "${KERNEL_OUT}" ]; then
   cp "${BUILD_DIR}/iso/boot/vmlinuz-virt" "${KERNEL_OUT}"
 fi
 
+if [ ! -x "${OIL}" ] || find "${ROOT_DIR}/system/oil/src" "${ROOT_DIR}/system/oil/Cargo.toml" "${ROOT_DIR}/Cargo.lock" -newer "${OIL}" | grep -q .; then
+  docker run --rm -v "${ROOT_DIR}:/home/rust/src" -w /home/rust/src/system/oil messense/rust-musl-cross:i686-musl sh -lc 'cargo build --release --target i686-unknown-linux-musl'
+fi
+
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 for applet in sh mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep; do
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
+cp "${OIL}" "${ROOTFS}/bin/oil"
+
+FASTFETCH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 sh -lc 'mkdir -p /rootfs/etc/apk && cp -a /etc/apk/keys /rootfs/etc/apk/ && apk add --root /rootfs --initdb --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.20/main --repository https://dl-cdn.alpinelinux.org/alpine/v3.20/community fastfetch >/dev/null && apk --root /rootfs info -e -v fastfetch | sed "s/^fastfetch-//"')"
+mkdir -p "${ROOTFS}/.oil/cache/system" "${ROOTFS}/etc"
+cat > "${ROOTFS}/.oil/installed.json" <<EOF
+{
+  "fastfetch": {
+    "name": "fastfetch",
+    "version": "${FASTFETCH_VERSION}",
+    "install_date": 0,
+    "pinned": false
+  }
+}
+EOF
+docker run --rm --platform linux/386 -v "${ROOTFS}/.oil/cache/system:/cache" alpine:3.20 sh -lc 'apk update >/dev/null && version="$(apk search -x fastfetch | sed "s/^fastfetch-//")" && cat > /cache/apk-https---dl-cdn-alpinelinux-org-alpine-v3-20-x86.json <<EOF
+[{
+  "name": "fastfetch",
+  "version": "${version}",
+  "description": "Like neofetch, but much faster because written mostly in C.",
+  "download_url": "https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86/fastfetch-${version}.apk",
+  "installed_size": 3452928,
+  "depends": ["hwdata-pci", "so:libc.musl-x86.so.1"],
+  "provides": ["cmd:fastfetch=${version}", "cmd:flashfetch=${version}"]
+}]
+EOF'
+cat > "${ROOTFS}/etc/os-release" <<'EOF'
+NAME="Alpenglow"
+ID=alpenglow
+VERSION_ID="3.20"
+PRETTY_NAME="Alpenglow"
+EOF
 
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
@@ -49,87 +85,9 @@ EOF
 ALPENGLOWED
 chmod +x "${ROOTFS}/alpenglowed.sh"
 
-cat > "${ROOTFS}/bin/fastfetch" <<'FASTFETCH'
-#!/bin/sh
-cat <<'EOF'
-       /\        Alpenglow
-      /  \       immutable RAM-root Linux
-     /____\      root: in memory
-    /      \     state: bcachefs-backed /state
-   /        \    init: dinit in full images
-
-profile: browser shell
-package manager: Oil
-desktop: Alpenglowed
-targets: x86_64, aarch64
-hardware tested: Orange Pi 3B, Mac mini 2012
-EOF
-FASTFETCH
-chmod +x "${ROOTFS}/bin/fastfetch"
-
-cat > "${ROOTFS}/bin/oil" <<'OIL'
-#!/bin/sh
-set -eu
-
-cmd="${1:-help}"
-pkg="${2:-}"
-
-case "${cmd}" in
-  help|--help|-h)
-    cat <<'EOF'
-Oil - Alpenglow package manager
-
-Commands:
-  oil search <query>
-  oil info <package>
-  oil install <package>
-  oil list
-
-Browser catalog:
-  fastfetch
-  alpenglow-docs
-EOF
-    ;;
-  search)
-    case "${pkg}" in
-      ""|fast*|*fetch*) echo "fastfetch  installed  system information";;
-      *doc*|alpenglow*) echo "alpenglow-docs  installed  browser shell documentation";;
-    esac
-    ;;
-  info)
-    case "${pkg}" in
-      fastfetch)
-        echo "Name: fastfetch"
-        echo "Status: installed"
-        echo "Description: Alpenglow system summary"
-        ;;
-      alpenglow-docs)
-        echo "Name: alpenglow-docs"
-        echo "Status: installed"
-        echo "Files: README.md root-model.md profiles.md packages.md desktop.md"
-        ;;
-      *) echo "oil: package not found: ${pkg}" >&2; exit 1;;
-    esac
-    ;;
-  install)
-    case "${pkg}" in
-      fastfetch|alpenglow-docs) echo "${pkg} is already installed";;
-      "") echo "oil: install needs a package name" >&2; exit 1;;
-      *) echo "oil: ${pkg} is not in the browser catalog" >&2; exit 1;;
-    esac
-    ;;
-  list)
-    echo "fastfetch"
-    echo "alpenglow-docs"
-    ;;
-  *) echo "oil: unknown command: ${cmd}" >&2; exit 1;;
-esac
-OIL
-chmod +x "${ROOTFS}/bin/oil"
-
 cat > "${ROOTFS}/init" <<'INIT'
 #!/bin/busybox sh
-export PATH=/bin
+export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
 export PS1='# '
 export TERM=dumb
@@ -149,13 +107,13 @@ cd /
   /bin/echo "Alpenglow browser shell"
   /bin/echo
   /bin/echo "Immutable RAM-root Linux with persistent bcachefs-backed state."
-  /bin/echo "Explore the docs, run fastfetch, or try oil list."
+  /bin/echo "Explore the docs, run fastfetch, or try oil search fastfetch."
   /bin/echo
   /bin/ls -1 --color=never
   /bin/echo
   /bin/echo "Read: cat README.md"
   /bin/echo "Desktop: ./alpenglowed.sh"
-  /bin/echo "Packages: oil list"
+  /bin/echo "Packages: oil search fastfetch"
   /bin/echo
 } >/dev/console 2>&1
 exec /bin/sh </dev/console >/dev/console 2>&1
