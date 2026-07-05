@@ -210,7 +210,7 @@ setStatus("loading Alpenglow", 0);
 const useXterm = await mountTerminal();
 
 const { cols, rows } = terminalSize();
-const cmdline = `console=ttyS0 rdinit=/init quiet alpenglow.cols=${cols} alpenglow.rows=${rows}`;
+const cmdline = `console=ttyS0 rdinit=/init quiet loglevel=2 alpenglow.cols=${cols} alpenglow.rows=${rows}`;
 
 try {
   const { V86 } = await import("./v86/libv86.mjs");

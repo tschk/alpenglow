@@ -65,6 +65,8 @@ enum Commands {
     },
     /// List packages with available updates
     Outdated,
+    /// Update the package index
+    Update,
     #[cfg(feature = "wax")]
     /// Manage third-party package taps
     Tap {
@@ -114,6 +116,7 @@ trait CommandRunner {
     fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()>;
     fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
     fn outdated(&self) -> Result<()>;
+    fn update(&self) -> Result<()>;
     #[cfg(feature = "wax")]
     fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()>;
 }
@@ -145,6 +148,9 @@ impl CommandRunner for DefaultRunner {
     fn outdated(&self) -> Result<()> {
         run_outdated()
     }
+    fn update(&self) -> Result<()> {
+        run_update()
+    }
     #[cfg(feature = "wax")]
     fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()> {
         run_tap(tap, action)
@@ -161,6 +167,7 @@ fn execute_command<R: CommandRunner>(cmd: Commands, runner: &R) -> Result<()> {
         Commands::Reinstall { packages, all } => runner.reinstall(packages, all),
         Commands::Upgrade { packages, dry_run } => runner.upgrade(packages, dry_run),
         Commands::Outdated => runner.outdated(),
+        Commands::Update => runner.update(),
         #[cfg(feature = "wax")]
         Commands::Tap { tap, action } => runner.tap(tap, action),
     }
@@ -192,6 +199,35 @@ fn load_registry() -> Result<PackageIndex> {
 #[cfg(not(feature = "wax"))]
 fn load_registry() -> Result<PackageIndex> {
     system::registry::apk::ApkRegistry::alpine_default().load()
+}
+
+#[cfg(feature = "wax")]
+fn refresh_registry() -> Result<PackageIndex> {
+    let apk = system::registry::apk::ApkRegistry::alpine_default().refresh()?;
+    let mut all = apk.packages;
+    let taps = tap::Taps::new()?;
+    for tap in taps.list() {
+        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
+        match registry.update() {
+            Ok(index) => {
+                eprintln!("Refreshed {} packages from tap {}", index.packages.len(), tap.name);
+                all.extend(index.packages);
+            }
+            Err(e) => eprintln!("warning: failed to refresh tap {}: {}", tap.name, e),
+        }
+    }
+    Ok(PackageIndex::new(all))
+}
+
+#[cfg(not(feature = "wax"))]
+fn refresh_registry() -> Result<PackageIndex> {
+    system::registry::apk::ApkRegistry::alpine_default().refresh()
+}
+
+fn run_update() -> Result<()> {
+    let index = refresh_registry()?;
+    println!("Updated package index: {} packages", index.packages.len());
+    Ok(())
 }
 
 fn run_search(query: String) -> Result<()> {
@@ -484,6 +520,7 @@ mod tests {
         Reinstall(Vec<String>, bool),
         Upgrade(Vec<String>, bool),
         Outdated,
+        Update,
         #[cfg(feature = "wax")]
         Tap(Option<String>, Option<TapAction>),
     }
@@ -535,6 +572,10 @@ mod tests {
         }
         fn outdated(&self) -> Result<()> {
             self.calls.borrow_mut().push(MockCall::Outdated);
+            Ok(())
+        }
+        fn update(&self) -> Result<()> {
+            self.calls.borrow_mut().push(MockCall::Update);
             Ok(())
         }
         #[cfg(feature = "wax")]
@@ -633,6 +674,14 @@ mod tests {
         let cmd = Commands::Outdated;
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(runner.get_calls(), vec![MockCall::Outdated]);
+    }
+
+    #[test]
+    fn test_execute_command_update() {
+        let runner = MockRunner::new();
+        let cmd = Commands::Update;
+        execute_command(cmd, &runner).expect("execute_command failed");
+        assert_eq!(runner.get_calls(), vec![MockCall::Update]);
     }
 
     #[cfg(feature = "wax")]
