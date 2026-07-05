@@ -204,8 +204,8 @@ cd /
 {
   /bin/echo "Alpenglow"
   /bin/echo
-  /bin/echo "Immutable RAM-root Linux appliance (browser demo, Alpenglow Linux 7 i686)."
-  /bin/echo "Docs (case-sensitive): cat README.md  cat root-model.md  cat packages.md"
+  /bin/echo "Alpenglow: fast, light immutable appliance (hybrid desktop = RAM root + disk /state)."
+  /bin/echo "Docs (case-sensitive): cat README.md  cat ideology.md  cat root-model.md  cat desktop.md"
   /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
   /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."
   /bin/echo
