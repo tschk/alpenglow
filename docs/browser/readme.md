@@ -2,6 +2,8 @@
 
 Serial console in Alpenglow Linux 7.0.12 (i686). Not the full Alpenglowed desktop.
 
+If you're reading this in vro, welcome! This is vro, my version of a terminal text editor. You can press Ctrl-E to access the command bar and Ctrl-Q to exit. In bash, type `vro --help` to view more.
+
 ## Product
 
 - Immutable RAM root + bcachefs `/state`
