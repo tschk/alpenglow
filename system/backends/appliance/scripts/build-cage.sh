@@ -12,12 +12,11 @@ echo "→ Fetching cage + musl deps from Alpine 3.21..."
 
 docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh -c '
   set -e
-  apk add --no-cache cage xwayland seatd 2>/dev/null >/dev/null
+  apk add --no-cache cage seatd 2>/dev/null >/dev/null
 
   # Copy binaries
   mkdir -p /out/usr/bin
   cp /usr/bin/cage /out/usr/bin/
-  cp /usr/bin/Xwayland /out/usr/bin/ 2>/dev/null || true
   cp /usr/bin/seatd /out/usr/bin/ 2>/dev/null || true
   cp /usr/bin/seatd-launch /out/usr/bin/ 2>/dev/null || true
 
@@ -31,7 +30,7 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh 
       done
     done
   }
-  copy_deps /usr/bin/cage /usr/bin/Xwayland /usr/bin/seatd /usr/bin/seatd-launch
+  copy_deps /usr/bin/cage /usr/bin/seatd /usr/bin/seatd-launch
 
   # Copy DRI drivers
   if [ "${CAGE_MESA:-0}" = "1" ]; then

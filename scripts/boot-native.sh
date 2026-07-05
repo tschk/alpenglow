@@ -365,7 +365,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   echo "→ Building graphical stack (cage + alpenglowed + graphics libs)..."
 
   # cage + musl shared libs from Alpine
-  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ] || [ ! -f "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/libLLVM.so.19.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/gallium-pipe/pipe_radeonsi.so" ]; then
+  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ] || [ ! -f "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" ] || [ -f "${OUT_DIR}/cage/usr/bin/Xwayland" ] || [ -f "${OUT_DIR}/cage/usr/lib/libLLVM.so.19.1" ] || [ -f "${OUT_DIR}/cage/usr/lib/gallium-pipe/pipe_radeonsi.so" ]; then
     rm -rf "${OUT_DIR}/cage"
     sh "${BACKEND_DIR}/scripts/build-cage.sh" "${OUT_DIR}"
   fi
