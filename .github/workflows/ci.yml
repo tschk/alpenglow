@@ -41,9 +41,13 @@ jobs:
       - name: Install kernel build dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
       - name: Install bindgen
         run: cargo install bindgen-cli --locked 2>/dev/null
       - name: Build Rust kernel module
+        env:
+          KERNEL_VER: "7.0.12"
         run: scripts/ci-rust-kernel-module.sh
 
   rust-audit:
