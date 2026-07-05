@@ -425,6 +425,35 @@ fn run_outdated() -> Result<()> {
     Ok(())
 }
 
+fn get_secure_temp_dir_in(home: std::path::PathBuf) -> Result<std::path::PathBuf> {
+    #[cfg(unix)]
+    use std::os::unix::fs::DirBuilderExt;
+
+    let tmp_dir = home.join(".oil").join("tmp");
+
+    if !tmp_dir.exists() {
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+
+        #[cfg(unix)]
+        builder.mode(0o700);
+
+        builder.create(&tmp_dir)
+            .map_err(|e| error::OilError::Install(format!("failed to create temp dir: {e}")))?;
+    }
+    Ok(tmp_dir)
+}
+
+fn get_secure_temp_dir() -> Result<std::path::PathBuf> {
+    // We try to get HOME first (Unix), then try USERPROFILE (Windows) as a fallback
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from)
+        .ok_or_else(|| error::OilError::Install("$HOME not set".into()))?;
+
+    get_secure_temp_dir_in(home)
+}
+
 #[cfg(feature = "wax")]
 fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
     let mut taps = tap::Taps::new()?;
@@ -490,6 +519,7 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
         }
     }
     Ok(())
+
 }
 
 fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
@@ -506,7 +536,10 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .read_to_end(&mut data)
         .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
 
-    let mut tmp = tempfile::NamedTempFile::new()
+    let tmp_dir = get_secure_temp_dir()?;
+    let mut tmp = tempfile::Builder::new()
+        .prefix("oil-download-")
+        .tempfile_in(&tmp_dir)
         .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
 
     tmp.write_all(&data)
@@ -525,6 +558,17 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    #[test]
+    fn test_get_secure_temp_dir_in_success() -> Result<()> {
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        let home = temp_dir.path().to_path_buf();
+
+        let result = get_secure_temp_dir_in(home).expect("Expected valid secure temp dir");
+        assert_eq!(result, temp_dir.path().join(".oil").join("tmp"));
+        assert!(result.exists(), "Secure temp dir should be created");
+        Ok(())
+    }
 
     #[derive(Debug, PartialEq, Clone)]
     enum MockCall {
