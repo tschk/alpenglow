@@ -2,6 +2,7 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 #[derive(Debug)]
 pub enum InstallError {
@@ -65,6 +66,42 @@ pub fn install_image(
     let mut input = BufReader::new(input);
     let mut output = BufWriter::new(output);
     Ok(io::copy(&mut input, &mut output)?)
+}
+
+pub fn install_image_maybe_compressed(
+    source: &Path,
+    target: &Path,
+    allow_regular_file: bool,
+) -> Result<u64, InstallError> {
+    if source.extension().and_then(|ext| ext.to_str()) != Some("zst") {
+        return install_image(source, target, allow_regular_file);
+    }
+    validate_target(target, allow_regular_file)?;
+    let mut child = Command::new("zstd")
+        .arg("-dc")
+        .arg(source)
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| InstallError::InvalidTarget("zstd stdout unavailable".to_string()))?;
+    let output = OpenOptions::new()
+        .write(true)
+        .create(allow_regular_file)
+        .truncate(allow_regular_file)
+        .open(target)?;
+    let mut input = BufReader::new(stdout);
+    let mut output = BufWriter::new(output);
+    let bytes = io::copy(&mut input, &mut output)?;
+    let status = child.wait()?;
+    if !status.success() {
+        return Err(InstallError::InvalidTarget(format!(
+            "zstd failed for {}",
+            source.display()
+        )));
+    }
+    Ok(bytes)
 }
 
 #[cfg(unix)]

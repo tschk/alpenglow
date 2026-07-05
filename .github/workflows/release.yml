@@ -23,6 +23,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/checkout@v4
+        with:
+          repository: tsch/crepuscularity
+          path: ../crepuscularity
+
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Install release tools
         run: |
           sudo apt-get update

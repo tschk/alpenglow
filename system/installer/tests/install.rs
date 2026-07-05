@@ -1,4 +1,4 @@
-use alpenglow_installer::{install_image, validate_target};
+use alpenglow_installer::{install_image, install_image_maybe_compressed, validate_target};
 use std::fs;
 
 #[test]
@@ -17,5 +17,15 @@ fn copies_image_when_allowed() {
     let target = dir.path().join("target.img");
     fs::write(&source, b"alpenglow").unwrap();
     install_image(&source, &target, true).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"alpenglow");
+}
+
+#[test]
+fn plain_auto_install_copies_image_when_allowed() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let target = dir.path().join("target.img");
+    fs::write(&source, b"alpenglow").unwrap();
+    install_image_maybe_compressed(&source, &target, true).unwrap();
     assert_eq!(fs::read(&target).unwrap(), b"alpenglow");
 }
