@@ -88,14 +88,14 @@ Kernel profiles select hardware and boot policy:
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
 | **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
-| **Alpenglow** desktop | login reached | 128MB | desktop profile | ~508MB used during boot |
+| **Alpenglow** desktop | login reached | 66MB | desktop profile | ~270MB used during boot |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
 
 Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
 
-Latest desktop QEMU proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 QEMU_DISPLAY=none`, commit `8e6ce71`) reaches serial login with a 415MB rootfs and 128MB zstd initramfs. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland is absent from the rootfs. Remaining bloat is Mesa/LLVM pulled by the temporary cage/wlroots compositor path; the next size cut is making the alpenglowed Smithay compositor path the default and removing cage/wlroots from the desktop image.
+Latest desktop QEMU proof on `ultramarine` (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 QEMU_DISPLAY=none`, commit `75b3ee5`) reaches serial login with a 223MB rootfs and 66MB zstd initramfs. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. Remaining bloat is the glibc GPUI graphics stack: lavapipe/Vulkan, LLVM, and Z3.
 
 ### Binary size (static musl, x86_64)
 
@@ -113,7 +113,7 @@ Alpenglow has one root model:
 
 **Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
 
-**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and `../alpenglowed` desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The target compositor model is Wayland + Smithay in alpenglowed; cage/wlroots is only a temporary integration path until the Smithay path is boot-proven.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and `../alpenglowed` desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in alpenglowed.
 
 ## Services
 

@@ -97,7 +97,7 @@ cargo test -p alpenglow-netd
 | DHCP networking | ✅ | udhcpc via dinit |
 | State persistence | ✅ | bcachefs target for `/state`, bind mounts for `/home` and mutable state |
 | Oil package mgr | ✅ | APK-only, in initramfs |
-| Wayland display | ✅ | alpenglowed + foot; cage/wlroots is temporary until Smithay is boot-proven |
+| Wayland display | ✅ | alpenglowed Smithay compositor + foot |
 | Audio | ✅ | ALSA + PipeWire dinit services |
 | WiFi | ✅ | iwd daemon, 16+ drivers |
 | Power management | ✅ | /sys/power, no elogind |
