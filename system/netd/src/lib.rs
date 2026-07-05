@@ -233,6 +233,19 @@ mod tests {
     }
 
     #[test]
+    fn read_snapshot_non_existent_root() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "alpenglow-netd-test-nonexistent-{}-{}",
+            std::process::id(),
+            now_unix_ms()
+        ));
+
+        let snapshot = read_snapshot(&path).expect("snapshot should parse gracefully when root does not exist");
+        assert!(snapshot.interfaces.is_empty());
+    }
+
+    #[test]
     fn renders_runtime_state_for_shell_consumers() {
         let snapshot = NetworkSnapshot {
             generated_unix_ms: 123,
@@ -299,17 +312,55 @@ mod tests {
         assert!(json.contains("\"interfaces\": ["));
     }
 
+    #[test]
+    fn writes_snapshot_to_files() {
+        let fixture = TestSysfs::new();
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![NetworkInterface {
+                name: "eth0".to_owned(),
+                index: Some(2),
+                kind: InterfaceKind::Ethernet,
+                mac_address: Some("02:00:00:00:00:01".to_owned()),
+                operstate: OperState::Up,
+                mtu: Some(1500),
+                carrier: Some(true),
+                speed_mbps: Some(1000),
+                rx_bytes: Some(42),
+                tx_bytes: Some(84),
+                flags_hex: Some("0x1003".to_owned()),
+            }],
+        };
+
+        let state_json = fixture.path().join("out/state.json");
+        let runtime_env = fixture.path().join("out/runtime.env");
+
+        write_snapshot(&snapshot, &state_json, &runtime_env)
+            .expect("should write snapshot to files successfully");
+
+        let json_contents = fs::read_to_string(&state_json)
+            .expect("should read state.json file successfully");
+        let env_contents = fs::read_to_string(&runtime_env)
+            .expect("should read runtime.env file successfully");
+
+        assert_eq!(json_contents, render_json(&snapshot));
+        assert_eq!(env_contents, render_runtime_env(&snapshot));
+    }
+
     struct TestSysfs {
         path: PathBuf,
     }
 
     impl TestSysfs {
         fn new() -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static COUNTER: AtomicUsize = AtomicUsize::new(0);
             let mut path = std::env::temp_dir();
             path.push(format!(
-                "alpenglow-netd-test-{}-{}",
+                "alpenglow-netd-test-{}-{}-{}",
                 std::process::id(),
-                now_unix_ms()
+                now_unix_ms(),
+                COUNTER.fetch_add(1, Ordering::SeqCst)
             ));
             fs::create_dir_all(&path).expect("fixture root should be created");
             Self { path }

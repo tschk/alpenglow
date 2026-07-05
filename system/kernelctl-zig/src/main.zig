@@ -226,3 +226,37 @@ fn writeEnv(path: []const u8, key: []const u8, value: []const u8) !void {
     defer std.heap.page_allocator.free(line);
     try writeFile(path, line, true);
 }
+
+test "wU64 writes correctly" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(tmp_path);
+
+    try wU64(tmp_path, "test.txt", 42);
+
+    const data = try tmp.dir.readFileAlloc(testing.allocator, "test.txt", 1024);
+    defer testing.allocator.free(data);
+
+    try testing.expectEqualStrings("42\n", data);
+}
+
+test "wU64 does not write on null" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(tmp_path);
+
+    try wU64(tmp_path, "test_null.txt", null);
+
+    // Ensure file does not exist
+    tmp.dir.access("test_null.txt", .{}) catch |err| {
+        try testing.expect(err == error.FileNotFound);
+        return;
+    };
+    return error.ExpectedFileNotFound;
+}
