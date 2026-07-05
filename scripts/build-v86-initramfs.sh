@@ -108,7 +108,7 @@ cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
 
 cat > "${ROOTFS}/init" <<'INIT'
-#!/bin/busybox sh
+#!/bin/sh
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
 export PS1='# '
@@ -128,10 +128,11 @@ cd /
 {
   /bin/echo "Alpenglow"
   /bin/echo
-  /bin/echo "Immutable RAM-root Linux. Docs: cat README.md  cat root-model.md"
-  /bin/echo "fastfetch   oil search fastfetch   oil info fastfetch"
+  /bin/echo "Immutable RAM-root Linux appliance (browser demo, i686)."
+  /bin/echo "Docs: cat README.md  cat root-model.md  cat packages.md  cat desktop.md"
+  /bin/echo "Try: fastfetch   oil search fastfetch   oil info fastfetch   ls *.md"
   /bin/echo
-  /bin/fastfetch 2>/dev/null || true
+  /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
   /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
   /bin/echo
@@ -139,6 +140,12 @@ cd /
 exec /bin/sh </dev/console >/dev/console 2>&1
 INIT
 chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"

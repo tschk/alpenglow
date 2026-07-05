@@ -1,22 +1,27 @@
-const terminal = document.getElementById("terminal");
-const commandForm = document.getElementById("command_form");
-const commandInput = document.getElementById("command_input");
-const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-boot";
-const asset = (path) => `${path}?v=${assetVersion}`;
-const ansiPattern = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])/g;
-const urlPattern = /https:\/\/[^\s<>"')]+/g;
-let terminalText = "";
+const screen = document.getElementById("screen_container");
+const legacyPre = document.getElementById("terminal");
+
+let buildId = "dev";
+try {
+  const idRes = await fetch("/v86/initrd-build-id.txt", { cache: "no-store" });
+  if (idRes.ok) {
+    buildId = (await idRes.text()).trim() || buildId;
+  }
+} catch {
+  /* ignore */
+}
+
+const asset = (path) => `${path}?v=${encodeURIComponent(buildId)}`;
 let emulator;
+let fitAddon;
 
 function setStatus(message, percent) {
   if (bootMessage) {
     bootMessage.textContent = message;
   }
-
   if (bootProgress && Number.isFinite(percent)) {
     bootProgress.value = Math.max(0, Math.min(100, percent));
     bootProgress.textContent = `${Math.round(bootProgress.value)}%`;
@@ -32,82 +37,39 @@ function finishStatus(message) {
   }, 700);
 }
 
-function writeTerminal(text) {
-  terminalText = (terminalText + text)
-    .replace(ansiPattern, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "")
-    .replace("/bin/sh: can't access tty; job control turned off\n", "");
-
-  terminal.innerHTML = terminalText
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(urlPattern, (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`);
-  terminal.scrollTop = terminal.scrollHeight;
-}
-
-function sendInput(data) {
-  if (emulator) {
-    emulator.serial0_send(data);
+function prepareHost() {
+  if (!screen) {
+    throw new Error("Alpenglow shell mount point is missing");
   }
+  if (legacyPre) {
+    legacyPre.hidden = true;
+  }
+  let host = document.getElementById("xterm_host");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "xterm_host";
+    host.setAttribute("aria-label", "Alpenglow serial console");
+    screen.appendChild(host);
+  }
+  if (window.FitAddon?.FitAddon) {
+    fitAddon = new window.FitAddon.FitAddon();
+  }
+  const ro = new ResizeObserver(() => fitAddon?.fit?.());
+  ro.observe(host);
+  return host;
 }
 
-if (!terminal || !screen) {
+if (!screen) {
   throw new Error("Alpenglow shell mount point is missing");
 }
 
-terminal.focus();
-writeTerminal("Alpenglow loading...\n");
 setStatus("loading Alpenglow", 0);
-
-terminal.addEventListener("pointerdown", () => terminal.focus());
-commandForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const command = commandInput?.value || "";
-  if (commandInput) {
-    commandInput.value = "";
-  }
-  sendInput(`${command}\r`);
-  terminal.focus();
-});
-
-terminal.addEventListener("keydown", (event) => {
-  if (event.metaKey || event.altKey) {
-    return;
-  }
-
-  if (event.ctrlKey) {
-    const key = event.key.toLowerCase();
-    if (key >= "a" && key <= "z") {
-      sendInput(String.fromCharCode(key.charCodeAt(0) - 96));
-      event.preventDefault();
-    }
-    return;
-  }
-
-  const keys = {
-    Enter: "\r",
-    Backspace: "\x7F",
-    Tab: "\t",
-  };
-
-  if (keys[event.key]) {
-    sendInput(keys[event.key]);
-    event.preventDefault();
-    return;
-  }
-
-  if (event.key.length === 1) {
-    sendInput(event.key);
-    event.preventDefault();
-  }
-});
+const xtermHost = window.Terminal ? prepareHost() : null;
 
 try {
-  const { V86 } = await import("/v86/libv86.mjs");
+  const { V86 } = await import(asset("/v86/libv86.mjs"));
 
-  emulator = new V86({
+  const v86Opts = {
     wasm_path: asset("/v86/v86.wasm"),
     screen_container: null,
     bios: { url: asset("/v86/seabios.bin") },
@@ -117,11 +79,23 @@ try {
     cmdline: "console=ttyS0 rdinit=/init quiet",
     memory_size: 128 * 1024 * 1024,
     autostart: true,
-  });
+  };
 
-  emulator.add_listener("serial0-output-byte", (byte) => {
-    writeTerminal(String.fromCharCode(byte));
-  });
+  if (xtermHost) {
+    v86Opts.serial_container_xtermjs = xtermHost;
+  }
+
+  emulator = new V86(v86Opts);
+
+  if (!xtermHost && legacyPre) {
+    legacyPre.hidden = false;
+    legacyPre.style.display = "block";
+    legacyPre.textContent = "Alpenglow loading...\n";
+    emulator.add_listener("serial0-output-byte", (byte) => {
+      legacyPre.textContent += String.fromCharCode(byte);
+      legacyPre.scrollTop = legacyPre.scrollHeight;
+    });
+  }
 
   emulator.add_listener("download-progress", (event) => {
     if (event.lengthComputable && event.total) {
@@ -129,20 +103,26 @@ try {
       setStatus(`loading Alpenglow ${Math.round(percent)}%`, percent);
       return;
     }
-
     setStatus("loading Alpenglow", bootProgress?.value || 0);
   });
 
   emulator.add_listener("download-error", (event) => {
     setStatus("failed to load Alpenglow", bootProgress?.value || 0);
+    console.error("v86 download error", event);
   });
 
   emulator.add_listener("emulator-ready", () => {
     finishStatus("booting alpenglow shell");
+    fitAddon?.fit?.();
+    const termEl = xtermHost?.querySelector?.(".xterm-helper-textarea");
+    termEl?.focus?.();
   });
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  writeTerminal(`\nAlpenglow failed to start: ${message}\n`);
   setStatus(`failed: ${message}`, bootProgress?.value || 0);
+  if (legacyPre) {
+    legacyPre.hidden = false;
+    legacyPre.textContent += `\nAlpenglow failed to start: ${message}\n`;
+  }
   throw error;
 }

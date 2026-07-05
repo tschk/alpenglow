@@ -6,6 +6,9 @@
     <meta name="description" content="Alpenglow is an immutable RAM-root Linux distribution with persistent bcachefs-backed state." />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <title>Alpenglow</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
   </head>
   <body>
     <main id="screen_container" aria-label="Alpenglow OS">
@@ -21,7 +24,7 @@
         <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
       </section>
     </main>
-    <script src="/app.js?v=20260705-boot" type="module"></script>
+    <script src="/app.js" type="module"></script>
   </body>
 </html>
 
@@ -68,8 +71,19 @@
     display: none;
   }
 
+  #xterm_host {
+    position: fixed;
+    inset: 0;
+    padding: clamp(10px, 2vw, 18px);
+    background: #000;
+  }
+
+  #xterm_host .xterm {
+    height: 100%;
+  }
+
   #terminal {
-    display: block;
+    display: none;
     width: 100vw;
     height: 100vh;
     padding: clamp(12px, 2vw, 22px);
@@ -97,7 +111,7 @@
     right: 0;
     bottom: 0;
     left: 0;
-    display: none;
+    display: none !important;
     grid-template-columns: 1fr auto;
     height: 44px;
     border-top: 1px solid #fff;
