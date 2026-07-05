@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "alpenglow-netd"
-version = "0.1.284"
+version = "0.1.285"
 dependencies = [
  "notify",
  "serde",
@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "oil"
-version = "0.1.284"
+version = "0.1.285"
 dependencies = [
  "clap",
  "cms",

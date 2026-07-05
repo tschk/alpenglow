@@ -1,20 +1,20 @@
 #!/bin/sh
-# Alpenglow v86 browser initramfs (i686): busybox + oil + docs at / for cat *.md
+# Alpenglow v86 browser initramfs (x86_64): busybox + oil + docs at / for cat *.md
 set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
 BUILD_DIR="${ROOT_DIR}/build/v86"
 ROOTFS="${BUILD_DIR}/rootfs"
 OUT="${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
 KERNEL_OUT="${ROOT_DIR}/public/v86/alpenglow-v86-vmlinuz"
-BUSYBOX="${BUILD_DIR}/busybox-i386"
-OIL="${ROOT_DIR}/target/i686-unknown-linux-musl/release/oil"
-ISO="${BUILD_DIR}/alpine-virt-x86.iso"
-ISO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86/alpine-virt-3.20.10-x86.iso"
+BUSYBOX="${BUILD_DIR}/busybox-x86_64"
+OIL="${ROOT_DIR}/target/x86_64-unknown-linux-musl/release/oil"
+ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
 
 need_docker() {
   command -v docker >/dev/null 2>&1 || {
-    echo "docker required to build i686 busybox/oil/fastfetch (or run on ultramarine)" >&2
+    echo "docker required to build x86_64 busybox/oil/kernel (or run on ultramarine)" >&2
     exit 1
   }
 }
@@ -29,22 +29,16 @@ mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOT
 
 if [ ! -x "${BUSYBOX}" ]; then
   need_docker
-  docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc \
-    'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
+  docker run --rm --platform linux/amd64 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc \
+    'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-x86_64 && chmod +x /out/busybox-x86_64'
 fi
 
-if [ ! -f "${KERNEL_OUT}" ]; then
-  [ -f "${ISO}" ] || curl -L --fail -o "${ISO}" "${ISO_URL}"
-  rm -rf "${BUILD_DIR}/iso"
-  mkdir -p "${BUILD_DIR}/iso"
-  bsdtar -xf "${ISO}" -C "${BUILD_DIR}/iso" boot/vmlinuz-virt
-  cp "${BUILD_DIR}/iso/boot/vmlinuz-virt" "${KERNEL_OUT}"
-fi
+sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
 
 if [ ! -x "${OIL}" ] || find "${ROOT_DIR}/system/oil/src" "${ROOT_DIR}/system/oil/Cargo.toml" "${ROOT_DIR}/Cargo.lock" -newer "${OIL}" 2>/dev/null | grep -q .; then
   need_docker
-  docker run --rm -v "${ROOT_DIR}:/home/rust/src" -w /home/rust/src/system/oil messense/rust-musl-cross:i686-musl sh -lc \
-    'cargo build --release --target i686-unknown-linux-musl'
+  docker run --rm -v "${ROOT_DIR}:/home/rust/src" -w /home/rust/src/system/oil messense/rust-musl-cross:x86_64-musl sh -lc \
+    'cargo build --release --target x86_64-unknown-linux-musl'
 fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
@@ -58,7 +52,7 @@ ln -sf oil "${ROOTFS}/bin/wax"
 
 need_docker
 apk_root_install() {
-  docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 sh -lc '
+  docker run --rm --platform linux/amd64 -v "${ROOTFS}:/rootfs" alpine:3.20 sh -lc '
     mkdir -p /rootfs/etc/apk/keys /rootfs/lib/apk/db /rootfs/var/cache/apk /rootfs/usr/lib
     cp -a /etc/apk/keys/* /rootfs/etc/apk/keys/ 2>/dev/null || true
     if [ ! -f /rootfs/etc/apk/repositories ]; then
@@ -72,8 +66,8 @@ REPOS
   ' sh "$@"
 }
 
-FASTFETCH_VERSION="$(apk_root_install fastfetch && docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
-STARSHIP_VERSION="$(apk_root_install starship && docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v starship 2>/dev/null | sed 's/^starship-//')"
+FASTFETCH_VERSION="$(apk_root_install fastfetch && docker run --rm --platform linux/amd64 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
+STARSHIP_VERSION="$(apk_root_install starship && docker run --rm --platform linux/amd64 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v starship 2>/dev/null | sed 's/^starship-//')"
 if [ -d "${ROOTFS}/etc" ] && [ ! -w "${ROOTFS}/etc" ]; then
   if command -v sudo >/dev/null 2>&1; then
     sudo chown -R "$(id -u):$(id -g)" "${ROOTFS}"
@@ -98,20 +92,19 @@ cat > "${ROOTFS}/.oil/installed.json" <<EOF
   }
 }
 EOF
-docker run --rm --platform linux/386 -v "${ROOTFS}/.oil/cache/system:/cache" alpine:3.20 sh -lc \
-  'apk update >/dev/null && version="$(apk search -x fastfetch | sed "s/^fastfetch-//")" && cat > /cache/apk-https---dl-cdn-alpinelinux-org-alpine-v3-20-x86.json <<EOF
+docker run --rm --platform linux/amd64 -v "${ROOTFS}/.oil/cache/system:/cache" alpine:3.20 sh -lc \
+  'apk update >/dev/null && version="$(apk search -x fastfetch | sed "s/^fastfetch-//")" && cat > /cache/apk-https---dl-cdn-alpinelinux-org-alpine-v3-20-x86_64.json <<EOF
 [{
   "name": "fastfetch",
   "version": "${version}",
   "description": "System information tool",
-  "download_url": "https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86/fastfetch-${version}.apk",
+  "download_url": "https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86_64/fastfetch-${version}.apk",
   "installed_size": 3452928,
   "depends": ["hwdata-pci", "so:libc.musl-x86.so.1"],
   "provides": ["cmd:fastfetch=${version}", "cmd:flashfetch=${version}"]
 }]
 EOF'
 
-ALP_VERSION="0.1.284"
 cat > "${ROOTFS}/etc/os-release" <<EOF
 NAME="Alpenglow"
 ID=alpenglow
@@ -128,7 +121,7 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
   "display": { "separator": "  " },
   "modules": [
     { "type": "custom", "format": "alpenglow@alpenglow" },
-    { "type": "custom", "format": "OS: Alpenglow ${ALP_VERSION} (browser i686)" },
+    { "type": "custom", "format": "OS: Alpenglow ${ALP_VERSION} (browser x86_64, Linux 7)" },
     { "type": "kernel" },
     { "type": "uptime" },
     { "type": "memory" },
@@ -146,7 +139,7 @@ if [ ! -x "${VRO_CACHE}" ]; then
     cp "${VRO_SRC}" "${VRO_CACHE}"
   else
     need_docker
-    docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
+    docker run --rm --platform linux/amd64 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc '
       apk add --no-cache curl tar >/dev/null
       tag="$(curl -fsSL https://api.github.com/repos/undivisible/vro/releases/latest | sed -n "s/.*\"tag_name\": \"\([^\"]*\)\".*/\1/p" | head -1)"
       [ -n "$tag" ] || exit 1
@@ -208,7 +201,7 @@ cd /
 {
   /bin/echo "Alpenglow"
   /bin/echo
-  /bin/echo "Immutable RAM-root Linux appliance (browser demo, i686)."
+  /bin/echo "Immutable RAM-root Linux appliance (browser demo, x86_64, Linux 7)."
   /bin/echo "Docs (case-sensitive): cat README.md  cat root-model.md  cat packages.md"
   /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
   /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."

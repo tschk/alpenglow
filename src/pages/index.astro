@@ -69,4 +69,17 @@
     width: 100% !important;
     height: 100% !important;
   }
+
+  /* ghostty/xterm hidden input caret at (0,0) */
+  #xterm_host textarea {
+    position: fixed !important;
+    left: -10000px !important;
+    top: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    caret-color: transparent !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
+  }
 </style>
