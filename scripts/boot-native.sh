@@ -42,6 +42,7 @@ if [ -z "$ACCEL" ]; then
 fi
 EFI="${EFI:-1}"
 GRAPHICAL="${GRAPHICAL:-0}"
+GRAPHICS_BACKEND="${GRAPHICS_BACKEND:-software}"
 FAST="${FAST:-0}"
 if [ "${FAST}" = "1" ]; then
   # SeaBIOS is faster than OVMF in this QEMU config; keep EFI off for speed.
@@ -372,10 +373,10 @@ if [ "${GRAPHICAL}" = "1" ]; then
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
   # glibc Mesa/Vulkan/EGL libs from Debian
-  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ]; then
-    sh "${BACKEND_DIR}/scripts/install-graphics-libs.sh" "${OUT_DIR}"
+  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ] || [ "$(cat "${OUT_DIR}/glibc-libs/.graphics-backend" 2>/dev/null || true)" != "${GRAPHICS_BACKEND}" ]; then
+    sh "${BACKEND_DIR}/scripts/install-graphics-libs.sh" "${OUT_DIR}" "${GRAPHICS_BACKEND}"
   fi
-  echo "  graphics libs: ${OUT_DIR}/glibc-libs"
+  echo "  graphics libs: ${OUT_DIR}/glibc-libs (${GRAPHICS_BACKEND})"
 fi
 
 # Compose rootfs
@@ -493,7 +494,8 @@ if [ "${GRAPHICAL}" = "1" ]; then
     fi
   fi
 
-  cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
+  if [ "${GRAPHICS_BACKEND}" = "software" ]; then
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
 #!/bin/sh
 export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
@@ -501,9 +503,7 @@ export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
 exec /usr/bin/alpenglowed-bin --compositor "$@"
 ALPWRAP
-  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
-
-  cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
 #!/bin/sh
 export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
@@ -511,6 +511,21 @@ export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
 exec /usr/bin/alpenglow-greeter-bin "$@"
 GWRAP
+  else
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
+#!/bin/sh
+export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+exec /usr/bin/alpenglowed-bin --compositor "$@"
+ALPWRAP
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
+#!/bin/sh
+export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+exec /usr/bin/alpenglow-greeter-bin "$@"
+GWRAP
+  fi
+  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
   chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh"
 
   cat > "${ROOTFS_DIR}/etc/dinit.d/alpenglowed" << 'ALPENGLOW'
