@@ -33,7 +33,21 @@ mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOT
 if [ ! -x "${BUSYBOX}" ] || [ "${FORCE_V86_BUSYBOX:-}" = 1 ]; then
   need_docker
   docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc \
-    'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
+    'set -e
+     apk add --no-cache build-base linux-headers musl-dev curl tar bzip2 >/dev/null
+     cd /out
+     BB_VERSION="1.36.1"
+     if [ ! -d "busybox-${BB_VERSION}" ]; then
+       curl -fsSL "https://busybox.net/downloads/busybox-${BB_VERSION}.tar.bz2" -o busybox.tar.bz2
+       tar -xjf busybox.tar.bz2
+     fi
+     cd "busybox-${BB_VERSION}"
+     make defconfig >/dev/null
+     # Brand the binary as Alpenglow instead of the distro builder.
+     sed -i "s|#define BB_EXTRA_VERSION \" (\"AUTOCONF_TIMESTAMP\")\"|#define BB_EXTRA_VERSION \" (Alpenglow)\"|" libbb/messages.c
+     make CONFIG_STATIC=y -j"$(nproc)" >/dev/null
+     cp busybox /out/busybox-i386
+     chmod +x /out/busybox-i386'
 fi
 
 sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
@@ -259,6 +273,10 @@ chmod 755 "${ROOTFS}/init"
 # Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
 ln -sf busybox "${ROOTFS}/bin/sh"
 chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
 
 BUILD_ID="$(date +%Y%m%d%H%M%S)"
 echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"

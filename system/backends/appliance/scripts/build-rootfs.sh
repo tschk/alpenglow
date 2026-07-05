@@ -61,24 +61,31 @@ while IFS= read -r pkg || [ -n "${pkg}" ]; do
   "${OIL_CMD}" system add "${pkg}" --prefix "${ROOTFS_DIR}"
 done < "${PKG_LIST}"
 
-# ── Phase 1.5: Install Oil/Wax (standard/desktop only) ──────────────
+# ── Phase 1.5: Install full Wax (../oil) into rootfs (standard/desktop) ─
 if [ "${BUILD_PROFILE}" != "minimal" ]; then
-  echo "→ Installing Oil (wax) package manager..."
-  OIL_BIN="${ALPENGLOW_OIL_BIN:-}"
-  if [ -z "${OIL_BIN}" ]; then
-    OIL_BIN="${OUT_DIR}/oil"
-    if [ ! -x "${OIL_BIN}" ]; then
-      cargo build --release \
-        --manifest-path "${ROOT_DIR}/system/oil/Cargo.toml" \
-        --no-default-features --features system-apk,wax >/dev/null 2>&1
-      cp "${ROOT_DIR}/system/oil/target/release/oil" "${OIL_BIN}"
+  echo "→ Installing Wax (full Linuxbrew oil) package manager..."
+  WAX_REPO="${ROOT_DIR}/../oil"
+  WAX_BIN="${OUT_DIR}/wax"
+  if [ -n "${ALPENGLOW_WAX_BIN:-}" ]; then
+    WAX_BIN="${ALPENGLOW_WAX_BIN}"
+  elif [ -d "${WAX_REPO}" ]; then
+    if [ ! -x "${WAX_BIN}" ]; then
+      (
+        cd "${WAX_REPO}"
+        cargo build --release --no-default-features --features system-apk >/dev/null 2>&1
+      )
+      cp "${WAX_REPO}/target/release/oil" "${WAX_BIN}"
     fi
+  else
+    echo "  ! ../oil not found; Wax will not be available in rootfs" >&2
   fi
-  mkdir -p "${ROOTFS_DIR}/usr/local/bin"
-  cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
-  chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
-  ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
-  echo "  + oil (wax) from ${OIL_BIN}"
+  if [ -x "${WAX_BIN}" ]; then
+    mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+    cp "${WAX_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+    ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
+    echo "  + wax from ${WAX_BIN}"
+  fi
 fi
 
 # ── Phase 2: Configure rootfs ───────────────────────────────────────
