@@ -41,6 +41,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install bindgen
         run: cargo install bindgen-cli --locked 2>/dev/null
+      - name: Install kernel dependencies
+        run: sudo apt-get update && sudo apt-get install -y flex bison bc libssl-dev libelf-dev
       - name: Build Rust kernel module
         run: scripts/ci-rust-kernel-module.sh
 
