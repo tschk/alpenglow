@@ -69,6 +69,8 @@ assert_contains system/backends/appliance/backend.json '"package_manager": "oil"
 assert_file system/backends/appliance/dinit/alpenglowed
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
+assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'
+assert_not_contains system/backends/appliance/packages-runtime.txt '^clang$'
 assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
 

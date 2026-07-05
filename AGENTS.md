@@ -13,7 +13,7 @@ Early-stage. Not production-ready.
 | Boot | Diskless — full OS in RAM via initramfs |
 | Root FS | erofs/squashfs for immutable RAM root. bcachefs for `/state` and `/home` |
 | Init | dinit — parallel dependency-graph |
-| Compiler | LLVM/Clang default; Inauguration track selectable via COMPILER=inauguration |
+| Compiler | Standard profile ships LLVM/Clang; Inauguration track selectable via COMPILER=inauguration |
 | Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
 | Userland | toybox — minimal BSD coreutils |
 | Shell | oksh |
@@ -38,6 +38,8 @@ minimal = what you need to boot, connect SSH, and have time+logs.
 standard = more than minimal: compiler/tooling, network tools, filesystem tools, and system utilities.
 desktop = plug-and-play desktop: display/audio/WiFi/greetd/alpenglowed/foot.
 Everything else is `oil install <pkg>` away.
+
+Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use standard for that. `COMPILER=inauguration` selects the `../inauguration` compiler track, but lavapipe's Mesa LLVM dependency is a graphics-runtime issue, not a compiler-track issue.
 
 Kernel profiles are separate from build profiles:
 fast = smallest headless diskless boot path.
@@ -64,7 +66,7 @@ system/
   netd/             Network state daemon (Rust)
   oil/              Native package manager (Rust, APK-only)
   backends/
-    appliance/      Primary target (dinit, toybox, LLVM, Oil, diskless)
+    appliance/      Primary target (dinit, toybox, Oil, diskless)
 docs/               Architecture, build, install docs
 
 Kernel configs live at `system/backends/appliance/kernel/`.

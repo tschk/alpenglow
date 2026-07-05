@@ -5,19 +5,6 @@
 dinit
 dinit-dbus
 
-# System compiler (LLVM/clang)
-clang
-clang++
-lld
-llvm
-compiler-rt
-libcxx
-libcxxabi
-llvm-ar
-llvm-nm
-llvm-objcopy
-llvm-objdump
-
 # libc
 musl
 
