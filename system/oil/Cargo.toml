@@ -8,6 +8,11 @@ license-file.workspace = true
 name = "oil"
 path = "src/main.rs"
 
+[features]
+default = ["wax"]
+wax = []
+system-apk = []
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

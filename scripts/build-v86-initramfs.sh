@@ -41,12 +41,12 @@ sh "${ROOT_DIR}/scripts/build-v86-kernel.sh"
 if [ ! -x "${OIL}" ] || find "${ROOT_DIR}/system/oil/src" "${ROOT_DIR}/system/oil/Cargo.toml" "${ROOT_DIR}/Cargo.lock" -newer "${OIL}" 2>/dev/null | grep -q .; then
   need_docker
   docker run --rm -v "${ROOT_DIR}:/home/rust/src" -w /home/rust/src/system/oil messense/rust-musl-cross:i686-musl sh -lc \
-    'cargo build --release --target i686-unknown-linux-musl'
+    'cargo build --release --target i686-unknown-linux-musl --no-default-features'
 fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
-for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty; do
+for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack; do
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 cp "${OIL}" "${ROOTFS}/bin/oil"
@@ -122,7 +122,7 @@ cat > "${ROOTFS}/etc/fastfetch/config.jsonc" <<EOF
 {
   "\$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": { "type": "none" },
-  "display": { "separator": ": ", "key": { "width": 14 } },
+  "display": { "separator": ": " },
   "modules": [
     { "type": "custom", "format": "Alpenglow ${ALP_VERSION}" },
     { "type": "custom", "format": "Host: alpenglow (browser i686)" },
@@ -227,8 +227,8 @@ cd /
   /bin/echo
   /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
   /bin/echo "Docs (case-sensitive): cat README.md  cat ideology.md  cat root-model.md  cat desktop.md"
-  /bin/echo "Try: fastfetch   wax info vro   wax tap undivisible/tap   oil search firefox"
-  /bin/echo "     wax tap undivisible/tap - third-party tap; vro via wax on real hosts."
+  /bin/echo "Try: fastfetch   wax info vro   oil search firefox"
+  /bin/echo "     vro via wax on real hosts; tap support available in standard profile."
   /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
@@ -238,13 +238,22 @@ cd /
 export ENV=/etc/profile
 if [ -c "$CON" ]; then
   /bin/stty -F "$CON" sane 2>/dev/null || true
-  /bin/stty -F "$CON" columns 100 rows 30 2>/dev/null || true
+  # Use terminal size provided by the host via kernel cmdline if available.
+  cols=80
+  rows=24
+  for arg in $(cat /proc/cmdline 2>/dev/null); do
+    case "$arg" in
+      alpenglow.cols=*) cols="${arg#*=}" ;;
+      alpenglow.rows=*) rows="${arg#*=}" ;;
+    esac
+  done
+  /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
 printf '\n' >"$CON"
 if [ -x /bin/bash ]; then
-  exec /bin/bash --login -i 0<"$CON" 1>"$CON" 2>&1
+  exec /bin/cttyhack /bin/bash --login -i <"$CON" >"$CON" 2>&1
 fi
-exec /bin/sh -i 0<"$CON" 1>"$CON" 2>&1
+exec /bin/cttyhack /bin/sh -i <"$CON" >"$CON" 2>&1
 INIT
 chmod 755 "${ROOTFS}/init"
 # Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
