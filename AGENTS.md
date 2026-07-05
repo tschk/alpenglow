@@ -19,7 +19,7 @@ Early-stage. Not production-ready.
 | Shell | oksh |
 | Kernel | Hardened — three profiles: `fast` (boot speed), `minimal` (SSH/net/time/logs), `desktop` (display/audio/WiFi). Tracks kernel.org latest stable |
 | Kernel ctrl | kernelctl — Zig (89KB static) + Rust (501KB static) |
-| Display | Wayland + cage + `../alpenglowed` + foot |
+| Display | Wayland + Smithay target via `../alpenglowed` + foot |
 | Audio | ALSA + PipeWire |
 | Networking | udhcpc + iwd |
 | Arch | x86_64, aarch64 (aarch64 CI cross-compile only; x86_64 boot-tested in CI) |
@@ -36,7 +36,7 @@ manager, user adds what they need.
 Build profile system keeps the line clear:
 minimal = what you need to boot, connect SSH, and have time+logs.
 standard = more than minimal: compiler/tooling, network tools, filesystem tools, and system utilities.
-desktop = plug-and-play desktop: display/audio/WiFi/greetd/cage/alpenglowed/foot.
+desktop = plug-and-play desktop: display/audio/WiFi/greetd/alpenglowed/foot.
 Everything else is `oil install <pkg>` away.
 
 Kernel profiles are separate from build profiles:
@@ -97,7 +97,7 @@ cargo test -p alpenglow-netd
 | DHCP networking | ✅ | udhcpc via dinit |
 | State persistence | ✅ | bcachefs target for `/state`, bind mounts for `/home` and mutable state |
 | Oil package mgr | ✅ | APK-only, in initramfs |
-| Wayland display | ✅ | cage + alpenglowed + foot |
+| Wayland display | ✅ | alpenglowed + foot; cage/wlroots is temporary until Smithay is boot-proven |
 | Audio | ✅ | ALSA + PipeWire dinit services |
 | WiFi | ✅ | iwd daemon, 16+ drivers |
 | Power management | ✅ | /sys/power, no elogind |

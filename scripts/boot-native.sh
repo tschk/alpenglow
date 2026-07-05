@@ -461,7 +461,6 @@ if [ "${GRAPHICAL}" = "1" ]; then
   if [ -d "${OUT_DIR}/cage" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/bin" "${ROOTFS_DIR}/usr/lib/musl" "${ROOTFS_DIR}/lib"
     cp "${OUT_DIR}/cage/usr/bin/cage" "${ROOTFS_DIR}/usr/bin/"
-    cp "${OUT_DIR}/cage/usr/bin/Xwayland" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
     cp "${OUT_DIR}/cage/usr/bin/seatd" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
     cp "${OUT_DIR}/cage/usr/bin/seatd-launch" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
     cp "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" "${ROOTFS_DIR}/lib/" 2>/dev/null || true

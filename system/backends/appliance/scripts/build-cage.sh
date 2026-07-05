@@ -1,5 +1,5 @@
 #!/bin/sh
-# Fetch cage (Wayland kiosk compositor) + Xwayland + all musl runtime deps
+# Fetch cage (Wayland kiosk compositor) + musl runtime deps
 # from Alpine 3.21 packages. Output: $OUT_DIR/cage/
 set -eu
 
@@ -49,10 +49,6 @@ docker run --rm --platform linux/amd64 -v "${OUT_DIR}/cage:/out" alpine:3.21 sh 
     cp /usr/lib/gbm/gbm_dri.so /out/usr/lib/gbm/ 2>/dev/null || true
     copy_deps /usr/lib/gbm/gbm_dri.so
   fi
-
-  # Copy Xwayland xorg config
-  mkdir -p /out/usr/share/X11/xorg.conf.d
-  cp /usr/share/X11/xorg.conf.d/*.conf /out/usr/share/X11/xorg.conf.d/ 2>/dev/null || true
 
   # Copy musl dynamic linker (Alpine 3.21 is already usrmerged: /lib -> usr/lib)
   mkdir -p /out/lib
