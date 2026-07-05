@@ -970,7 +970,7 @@ else
 fi
 
 EMBEDDED_INITRAMFS=""
-if [ -f "${OUT_DIR}/.kernel-fast.ok" ] && [ "${KERNEL_IMAGE}" = "${OUT_DIR}/vmlinuz" ]; then
+if [ "${FAST}" = "1" ] && [ -f "${OUT_DIR}/.kernel-fast.ok" ] && [ "${KERNEL_IMAGE}" = "${OUT_DIR}/vmlinuz" ]; then
   EMBEDDED_INITRAMFS="1"
 fi
 
