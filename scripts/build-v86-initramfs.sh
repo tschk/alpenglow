@@ -11,7 +11,7 @@ ISO="${BUILD_DIR}/alpine-virt-x86.iso"
 ISO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86/alpine-virt-3.20.10-x86.iso"
 
 rm -rf "${ROOTFS}"
-mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOTFS}/sys" "${ROOTFS}/run" "${ROOTFS}/tmp"
+mkdir -p "${BUILD_DIR}" "${ROOTFS}/bin" "${ROOTFS}/dev" "${ROOTFS}/proc" "${ROOTFS}/sys" "${ROOTFS}/run" "${ROOTFS}/tmp" "${ROOTFS}/usr/share/alpenglow/browser"
 
 if [ ! -x "${BUSYBOX}" ]; then
   docker run --rm --platform linux/386 -v "${BUILD_DIR}:/out" alpine:3.20 sh -lc 'apk add --no-cache busybox-static >/dev/null && cp /bin/busybox.static /out/busybox-i386 && chmod +x /out/busybox-i386'
@@ -30,8 +30,102 @@ for applet in sh mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear 
   ln -sf busybox "${ROOTFS}/bin/${applet}"
 done
 
-cp "${ROOT_DIR}/public/root/"* "${ROOTFS}/"
+cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
+cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
+cat > "${ROOTFS}/alpenglowed.sh" <<'ALPENGLOWED'
+#!/bin/sh
+cat <<'EOF'
+Alpenglowed
+
+Alpenglowed is the desktop environment for Alpenglow. It layers the Wayland
+and Smithay desktop path onto the same immutable RAM-root system model.
+
+Source:
+https://github.com/tschk/alpenglowed
+
+Build target:
+  BUILD_PROFILE=desktop KERNEL_PROFILE=desktop
+EOF
+ALPENGLOWED
 chmod +x "${ROOTFS}/alpenglowed.sh"
+
+cat > "${ROOTFS}/bin/fastfetch" <<'FASTFETCH'
+#!/bin/sh
+cat <<'EOF'
+       /\        Alpenglow
+      /  \       immutable RAM-root Linux
+     /____\      root: in memory
+    /      \     state: bcachefs-backed /state
+   /        \    init: dinit in full images
+
+profile: browser shell
+package manager: Oil
+desktop: Alpenglowed
+targets: x86_64, aarch64
+hardware tested: Orange Pi 3B, Mac mini 2012
+EOF
+FASTFETCH
+chmod +x "${ROOTFS}/bin/fastfetch"
+
+cat > "${ROOTFS}/bin/oil" <<'OIL'
+#!/bin/sh
+set -eu
+
+cmd="${1:-help}"
+pkg="${2:-}"
+
+case "${cmd}" in
+  help|--help|-h)
+    cat <<'EOF'
+Oil - Alpenglow package manager
+
+Commands:
+  oil search <query>
+  oil info <package>
+  oil install <package>
+  oil list
+
+Browser catalog:
+  fastfetch
+  alpenglow-docs
+EOF
+    ;;
+  search)
+    case "${pkg}" in
+      ""|fast*|*fetch*) echo "fastfetch  installed  system information";;
+      *doc*|alpenglow*) echo "alpenglow-docs  installed  browser shell documentation";;
+    esac
+    ;;
+  info)
+    case "${pkg}" in
+      fastfetch)
+        echo "Name: fastfetch"
+        echo "Status: installed"
+        echo "Description: Alpenglow system summary"
+        ;;
+      alpenglow-docs)
+        echo "Name: alpenglow-docs"
+        echo "Status: installed"
+        echo "Files: README.md root-model.md profiles.md packages.md desktop.md"
+        ;;
+      *) echo "oil: package not found: ${pkg}" >&2; exit 1;;
+    esac
+    ;;
+  install)
+    case "${pkg}" in
+      fastfetch|alpenglow-docs) echo "${pkg} is already installed";;
+      "") echo "oil: install needs a package name" >&2; exit 1;;
+      *) echo "oil: ${pkg} is not in the browser catalog" >&2; exit 1;;
+    esac
+    ;;
+  list)
+    echo "fastfetch"
+    echo "alpenglow-docs"
+    ;;
+  *) echo "oil: unknown command: ${cmd}" >&2; exit 1;;
+esac
+OIL
+chmod +x "${ROOTFS}/bin/oil"
 
 cat > "${ROOTFS}/init" <<'INIT'
 #!/bin/busybox sh
@@ -52,15 +146,16 @@ export LS_COLORS=
 /bin/hostname alpenglow-v86 2>/dev/null
 cd /
 {
-  /bin/echo "Alpenglow minimal browser image"
+  /bin/echo "Alpenglow browser shell"
   /bin/echo
-  /bin/echo "Immutable RAM root. Real builds keep /home and state on bcachefs."
-  /bin/echo "v86 uses a 32-bit compatibility kernel; normal targets are x86_64 and aarch64."
+  /bin/echo "Immutable RAM-root Linux with persistent bcachefs-backed state."
+  /bin/echo "Explore the docs, run fastfetch, or try oil list."
   /bin/echo
   /bin/ls -1 --color=never
   /bin/echo
   /bin/echo "Read: cat README.md"
   /bin/echo "Desktop: ./alpenglowed.sh"
+  /bin/echo "Packages: oil list"
   /bin/echo
 } >/dev/console 2>&1
 exec /bin/sh </dev/console >/dev/console 2>&1

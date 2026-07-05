@@ -1,9 +1,11 @@
 const terminal = document.getElementById("terminal");
+const commandForm = document.getElementById("command_form");
+const commandInput = document.getElementById("command_input");
 const screen = document.getElementById("screen_container");
 const bootStatus = document.getElementById("boot_status");
 const bootMessage = document.getElementById("boot_message");
 const bootProgress = document.getElementById("boot_progress");
-const assetVersion = "20260705-plain-terminal";
+const assetVersion = "20260705-os-docs";
 const asset = (path) => `${path}?v=${assetVersion}`;
 const ansiPattern = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])/g;
 const urlPattern = /https:\/\/[^\s<>"')]+/g;
@@ -56,10 +58,20 @@ if (!terminal || !screen) {
 }
 
 terminal.focus();
-writeTerminal("Alpenglow shell loading...\n");
-setStatus("loading v86", 0);
+writeTerminal("Alpenglow loading...\n");
+setStatus("loading Alpenglow", 0);
 
 terminal.addEventListener("pointerdown", () => terminal.focus());
+commandForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const command = commandInput?.value || "";
+  if (commandInput) {
+    commandInput.value = "";
+  }
+  sendInput(`${command}\r`);
+  terminal.focus();
+});
+
 terminal.addEventListener("keydown", (event) => {
   if (event.metaKey || event.altKey) {
     return;
@@ -114,15 +126,15 @@ try {
   emulator.add_listener("download-progress", (event) => {
     if (event.lengthComputable && event.total) {
       const percent = ((event.file_index + event.loaded / event.total) / event.file_count) * 100;
-      setStatus(`loading ${event.file_name || "v86"} ${Math.round(percent)}%`, percent);
+      setStatus(`loading Alpenglow ${Math.round(percent)}%`, percent);
       return;
     }
 
-    setStatus(`loading ${event.file_name || "v86"}`, bootProgress?.value || 0);
+    setStatus("loading Alpenglow", bootProgress?.value || 0);
   });
 
   emulator.add_listener("download-error", (event) => {
-    setStatus(`failed to load ${event.file_name || "v86 asset"}`, bootProgress?.value || 0);
+    setStatus("failed to load Alpenglow", bootProgress?.value || 0);
   });
 
   emulator.add_listener("emulator-ready", () => {

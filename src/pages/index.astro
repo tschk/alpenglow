@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Alpenglow running in the browser." />
+    <meta name="description" content="Alpenglow is an immutable RAM-root Linux distribution with persistent bcachefs-backed state." />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <title>Alpenglow</title>
   </head>
@@ -12,12 +12,16 @@
       <div></div>
       <canvas></canvas>
       <pre id="terminal" tabindex="0" aria-label="Alpenglow console"></pre>
+      <form id="command_form" autocomplete="off">
+        <input id="command_input" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Command" />
+        <button type="submit">run</button>
+      </form>
       <section id="boot_status" aria-live="polite">
         <p id="boot_message">loading alpenglow shell</p>
         <meter id="boot_progress" min="0" max="100" value="0">0%</meter>
       </section>
     </main>
-    <script src="/app.js?v=20260705-plain-terminal" type="module"></script>
+    <script src="/app.js?v=20260705-os-docs" type="module"></script>
   </body>
 </html>
 
@@ -67,7 +71,7 @@
   #terminal {
     display: block;
     width: 100vw;
-    height: 100vh;
+    height: calc(100vh - 44px);
     padding: clamp(12px, 2vw, 22px);
     margin: 0;
     border: 0;
@@ -86,6 +90,38 @@
     color: #fff;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  #command_form {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    height: 44px;
+    border-top: 1px solid #fff;
+    background: #000;
+  }
+
+  #command_input,
+  #command_form button {
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+    color: #fff;
+    font: 12px / 1.35 "Geist Mono", ui-monospace, monospace;
+  }
+
+  #command_input {
+    padding: 0 12px;
+    outline: 0;
+  }
+
+  #command_form button {
+    width: 64px;
+    border-left: 1px solid #fff;
   }
 
   #boot_status {
