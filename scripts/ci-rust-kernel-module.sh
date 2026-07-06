@@ -4,11 +4,15 @@ set -eu
 
 KERNEL_VER="${KERNEL_VER:-7.0.12}"
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+RUST_FRAGMENT="${REPO_ROOT}/system/backends/appliance/kernel/ci-rust-kmod.fragment"
 
 if ! command -v rustc >/dev/null 2>&1 || ! command -v bindgen >/dev/null 2>&1; then
   echo "ci-rust-kernel-module: rustc/bindgen not found, skip"
   exit 0
 fi
+
+export RUSTC=rustc
+export BINDGEN=bindgen
 
 cd /tmp
 rm -rf linux-kmod-ci
@@ -27,25 +31,27 @@ scripts/config \
   --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
   --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
   --enable MODULES 2>/dev/null || true
-RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
+make ARCH=x86_64 olddefconfig 2>/dev/null
+
+# olddefconfig drops CONFIG_RUST when the hidden RUST_IS_AVAILABLE probe fails on GHA.
+cat "${RUST_FRAGMENT}" >> .config
+./scripts/config --set-val RUST_IS_AVAILABLE y 2>/dev/null || true
+./scripts/config --set-val RUST y 2>/dev/null || true
+make ARCH=x86_64 syncconfig 2>/dev/null || make ARCH=x86_64 olddefconfig 2>/dev/null
 
 if ! grep -q '^CONFIG_RUST=y' .config; then
-  echo "Forcing CONFIG_RUST=y (Kconfig probe left Rust disabled on CI host)"
-  ./scripts/config --enable RUST --enable RUST_IS_AVAILABLE --enable MODULES 2>/dev/null || true
-  RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
-fi
-
-if ! grep -q '^CONFIG_RUST=y' .config; then
-  echo "ci-rust-kernel-module: CONFIG_RUST still disabled"
-  grep -E 'CONFIG_RUST|RUSTC' .config | head -25 || true
+  echo "ci-rust-kernel-module: CONFIG_RUST still disabled after syncconfig"
+  grep -E 'CONFIG_RUST|RUST_IS' .config | head -25 || true
+  rustc --version || true
+  bindgen --version || true
   exit 1
 fi
 
 NPROC="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 echo "Preparing Linux ${KERNEL_VER} for out-of-tree Rust module (modules_prepare + rust)..."
-RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" modules_prepare > /tmp/kmod-prepare.log 2>&1 \
+make ARCH=x86_64 -j"${NPROC}" modules_prepare > /tmp/kmod-prepare.log 2>&1 \
   || { tail -30 /tmp/kmod-prepare.log; exit 1; }
-RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 -j"${NPROC}" rust/core.o > /tmp/kmod-rust.log 2>&1 \
+make ARCH=x86_64 -j"${NPROC}" rust/core.o > /tmp/kmod-rust.log 2>&1 \
   || { tail -30 /tmp/kmod-rust.log; exit 1; }
 
 if [ ! -f scripts/target.json ]; then
@@ -58,7 +64,7 @@ cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
 mkdir -p /tmp/alpenglow-kmod/scripts
 cp scripts/target.json /tmp/alpenglow-kmod/scripts/target.json
 
-RUSTC=rustc BINDGEN=bindgen make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 \
+make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 \
   || { tail -40 /tmp/kmod-build.log; exit 1; }
 test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
 echo "Rust kernel module OK (Linux ${KERNEL_VER})"
