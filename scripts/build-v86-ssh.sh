@@ -15,6 +15,15 @@ rsync -az --delete \
   --exclude 'target' \
   "${ROOT_DIR}/" "${HOST}:${REMOTE}/"
 
+VRO_I686="${ROOT_DIR}/build/v86/vro-i686"
+if [ -x "${VRO_I686}" ]; then
+  ssh -o ConnectTimeout=15 "${HOST}" "mkdir -p ${REMOTE}/build/v86"
+  rsync -az "${VRO_I686}" "${HOST}:${REMOTE}/build/v86/vro-i686"
+  echo "→ synced i686 vro ($(du -h "${VRO_I686}" | awk '{print $1}'))"
+else
+  echo "warning: ${VRO_I686} missing; remote initramfs may use busybox vro stub" >&2
+fi
+
 ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
 echo "→ remote build (Alpenglow Linux 7 i686 kernel + initramfs, ${ALP_VERSION})"
 ssh -o ConnectTimeout=15 "${HOST}" "cd ${REMOTE} && ALP_VERSION='${ALP_VERSION}' V86_SKIP_SSH=1 V86_KERNEL_DOCKER=1 FORCE_V86_INITRD=1 sh scripts/build-v86-initramfs.sh"
