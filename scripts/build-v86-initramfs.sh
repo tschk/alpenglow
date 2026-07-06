@@ -267,6 +267,8 @@ cd /
   printf '%s----------------------------------------%s\n' "$dim" "$r"
   printf '%sdocs:%s cat readme.md, ideology.md, benchmarks.md\n' "$hint" "$r"
   printf '%stry:%s fastfetch, vro readme.md, wax info oksh\n\n' "$hint" "$r"
+  /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
+  /bin/echo
   /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
   /bin/echo
 } >"$CON" 2>&1
