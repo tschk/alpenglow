@@ -159,102 +159,92 @@ fn main() {
             let has_disk_2 = self.disks.get(2).is_some();
             let has_disk_3 = self.disks.get(3).is_some();
             view! {r#"
-                div bg-[#000000] text-[#ededed] size-full p-6 flex-col items-center justify-center font-[Geist]
-                    div bg-[#0a0a0a] border border-[#333333] rounded shadow-lg w-[720px] flex-col overflow-hidden
-                        div border-b border-[#333333] h-12 px-5 flex-row items-center justify-between
-                            div flex-row items-center gap-3
-                                div bg-[#ffffff] rounded w-4 h-4
-                                div flex-col
-                                    div text-base font-bold
-                                        "Alpenglow Installer"
-                                    div text-xs text-[#888888]
-                                        "Desktop image writer"
-                            div text-xs text-[#888888]
-                                "Live session"
-                        div p-5 flex-col gap-3
-                            div flex-col gap-2
-                                div text-2xl font-bold
-                                    "Write release image"
-                                div text-sm text-[#a1a1a1]
-                                    "Choose a disk, review the source image, then install Alpenglow."
-                            div flex-row gap-4
-                                div border border-[#333333] rounded flex-col overflow-hidden flex-1
-                                    div bg-[#111111] border-b border-[#333333] px-4 py-2 flex-row items-center justify-between
+                div bg-[#000000] text-[#ededed] size-full p-4 flex flex-col items-center justify-center font-[Geist]
+                    div bg-[#050505] border border-[#262626] rounded shadow-lg w-[940px] flex flex-col overflow-hidden
+                        div border-b border-[#262626] h-14 px-6 flex flex-row items-center gap-3
+                            div bg-[#ffffff] rounded w-4 h-4
+                            div text-lg font-semibold
+                                "Alpenglow Installer"
+                        div p-6 flex flex-col gap-4
+                            div flex flex-row items-center gap-3
+                                div bg-[#ffffff] text-[#000000] rounded px-4 py-2 text-sm font-bold
+                                    "1 Choose disk"
+                                div border border-[#333333] text-[#a1a1a1] rounded px-4 py-2 text-sm
+                                    "2 Review"
+                                div border border-[#333333] text-[#a1a1a1] rounded px-4 py-2 text-sm
+                                    "3 Install"
+                            div flex flex-row items-end justify-between gap-6
+                                div text-3xl font-bold
+                                    "Select disk"
+                                div text-sm text-[#9a9a9a]
+                                    "This will overwrite the selected disk."
+                            div border border-[#2f2f2f] rounded overflow-hidden flex flex-col
+                                div bg-[#101010] border-b border-[#2f2f2f] px-5 py-4 flex flex-row items-center justify-between
+                                    div flex flex-col gap-1
                                         div text-sm font-semibold
-                                            "Target disk"
-                                        button border border-[#333333] bg-[#0a0a0a] text-[#ededed] rounded px-3 py-1 text-xs @click=refresh_disks
-                                            "Refresh"
-                                    if {has_disk_0}
-                                        button bg-[#0a0a0a] text-[#ededed] border-b border-[#333333] px-4 py-2 flex-row items-center justify-between @click=select_disk_0
-                                            div flex-col gap-1
-                                                div text-sm font-medium
-                                                    "{disk_0}"
-                                                div text-xs text-[#888888]
-                                                    "{disk_0_detail}"
-                                            div text-xs text-[#888888]
-                                                "Select"
-                                    if {has_disk_1}
-                                        button bg-[#0a0a0a] text-[#ededed] border-b border-[#333333] px-4 py-2 flex-row items-center justify-between @click=select_disk_1
-                                            div flex-col gap-1
-                                                div text-sm font-medium
-                                                    "{disk_1}"
-                                                div text-xs text-[#888888]
-                                                    "{disk_1_detail}"
-                                            div text-xs text-[#888888]
-                                                "Select"
-                                    if {has_disk_2}
-                                        button bg-[#0a0a0a] text-[#ededed] border-b border-[#333333] px-4 py-2 flex-row items-center justify-between @click=select_disk_2
-                                            div flex-col gap-1
-                                                div text-sm font-medium
-                                                    "{disk_2}"
-                                                div text-xs text-[#888888]
-                                                    "{disk_2_detail}"
-                                            div text-xs text-[#888888]
-                                                "Select"
-                                    if {has_disk_3}
-                                        button bg-[#0a0a0a] text-[#ededed] px-4 py-2 flex-row items-center justify-between @click=select_disk_3
-                                            div flex-col gap-1
-                                                div text-sm font-medium
-                                                    "{disk_3}"
-                                                div text-xs text-[#888888]
-                                                    "{disk_3_detail}"
-                                            div text-xs text-[#888888]
-                                                "Select"
-                                    if {has_target}
-                                        div px-4 py-2 text-xs text-[#888888]
-                                            "The selected disk will be overwritten."
-                                    else
-                                        div px-4 py-2 text-sm text-[#888888]
-                                            "No writable disk detected."
-                                div border border-[#333333] rounded flex-col overflow-hidden flex-1
-                                    div bg-[#111111] border-b border-[#333333] px-4 py-2 text-sm font-semibold
-                                        "Install plan"
-                                    div px-4 py-2 flex-col gap-1
-                                        div text-xs text-[#888888]
-                                            "Source"
-                                        div text-sm text-[#ededed]
-                                            "{source}"
-                                    div bg-[#333333] h-[1px]
-                                    div px-4 py-2 flex-col gap-1
-                                        div text-xs text-[#888888]
-                                            "Target"
-                                        div text-sm text-[#ededed]
-                                            "{target}"
-                            div border border-[#333333] rounded flex-col overflow-hidden
-                                div px-4 py-2 flex-row gap-4 items-start
-                                    div text-xs text-[#888888] w-20
-                                        "Status"
-                                    div text-sm text-[#d4d4d4] flex-1
-                                        "{status}"
-                            div flex-row items-center justify-between gap-4
-                                div text-xs text-[#888888] flex-1
-                                    "Standard images use the terminal installer; desktop images open this window from Alpenglowed."
+                                            "Available disks"
+                                        div text-xs text-[#8a8a8a]
+                                            "Detected from /sys/block"
+                                    button border border-[#3a3a3a] bg-[#050505] text-[#ededed] rounded px-4 py-2 text-xs @click=refresh_disks
+                                        "Refresh"
+                                if {has_disk_0}
+                                    button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_0
+                                        div flex flex-col gap-1
+                                            div text-base font-semibold
+                                                "{disk_0}"
+                                            div text-xs text-[#8a8a8a]
+                                                "{disk_0_detail}"
+                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                            "Choose"
+                                if {has_disk_1}
+                                    button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_1
+                                        div flex flex-col gap-1
+                                            div text-base font-semibold
+                                                "{disk_1}"
+                                            div text-xs text-[#8a8a8a]
+                                                "{disk_1_detail}"
+                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                            "Choose"
+                                if {has_disk_2}
+                                    button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_2
+                                        div flex flex-col gap-1
+                                            div text-base font-semibold
+                                                "{disk_2}"
+                                            div text-xs text-[#8a8a8a]
+                                                "{disk_2_detail}"
+                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                            "Choose"
+                                if {has_disk_3}
+                                    button bg-[#050505] text-[#ededed] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_3
+                                        div flex flex-col gap-1
+                                            div text-base font-semibold
+                                                "{disk_3}"
+                                            div text-xs text-[#8a8a8a]
+                                                "{disk_3_detail}"
+                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                            "Choose"
+                            div border border-[#2f2f2f] rounded p-4 flex flex-col gap-2
+                                div text-xs text-[#8a8a8a]
+                                    "Source"
+                                div text-sm text-[#ededed]
+                                    "{source}"
+                                div text-xs text-[#8a8a8a]
+                                    "Target"
+                                div text-sm text-[#ededed]
+                                    "{target}"
+                                div text-xs text-[#8a8a8a]
+                                    "Status"
+                                div text-sm text-[#ededed]
+                                    "{status}"
+                            div border-t border-[#262626] pt-4 flex flex-row items-center justify-between
+                                div text-xs text-[#777777]
+                                    "No changes are made until Install is clicked."
                                 if {has_target}
-                                    button bg-[#ffffff] text-[#000000] font-bold rounded px-5 py-2 @click=install
+                                    button bg-[#ffffff] text-[#000000] font-bold rounded px-6 py-3 @click=install
                                         "Install"
                                 else
                                     div text-sm text-[#888888]
-                                        "alpenglow-install-tui /run/alpenglow/alpenglow.img.zst /dev/sdX"
+                                        "Choose a disk to continue"
             "#}
         }
     }
@@ -328,10 +318,10 @@ fn main() {
             "alpenglow.installer",
             "Alpenglow Installer",
             Some(gpui::WindowBounds::Windowed(bounds(
-                point(gpui::px(220.), gpui::px(72.)),
-                size(gpui::px(800.), gpui::px(560.)),
+                point(gpui::px(140.), gpui::px(64.)),
+                size(gpui::px(1040.), gpui::px(700.)),
             ))),
-            Some(size(gpui::px(720.), gpui::px(500.))),
+            Some(size(gpui::px(940.), gpui::px(620.))),
         );
         cx.open_window(options, |_, cx| {
             cx.new(|_| InstallerView::new(source, target))
