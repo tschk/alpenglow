@@ -16,7 +16,7 @@ rsync -az --delete \
   "${ROOT_DIR}/" "${HOST}:${REMOTE}/"
 
 echo "→ remote build (Alpenglow Linux 7 i686 kernel + initramfs)"
-ssh -o ConnectTimeout=15 "${HOST}" "cd ${REMOTE} && V86_SKIP_SSH=1 V86_KERNEL_DOCKER=1 FORCE_V86_KERNEL=1 sh scripts/build-v86-initramfs.sh"
+ssh -o ConnectTimeout=15 "${HOST}" "cd ${REMOTE} && V86_SKIP_SSH=1 V86_KERNEL_DOCKER=1 FORCE_V86_INITRD=1 sh scripts/build-v86-initramfs.sh"
 
 echo "→ pull v86 artifacts"
 mkdir -p "${ROOT_DIR}/public/v86"
