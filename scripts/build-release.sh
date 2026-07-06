@@ -126,10 +126,13 @@ sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 2>/dev/null || true
 
 # ── 7. Install state partition (first-boot setup) ──────────────────
 echo "→ Setting up state partition..."
-sudo mount "${LOOP_STATE}" "${MNT_STATE}"
-sudo mkdir -p "${MNT_STATE}/home" "${MNT_STATE}/var/lib/alpenglow" "${MNT_STATE}/var/cache/alpenglow" "${MNT_STATE}/var/log/alpenglow"
-sudo chmod 700 "${MNT_STATE}"
-sudo umount "${MNT_STATE}"
+if sudo mount "${LOOP_STATE}" "${MNT_STATE}" 2>/dev/null; then
+  sudo mkdir -p "${MNT_STATE}/home" "${MNT_STATE}/var/lib/alpenglow" "${MNT_STATE}/var/cache/alpenglow" "${MNT_STATE}/var/log/alpenglow"
+  sudo chmod 700 "${MNT_STATE}"
+  sudo umount "${MNT_STATE}"
+else
+  echo "  state partition formatted; skipping host-side bcachefs mount"
+fi
 
 # ── 8. Cleanup ─────────────────────────────────────────────────────
 sudo umount "${MNT_ROOT}" 2>/dev/null || true
