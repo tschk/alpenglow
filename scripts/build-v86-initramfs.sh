@@ -261,12 +261,12 @@ cd /
     } else print "?"
   }' /proc/meminfo 2>/dev/null)
   . /etc/os-release 2>/dev/null
-  printf '%s%sAlpenglow%s %s%s%s\n\n' "$title" "$r" "$dim" "${VERSION_ID:-browser}" "$r"
-  printf '%s%s%s\n' "$dim" "immutable RAM root · bcachefs /state · oksh · Oil" "$r"
-  printf '%s%sboot: %ss · memory: %s%s\n' "$stats" "$boot_s" "$mem_line" "$r"
-  printf '%s────────────────────────────────────────%s\n' "$dim" "$r"
-  printf '%sdocs:%s cat readme.md · ideology.md · benchmarks.md\n' "$hint" "$r"
-  printf '%stry:%s fastfetch · vro readme.md · wax info oksh\n\n' "$hint" "$r"
+  printf '%sAlpenglow%s %s\n\n' "$title" "$r" "${VERSION_ID:-browser}"
+  printf '%simmutable RAM root | bcachefs /state | oksh | Oil%s\n' "$dim" "$r"
+  printf '%sboot: %ss  memory: %s%s\n' "$stats" "$boot_s" "$mem_line" "$r"
+  printf '%s----------------------------------------%s\n' "$dim" "$r"
+  printf '%sdocs:%s cat readme.md, ideology.md, benchmarks.md\n' "$hint" "$r"
+  printf '%stry:%s fastfetch, vro readme.md, wax info oksh\n\n' "$hint" "$r"
   /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
   /bin/echo
 } >"$CON" 2>&1
