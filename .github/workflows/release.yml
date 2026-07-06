@@ -7,16 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version"
+        description: "Release version (e.g. v0.1.376)"
         required: true
-      arch:
-        description: "Image architecture"
-        required: false
-        default: "x86_64"
-      profile:
-        description: "Build profile"
-        required: false
-        default: "standard"
 
 permissions:
   contents: write
@@ -24,6 +16,22 @@ permissions:
 jobs:
   image:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            profile: minimal
+          - arch: x86_64
+            profile: standard
+          - arch: x86_64
+            profile: desktop
+          - arch: aarch64
+            profile: minimal
+          - arch: aarch64
+            profile: standard
+          - arch: aarch64
+            profile: desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -37,20 +45,44 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bcachefs-tools curl gdisk kpartx qemu-utils xorriso zstd
 
-      - name: Build release assets
+      - name: Build release assets (${{ matrix.arch }} / ${{ matrix.profile }})
         env:
-          ALPENGLOW_ARCH: ${{ github.event.inputs.arch || 'x86_64' }}
-          BUILD_PROFILE: ${{ github.event.inputs.profile || 'standard' }}
+          ALPENGLOW_ARCH: ${{ matrix.arch }}
+          BUILD_PROFILE: ${{ matrix.profile }}
         run: |
           version="${{ github.event.inputs.version || github.ref_name }}"
           sh scripts/release-assets.sh "${version}"
 
-      - name: Publish release assets
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenglow-${{ matrix.profile }}-${{ matrix.arch }}
+          path: build/release/assets/*
+          if-no-files-found: error
+
+  publish:
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ github.event.inputs.version || github.ref_name }}"
+          mkdir -p upload
+          find artifacts -type f \( -name '*.zst' -o -name '*.iso' -o -name '*.sha256' \) -exec cp {} upload/ \;
+          ls -la upload/
           if ! gh release view "${version}" >/dev/null 2>&1; then
-            gh release create "${version}" --title "Alpenglow ${version}" --notes ""
+            gh release create "${version}" \
+              --title "Alpenglow ${version}" \
+              --notes "Disk images: minimal, standard, desktop for x86_64 and aarch64. Assets: alpenglow-\${version}-\${profile}-\${arch}.img.zst (+ .sha256, .iso when built)."
           fi
-          gh release upload "${version}" build/release/assets/* --clobber
+          gh release upload "${version}" upload/* --clobber
