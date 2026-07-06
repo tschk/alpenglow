@@ -5,19 +5,6 @@
 dinit
 dinit-dbus
 
-# System compiler (LLVM/clang)
-clang
-clang++
-lld
-llvm
-compiler-rt
-libcxx
-libcxxabi
-llvm-ar
-llvm-nm
-llvm-objcopy
-llvm-objdump
-
 # libc
 musl
 
@@ -30,14 +17,12 @@ linux-firmware
 
 # Boot/initramfs
 alpenglow-initramfs
-glowfs-tools
 
 # Display and input
 seatd
 velox
 wayland
 wayland-protocols
-glowfs-wayland
 foot
 alpenglowed
 
@@ -82,7 +67,6 @@ samurai
 lua
 
 # Filesystem tools
-glowfs-tools
 erofs-utils
 squashfs-tools
 

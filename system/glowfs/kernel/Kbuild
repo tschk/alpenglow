@@ -1,2 +1,0 @@
-obj-m += glowfs.o
-glowfs-objs := glowfs_vfs.o

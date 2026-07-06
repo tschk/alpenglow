@@ -20,16 +20,6 @@ jobs:
       - name: Check appliance OS policy
         run: scripts/ci-os-appliance.sh
 
-  glowfs-kernel-module:
-    name: Alpenglow GlowFS kernel module compile
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - name: Compile GlowFS module against Linux headers
-        run: scripts/ci-glowfs-kernel-module.sh
-
   rust-core:
     name: Alpenglow Rust core gates
     runs-on: ubuntu-latest
@@ -48,10 +38,17 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Install kernel build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
       - name: Install bindgen
         run: cargo install bindgen-cli --locked 2>/dev/null
       - name: Build Rust kernel module
+        env:
+          KERNEL_VER: "7.0.12"
+          PATH: ${{ env.PATH }}:${{ env.HOME }}/.cargo/bin
         run: scripts/ci-rust-kernel-module.sh
 
   rust-audit:
@@ -94,3 +91,13 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq file
       - name: Cross-compile aarch64 Zig init and kernelctl
         run: scripts/ci-aarch64-cross.sh
+
+  v86-initramfs:
+    name: v86 browser initramfs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build v86 initramfs and verify /init
+        run: scripts/ci-v86-initramfs.sh

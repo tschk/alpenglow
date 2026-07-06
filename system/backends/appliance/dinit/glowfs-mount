@@ -1,5 +1,0 @@
-# Mount GlowFS root filesystem (diskless)
-type = scripted
-command = /usr/local/bin/mount-glowfs-root.sh
-restart = no
-depends-ms = alpenglow-kernel-policy

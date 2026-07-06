@@ -26,12 +26,12 @@ done
 # Native appliance backend
 for path in \
   system/backends/appliance/backend.json \
+  system/backends/appliance/packages-standard.txt \
   system/backends/appliance/packages-runtime.txt \
   system/backends/appliance/packages-dev.txt \
   system/backends/appliance/scripts/build-rootfs.sh \
   system/backends/appliance/scripts/configure-rootfs.sh \
   system/backends/appliance/scripts/alpenglow-session-start \
-  system/backends/appliance/scripts/mount-glowfs-root.sh \
   system/backends/appliance/scripts/mount-state.sh
 do
   assert_file "${path}"
@@ -52,12 +52,6 @@ assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.co
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECCOMP_FILTER=y$'
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECURITY_LANDLOCK=y$'
 
-# GlowFS kernel module
-assert_file system/glowfs/kernel/glowfs_vfs.c
-assert_file system/glowfs/kernel/glowfs_core.rs
-assert_contains system/glowfs/kernel/glowfs_vfs.c 'get_tree_bdev'
-assert_contains system/glowfs/kernel/glowfs_core.rs '#!\[no_std\]'
-
 # Build scripts
 assert_file scripts/boot-native.sh
 sh -n scripts/boot-native.sh 2>/dev/null || true
@@ -74,8 +68,16 @@ assert_contains system/backends/appliance/backend.json '"init": "dinit"'
 assert_contains system/backends/appliance/backend.json '"package_manager": "oil"'
 assert_file system/backends/appliance/dinit/alpenglowed
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
-assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
+assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
+assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'
+assert_not_contains system/backends/appliance/packages-runtime.txt '^clang$'
+assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
+assert_contains system/backends/appliance/dinit/alpenglow-kernel-policy 'command = /usr/local/bin/alpenglow-kernelctl'
+assert_contains system/backends/appliance/dinit/alpenglow-netd 'command = /usr/local/bin/alpenglow-netd'
+assert_not_contains system/backends/appliance/dinit/alpenglow-netd 'depends-on = networking'
+assert_contains system/backends/appliance/dinit/alpenglow-zram 'alpenglow-zramctl-zig'
+assert_contains system/backends/appliance/dinit/alpenglow-pressure 'command = /usr/local/bin/alpenglow-pressurectl-zig'
 
 # rootfs-layout.json validation
 assert_contains system/appliance/filesystems/rootfs-layout.json '"role": "immutable-system"'
@@ -84,6 +86,7 @@ assert_contains system/appliance/filesystems/rootfs-layout.json '"default_mode":
 # state-mounts.json validation
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home"'
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
+assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
@@ -92,8 +95,9 @@ for dir in bin sbin etc dev proc sys tmp run; do
   mkdir -p "${tmp_root}/${dir}"
 done
 cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
-system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
+BUILD_PROFILE=desktop system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
-assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor": "velox"'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"alpenglowed"'
+scripts/ci-profile-matrix.sh
 
 printf 'ci-os-appliance: ok\n'

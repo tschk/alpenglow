@@ -24,4 +24,3 @@ system/backends/appliance/scripts/qemu.sh
 - [V0 Architecture](./v0-architecture.md)
 - [Appliance System](./architecture/appliance-system.md)
 - [Immutable Rootfs](./architecture/immutable-rootfs.md)
-- [GlowFS](./architecture/glowfs.md)

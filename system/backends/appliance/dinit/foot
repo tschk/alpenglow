@@ -2,4 +2,4 @@
 type = process
 command = /usr/bin/foot
 restart = yes
-depends-on = velox
+depends-on = alpenglowed

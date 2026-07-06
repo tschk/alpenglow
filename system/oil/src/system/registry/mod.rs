@@ -1,7 +1,7 @@
 pub mod apk;
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageMetadata {
@@ -92,27 +92,27 @@ mod tests {
     #[test]
     fn test_package_index_find_by_name() {
         let index = PackageIndex::new(vec![
-                PackageMetadata {
-                    name: "curl".to_string(),
-                    version: "8.0.0".to_string(),
-                    description: String::new(),
-                    download_url: String::new(),
-                    sha256: None,
-                    installed_size: 0,
-                    depends: vec![],
-                    provides: vec![],
-                },
-                PackageMetadata {
-                    name: "libssl3".to_string(),
-                    version: "3.0.0".to_string(),
-                    description: String::new(),
-                    download_url: String::new(),
-                    sha256: None,
-                    installed_size: 0,
-                    depends: vec![],
-                    provides: vec!["libssl".to_string()],
-                },
-            ]);
+            PackageMetadata {
+                name: "curl".to_string(),
+                version: "8.0.0".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+            PackageMetadata {
+                name: "libssl3".to_string(),
+                version: "3.0.0".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec!["libssl".to_string()],
+            },
+        ]);
         assert!(index.find("curl").is_some());
         assert!(index.find("libssl3").is_some());
         assert!(index.find("libssl").is_some());

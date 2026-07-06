@@ -1,7 +1,5 @@
 #!/bin/sh
-# Build and boot Alpenglow native — supports two modes:
-#   Diskless (default): boot from initramfs, root in RAM
-#   Rootfs:            boot from persistent rootfs partition
+# Build and boot Alpenglow native.
 # Uses Docker for host-independent compilation.
 set -eu
 
@@ -9,7 +7,6 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/native"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
@@ -17,9 +14,18 @@ KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
 KERNEL_7="${KERNEL_7:-1}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
 ARCH="${KERNEL_ARCH:-x86_64}"
-BOOT_MODE="${BOOT_MODE:-diskless}"  # diskless or rootfs
+BOOT_MODE="${BOOT_MODE:-diskless}"
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+if [ "${INITRAMFS:-}" = "" ]; then
+  if [ "${BUILD_PROFILE}" = "desktop" ]; then
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+  elif command -v lz4 >/dev/null 2>&1; then
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
+  else
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+  fi
+fi
 MEMORY_MB="${MEMORY_MB:-2048}"
 QEMU_MACHINE="${QEMU_MACHINE:-q35}"
 QEMU_CPU="${QEMU_CPU:-}"
@@ -36,6 +42,7 @@ if [ -z "$ACCEL" ]; then
 fi
 EFI="${EFI:-1}"
 GRAPHICAL="${GRAPHICAL:-0}"
+GRAPHICS_BACKEND="${GRAPHICS_BACKEND:-software}"
 FAST="${FAST:-0}"
 if [ "${FAST}" = "1" ]; then
   # SeaBIOS is faster than OVMF in this QEMU config; keep EFI off for speed.
@@ -130,7 +137,7 @@ if ! command -v "${ZIG}" >/dev/null 2>&1; then
     ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
   fi
 fi
-if command -v "${ZIG}" >/dev/null 2>&1; then
+if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   echo "→ Building Zig init..."
   "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
     -target x86_64-linux-musl -O ReleaseSmall -fstrip \
@@ -139,6 +146,14 @@ if command -v "${ZIG}" >/dev/null 2>&1; then
     file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64"; exit 1; }
     echo "  init: ${OUT_DIR}/alpenglow-init"
   fi
+fi
+if command -v "${ZIG}" >/dev/null 2>&1; then
+  for helper in kernelctl-zig netd-zig zramctl-zig pressurectl-zig; do
+    if [ ! -d "${OUT_DIR}/${helper}" ]; then
+      echo "→ Building ${helper}..."
+      (cd "${ROOT_DIR}/system/${helper}" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/${helper}") 2>&1 | tail -5
+    fi
+  done
 fi
 
 # Kernel
@@ -157,7 +172,6 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
-    # GlowFS needs Linux 6.12 API — not in-tree for 7.0, built separately via ci-glowfs
     if [ -f "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" ]; then
       cp "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" .config
       make ARCH=x86_64 olddefconfig 2>/dev/null
@@ -173,13 +187,11 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     if [ "${EFI:-1}" = "0" ]; then
       scripts/config --disable EFI --disable EFI_STUB --disable RUST
     fi
-    # Enable GlowFS in config
-    sed -i 's/# CONFIG_GLOWFS is not set/CONFIG_GLOWFS=m/' .config 2>/dev/null || echo "CONFIG_GLOWFS=m" >> .config
     # Config overrides: LZ4 + virt drivers + minimal + EFI (for OVMF) + optional fast boot
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> .config 2>/dev/null || true
-    if [ "${BUILD_PROFILE}" = "standard" ]; then
+    if [ "${BUILD_PROFILE}" = "desktop" ]; then
       cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> .config 2>/dev/null || true
     else
       cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
@@ -222,7 +234,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    if [ "${BUILD_PROFILE}" = "standard" ]; then
+    if [ "${BUILD_PROFILE}" = "desktop" ]; then
       cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
     else
       cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
@@ -250,13 +262,6 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
   echo "  kernel: ${KERNEL_IMAGE}"
 fi
 
-# GlowFS module check
-GLOWFS_KO="${OUT_DIR}/glowfs.ko"
-if [ -f "${GLOWFS_KO}" ]; then
-  echo "  glowfs: ${GLOWFS_KO}"
-elif [ "${KERNEL_BUILD:-0}" != "1" ]; then
-  echo "→ GlowFS requires KERNEL_BUILD=1 (skipping)"
-fi
 if [ -f "${ALPENGLOW_MODULE}" ]; then
   echo "  alpenglow-core: ${ALPENGLOW_MODULE}"
 fi
@@ -290,7 +295,8 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
     GRETD_VERSION="0.10.3"
     cd /tmp
     curl -fsSL "https://gitlab.com/mobian1/greetd/-/archive/v${GRETD_VERSION}/greetd-v${GRETD_VERSION}.tar.gz" -o greetd.tar.gz 2>/dev/null
-    tar -xf greetd.tar.gz
+    tar -xf greetd.tar.gz 2>/dev/null || exit 0
+    [ -d "greetd-v${GRETD_VERSION}" ] || exit 0
     cd "greetd-v${GRETD_VERSION}"
     RUSTFLAGS="-C target-feature=+crt-static -C link-self-contained=yes" \
     cargo build --release --target x86_64-unknown-linux-musl 2>/dev/null || true
@@ -363,15 +369,9 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   fi
 fi
 
-# Graphical builds: cage (musl) + alpenglowed (glibc) + graphics libs
+# Graphical builds: alpenglowed (glibc) + graphics libs
 if [ "${GRAPHICAL}" = "1" ]; then
-  echo "→ Building graphical stack (cage + alpenglowed + graphics libs)..."
-
-  # cage + musl shared libs from Alpine
-  if [ ! -f "${OUT_DIR}/cage/usr/bin/cage" ]; then
-    sh "${BACKEND_DIR}/scripts/build-cage.sh" "${OUT_DIR}"
-  fi
-  echo "  cage: ${OUT_DIR}/cage/usr/bin/cage"
+  echo "→ Building graphical stack (alpenglowed + graphics libs)..."
 
   # alpenglowed with glibc dynamic linking
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
@@ -381,10 +381,10 @@ if [ "${GRAPHICAL}" = "1" ]; then
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
   # glibc Mesa/Vulkan/EGL libs from Debian
-  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ]; then
-    sh "${BACKEND_DIR}/scripts/install-graphics-libs.sh" "${OUT_DIR}"
+  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ] || [ "$(cat "${OUT_DIR}/glibc-libs/.graphics-backend" 2>/dev/null || true)" != "${GRAPHICS_BACKEND}" ]; then
+    sh "${BACKEND_DIR}/scripts/install-graphics-libs.sh" "${OUT_DIR}" "${GRAPHICS_BACKEND}"
   fi
-  echo "  graphics libs: ${OUT_DIR}/glibc-libs"
+  echo "  graphics libs: ${OUT_DIR}/glibc-libs (${GRAPHICS_BACKEND})"
 fi
 
 # Compose rootfs
@@ -401,6 +401,7 @@ for applet in sh ls cat cp mv rm mkdir rmdir ln mount umount ps kill sleep echo 
   date cal reboot halt poweroff passwd syslogd crond logger; do
   ln -sf /bin/toybox "${ROOTFS_DIR}/bin/${applet}" 2>/dev/null || true
 done
+toybox_has() { "${OUT_DIR}/toybox" "$1" --help >/dev/null 2>&1; }
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/init"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/getty"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/modprobe"
@@ -457,33 +458,9 @@ if [ "${BUILD_PROFILE}" != "minimal" ]; then
   fi
 fi
 
-# Graphical stack: cage (musl) + alpenglowed (glibc) + isolated libs
+# Graphical stack: alpenglowed (glibc) + isolated libs
 # Installed before BOOT_SERVICES so availability checks work
 if [ "${GRAPHICAL}" = "1" ]; then
-  if [ -d "${OUT_DIR}/cage" ]; then
-    mkdir -p "${ROOTFS_DIR}/usr/bin" "${ROOTFS_DIR}/usr/lib/musl" "${ROOTFS_DIR}/lib"
-    cp "${OUT_DIR}/cage/usr/bin/cage" "${ROOTFS_DIR}/usr/bin/"
-    cp "${OUT_DIR}/cage/usr/bin/Xwayland" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/usr/bin/seatd" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/usr/bin/seatd-launch" "${ROOTFS_DIR}/usr/bin/" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/lib/ld-musl-x86_64.so.1" "${ROOTFS_DIR}/lib/" 2>/dev/null || true
-    # musl libc: ld-musl is the same binary, symlink the libc name
-    ln -sf ld-musl-x86_64.so.1 "${ROOTFS_DIR}/lib/libc.musl-x86_64.so.1" 2>/dev/null || true
-    cp "${OUT_DIR}/cage/usr/lib/lib"*.so* "${ROOTFS_DIR}/usr/lib/musl/" 2>/dev/null || true
-    if [ -d "${OUT_DIR}/cage/usr/lib/dri" ]; then
-      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/dri"
-      cp "${OUT_DIR}/cage/usr/lib/dri/"*.so "${ROOTFS_DIR}/usr/lib/musl/dri/" 2>/dev/null || true
-    fi
-    if [ -d "${OUT_DIR}/cage/usr/lib/gallium-pipe" ]; then
-      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/gallium-pipe"
-      cp "${OUT_DIR}/cage/usr/lib/gallium-pipe/"*.so "${ROOTFS_DIR}/usr/lib/musl/gallium-pipe/" 2>/dev/null || true
-    fi
-    if [ -d "${OUT_DIR}/cage/usr/lib/gbm" ]; then
-      mkdir -p "${ROOTFS_DIR}/usr/lib/musl/gbm"
-      cp "${OUT_DIR}/cage/usr/lib/gbm/"*.so "${ROOTFS_DIR}/usr/lib/musl/gbm/" 2>/dev/null || true
-    fi
-  fi
-
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
   if [ -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/bin"
@@ -492,12 +469,14 @@ if [ "${GRAPHICAL}" = "1" ]; then
   fi
 
   GREETER_GLIBC_BIN="${OUT_DIR}/alpenglow-greeter-glibc/usr/bin/alpenglow-greeter"
-  if [ ! -f "${GREETER_GLIBC_BIN}" ]; then
+  if [ ! -f "${GREETER_GLIBC_BIN}" ] && [ -d "${ROOT_DIR}/../alpenglowed/alpenglow-greeter" ]; then
     sh "${BACKEND_DIR}/scripts/build-alpenglow-greeter-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
   fi
   if [ -f "${GREETER_GLIBC_BIN}" ]; then
     cp "${GREETER_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
+  else
+    ALPENGLOW_AUTOLOGIN=1
   fi
 
   mkdir -p "${ROOTFS_DIR}/usr/local/bin" "${ROOTFS_DIR}/etc/alpenglow" "${ROOTFS_DIR}/etc/greetd"
@@ -524,36 +503,16 @@ if [ "${GRAPHICAL}" = "1" ]; then
     fi
   fi
 
-  cat > "${ROOTFS_DIR}/usr/bin/cage-run.sh" << 'CAGEWRAP'
-#!/bin/sh
-unset WAYLAND_DISPLAY
-export XDG_RUNTIME_DIR=/run
-export LIBSEAT_BACKEND=seatd
-export WLR_LIBINPUT_NO_DEVICES=1
-export LD_LIBRARY_PATH=/usr/lib/musl
-export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
-export EGL_DRIVER=swrast
-mkdir -p /run
-chmod 700 /run
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  [ -S /run/seatd.sock ] && break
-  sleep 0.5
-done
-exec /usr/bin/cage /usr/bin/alpenglowed-run.sh
-CAGEWRAP
-  chmod 755 "${ROOTFS_DIR}/usr/bin/cage-run.sh"
-
-  cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
+  if [ "${GRAPHICS_BACKEND}" = "software" ]; then
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
 #!/bin/sh
 export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
-exec /usr/bin/alpenglowed-bin "$@"
+exec /usr/bin/alpenglowed-bin --compositor "$@"
 ALPWRAP
-  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
-
-  cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
 #!/bin/sh
 export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
@@ -561,48 +520,27 @@ export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
 exec /usr/bin/alpenglow-greeter-bin "$@"
 GWRAP
+  else
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" << 'ALPWRAP'
+#!/bin/sh
+export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+exec /usr/bin/alpenglowed-bin --compositor "$@"
+ALPWRAP
+    cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
+#!/bin/sh
+export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+exec /usr/bin/alpenglow-greeter-bin "$@"
+GWRAP
+  fi
+  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh"
   chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh"
 
-  cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-cage.sh" << 'GCAGE'
-#!/bin/sh
-unset WAYLAND_DISPLAY
-export XDG_RUNTIME_DIR=/run
-export LIBSEAT_BACKEND=seatd
-export WLR_LIBINPUT_NO_DEVICES=1
-export LD_LIBRARY_PATH=/usr/lib/musl
-export LIBGL_DRIVERS_PATH=/usr/lib/musl/dri
-export EGL_DRIVER=swrast
-mkdir -p /run
-chmod 700 /run
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  [ -S /run/seatd.sock ] && break
-  sleep 0.5
-done
-exec /usr/bin/cage /usr/bin/alpenglow-greeter-run.sh
-GCAGE
-  chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-cage.sh"
-
-  # Override seatd service: run as root with musl LD_LIBRARY_PATH
-  cat > "${ROOTFS_DIR}/etc/dinit.d/seatd" << 'SEATD'
-# Seat management daemon
-type = process
-command = /usr/bin/seatd -g seat
-restart = yes
-run-as = root
-SEATD
-
-  cat > "${ROOTFS_DIR}/etc/dinit.d/velox" << 'VELUX'
-# cage — Wayland compositor (wlroots-based kiosk)
-type = process
-command = /usr/bin/cage-run.sh
-restart = yes
-depends-on = seatd
-VELUX
   cat > "${ROOTFS_DIR}/etc/dinit.d/alpenglowed" << 'ALPENGLOW'
 type = process
 command = /usr/bin/alpenglowed-run.sh
 restart = yes
-depends-on = velox
 ALPENGLOW
 else
   ALPENGLOWED_BIN="${ALPENGLOWED_BIN:-}"
@@ -622,6 +560,23 @@ else
   fi
 fi
 
+mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
+cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
+for pair in \
+  "kernelctl-zig/alpenglow-kernelctl:alpenglow-kernelctl" \
+  "netd-zig/alpenglow-netd-zig:alpenglow-netd" \
+  "zramctl-zig/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
+  "pressurectl-zig/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
+do
+  src="${pair%%:*}"
+  dst="${pair##*:}"
+  if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
+    cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
+  fi
+done
+
 # Define enabled services per profile
 # Only include services whose binaries actually exist in the rootfs
 case "${BUILD_PROFILE}" in
@@ -630,25 +585,24 @@ case "${BUILD_PROFILE}" in
     BOOT_SERVICES="shell-ttyS0 mount-filesystems"
     ;;
   standard)
-    # Core services always available (inline definitions)
     BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
-    # Conditionally add services that have binaries installed
+    toybox_has udhcpc || BOOT_SERVICES="$(printf '%s\n' "${BOOT_SERVICES}" | sed 's/ networking//')"
+    toybox_has syslogd || BOOT_SERVICES="$(printf '%s\n' "${BOOT_SERVICES}" | sed 's/ syslogd//')"
+    toybox_has crond || BOOT_SERVICES="$(printf '%s\n' "${BOOT_SERVICES}" | sed 's/ crond//')"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
     [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
     [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
     [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
-    [ -f "${ROOTFS_DIR}/usr/bin/seatd" ] && BOOT_SERVICES="${BOOT_SERVICES} seatd"
-    if [ -f "${ROOTFS_DIR}/usr/bin/greetd" ] && [ -f "${ROOTFS_DIR}/etc/greetd/config.toml" ]; then
-      BOOT_SERVICES="${BOOT_SERVICES} greetd"
-    else
-      [ -f "${ROOTFS_DIR}/usr/bin/cage-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} velox"
-      [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-run.sh" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"
-    fi
-    # Optional services (only if binaries exist)
-    [ -f "${ROOTFS_DIR}/usr/libexec/iwd" ] && BOOT_SERVICES="${BOOT_SERVICES} iwd"
-    [ -f "${ROOTFS_DIR}/usr/bin/pipewire" ] && BOOT_SERVICES="${BOOT_SERVICES} pipewire"
-    [ -f "${ROOTFS_DIR}/usr/bin/wireplumber" ] && BOOT_SERVICES="${BOOT_SERVICES} wireplumber"
-    [ -f "${ROOTFS_DIR}/usr/bin/foot" ] && BOOT_SERVICES="${BOOT_SERVICES} foot"
-    [ -f "${ROOTFS_DIR}/usr/sbin/elogind" ] && BOOT_SERVICES="${BOOT_SERVICES} elogind"
+    ;;
+  desktop)
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
+    [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
     ;;
 esac
 
@@ -738,7 +692,7 @@ elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
     cd /oil-src
-    cargo build --release --no-default-features --features system-apk 2>/dev/null
+    cargo build --release --no-default-features --features system-apk,wax 2>/dev/null
     cp target/release/oil /out/oil 2>/dev/null
   ' 2>&1 | tail -1
   if [ -f "${OUT_DIR}/oil" ]; then
@@ -801,16 +755,13 @@ GROUP
 # root home
 mkdir -p "${ROOTFS_DIR}/root"
 mkdir -p "${ROOTFS_DIR}/lib/modules"
-if [ -f "${GLOWFS_KO}" ]; then
-  cp "${GLOWFS_KO}" "${ROOTFS_DIR}/lib/modules/"
-fi
 if [ -f "${ALPENGLOW_MODULE}" ]; then
   cp "${ALPENGLOW_MODULE}" "${ROOTFS_DIR}/lib/modules/"
 fi
 
 # Init — dinit as primary PID 1, manages all services.
 # Use the Zig init binary if available; otherwise fall back to shell.
-if [ -f "${OUT_DIR}/alpenglow-init" ]; then
+if [ "${ZIG_INIT:-0}" = "1" ] && [ -f "${OUT_DIR}/alpenglow-init" ]; then
   cp "${OUT_DIR}/alpenglow-init" "${ROOTFS_DIR}/init"
   chmod 755 "${ROOTFS_DIR}/init"
 else
@@ -819,6 +770,7 @@ else
 /bin/toybox mount -t proc proc /proc
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
+exec </dev/ttyS0 >/dev/ttyS0 2>&1
 /bin/toybox mount -t tmpfs tmpfs /run
 /bin/toybox mkdir -p /dev/shm 2>/dev/null
 /bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
@@ -837,7 +789,7 @@ if [ -z "$state_dev" ]; then
   state_dev="/dev/disk/by-label/alpenglow-state"
 fi
 if [ -b "$state_dev" ]; then
-  /bin/toybox mount -t ext4 -o rw,nosuid,nodev "$state_dev" /state 2>/dev/null && echo "Mounted state: $state_dev"
+  /bin/toybox mount -t bcachefs -o rw,nosuid,nodev "$state_dev" /state 2>/dev/null && echo "Mounted state: $state_dev"
 fi
 echo ""
 echo "Alpenglow boot"
@@ -914,11 +866,14 @@ chmod 700 "${ROOTFS_DIR}/root/.ssh"
 
 # Build initramfs
 echo "→ Building initramfs..."
-if command -v lz4 >/dev/null 2>&1; then
+case "${INITRAMFS}" in
+  *.zst)
+  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
+  ;;
+  *)
   (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${INITRAMFS}")
-else
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -1 -T0 > "${INITRAMFS}")
-fi
+  ;;
+esac
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
@@ -942,22 +897,28 @@ echo ""
 
 if [ "${GRAPHICAL}" = "1" ]; then
   # Pick a display backend available on this host
-  QEMU_DISPLAY=""
-  for backend in cocoa gtk sdl; do
-    if timeout 2 qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
-      QEMU_DISPLAY="${backend}"
-      break
-    fi
-  done
-  QEMU_DISPLAY="${QEMU_DISPLAY:-cocoa}"
+  QEMU_DISPLAY="${QEMU_DISPLAY:-}"
+  if [ -z "${QEMU_DISPLAY}" ]; then
+    for backend in gtk sdl cocoa; do
+      if timeout 2 qemu-system-x86_64 -display ${backend},show-cursor=off -M none </dev/null >/dev/null 2>&1; then
+        QEMU_DISPLAY="${backend}"
+        break
+      fi
+    done
+  fi
+  QEMU_DISPLAY="${QEMU_DISPLAY:-none}"
   QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot"
-  QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
+  if [ "${QEMU_DISPLAY}" = "none" ]; then
+    QEMU_OPTS="${QEMU_OPTS} -display none"
+  else
+    QEMU_OPTS="${QEMU_OPTS} -display ${QEMU_DISPLAY}"
+  fi
   if [ -f "${KERNEL_VIRT_STAMP}" ]; then
     QEMU_OPTS="${QEMU_OPTS} -device virtio-gpu-pci"
   else
     QEMU_OPTS="${QEMU_OPTS} -vga std"
   fi
-  QEMU_OPTS="${QEMU_OPTS} -chardev stdio,id=char0,mux=on,signal=off -serial chardev:char0 -mon chardev=char0"
+  QEMU_OPTS="${QEMU_OPTS} -chardev stdio,id=char0,mux=on,signal=off -serial chardev:char0 -mon chardev=char0 -boot order=n -device e1000,romfile=,netdev=net0 -netdev user,id=net0"
   KERNEL_CMDLINE="console=ttyS0 console=tty0 init=/init"
 else
   QEMU_OPTS="-machine ${QEMU_MACHINE},accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -nographic -no-reboot"
@@ -970,29 +931,8 @@ else
   KERNEL_CMDLINE="quiet console=ttyS0 init=/init"
 fi
 
-if [ "${BOOT_MODE}" = "rootfs" ]; then
-  # Rootfs mode: boot from a disk image with alpenglow-root label
-  ROOTFS_IMAGE="${OUT_DIR}/rootfs.img"
-  if [ ! -f "${ROOTFS_IMAGE}" ]; then
-    echo "→ Creating rootfs image..."
-    dd if=/dev/zero of="${ROOTFS_IMAGE}" bs=1M count=1024 2>/dev/null
-    mkfs.ext4 -L alpenglow-root "${ROOTFS_IMAGE}" 2>/dev/null
-    # Populate rootfs from built rootfs directory if exists
-    if [ -d "${ROOTFS_DIR}" ]; then
-      TMPMNT=$(mktemp -d)
-      mount -o loop "${ROOTFS_IMAGE}" "${TMPMNT}" 2>/dev/null
-      cp -a "${ROOTFS_DIR}/." "${TMPMNT}/" 2>/dev/null || true
-      umount "${TMPMNT}" 2>/dev/null || true
-      rmdir "${TMPMNT}" 2>/dev/null || true
-    fi
-    echo "  rootfs: ${ROOTFS_IMAGE}"
-  fi
-  QEMU_OPTS="${QEMU_OPTS} -drive file=${ROOTFS_IMAGE},format=raw,if=virtio"
-  KERNEL_CMDLINE="${KERNEL_CMDLINE} alpenglow.root=/dev/vda"
-fi
-
 EMBEDDED_INITRAMFS=""
-if [ -f "${OUT_DIR}/.kernel-fast.ok" ] && [ "${KERNEL_IMAGE}" = "${OUT_DIR}/vmlinuz" ]; then
+if [ "${FAST}" = "1" ] && [ -f "${OUT_DIR}/.kernel-fast.ok" ] && [ "${KERNEL_IMAGE}" = "${OUT_DIR}/vmlinuz" ]; then
   EMBEDDED_INITRAMFS="1"
 fi
 
