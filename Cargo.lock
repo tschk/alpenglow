@@ -55,7 +55,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alpenglow-installer"
-version = "0.1.287"
+version = "0.1.393"
 dependencies = [
  "crepuscularity-gpui",
  "crepuscularity-tui",
@@ -65,7 +65,7 @@ dependencies = [
 
 [[package]]
 name = "alpenglow-netd"
-version = "0.1.287"
+version = "0.1.393"
 dependencies = [
  "notify 6.1.1",
  "serde",
@@ -4144,7 +4144,7 @@ dependencies = [
 
 [[package]]
 name = "oil"
-version = "0.1.287"
+version = "0.1.393"
 dependencies = [
  "clap",
  "cms",

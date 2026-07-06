@@ -1,6 +1,6 @@
 [package]
 name = "alpenglow-installer"
-version = "0.1.287"
+version = "0.1.393"
 edition = "2021"
 license-file = "../../LICENSE"
 

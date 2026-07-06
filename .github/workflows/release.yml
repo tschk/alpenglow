@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. v0.1.376)"
-        required: true
+        description: "Release version override (e.g. v0.1.392)"
+        required: false
 
 permissions:
   contents: write
@@ -42,6 +42,17 @@ jobs:
             edition: desktop-full
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        run: |
+          version="${{ github.event.inputs.version || '' }}"
+          if [ -z "${version}" ]; then
+            version="v0.1.$(git rev-list --count HEAD)"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Check out Alpenglowed
         if: startsWith(matrix.edition, 'desktop')
@@ -68,8 +79,7 @@ jobs:
           ALPENGLOW_ARCH: ${{ matrix.arch }}
           ALPENGLOW_EDITION: ${{ matrix.edition }}
         run: |
-          version="${{ github.event.inputs.version || github.ref_name }}"
-          sh scripts/release-assets.sh "${version}"
+          sh scripts/release-assets.sh "${{ steps.version.outputs.version }}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -78,11 +88,96 @@ jobs:
           path: build/release/assets/*
           if-no-files-found: error
 
-  publish:
-    needs: image
+  riscv64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        run: |
+          version="${{ github.event.inputs.version || '' }}"
+          if [ -z "${version}" ]; then
+            version="v0.1.$(git rev-list --count HEAD)"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: arch/riscv64
+          path: riscv64-src
+
+      - uses: mlugg/setup-zig@v2
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Install RISC-V release tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-misc zstd
+
+      - name: Build RISC-V boot bundle
+        working-directory: riscv64-src
+        run: |
+          unset ZIG_GLOBAL_CACHE_DIR ZIG_LOCAL_CACHE_DIR
+          mkdir -p system/glowfsctl-zig
+          cat > system/glowfsctl-zig/main.zig <<'ZIG'
+          pub fn main() void {}
+          ZIG
+          cat > system/glowfsctl-zig/build.zig <<'ZIG'
+          const std = @import("std");
+          pub fn build(b: *std.Build) void {
+              _ = b.option(bool, "release", "Compatibility with arch/riscv64 build script") orelse false;
+              const target = b.standardTargetOptions(.{});
+              const optimize = b.standardOptimizeOption(.{});
+              const mod = b.createModule(.{
+                  .root_source_file = b.path("main.zig"),
+                  .target = target,
+                  .optimize = optimize,
+              });
+              const exe = b.addExecutable(.{
+                  .name = "glowfsctl",
+                  .root_module = mod,
+              });
+              b.installArtifact(exe);
+          }
+          ZIG
+          perl -0pi -e 's/--platform linux\/arm64/--platform linux\/amd64/g' scripts/build-riscv64.sh
+          sh scripts/build-riscv64.sh
+          mkdir -p build/release/assets
+          asset="alpenglow-${{ steps.version.outputs.version }}-fast-riscv64.tar.zst"
+          tar -cf - -C build/cross/riscv64 Image initramfs.cpio.gz zig-init alpenglow-kernelctl | zstd -19 -T0 > "build/release/assets/${asset}"
+          sha256sum "build/release/assets/${asset}" > "build/release/assets/${asset}.sha256"
+
+      - name: Upload RISC-V build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenglow-fast-riscv64
+          path: riscv64-src/build/release/assets/*
+          if-no-files-found: error
+
+  publish:
+    needs:
+      - image
+      - riscv64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        run: |
+          version="${{ github.event.inputs.version || '' }}"
+          if [ -z "${version}" ]; then
+            version="v0.1.$(git rev-list --count HEAD)"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Download all release artifacts
         uses: actions/download-artifact@v4
@@ -94,13 +189,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${{ github.event.inputs.version || github.ref_name }}"
+          version="${{ steps.version.outputs.version }}"
           mkdir -p upload
           find artifacts -type f \( -name '*.zst' -o -name '*.iso' -o -name '*.sha256' \) -exec cp {} upload/ \;
           ls -la upload/
           if ! gh release view "${version}" >/dev/null 2>&1; then
             gh release create "${version}" \
               --title "Alpenglow ${version}" \
-              --notes "Disk images and live installer ISOs: fast, minimal, standard, desktop, desktop-full for x86_64 and aarch64. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built)."
+              --notes "Disk images and live installer ISOs: fast, minimal, standard, desktop, desktop-full for x86_64 and aarch64, plus a riscv64 fast boot bundle. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built) and alpenglow-\${version}-fast-riscv64.tar.zst."
           fi
           gh release upload "${version}" upload/* --clobber
