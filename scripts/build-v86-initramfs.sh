@@ -7,7 +7,7 @@ if [ "${V86_SSH:-}" = 1 ] && [ -z "${V86_SKIP_SSH:-}" ]; then
 fi
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
+ALP_VERSION="${ALP_VERSION:-0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)}"
 BUILD_DIR="${ROOT_DIR}/build/v86"
 ROOTFS="${BUILD_DIR}/rootfs"
 OUT="${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
