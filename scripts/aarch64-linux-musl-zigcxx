@@ -1,0 +1,9 @@
+#!/bin/sh
+args=""
+for arg in "$@"; do
+  case "$arg" in
+    --target=aarch64-unknown-linux-musl) ;;
+    *) args="$args $(printf '%s' "$arg" | sed "s/'/'\\\\''/g; s/.*/'&'/")" ;;
+  esac
+done
+eval exec zig c++ -target aarch64-linux-musl $args
