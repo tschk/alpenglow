@@ -82,7 +82,7 @@ sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
 echo "→ Formatting partitions..."
-LOOP_DEV=$(sudo losetup -f --show "${IMAGE}" 2>/dev/null || echo "")
+LOOP_DEV=$(sudo losetup -fP --show "${IMAGE}" 2>/dev/null || echo "")
 if [ -z "${LOOP_DEV}" ]; then
   echo "  (using direct partition mapping)"
   sudo kpartx -a "${IMAGE}" 2>/dev/null || true
@@ -95,8 +95,8 @@ else
   LOOP_LIMINE="${LOOP_DEV}p3"
 fi
 
-sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null 2>&1
-sudo mkfs.bcachefs -L alpenglow-state "${LOOP_STATE}" >/dev/null 2>&1
+sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null
+sudo mkfs.bcachefs -L alpenglow-state "${LOOP_STATE}" >/dev/null
 
 # ── 5. Install boot files ──────────────────────────────────────────
 echo "→ Installing system..."
