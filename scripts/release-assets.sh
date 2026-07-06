@@ -19,8 +19,22 @@ case "${ARCH}" in
   arm64) ARCH=aarch64 ;;
 esac
 
+case "${ARCH}" in
+  x86_64) RUST_TARGET=x86_64-unknown-linux-musl ;;
+  aarch64) RUST_TARGET=aarch64-unknown-linux-musl ;;
+  *) RUST_TARGET="" ;;
+esac
+
 ASSET_BASE="alpenglow-${VERSION}-${PROFILE}-${ARCH}"
 COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
+if [ -n "${RUST_TARGET}" ]; then
+  INSTALLER_DIR="${ROOT_DIR}/target/${RUST_TARGET}/release"
+else
+  INSTALLER_DIR="${ROOT_DIR}/target/release"
+fi
+
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}"
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -39,14 +53,20 @@ sha256_file() {
 
 require_cmd zstd
 
-BUILD_PROFILE="${PROFILE}" ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" "${ROOT_DIR}/scripts/build-release.sh"
-cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
-  --target-dir "${ROOT_DIR}/target" \
-  --bin alpenglow-install --bin alpenglow-install-tui
+build_installer() {
+  if [ -n "${RUST_TARGET}" ]; then
+    cargo build --release --target "${RUST_TARGET}" --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+      --target-dir "${ROOT_DIR}/target" "$@"
+  else
+    cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+      --target-dir "${ROOT_DIR}/target" "$@"
+  fi
+}
+
+BUILD_PROFILE="${PROFILE}" ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
+build_installer --bin alpenglow-install --bin alpenglow-install-tui
 if [ "${PROFILE}" = "desktop" ]; then
-  cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
-    --target-dir "${ROOT_DIR}/target" \
-    --features gui --bin alpenglow-install-gui
+  build_installer --features gui --bin alpenglow-install-gui
 fi
 
 test -f "${IMAGE}" || {
@@ -65,10 +85,10 @@ if command -v xorriso >/dev/null 2>&1; then
   rm -rf "${ISO_ROOT}" "${ISO}" "${ISO}.sha256"
   mkdir -p "${ISO_ROOT}/boot/limine" "${ISO_ROOT}/run/alpenglow" "${ISO_ROOT}/usr/bin"
   cp "${COMPRESSED_IMAGE}" "${COMPRESSED_IMAGE}.sha256" "${ISO_ROOT}/run/alpenglow/"
-  cp "${ROOT_DIR}/target/release/alpenglow-install" "${ISO_ROOT}/usr/bin/"
-  cp "${ROOT_DIR}/target/release/alpenglow-install-tui" "${ISO_ROOT}/usr/bin/"
-  if [ "${PROFILE}" = "desktop" ] && [ -f "${ROOT_DIR}/target/release/alpenglow-install-gui" ]; then
-    cp "${ROOT_DIR}/target/release/alpenglow-install-gui" "${ISO_ROOT}/usr/bin/"
+  cp "${INSTALLER_DIR}/alpenglow-install" "${ISO_ROOT}/usr/bin/"
+  cp "${INSTALLER_DIR}/alpenglow-install-tui" "${ISO_ROOT}/usr/bin/"
+  if [ "${PROFILE}" = "desktop" ] && [ -f "${INSTALLER_DIR}/alpenglow-install-gui" ]; then
+    cp "${INSTALLER_DIR}/alpenglow-install-gui" "${ISO_ROOT}/usr/bin/"
   fi
   if [ -f "${KERNEL}" ] && [ -f "${INITRAMFS}" ]; then
     cp "${KERNEL}" "${ISO_ROOT}/boot/vmlinuz"
