@@ -391,7 +391,7 @@ fi
 # Compose rootfs
 echo "→ Composing rootfs..."
 rm -rf "${ROOTFS_DIR}"
-mkdir -p "${ROOTFS_DIR}"/{bin,sbin,etc,dev,proc,sys,tmp,run,usr/local/bin}
+mkdir -p "${ROOTFS_DIR}/bin" "${ROOTFS_DIR}/sbin" "${ROOTFS_DIR}/etc" "${ROOTFS_DIR}/dev" "${ROOTFS_DIR}/proc" "${ROOTFS_DIR}/sys" "${ROOTFS_DIR}/tmp" "${ROOTFS_DIR}/run" "${ROOTFS_DIR}/usr/local/bin"
 
 # Toybox
 cp "${OUT_DIR}/toybox" "${ROOTFS_DIR}/bin/toybox"

@@ -17,7 +17,7 @@ ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-x86_64}"
 IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-4096}"
 BOOT_SIZE_MB="${BOOT_SIZE_MB:-2048}"
 STATE_SIZE_MB="${STATE_SIZE_MB:-1024}"
-LIMINE_VERSION="${LIMINE_VERSION:-8.5.0}"
+LIMINE_VERSION="${LIMINE_VERSION:-12.4.0}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
 
@@ -48,14 +48,10 @@ done
 echo "→ Fetching Limine ${LIMINE_VERSION}..."
 if [ ! -f "${LIMINE_DIR}/limine" ]; then
   mkdir -p "${LIMINE_DIR}"
-  curl -fsSL "https://github.com/limine-bootloader/limine/releases/download/v${LIMINE_VERSION}/limine-${LIMINE_VERSION}-${ALPENGLOW_ARCH}-linux-musl.tar.gz" \
-    -o "${OUT_DIR}/limine.tar.gz" 2>/dev/null || {
-    echo "  (no musl binary, trying generic)"
-    curl -fsSL "https://github.com/limine-bootloader/limine/releases/download/v${LIMINE_VERSION}/limine-${LIMINE_VERSION}-linux-x86_64.tar.gz" \
-      -o "${OUT_DIR}/limine.tar.gz"
-  }
-  tar -xzf "${OUT_DIR}/limine.tar.gz" -C "${LIMINE_DIR}" --strip-components=1 2>/dev/null || {
-    tar -xzf "${OUT_DIR}/limine.tar.gz" -C "${LIMINE_DIR}"
+  curl -fsSL "https://github.com/limine-bootloader/limine/releases/download/v${LIMINE_VERSION}/limine-binary.tar.xz" \
+    -o "${OUT_DIR}/limine.tar.xz"
+  tar -xJf "${OUT_DIR}/limine.tar.xz" -C "${LIMINE_DIR}" --strip-components=1 2>/dev/null || {
+    tar -xJf "${OUT_DIR}/limine.tar.xz" -C "${LIMINE_DIR}"
   }
 fi
 
