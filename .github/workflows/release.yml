@@ -39,6 +39,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check out Alpenglowed
+        if: matrix.edition == 'desktop'
+        run: git clone --depth 1 https://github.com/tschk/alpenglowed ../alpenglowed
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: docker/setup-qemu-action@v3
