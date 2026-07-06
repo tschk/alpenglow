@@ -28,6 +28,8 @@ jobs:
             edition: standard
           - arch: x86_64
             edition: desktop
+          - arch: x86_64
+            edition: desktop-full
           - arch: aarch64
             edition: fast
           - arch: aarch64
@@ -36,11 +38,13 @@ jobs:
             edition: standard
           - arch: aarch64
             edition: desktop
+          - arch: aarch64
+            edition: desktop-full
     steps:
       - uses: actions/checkout@v4
 
       - name: Check out Alpenglowed
-        if: matrix.edition == 'desktop'
+        if: startsWith(matrix.edition, 'desktop')
         run: git clone --depth 1 https://github.com/tschk/alpenglowed ../alpenglowed
 
       - uses: dtolnay/rust-toolchain@stable
@@ -97,6 +101,6 @@ jobs:
           if ! gh release view "${version}" >/dev/null 2>&1; then
             gh release create "${version}" \
               --title "Alpenglow ${version}" \
-              --notes "Disk images and live installer ISOs: fast, minimal, standard, desktop for x86_64 and aarch64. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built)."
+              --notes "Disk images and live installer ISOs: fast, minimal, standard, desktop, desktop-full for x86_64 and aarch64. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built)."
           fi
           gh release upload "${version}" upload/* --clobber

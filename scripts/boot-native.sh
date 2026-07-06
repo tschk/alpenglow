@@ -44,6 +44,7 @@ fi
 EFI="${EFI:-1}"
 GRAPHICAL="${GRAPHICAL:-0}"
 GRAPHICS_BACKEND="${GRAPHICS_BACKEND:-software}"
+ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}"
 FAST="${FAST:-0}"
 if [ "${FAST}" = "1" ]; then
   # SeaBIOS is faster than OVMF in this QEMU config; keep EFI off for speed.
@@ -64,7 +65,7 @@ fi
 # virtio-gpu needs CONFIG_DRM_VIRTIO_GPU (virt.config)
 KERNEL_VIRT_STAMP="${OUT_DIR}/.kernel-virtio-gpu.ok"
 if [ "${GRAPHICAL}" = "1" ]; then
-  BUILD_SERVICES=1
+  BUILD_SERVICES="${BUILD_SERVICES:-1}"
   KERNEL_BUILD=1
   KERNEL_7=0
   if [ ! -f "${KERNEL_VIRT_STAMP}" ] || [ ! -f "${KERNEL_IMAGE}" ]; then
@@ -469,11 +470,14 @@ if [ "${GRAPHICAL}" = "1" ]; then
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
   fi
 
-  GREETER_GLIBC_BIN="${OUT_DIR}/alpenglow-greeter-glibc/usr/bin/alpenglow-greeter"
-  if [ ! -f "${GREETER_GLIBC_BIN}" ] && [ -d "${ROOT_DIR}/../alpenglowed/alpenglow-greeter" ]; then
-    sh "${BACKEND_DIR}/scripts/build-alpenglow-greeter-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
+  GREETER_GLIBC_BIN=""
+  if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+    GREETER_GLIBC_BIN="${OUT_DIR}/alpenglow-greeter-glibc/usr/bin/alpenglow-greeter"
+    if [ ! -f "${GREETER_GLIBC_BIN}" ] && [ -d "${ROOT_DIR}/../alpenglowed/alpenglow-greeter" ]; then
+      sh "${BACKEND_DIR}/scripts/build-alpenglow-greeter-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
+    fi
   fi
-  if [ -f "${GREETER_GLIBC_BIN}" ]; then
+  if [ -n "${GREETER_GLIBC_BIN}" ] && [ -f "${GREETER_GLIBC_BIN}" ]; then
     cp "${GREETER_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-bin"
   else
@@ -620,7 +624,7 @@ case "${BUILD_PROFILE}" in
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
-    if [ -f "${ROOTFS_DIR}/usr/bin/greetd" ]; then
+    if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ] && [ -f "${ROOTFS_DIR}/usr/bin/greetd" ]; then
       BOOT_SERVICES="${BOOT_SERVICES} greetd"
     elif [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-bin" ]; then
       BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"

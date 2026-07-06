@@ -132,6 +132,7 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 
 # Enable dinit boot services (profile-aware)
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}"
 case "${BUILD_PROFILE}" in
   minimal)
     BOOT_SERVICES="state-mount networking earlyoom dropbear chronyd syslogd crond dnsmasq"
@@ -142,8 +143,13 @@ case "${BUILD_PROFILE}" in
     WORLD_FILE="${BACKEND_DIR}/packages-standard.txt"
     ;;
   desktop)
-    BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
-    WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
+    if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
+      WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
+    else
+      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom syslogd crond alpenglowed foot"
+      WORLD_FILE="${BACKEND_DIR}/packages-desktop-lite.txt"
+    fi
     ;;
   *)
     echo "Unknown profile: ${BUILD_PROFILE}. Use minimal, standard, or desktop." >&2
@@ -320,15 +326,27 @@ case "${COMPILER}" in
 esac
 case "${BUILD_PROFILE}" in
   desktop)
-    DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
-    AUDIO_JSON='{"server":"pipewire","session_manager":"wireplumber","backend":"alsa"}'
-    NETWORKING_JSON='{"dhcp":"sdhcp","wifi":"iwd"}'
+    if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+      DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+      AUDIO_JSON='{"server":"pipewire","session_manager":"wireplumber","backend":"alsa"}'
+      NETWORKING_JSON='{"dhcp":"sdhcp","wifi":"iwd"}'
+      SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","iwd","syslogd","crond"]'
+      SESSION_SERVICES='["pipewire","wireplumber","greetd","alpenglowed","foot"]'
+    else
+      DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+      AUDIO_JSON='null'
+      NETWORKING_JSON='{"dhcp":"sdhcp"}'
+      SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","syslogd","crond"]'
+      SESSION_SERVICES='["alpenglowed","foot"]'
+    fi
     POWER_JSON='{"manager":"elogind","script":"/usr/local/bin/alpenglow-power.sh"}'
     KERNEL_TYPE="desktop-appliance"
-    KERNEL_FEATURES='["rust","sound","wireless","acpi","usb-hid"]'
+    if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+      KERNEL_FEATURES='["rust","sound","wireless","acpi","usb-hid"]'
+    else
+      KERNEL_FEATURES='["rust","acpi","usb-hid"]'
+    fi
     ESSENTIAL_SERVICES='["mount-filesystems","state-mount","elogind","seatd","networking"]'
-    SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","iwd","syslogd","crond"]'
-    SESSION_SERVICES='["pipewire","wireplumber","greetd","alpenglowed","foot"]'
     USER_INIT='["alpenglow-session"]'
     ;;
   standard)

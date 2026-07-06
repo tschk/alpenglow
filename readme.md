@@ -95,9 +95,10 @@ Release editions combine a userspace profile with a kernel profile:
 | Fast | `minimal` | `fast` | Smallest headless diskless boot path |
 | Minimal | `minimal` | `minimal` | Headless appliance with networking, SSH, time, logs, DNS, and OOM guard |
 | Standard | `standard` | `minimal` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
-| Desktop | `desktop` | `desktop` | Live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, foot, and the GUI installer |
+| Desktop | `desktop` | `desktop` | Light live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), direct session startup, foot, and the TUI installer |
+| Desktop Full | `desktop` | `desktop` | Full live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, foot, greeter services, and the GUI installer on x86_64 |
 
-Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|standard|desktop`.
+Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|standard|desktop|desktop-full`.
 
 ## Performance
 

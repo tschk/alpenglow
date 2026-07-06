@@ -27,6 +27,7 @@ FAST=0
 GRAPHICAL=0
 BUILD_SERVICES=0
 ALPENGLOW_AUTOLOGIN=0
+ALPENGLOW_DESKTOP_FULL=0
 
 case "${EDITION}" in
   fast)
@@ -49,16 +50,24 @@ case "${EDITION}" in
     PROFILE=desktop
     KERNEL_PROFILE=desktop
     GRAPHICAL=1
-    BUILD_SERVICES=1
+    BUILD_SERVICES=0
     ALPENGLOW_AUTOLOGIN=1
     ;;
+  desktop-full)
+    PROFILE=desktop
+    KERNEL_PROFILE=desktop
+    GRAPHICAL=1
+    BUILD_SERVICES=1
+    ALPENGLOW_AUTOLOGIN=1
+    ALPENGLOW_DESKTOP_FULL=1
+    ;;
   *)
-    echo "unknown edition: ${EDITION}. Use fast, minimal, standard, or desktop." >&2
+    echo "unknown edition: ${EDITION}. Use fast, minimal, standard, desktop, or desktop-full." >&2
     exit 1
     ;;
 esac
 
-export KERNEL_PROFILE FAST GRAPHICAL BUILD_SERVICES ALPENGLOW_AUTOLOGIN
+export KERNEL_PROFILE FAST GRAPHICAL BUILD_SERVICES ALPENGLOW_AUTOLOGIN ALPENGLOW_DESKTOP_FULL
 export KERNEL_ARCH="${ARCH}"
 export KERNEL_7=0
 
@@ -121,7 +130,7 @@ build_host_gui_installer() {
 
 BUILD_PROFILE="${PROFILE}" ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
 build_installer --bin alpenglow-install --bin alpenglow-install-tui
-if [ "${PROFILE}" = "desktop" ] && [ "${ARCH}" = "x86_64" ]; then
+if [ "${EDITION}" = "desktop-full" ] && [ "${ARCH}" = "x86_64" ]; then
   build_host_gui_installer
 fi
 
