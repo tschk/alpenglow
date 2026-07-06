@@ -27,12 +27,21 @@ GitHub releases publish live installer ISOs and compressed disk images for each 
 |-------|-----|
 | `.iso` | Live installer. Boot it to try Alpenglow, then install from the TUI or desktop installer. |
 | `.img.zst` | Compressed disk image for direct flashing or scripted installs. |
+| `-wsl.tar` | WSL import rootfs for `wsl --import`. |
 
 Release asset names use:
 
 ```sh
 alpenglow-VERSION-EDITION-ARCH.iso
 alpenglow-VERSION-EDITION-ARCH.img.zst
+alpenglow-VERSION-standard-x86_64-wsl.tar
+```
+
+WSL import:
+
+```powershell
+wsl --import Alpenglow C:\WSL\Alpenglow alpenglow-VERSION-standard-x86_64-wsl.tar
+wsl -d Alpenglow
 ```
 
 Standard live ISOs use the terminal installer:

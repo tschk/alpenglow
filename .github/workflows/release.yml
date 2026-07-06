@@ -191,11 +191,11 @@ jobs:
         run: |
           version="${{ steps.version.outputs.version }}"
           mkdir -p upload
-          find artifacts -type f \( -name '*.zst' -o -name '*.iso' -o -name '*.sha256' \) -exec cp {} upload/ \;
+          find artifacts -type f \( -name '*.zst' -o -name '*.iso' -o -name '*.tar' -o -name '*.sha256' \) -exec cp {} upload/ \;
           ls -la upload/
           if ! gh release view "${version}" >/dev/null 2>&1; then
             gh release create "${version}" \
               --title "Alpenglow ${version}" \
-              --notes "Disk images and live installer ISOs: fast, minimal, standard, desktop, desktop-full for x86_64 and aarch64, plus a riscv64 fast boot bundle. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built) and alpenglow-\${version}-fast-riscv64.tar.zst."
+              --notes "Disk images and live installer ISOs: fast, minimal, standard, desktop, desktop-full for x86_64 and aarch64, a standard x86_64 WSL import tar, plus a riscv64 fast boot bundle. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built), alpenglow-\${version}-standard-x86_64-wsl.tar, and alpenglow-\${version}-fast-riscv64.tar.zst."
           fi
           gh release upload "${version}" upload/* --clobber

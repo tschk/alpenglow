@@ -133,6 +133,9 @@ build_installer --bin alpenglow-install --bin alpenglow-install-tui
 if [ "${EDITION}" = "desktop-full" ] && [ "${ARCH}" = "x86_64" ]; then
   build_host_gui_installer
 fi
+if [ "${EDITION}" = "standard" ] && [ "${ARCH}" = "x86_64" ]; then
+  ALPENGLOW_WSL_ROOTFS="${ROOT_DIR}/build/native/rootfs" sh "${ROOT_DIR}/scripts/build-wsl.sh" "${VERSION}"
+fi
 
 test -f "${IMAGE}" || {
   echo "missing built image: ${IMAGE}" >&2
