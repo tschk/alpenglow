@@ -10,7 +10,7 @@ Alpenglow's threat model follows standard operating system security principles:
 
 - **Boot chain integrity**: Ensure each component is signed and verified
 - **Kernel module verification**: Only signed kernel modules can be loaded
-- **Root filesystem protection**: Immutable GlowFS prevents runtime modification
+- **Root filesystem protection**: Immutable erofs/squashfs root image prevents runtime modification
 - **Package authenticity**: APK signature verification via Oil package manager
 
 ## Implementation Requirements
@@ -41,7 +41,6 @@ openssl req -new -x509 -key module-signing.key -out module-signing.x509 -days 36
 
 # Sign kernel modules during build
 scripts/sign-module alpenglow_core.ko module-signing.key module-signing.x509
-scripts/sign-module glowfs.ko module-signing.key module-signing.x509
 ```
 
 ### 3. Kernel Configuration
@@ -103,7 +102,6 @@ Add to build scripts:
 ```bash
 # After kernel module compilation
 make modules
-./scripts/sign-modules.sh module-signing.key module-signing.x509 system/glowfs/kernel
 ./scripts/sign-modules.sh module-signing.key module-signing.x509 system/kernel-modules
 ```
 
@@ -117,7 +115,6 @@ mokutil --sb-state
 
 # Verify kernel module signatures
 modinfo alpenglow_core | grep Signer
-modinfo glowfs | grep Signer
 
 # Check kernel config
 zcat /proc/config.gz | grep MODULE_SIG

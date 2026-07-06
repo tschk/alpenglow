@@ -1,0 +1,121 @@
+---
+---
+
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Alpenglow is an immutable RAM-root Linux distribution with persistent bcachefs-backed state." />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <title>Alpenglow</title>
+  </head>
+  <body class="m-0 h-full overflow-hidden bg-black text-white antialiased">
+    <header class="boot-top-bar" aria-label="Alpenglow links">
+      <a href="https://github.com/tschk/alpenglow" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <span class="boot-top-sep" aria-hidden="true">·</span>
+      <a href="https://tsc.hk" target="_blank" rel="noopener noreferrer">tsc.hk</a>
+    </header>
+    <main id="screen_container" class="page-shell" aria-label="Alpenglow OS">
+      <div class="hidden"></div>
+      <canvas class="hidden"></canvas>
+      <pre id="terminal" class="hidden" tabindex="0" aria-label="Alpenglow console"></pre>
+      <form id="command_form" class="hidden" autocomplete="off">
+        <input id="command_input" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Command" />
+        <button type="submit">run</button>
+      </form>
+      <section
+        id="boot_status"
+        class="pointer-events-none fixed bottom-[clamp(14px,2.4vw,30px)] left-[clamp(14px,2.4vw,30px)] right-[clamp(14px,2.4vw,30px)] z-10 grid max-w-130 gap-2.5 font-mono-ui"
+        aria-live="polite"
+      >
+        <p id="boot_message" class="m-0 text-white">loading alpenglow shell</p>
+        <meter id="boot_progress" class="h-3 w-full accent-white" min="0" max="100" value="0">0%</meter>
+      </section>
+    </main>
+    <script>
+      import "../shell.js";
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @font-face {
+    font-family: "Geist Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/geist-mono-latin-400-normal.woff2") format("woff2");
+  }
+
+  :root {
+    color-scheme: dark;
+    font-family: "Geist Mono", ui-monospace, monospace;
+  }
+
+  .boot-top-bar {
+    position: fixed;
+    top: clamp(14px, 2.4vw, 30px);
+    right: clamp(14px, 2.4vw, 30px);
+    z-index: 11;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem 0.5rem;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: clamp(0.75rem, 1.6vw, 0.9rem);
+    color: #a1a1aa;
+    pointer-events: auto;
+  }
+
+  .boot-top-bar a {
+    color: #fafafa;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .boot-top-bar a:hover {
+    color: #fff;
+  }
+
+  .boot-top-sep {
+    color: #52525b;
+    user-select: none;
+  }
+
+  #boot_status[hidden] {
+    display: none !important;
+  }
+
+  #xterm_host {
+    position: fixed;
+    inset: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    min-width: 100vw;
+    padding: clamp(28px, 5vw, 64px);
+    background: #000;
+  }
+
+  #xterm_host canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* ghostty/xterm hidden input caret at (0,0) */
+  #xterm_host textarea {
+    position: fixed !important;
+    left: -10000px !important;
+    top: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    caret-color: transparent !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
+  }
+</style>

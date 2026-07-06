@@ -1,0 +1,18 @@
+div w-full h-full flex-col bg-zinc-950 text-zinc-100 p-1
+  div h-[3] border-b border-zinc-700 flex-col
+    div font-bold text-cyan-300
+      "Alpenglow Installer"
+    div text-zinc-400
+      "Writes the release image to a target disk"
+  div h-[6] tui-panel title="Image"
+    div
+      "Source: {source}"
+    div
+      "Target: {target}"
+  div h-[5] tui-panel title="Run"
+    div text-yellow-300
+      "Use: alpenglow-install-tui /run/alpenglow/alpenglow.img.zst /dev/sdX"
+    div text-red-300
+      "The target disk will be overwritten."
+  div flex-1
+    "Press Ctrl+C to cancel."

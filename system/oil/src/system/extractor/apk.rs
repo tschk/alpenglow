@@ -78,7 +78,7 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
 
     let mut starts: Vec<usize> = Vec::new();
     let mut last_pos = 0;
-    
+
     for i in 0..data.len().saturating_sub(1) {
         if data[i] == 0x1f && data[i + 1] == 0x8b {
             if i < last_pos {
@@ -86,13 +86,13 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
             }
             starts.push(i);
             last_pos = i;
-            
+
             if starts.len() >= count {
                 break;
             }
         }
     }
-    
+
     if starts.len() < count {
         return Err(OilError::Install(format!(
             "APK has {} gzip streams, expected {count}",
@@ -102,14 +102,14 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
 
     let mut out = Vec::with_capacity(count);
     let mut total_decompressed: usize = 0;
-    
+
     for i in 0..count {
         let slice = &data[starts[i]..];
         let mut decoder = flate2::read::GzDecoder::new(slice);
         let mut buf = Vec::new();
-        
+
         decoder.read_to_end(&mut buf)?;
-        
+
         if buf.len() > MAX_STREAM_SIZE {
             return Err(OilError::Install(format!(
                 "Stream {} size {} exceeds maximum {}",
@@ -118,19 +118,18 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
                 MAX_STREAM_SIZE
             )));
         }
-        
+
         total_decompressed += buf.len();
         if total_decompressed > MAX_TOTAL_SIZE {
             return Err(OilError::Install(format!(
                 "Total decompressed size {} exceeds maximum {}",
-                total_decompressed,
-                MAX_TOTAL_SIZE
+                total_decompressed, MAX_TOTAL_SIZE
             )));
         }
-        
+
         out.push(buf);
     }
-    
+
     Ok((out.remove(0), out.remove(0), out.remove(0)))
 }
 
@@ -157,29 +156,45 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     let mut entries_buf: Vec<Vec<u8>> = Vec::new();
+    let mut created_dirs = std::collections::HashSet::new();
+    created_dirs.insert(dest_dir.to_path_buf());
 
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
         let entry_path = entry.path()?;
-        let entry_str = entry_path.to_string_lossy().to_string();
+        let entry_str = entry_path.to_string_lossy();
 
         if entry_str == ".PKGINFO" || entry_str == ".INSTALL" || entry_str.starts_with(".SIGN.") {
             continue;
         }
 
-        let stripped = entry_str.strip_prefix("./").unwrap_or(&entry_str).trim_start_matches('/');
+        let stripped = entry_str.strip_prefix("./").unwrap_or(entry_str.as_ref()).trim_start_matches('/');
         if stripped.is_empty() || stripped.contains("..") {
             continue;
         }
 
         let dest = dest_dir.join(stripped);
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)?;
+            if !created_dirs.contains(parent) {
+                std::fs::create_dir_all(parent)?;
+                let mut current = parent.to_path_buf();
+                while !created_dirs.contains(&current) {
+                    created_dirs.insert(current.clone());
+                    if let Some(p) = current.parent() {
+                        current = p.to_path_buf();
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
 
         let kind = entry.header().entry_type();
         if kind.is_dir() {
-            std::fs::create_dir_all(&dest)?;
+            if !created_dirs.contains(&dest) {
+                std::fs::create_dir_all(&dest)?;
+                created_dirs.insert(dest.clone());
+            }
             dirs.push(dest);
         } else if kind.is_symlink() {
             if let Some(link_target) = entry.link_name()? {
@@ -205,14 +220,26 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
         let mut archive = Archive::new(&data[..]);
         for entry_ in archive.entries()? {
             let mut entry = entry_?;
-            let path = entry.path()?.to_string_lossy().to_string();
-            let stripped = path.strip_prefix("./").unwrap_or(&path).trim_start_matches('/');
+            let entry_path = entry.path()?;
+            let path = entry_path.to_string_lossy();
+            let stripped = path.strip_prefix("./").unwrap_or(path.as_ref()).trim_start_matches('/');
             if stripped.is_empty() || stripped.contains("..") {
                 continue;
             }
             let dest = dest_dir.join(stripped);
             if let Some(parent) = dest.parent() {
-                std::fs::create_dir_all(parent)?;
+                if !created_dirs.contains(parent) {
+                    std::fs::create_dir_all(parent)?;
+                    let mut current = parent.to_path_buf();
+                    while !created_dirs.contains(&current) {
+                        created_dirs.insert(current.clone());
+                        if let Some(p) = current.parent() {
+                            current = p.to_path_buf();
+                        } else {
+                            break;
+                        }
+                    }
+                }
             }
             entry.unpack(&dest)?;
             if !entry.header().entry_type().is_dir() {
@@ -232,17 +259,17 @@ mod tests {
     use std::io::Write;
     use tempfile::tempdir;
 
-    fn create_gz_stream(data: &[u8]) -> Vec<u8> {
+    fn create_gz_stream(data: &[u8]) -> std::result::Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(data).expect("Failed to write data to gzip encoder");
-        encoder.finish().expect("Failed to finish gzip encoding")
+        encoder.write_all(data)?;
+        Ok(encoder.finish()?)
     }
 
     #[test]
-    fn test_split_gzip_streams_happy_path() {
-        let stream1 = create_gz_stream(b"stream 1 data");
-        let stream2 = create_gz_stream(b"stream 2 data");
-        let stream3 = create_gz_stream(b"stream 3 data");
+    fn test_split_gzip_streams_happy_path() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let stream1 = create_gz_stream(b"stream 1 data")?;
+        let stream2 = create_gz_stream(b"stream 2 data")?;
+        let stream3 = create_gz_stream(b"stream 3 data")?;
 
         let mut combined = Vec::new();
         combined.extend(&stream1);
@@ -251,89 +278,97 @@ mod tests {
 
         let result = split_gzip_streams(&combined, 3);
         assert!(result.is_ok());
-        let (out1, out2, out3) = result.unwrap();
+        let (out1, out2, out3) = result?;
 
         assert_eq!(out1, b"stream 1 data");
         assert_eq!(out2, b"stream 2 data");
         assert_eq!(out3, b"stream 3 data");
+        Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_too_many_requested() {
-        let stream = create_gz_stream(b"data");
+    fn test_split_gzip_streams_too_many_requested() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let stream = create_gz_stream(b"data")?;
         let result = split_gzip_streams(&stream, 4);
         assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
+        let err_msg = result.expect_err("Expected an error").to_string();
         assert!(err_msg.contains("Requested 4 streams, maximum is 3"), "Unexpected error: {}", err_msg);
+        Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_not_enough_streams() {
-        let stream1 = create_gz_stream(b"data 1");
-        let stream2 = create_gz_stream(b"data 2");
+    fn test_split_gzip_streams_not_enough_streams() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let stream1 = create_gz_stream(b"data 1")?;
+        let stream2 = create_gz_stream(b"data 2")?;
         let mut combined = Vec::new();
         combined.extend(&stream1);
         combined.extend(&stream2);
 
         let result = split_gzip_streams(&combined, 3);
         assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
+        let err_msg = result.expect_err("Expected an error").to_string();
         assert!(err_msg.contains("APK has 2 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_corrupted_gzip() {
-        let mut data = create_gz_stream(b"stream 1 data");
-        data.extend(create_gz_stream(b"stream 2 data"));
-        let mut corrupted_stream = create_gz_stream(b"stream 3 data");
+    fn test_split_gzip_streams_corrupted_gzip() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut data = create_gz_stream(b"stream 1 data")?;
+        data.extend(create_gz_stream(b"stream 2 data")?);
+        let mut corrupted_stream = create_gz_stream(b"stream 3 data")?;
         corrupted_stream.truncate(5);
         data.extend(corrupted_stream);
         let result = split_gzip_streams(&data, 3);
         assert!(result.is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_extract_tracked_missing_file() {
-        let dir = tempdir().unwrap();
+    fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
         let missing_path = dir.path().join("does_not_exist.apk");
         let dest_dir = dir.path().join("dest");
         let result = extract_tracked(&missing_path, &dest_dir);
         assert!(result.is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_extract_signature_info_success() {
+    fn test_extract_signature_info_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut tar_builder = tar::Builder::new(Vec::new());
         let mut header = tar::Header::new_gnu();
         let data = b"dummy signature data";
         header.set_size(data.len() as u64);
         header.set_cksum();
-        tar_builder.append_data(&mut header, ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub", &data[..]).unwrap();
-        let tar_data = tar_builder.into_inner().unwrap();
+        tar_builder.append_data(&mut header, ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub", &data[..])?;
+        let tar_data = tar_builder.into_inner()?;
         let result = extract_signature_info(&tar_data);
         assert!(result.is_some());
-        let (keyname, sig) = result.unwrap();
+        let (keyname, sig) = result.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Missing signature"))?;
         assert_eq!(keyname, "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub");
         assert_eq!(sig, data);
+        Ok(())
     }
 
     #[test]
-    fn test_extract_signature_info_not_found() {
+    fn test_extract_signature_info_not_found() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut tar_builder = tar::Builder::new(Vec::new());
         let mut header = tar::Header::new_gnu();
         let data = b"some other file";
         header.set_size(data.len() as u64);
         header.set_cksum();
-        tar_builder.append_data(&mut header, "some_other_file.txt", &data[..]).unwrap();
-        let tar_data = tar_builder.into_inner().unwrap();
+        tar_builder.append_data(&mut header, "some_other_file.txt", &data[..])?;
+        let tar_data = tar_builder.into_inner()?;
         let result = extract_signature_info(&tar_data);
         assert!(result.is_none());
+        Ok(())
     }
 
     #[test]
-    fn test_extract_signature_info_invalid_tar() {
+    fn test_extract_signature_info_invalid_tar() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let invalid_tar_data = b"not a tar file";
         let result = extract_signature_info(invalid_tar_data);
         assert!(result.is_none());
+        Ok(())
     }
 }

@@ -36,7 +36,7 @@ fn main() {
         .args(["-d", "/etc/dinit.d", "-s", "-t", "shell-ttyS0"])
         .exec();
     eprintln!("init: dinit exec failed: {}", err);
-    let _ = Command::new("/usr/bin/sh").exec();
+    let _ = Command::new("/usr/bin/sh").env_clear().exec();
 }
 fn run(prog: &str, args: &[&str]) {
     if let Err(e) = Command::new(prog).args(args).status() {

@@ -91,15 +91,6 @@
       }
     },
     "filesystems": {
-      "glowfs": {
-        "required": true,
-        "config": [
-          "CONFIG_RUST"
-        ],
-        "source_lane": "direct-source-edit",
-        "image_format": "glowfs",
-        "mount": "glowfs"
-      },
       "erofs": {
         "required": true,
         "config": [

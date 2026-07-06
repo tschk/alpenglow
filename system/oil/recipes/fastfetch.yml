@@ -1,0 +1,18 @@
+name: fastfetch
+version: 2.7.0-r0
+description: System information tool for the Alpenglow demo image
+
+source:
+  url: https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86/fastfetch-2.7.0-r0.apk
+
+build: []
+
+install: /usr/local
+
+depends:
+  - hwdata-pci
+  - so:libc.musl-x86.so.1
+
+provides:
+  - cmd:fastfetch
+  - cmd:flashfetch

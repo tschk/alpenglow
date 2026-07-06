@@ -1,0 +1,4 @@
+# CI-only: enable out-of-tree Rust modules when host kconfig probe skips RUST_IS_AVAILABLE.
+CONFIG_MODULES=y
+CONFIG_RUST_IS_AVAILABLE=y
+CONFIG_RUST=y

@@ -2,12 +2,14 @@
 # Build iwd as static musl binary
 set -eu
 
-OUT_DIR="${1:-/tmp/out}"
+OUT_DIR="${1:-/build/out}"
 VERSION="${2:-2.18}"
 
 echo "→ Building iwd ${VERSION}..."
 
-cd /tmp
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf -- "$BUILD_DIR"' EXIT
+cd "$BUILD_DIR"
 curl -fsSL "https://www.kernel.org/pub/linux/network/wireless/iwd-${VERSION}.tar.xz" -o iwd.tar.xz
 tar -xf iwd.tar.xz
 cd "iwd-${VERSION}"

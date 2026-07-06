@@ -9,7 +9,7 @@ BACKEND_DIR="${ROOT_DIR}/system/backends/appliance"
 OUT_DIR="${ROOT_DIR}/build/appliance"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
 GENERATION_DIR="${OUT_DIR}/generations"
-GLOWFS_IMAGE="${OUT_DIR}/alpenglow-root.glowfs"
+ROOT_IMAGE="${OUT_DIR}/alpenglow-root.erofs"
 
 ALPENGLOW_ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
@@ -18,8 +18,9 @@ OIL_CMD="${OIL_CMD:-wax}"
 
 case "${BUILD_PROFILE}" in
   minimal) PKG_LIST="${BACKEND_DIR}/packages-minimal.txt" ;;
-  standard) PKG_LIST="${BACKEND_DIR}/packages-runtime.txt" ;;
-  *) echo "Unknown profile: ${BUILD_PROFILE}. Use minimal or standard." >&2; exit 1 ;;
+  standard) PKG_LIST="${BACKEND_DIR}/packages-standard.txt" ;;
+  desktop) PKG_LIST="${BACKEND_DIR}/packages-runtime.txt" ;;
+  *) echo "Unknown profile: ${BUILD_PROFILE}. Use minimal, standard, or desktop." >&2; exit 1 ;;
 esac
 
 case "${COMPILER}" in
@@ -45,7 +46,7 @@ echo ""
 
 if ! command -v "${OIL_CMD}" >/dev/null 2>&1; then
   echo "Oil (${OIL_CMD}) not found." >&2
-  echo "Install Oil first: curl -fsSL https://oil.sh/install.sh | sh" >&2
+  echo "Install Oil first. Please see https://oil.sh/ for secure installation instructions." >&2
   exit 1
 fi
 
@@ -60,20 +61,48 @@ while IFS= read -r pkg || [ -n "${pkg}" ]; do
   "${OIL_CMD}" system add "${pkg}" --prefix "${ROOTFS_DIR}"
 done < "${PKG_LIST}"
 
+# ── Phase 1.5: Install full Wax (../oil) into rootfs (standard/desktop) ─
+if [ "${BUILD_PROFILE}" != "minimal" ]; then
+  echo "→ Installing Wax (full Linuxbrew oil) package manager..."
+  WAX_REPO="${ROOT_DIR}/../oil"
+  WAX_BIN="${OUT_DIR}/wax"
+  if [ -n "${ALPENGLOW_WAX_BIN:-}" ]; then
+    WAX_BIN="${ALPENGLOW_WAX_BIN}"
+  elif [ -d "${WAX_REPO}" ]; then
+    if [ ! -x "${WAX_BIN}" ]; then
+      (
+        cd "${WAX_REPO}"
+        cargo build --release --no-default-features --features system-apk >/dev/null 2>&1
+      )
+      cp "${WAX_REPO}/target/release/oil" "${WAX_BIN}"
+    fi
+  else
+    echo "  ! ../oil not found; Wax will not be available in rootfs" >&2
+  fi
+  if [ -x "${WAX_BIN}" ]; then
+    mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+    cp "${WAX_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+    ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
+    echo "  + wax from ${WAX_BIN}"
+  fi
+fi
+
 # ── Phase 2: Configure rootfs ───────────────────────────────────────
 BUILD_PROFILE="${BUILD_PROFILE}" COMPILER="${COMPILER}" "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
 
-# ── Phase 3: Compose GlowFS image ───────────────────────────────────
-echo "→ Composing GlowFS image..."
-GLOWFSCTL="${ROOT_DIR}/target/release/glowfsctl"
-if [ -f "${GLOWFSCTL}" ]; then
-  "${GLOWFSCTL}" create \
-    --input "${ROOTFS_DIR}" \
-    --output "${GLOWFS_IMAGE}" \
-    --label "alpenglow-$(date +%Y%m%d-%H%M%S)" \
-    --compression zstd
-  echo "  GlowFS image: ${GLOWFS_IMAGE}"
+# ── Phase 3: Compose immutable root image ──────────────────────────
+echo "→ Composing immutable root image..."
+if command -v mkfs.erofs >/dev/null 2>&1; then
+  mkfs.erofs -zlz4hc "${ROOT_IMAGE}" "${ROOTFS_DIR}" >/dev/null
+elif command -v mksquashfs >/dev/null 2>&1; then
+  ROOT_IMAGE="${OUT_DIR}/alpenglow-root.squashfs"
+  mksquashfs "${ROOTFS_DIR}" "${ROOT_IMAGE}" -noappend -comp zstd >/dev/null
+else
+  echo "missing mkfs.erofs or mksquashfs" >&2
+  exit 1
 fi
+echo "  image: ${ROOT_IMAGE}"
 
 # ── Phase 4: Register generation ────────────────────────────────────
 GEN_ID="alpenglow-$(date +%Y%m%d-%H%M%S)"
@@ -85,17 +114,17 @@ cat > "${GENERATION_FILE}" <<EOF
   "arch": "${ALPENGLOW_ARCH}",
   "backend": "alpenglow-native",
   "compiler": "${COMPILER}",
-  "image": "${GLOWFS_IMAGE}",
+  "image": "${ROOT_IMAGE}",
   "packages": $(wc -l < "${PKG_LIST}")
 }
 EOF
-ln -sf "${GLOWFS_IMAGE}" "${OUT_DIR}/current.glowfs"
+ln -sf "${ROOT_IMAGE}" "${OUT_DIR}/current.${ROOT_IMAGE##*.}"
 ln -sf "${GENERATION_FILE}" "${OUT_DIR}/current.json"
 
 echo "✓ Alpenglow native appliance built:"
 echo "  rootfs:  ${ROOTFS_DIR}"
-echo "  image:   ${GLOWFS_IMAGE}"
+echo "  image:   ${ROOT_IMAGE}"
 echo "  gen:     ${GEN_ID}"
 echo ""
 echo "To boot:"
-echo "  qemu-system-x86_64 -kernel /boot/vmlinuz -initrd initramfs -append \"alpenglow.ram_root alpenglow.image=${GLOWFS_IMAGE}\""
+echo "  qemu-system-x86_64 -kernel /boot/vmlinuz -initrd initramfs -append \"alpenglow.ram_root alpenglow.image=${ROOT_IMAGE}\""

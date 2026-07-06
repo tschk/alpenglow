@@ -77,7 +77,8 @@ mod tests {
     #[test]
     fn test_display_json() {
         // We can create a serde_json::Error by attempting to parse invalid JSON.
-        let serde_err: std::result::Result<serde_json::Value, serde_json::Error> = serde_json::from_str("{ invalid }");
+        let serde_err: std::result::Result<serde_json::Value, serde_json::Error> =
+            serde_json::from_str("{ invalid }");
         let json_err = serde_err.unwrap_err();
         let expected_msg = format!("JSON error: {json_err}");
         let err = OilError::Json(json_err);
@@ -104,7 +105,10 @@ mod tests {
             expected: "abcdef".to_string(),
             actual: "123456".to_string(),
         };
-        assert_eq!(err.to_string(), "checksum mismatch: expected abcdef, got 123456");
+        assert_eq!(
+            err.to_string(),
+            "checksum mismatch: expected abcdef, got 123456"
+        );
     }
 
     #[test]
@@ -119,7 +123,8 @@ mod tests {
         let err_io = OilError::Io(io_err);
         assert!(err_io.source().is_some());
 
-        let serde_err: std::result::Result<serde_json::Value, serde_json::Error> = serde_json::from_str("{ invalid }");
+        let serde_err: std::result::Result<serde_json::Value, serde_json::Error> =
+            serde_json::from_str("{ invalid }");
         let json_err = serde_err.unwrap_err();
         let err_json = OilError::Json(json_err);
         assert!(err_json.source().is_some());
@@ -130,7 +135,8 @@ mod tests {
 
     #[test]
     fn test_from_serde_json_error() {
-        let serde_err: std::result::Result<serde_json::Value, serde_json::Error> = serde_json::from_str("{ invalid }");
+        let serde_err: std::result::Result<serde_json::Value, serde_json::Error> =
+            serde_json::from_str("{ invalid }");
         let orig_err = serde_err.unwrap_err();
         let err_msg = orig_err.to_string();
 
