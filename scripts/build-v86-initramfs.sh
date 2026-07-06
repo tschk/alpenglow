@@ -83,9 +83,9 @@ REPOS
   ' sh "$@"
 }
 
-apk_root_install fastfetch bash
+apk_root_install fastfetch oksh
 FASTFETCH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
-BASH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v bash 2>/dev/null | sed 's/^bash-//')"
+OKSH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v oksh 2>/dev/null | sed 's/^oksh-//')"
 if [ -d "${ROOTFS}/etc" ] && [ ! -w "${ROOTFS}/etc" ]; then
   if command -v sudo >/dev/null 2>&1; then
     sudo chown -R "$(id -u):$(id -g)" "${ROOTFS}"
@@ -102,9 +102,9 @@ cat > "${ROOTFS}/.oil/installed.json" <<EOF
     "install_date": 0,
     "pinned": false
   },
-  "bash": {
-    "name": "bash",
-    "version": "${BASH_VERSION}",
+  "oksh": {
+    "name": "oksh",
+    "version": "${OKSH_VERSION}",
     "install_date": 0,
     "pinned": false
   }
@@ -179,7 +179,10 @@ if [ ! -x "${VRO_CACHE}" ]; then
     echo "warning: no i686 vro source or SSH host available, falling back to busybox" >&2
   fi
 fi
-if [ -x "${VRO_CACHE}" ]; then
+if [ "${V86_SKIP_VRO:-}" = 1 ]; then
+  ln -sf /bin/busybox "${ROOTFS}/usr/local/bin/vro"
+  echo "v86 initramfs: V86_SKIP_VRO=1 (smaller initrd, vro=busybox)" >&2
+elif [ -x "${VRO_CACHE}" ]; then
   cp "${VRO_CACHE}" "${ROOTFS}/usr/local/bin/vro"
   chmod 755 "${ROOTFS}/usr/local/bin/vro"
 else
@@ -190,11 +193,11 @@ cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
 
 mkdir -p "${ROOTFS}/etc/profile.d"
-ln -sf bash "${ROOTFS}/bin/login-shell" 2>/dev/null || true
+ln -sf oksh "${ROOTFS}/bin/login-shell" 2>/dev/null || true
 cat > "${ROOTFS}/etc/profile" <<'PROF'
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
-export SHELL=/bin/bash
+export SHELL=/bin/oksh
 export TERM=xterm-256color
 export COLORTERM=truecolor
 export CLICOLOR=1
@@ -217,11 +220,7 @@ if /bin/stty -F "$CON" sane 2>/dev/null; then
 fi
 TTY
 cat > "${ROOTFS}/etc/profile.d/prompt.sh" <<'PROMPT'
-if [ -n "${BASH_VERSION}" ]; then
-  export PS1='\[\033[1;36m\]alpenglow\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]# '
-else
-  export PS1='alpenglow:~# '
-fi
+export PS1='alpenglow:\w# '
 PROMPT
 
 cat > "${ROOTFS}/init" <<'INIT'
@@ -271,8 +270,8 @@ if [ -c "$CON" ]; then
   /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
 printf '\n' >"$CON"
-if [ -x /bin/bash ]; then
-  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+if [ -x /bin/oksh ]; then
+  exec /bin/setsid -c /bin/oksh -i <"$CON" >"$CON" 2>&1
 fi
 exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
 INIT
