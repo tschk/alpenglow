@@ -1,7 +1,7 @@
-import { defineConfig, presetUno, presetTypography } from "unocss";
+import { defineConfig, presetUno } from "unocss";
 
 export default defineConfig({
-  presets: [presetUno(), presetTypography()],
+  presets: [presetUno()],
   shortcuts: {
     "page-shell": "fixed inset-0 w-full h-full overflow-hidden bg-black text-white",
     "font-mono-ui": "font-mono text-xs leading-snug",

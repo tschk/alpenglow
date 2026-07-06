@@ -9,14 +9,14 @@ const commandForm = document.getElementById("command_form");
 const commandInput = document.getElementById("command_input");
 
 let buildId = "dev";
-try {
-  const idRes = await fetch("/v86/initrd-build-id.txt", { cache: "no-store" });
-  if (idRes.ok) {
-    buildId = (await idRes.text()).trim() || buildId;
-  }
-} catch {
-  /* ignore */
-}
+const buildIdPromise = fetch("/v86/initrd-build-id.txt", { cache: "no-store" })
+  .then((res) => (res.ok ? res.text() : ""))
+  .then((text) => {
+    buildId = text.trim() || buildId;
+  })
+  .catch(() => {});
+
+const v86ModulePromise = import("./v86/libv86.mjs");
 
 const asset = (path) => `${path}?v=${encodeURIComponent(buildId)}`;
 let emulator;
@@ -112,7 +112,7 @@ async function mountTerminal() {
     fontSize: terminalFontSize(),
     fontFamily: '"Geist Mono", ui-monospace, monospace',
     cursorBlink: true,
-    scrollback: 10000,
+    scrollback: 2000,
     allowTransparency: false,
     theme: {
       background: "#000000",
@@ -207,13 +207,13 @@ if (!screen) {
 }
 
 setStatus("loading Alpenglow", 0);
-const useXterm = await mountTerminal();
+const [, useXterm] = await Promise.all([buildIdPromise, mountTerminal()]);
 
 const { cols, rows } = terminalSize();
 const cmdline = `console=ttyS0 rdinit=/init quiet loglevel=2 alpenglow.cols=${cols} alpenglow.rows=${rows}`;
 
 try {
-  const { V86 } = await import("./v86/libv86.mjs");
+  const { V86 } = await v86ModulePromise;
 
   emulator = new V86({
     wasm_path: asset("/v86/v86.wasm"),
