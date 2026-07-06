@@ -30,8 +30,14 @@ scripts/config \
 RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
 
 if ! grep -q '^CONFIG_RUST=y' .config; then
-  echo "ci-rust-kernel-module: CONFIG_RUST not enabled (rustc may not match kernel Kconfig probe)"
-  grep -E 'CONFIG_RUST|RUSTC' .config | head -20 || true
+  echo "Forcing CONFIG_RUST=y (Kconfig probe left Rust disabled on CI host)"
+  ./scripts/config --enable RUST --enable RUST_IS_AVAILABLE --enable MODULES 2>/dev/null || true
+  RUSTC=rustc BINDGEN=bindgen make ARCH=x86_64 olddefconfig 2>/dev/null
+fi
+
+if ! grep -q '^CONFIG_RUST=y' .config; then
+  echo "ci-rust-kernel-module: CONFIG_RUST still disabled"
+  grep -E 'CONFIG_RUST|RUSTC' .config | head -25 || true
   exit 1
 fi
 
