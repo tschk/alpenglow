@@ -2,13 +2,32 @@
 # Build foot (Wayland terminal) as static musl binary
 set -eu
 
-OUT_DIR="${1:-/tmp/out}"
+OUT_DIR="${1:-/build/out}"
 VERSION="${2:-1.18.0}"
+EXPECTED_SHA256="${3:-}"
+
+if [ -z "${EXPECTED_SHA256}" ]; then
+  case "${VERSION}" in
+    "1.18.0") EXPECTED_SHA256="9d9f0efe4bca0bbf201482d6e7bb946a12a4b164d2e73dae75a2f2404e1e85ff" ;;
+    *) echo "Error: Unknown version ${VERSION} and no expected checksum provided." >&2; exit 1 ;;
+  esac
+fi
 
 echo "→ Building foot ${VERSION}..."
 
-cd /tmp
-curl -fsSL "https://codeberg.org/dnkl/foot/archive/v${VERSION}.tar.gz" -o foot.tar.gz
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf -- "$BUILD_DIR"' EXIT
+cd "$BUILD_DIR"
+# Try without 'v' prefix first, then with 'v' as fallback
+curl -fsSL "https://codeberg.org/dnkl/foot/archive/${VERSION}.tar.gz" -o foot.tar.gz || curl -fsSL "https://codeberg.org/dnkl/foot/archive/v${VERSION}.tar.gz" -o foot.tar.gz
+
+ACTUAL_SHA256=$(sha256sum foot.tar.gz | awk '{print $1}')
+if [ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]; then
+  echo "Error: Checksum mismatch for foot.tar.gz" >&2
+  echo "Expected: ${EXPECTED_SHA256}" >&2
+  echo "Actual:   ${ACTUAL_SHA256}" >&2
+  exit 1
+fi
 tar -xf foot.tar.gz
 cd "foot"
 

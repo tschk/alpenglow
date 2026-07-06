@@ -145,7 +145,6 @@ boot path is not driver-bound, so the gain is within the noise.
 | alpenglow-netd-zig | 69 KB | 92 KB | +23 KB (+33 %) |
 | alpenglow-pressurectl-zig | 82 KB | 101 KB | +19 KB (+23 %) |
 | alpenglow-zramctl-zig | 49 KB | 17 KB | −32 KB (−65 %) |
-| glowfsctl | 179 KB | 154 KB | −25 KB (−14 %) |
 
 *Measured on macOS arm64 with Zig 0.16.0.*
 

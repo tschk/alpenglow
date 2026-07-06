@@ -24,11 +24,6 @@ echo "ci-zig: building kernelctl-zig..."
 (cd "${REPO_ROOT}/system/kernelctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
 echo "ci-zig: kernelctl-zig built OK"
 
-# Build glowfsctl-zig
-echo "ci-zig: building glowfsctl-zig..."
-(cd "${REPO_ROOT}/system/glowfsctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
-echo "ci-zig: glowfsctl-zig built OK"
-
 # Build netd-zig
 echo "ci-zig: building netd-zig..."
 (cd "${REPO_ROOT}/system/netd-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1

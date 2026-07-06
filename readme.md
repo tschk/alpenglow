@@ -1,11 +1,12 @@
 # Alpenglow
 
-General-purpose musl+LLVM Linux distribution. dinit init, Oil packages.
+General-purpose musl Linux distribution. dinit init, Oil packages.
 **Boots to login in &lt;1s** on native virt (x86_64 KVM or aarch64 HVF).
 
-Two deployment modes:
-- **Diskless/immutable** — initramfs-only, RAM root, GlowFS overlay (appliance mode)
-- **Rootfs** — normal root-on-disk (ext4/btrfs/zfs), package-managed
+Root model:
+- **Immutable rootfs** — initramfs loads the complete OS into RAM from an erofs or squashfs image
+- **Persistent state** — `/home`, package state, browser profiles, caches, and logs stay on disk under bcachefs-backed `/state`
+- **Desktop** — a build profile layered on the immutable model, not a separate root-on-disk mode
 
 ```sh
 scripts/boot-native.sh           # build + boot initramfs (QEMU)
@@ -24,9 +25,6 @@ Platform support:
 # Initramfs (diskless) mode — build + boot in QEMU
 ./scripts/boot-native.sh
 
-# Rootfs mode — install to disk
-# I'll clean up these instructions later, and am gonna make a website or sm for this.
-
 # Custom kernel
 KERNEL_BUILD=1 ./scripts/boot-native.sh
 ```
@@ -40,12 +38,12 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Package mgr | Oil | APK-compatible, standalone binary |
 | Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
-| Network | netd (Rust), udhcpc, iwd | Zero-external-deps netd |
-| Root FS | **Diskless:** GlowFS/erofs/squashfs in RAM. **Rootfs:** ext4 over LUKS |
-| Compositor | Wayland + cage + foot | Optional, not in base |
+| Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
+| Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
+| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Alpenglowed is the desktop environment |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
-| Kernel | kernel.org latest stable with CONFIG_RUST=y, GlowFS in-tree |
+| Kernel | kernel.org latest stable with CONFIG_RUST=y |
 
 ## Project Layout
 
@@ -54,10 +52,8 @@ system/
   backends/
     appliance/          Primary profile (kernel configs, dinit services, scripts)
   kernelctl-zig/        Cgroup + kernel policy (Zig, 89KB static)
-  netd/                 Network state daemon (Rust, zero deps)
-  glowfsctl-zig/        GlowFS image tooling (Zig, 164KB)
+  netd-zig/             Network state daemon (Zig, zero deps)
   oil/                  Package manager (Rust, APK-compatible)
-  glowfs/               GlowFS kernel module source (C+Rust)
   kernel-modules/       Rust kernel modules (alpenglow_core, alpenglow_bootstat)
   init/                 Zig init (4.8KB static, initramfs fallback)
 scripts/                Build, CI, benchmark scripts
@@ -66,40 +62,73 @@ docs/                   Architecture, build, install docs
 
 Kernel configs live at `system/backends/appliance/kernel/`.
 
+## Profiles
+
+Build profiles select the userspace image:
+
+| Profile | Variable | Scope |
+|---------|----------|-------|
+| Minimal | `BUILD_PROFILE=minimal` | Headless boot, SSH, time, logs, DNS, OOM guard |
+| Standard | `BUILD_PROFILE=standard` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
+| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, [Alpenglowed](https://github.com/tschk/alpenglowed), foot, and browser shell pieces |
+
+Kernel profiles select hardware and boot policy:
+
+| Profile | Variable | Scope |
+|---------|----------|-------|
+| Fast | `KERNEL_PROFILE=fast` | Smallest headless diskless boot path |
+| Minimal | `KERNEL_PROFILE=minimal` | Networked appliance kernel with cgroups, PSI, zram, seccomp, Landlock, and root image filesystems |
+| Desktop | `KERNEL_PROFILE=desktop` | Minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware, and desktop filesystems |
+
 ## Performance
 
-### Boot to login (QEMU KVM, quiet)
+### Boot target (QEMU KVM, quiet)
 
-| OS | Boot | Initramfs | Kernel | Idle RAM |
+| OS | Boot | Initramfs | Kernel | RAM at target |
 |----|------|-----------|--------|----------|
 | **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
-| **Alpenglow** std | **1.3s** | 1.7MB | 4.4MB | ~26MB |
+| **Alpenglow** std | **1.15s** | 22MB | 6.0MB | ~87MB |
+| **Alpenglowed Desktop with Alpenglowed** | **1.98s** | 66MB | 6.0MB | ~253MB |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
+| Fedora minimal GNOME | 7.44s | 34MB | 18MB | ~705MB |
+| Manjaro minimal XFCE | 7.44s | 24MB | 16MB | ~477MB |
+| Ubuntu minimal GNOME | 35.32s | 63MB | 15MB | ~198MB |
 
-Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.3s. Alpine matches boot speed but has 6000x larger initramfs and 3x the RAM. Both modes use the same toolchain — the difference is just initramfs contents.
+Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.15s as a five-run median. Alpine matches boot speed but has a larger initramfs and uses more RAM. Both modes use the same toolchain — the difference is just initramfs contents.
+
+Alpenglow standard and Alpenglowed Desktop rows are five-run medians on `ultramarine` with KVM, 4096MB RAM, 2 vCPU, and explicit initramfs boot. Alpenglowed Desktop (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`) reached serial login with Zig-backed kernel policy, netd, zram, and pressure services enabled. The measured desktop image had a 223MB rootfs, 66MB zstd initramfs, and 6.0MB kernel. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
+
+Fedora, Manjaro, and Ubuntu desktop rows are five-run medians from installed package-manager roots, not live ISOs or netinstall timings. They were built on `ultramarine` as minimal desktop images, copied to ext4 disks, and booted with the same QEMU shape used for Alpenglow comparison (`q35`, KVM, 4096MB RAM, 2 vCPU, virtio GPU, serial console). Boot time stops at systemd `graphical.target`; RAM is the last serial `/proc/meminfo` sample before that target. Fedora used GNOME/GDM from `fedora:43` packages with a 2.2GB root and 2.4GB sparse image. Manjaro used XFCE/LightDM from `manjarolinux/base:latest` packages with a 2.0GB root and 2.2GB sparse image. Ubuntu used GNOME/GDM from `ubuntu:24.04` packages with a 2.0GB root and 2.2GB sparse image.
+
+| Desktop graphics payload | Size | Includes |
+|--------------------------|------|----------|
+| `GRAPHICS_BACKEND=software` | 175MB | lavapipe, LLVM, Z3 |
+| `GRAPHICS_BACKEND=hardware` | 69MB | Intel, virtio, nouveau, gfxstream ICDs; no lavapipe/LLVM/Z3 |
+
+Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use the standard profile for that. `COMPILER=inauguration` selects the `../inauguration` compiler track for compiler-capable images, but it does not remove lavapipe's Mesa LLVM dependency from the graphical runtime.
 
 ### Binary size (static musl, x86_64)
 
 | Tool | Lang | Size | vs alternative |
 |------|------|------|----------------|
-| kernelctl | Zig | 89KB | 501KB (Rust) |
-| glowfsctl | Zig | 164KB | 501KB (Rust) |
+| kernelctl | Zig | 72KB | 501KB (Rust) |
+| netd | Zig | 40KB | Rust version still in tree |
+| zramctl | Zig | 16KB | shell wrapper replaced |
+| pressurectl | Zig | 48KB | shell wrapper replaced |
 | init | Zig | 4.8KB | 937KB (toybox+sh) |
 | dinit | C++ | 1.6MB | 20MB+ (systemd) |
 | toybox | C | 838KB | 10MB+ (coreutils) |
 | alpenglow_core.ko | Rust | 9.2K | kernel built-in |
 
-## Modes
+## Root And Desktop Model
 
-Alpenglow runs in two deployment modes sharing the same codebase:
+Alpenglow has one root model:
 
-**Diskless/Appliance** — boot from initramfs, root in RAM (tmpfs), state on persistent partition. Uses GlowFS squashfs for verified immutable root. Target: embedded, edge, kiosk, containers.
+**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
 
-**Rootfs/Desktop** — install to disk (ext4 over LUKS), normal r/w root. dinit manages services, Oil installs packages. Target: workstation, server, development.
-
-The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exists, it switches root; otherwise runs diskless. Both modes use the same kernel, toolchain, and package format.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in Alpenglowed.
 
 ## Services
 
@@ -111,15 +140,14 @@ The `init` script auto-detects mode: if `/dev/disk/by-label/alpenglow-root` exis
 | Logging (syslogd) | ✅ | ✅ | ✅ | dinit |
 | DHCP networking | ✅ | ✅ | ✅ | dinit |
 | WiFi (iwd) | ✅ | optional | ✅ | dinit |
-| Wayland + sway | ✅ | optional | ✅ | dinit |
+| Wayland + Alpenglowed | ✅ | optional | ✅ | dinit |
 | Audio (PipeWire) | ✅ | optional | ✅ | dinit |
 | Package manager (Oil) | ✅ | ✅ | ✅ | dinit |
 | Kernel policy (kernelctl) | ✅ | ✅ | ✅ | dinit |
-| GlowFS mount | ✅ | ✅ | optional | dinit |
+| Root image mount | ✅ | ✅ | ✅ | initramfs |
 
 ## Status
 
-It boots on real hardware! 22/22 milestones.
-Booted on 2012 Mac Mini.
+QEMU boot is verified. Real hardware boot has also been tested on Orange Pi 3B and Mac mini 2012.
 
 See [AGENTS.md](AGENTS.md) for full milestone table and [docs/](docs/) for architecture docs.

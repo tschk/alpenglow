@@ -1,6 +1,5 @@
 type = process
 command = /usr/bin/alpenglowed
 restart = yes
-depends-on = velox
 depends-on = pipewire
 depends-on = wireplumber

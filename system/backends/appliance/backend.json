@@ -15,6 +15,9 @@
       "packages": "packages-minimal.txt"
     },
     "standard": {
+      "packages": "packages-standard.txt"
+    },
+    "desktop": {
       "packages": "packages-runtime.txt"
     }
   },

@@ -48,14 +48,17 @@ tools/build_manager/build_manager_gui/dist/
 tools/build_manager/build_manager_gui/src-tauri/target/
 tools/bootloader/
 
+# Website
+node_modules/
+.astro/
+dist/
+
 # ghostty WASM build artifacts (large; built at image-assembly time)
 bundle/terminal/ghostty-vt.wasm
 # zig build cache (ghostty submodule)
 third_party/ghostty/.zig-cache/
 system/kernelctl-zig/.zig-cache/
 system/kernelctl-zig/zig-out/
-system/glowfsctl-zig/.zig-cache/
-system/glowfsctl-zig/zig-out/
 system/netd-zig/.zig-cache/
 system/netd-zig/zig-out/
 system/zramctl-zig/.zig-cache/
@@ -83,3 +86,5 @@ system/backends/appliance/vro/vro
 # Local/tooling directories
 .poolside/
 piolium/
+zig-linux-x86_64-0.14.0/
+*.orig

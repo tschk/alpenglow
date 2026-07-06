@@ -8,5 +8,12 @@
 ## Runtime And Appliance
 
 - [Immutable Rootfs](./architecture/immutable-rootfs.md)
-- [GlowFS](./architecture/glowfs.md)
 - [Oil recipe format](./architecture/oil-recipe-format.md)
+
+## Browser Shell
+
+- [Browser README](./browser/README.md)
+- [Root model](./browser/root-model.md)
+- [Profiles](./browser/profiles.md)
+- [Packages](./browser/packages.md)
+- [Desktop](./browser/desktop.md)
