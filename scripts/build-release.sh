@@ -50,6 +50,8 @@ for native_initramfs in "${OUT_DIR}/../native/initramfs.cpio.zst" "${OUT_DIR}/..
     break
   fi
 done
+test -f "${KERNEL}" || { echo "missing built kernel: ${KERNEL}" >&2; exit 1; }
+test -f "${INITRAMFS}" || { echo "missing built initramfs: ${INITRAMFS}" >&2; exit 1; }
 
 # ── 2. Fetch Limine bootloader ─────────────────────────────────────
 echo "→ Fetching Limine ${LIMINE_VERSION}..."
