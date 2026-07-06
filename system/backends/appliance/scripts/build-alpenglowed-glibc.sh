@@ -33,22 +33,7 @@ mkdir -p "${OUT_DIR}/alpenglowed-glibc"
 
 echo "→ Building alpenglowed (glibc, dynamic linking)..."
 
-# Check if crepuscularity repo is a sibling
-CREPUS_DIR=""
-for candidate in \
-  "$(dirname "${ALPENGLOWED_SRC}")/crepuscularity" \
-  "$(dirname "$(dirname "${ALPENGLOWED_SRC}")")/crepuscularity"; do
-  [ -d "${candidate}/crates" ] && { CREPUS_DIR="${candidate}"; break; }
-done
-
-# Mount repos at paths that preserve Cargo.toml relative paths.
-# alpenglowed's Cargo.toml uses path = "../crepuscularity/..." so we need
-# /build/alpenglowed and /build/crepuscularity inside the container.
 DOCKER_VOLUMES="-v ${ALPENGLOWED_SRC}:/build/alpenglowed"
-if [ -n "${CREPUS_DIR}" ] && [ -d "${CREPUS_DIR}" ]; then
-  CREPUS_DIR="$(CDPATH='' cd -- "${CREPUS_DIR}" && pwd)"
-  DOCKER_VOLUMES="${DOCKER_VOLUMES} -v ${CREPUS_DIR}:/build/crepuscularity"
-fi
 
 docker run --rm --platform linux/amd64 ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglowed-glibc:/out" rust:latest sh -c '
   set -e
@@ -56,6 +41,10 @@ docker run --rm --platform linux/amd64 ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglo
   apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev pkg-config 2>/dev/null >/dev/null
 
   cd /build/alpenglowed
+  sed -i "s#crepuscularity-core = { path = \"../crepuscularity/crates/crepuscularity-core\" }#crepuscularity-core = \"0.4.18\"#" Cargo.toml
+  sed -i "s#crepuscularity-gpui = { path = \"../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#g" Cargo.toml
+  sed -i "s#crepuscularity-web = { path = \"../crepuscularity/crates/crepuscularity-web\" }#crepuscularity-web = \"0.4.11\"#" Cargo.toml
+  sed -i "s#crepuscularity-gpui = { path = \"../../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#" alpenglow-greeter/Cargo.toml
   cargo build --release --features compositor 2>&1 | tail -5
 
   mkdir -p /out/usr/bin

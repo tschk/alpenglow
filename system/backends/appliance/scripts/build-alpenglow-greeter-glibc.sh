@@ -26,18 +26,7 @@ fi
 ALPENGLOWED_SRC="$(CDPATH='' cd -- "${ALPENGLOWED_SRC}" && pwd)"
 mkdir -p "${OUT_DIR}/alpenglow-greeter-glibc"
 
-CREPUS_DIR=""
-for candidate in \
-  "$(dirname "${ALPENGLOWED_SRC}")/crepuscularity" \
-  "$(dirname "$(dirname "${ALPENGLOWED_SRC}")")/crepuscularity"; do
-  [ -d "${candidate}/crates" ] && { CREPUS_DIR="${candidate}"; break; }
-done
-
 DOCKER_VOLUMES="-v ${ALPENGLOWED_SRC}:/build/alpenglowed"
-if [ -n "${CREPUS_DIR}" ]; then
-  CREPUS_DIR="$(CDPATH='' cd -- "${CREPUS_DIR}" && pwd)"
-  DOCKER_VOLUMES="${DOCKER_VOLUMES} -v ${CREPUS_DIR}:/build/crepuscularity"
-fi
 
 echo "→ Building alpenglow-greeter (glibc)..."
 
@@ -46,6 +35,10 @@ docker run --rm --platform linux/amd64 ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglo
   apt-get update -qq 2>/dev/null
   apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libfreetype6-dev pkg-config 2>/dev/null >/dev/null
   cd /build/alpenglowed
+  sed -i "s#crepuscularity-core = { path = \"../crepuscularity/crates/crepuscularity-core\" }#crepuscularity-core = \"0.4.18\"#" Cargo.toml
+  sed -i "s#crepuscularity-gpui = { path = \"../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#g" Cargo.toml
+  sed -i "s#crepuscularity-web = { path = \"../crepuscularity/crates/crepuscularity-web\" }#crepuscularity-web = \"0.4.11\"#" Cargo.toml
+  sed -i "s#crepuscularity-gpui = { path = \"../../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#" alpenglow-greeter/Cargo.toml
   cargo build --release -p alpenglow-greeter
   test -f target/release/alpenglow-greeter
   mkdir -p /out/usr/bin
