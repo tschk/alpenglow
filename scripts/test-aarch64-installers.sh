@@ -5,6 +5,7 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT_DIR="${ROOT_DIR}/build/cross/aarch64"
 TMP="${TMPDIR:-/tmp}/alpenglow-aarch64-installers"
 TIMEOUT="${TIMEOUT:-45}"
+MODE="${1:-${MODE:-all}}"
 
 fail() {
   echo "FAIL: $1" >&2
@@ -43,20 +44,28 @@ require_cmd qemu-system-aarch64
 require_cmd tar
 require_cmd timeout
 
+case "${MODE}" in
+  all|tui|gui) ;;
+  *) fail "usage: $0 [all|tui|gui]" ;;
+esac
+
 test -f "${OUT_DIR}/vmlinuz-virt" || fail "missing ${OUT_DIR}/vmlinuz-virt"
 test -f "${OUT_DIR}/toybox-aarch64" || fail "missing ${OUT_DIR}/toybox-aarch64"
 
 rm -rf "${TMP}"
-mkdir -p "${TMP}/standard/bin" "${TMP}/standard/proc" "${TMP}/standard/sys" "${TMP}/standard/dev" "${TMP}/standard/run"
+mkdir -p "${TMP}"
 
-CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
-  cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
-  --target-dir "${ROOT_DIR}/target" --bin alpenglow-install --bin alpenglow-install-tui
+if [ "${MODE}" = "all" ] || [ "${MODE}" = "tui" ]; then
+  mkdir -p "${TMP}/standard/bin" "${TMP}/standard/proc" "${TMP}/standard/sys" "${TMP}/standard/dev" "${TMP}/standard/run"
 
-cp "${OUT_DIR}/toybox-aarch64" "${TMP}/standard/bin/toybox"
-ln -sf toybox "${TMP}/standard/bin/sh"
-cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install-tui" "${TMP}/standard/bin/alpenglow-install-tui"
-cat > "${TMP}/standard/init" <<'EOF'
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
+    cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+    --target-dir "${ROOT_DIR}/target" --bin alpenglow-install --bin alpenglow-install-tui
+
+  cp "${OUT_DIR}/toybox-aarch64" "${TMP}/standard/bin/toybox"
+  ln -sf toybox "${TMP}/standard/bin/sh"
+  cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install-tui" "${TMP}/standard/bin/alpenglow-install-tui"
+  cat > "${TMP}/standard/init" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -68,31 +77,33 @@ TERM=xterm /bin/alpenglow-install-tui || true
 echo "Alpenglow standard installer smoke OK"
 /bin/toybox poweroff -f
 EOF
-chmod +x "${TMP}/standard/init" "${TMP}/standard/bin/toybox" "${TMP}/standard/bin/alpenglow-install-tui"
-pack_root "${TMP}/standard" "${TMP}/standard.cpio.gz"
-run_qemu "${TMP}/standard.cpio.gz" "${TMP}/standard.log" -display none
-grep -q "Alpenglow standard installer smoke OK" "${TMP}/standard.log" || fail "standard installer smoke failed"
+  chmod +x "${TMP}/standard/init" "${TMP}/standard/bin/toybox" "${TMP}/standard/bin/alpenglow-install-tui"
+  pack_root "${TMP}/standard" "${TMP}/standard.cpio.gz"
+  run_qemu "${TMP}/standard.cpio.gz" "${TMP}/standard.log" -display none
+  grep -q "Alpenglow standard installer smoke OK" "${TMP}/standard.log" || fail "standard installer smoke failed"
+fi
 
-GUI_SYSROOT="$(ALPENGLOW_AARCH64_GUI_SYSROOT="${ALPENGLOW_AARCH64_GUI_SYSROOT:-}" sh "${ROOT_DIR}/scripts/build-aarch64-gui-sysroot.sh")"
-CC_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcc" \
-CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx" \
-CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
-RUSTFLAGS="${RUSTFLAGS:-} -L native=${GUI_SYSROOT}/usr/lib -L native=${GUI_SYSROOT}/lib" \
-  cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
-  --target-dir "${ROOT_DIR}/target" --features gui --bin alpenglow-install-gui
+if [ "${MODE}" = "all" ] || [ "${MODE}" = "gui" ]; then
+  GUI_SYSROOT="$(ALPENGLOW_AARCH64_GUI_SYSROOT="${ALPENGLOW_AARCH64_GUI_SYSROOT:-}" sh "${ROOT_DIR}/scripts/build-aarch64-gui-sysroot.sh")"
+  CC_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcc" \
+  CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx" \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
+  RUSTFLAGS="${RUSTFLAGS:-} -L native=${GUI_SYSROOT}/usr/lib -L native=${GUI_SYSROOT}/lib" \
+    cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+    --target-dir "${ROOT_DIR}/target" --features gui --bin alpenglow-install-gui
 
-mkdir -p "${TMP}/desktop"
-CID="$(docker create --platform linux/arm64 alpine:3.21 sleep 600)"
-cleanup() {
-  docker rm -f "${CID}" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
-docker start "${CID}" >/dev/null
-docker exec "${CID}" sh -lc 'apk add --no-cache cage seatd libxkbcommon-x11 fontconfig ttf-dejavu mesa-dri-gallium mesa-vulkan-swrast >/dev/null'
-docker export "${CID}" | tar -C "${TMP}/desktop" -xf -
-mkdir -p "${TMP}/desktop/proc" "${TMP}/desktop/sys" "${TMP}/desktop/dev" "${TMP}/desktop/run" "${TMP}/desktop/tmp"
-cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install-gui" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
-cat > "${TMP}/desktop/init" <<'EOF'
+  mkdir -p "${TMP}/desktop"
+  CID="$(docker create --platform linux/arm64 alpine:3.21 sleep 600)"
+  cleanup() {
+    docker rm -f "${CID}" >/dev/null 2>&1 || true
+  }
+  trap cleanup EXIT
+  docker start "${CID}" >/dev/null
+  docker exec "${CID}" sh -lc 'apk add --no-cache cage seatd libxkbcommon-x11 fontconfig ttf-dejavu mesa-dri-gallium mesa-vulkan-swrast >/dev/null'
+  docker export "${CID}" | tar -C "${TMP}/desktop" -xf -
+  mkdir -p "${TMP}/desktop/proc" "${TMP}/desktop/sys" "${TMP}/desktop/dev" "${TMP}/desktop/run" "${TMP}/desktop/tmp"
+  cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install-gui" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
+  cat > "${TMP}/desktop/init" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -123,10 +134,11 @@ cat /tmp/gui.log 2>/dev/null || true
 echo "Alpenglow desktop wayland smoke OK"
 poweroff -f
 EOF
-chmod +x "${TMP}/desktop/init" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
-pack_root "${TMP}/desktop" "${TMP}/desktop.cpio.gz"
-run_qemu "${TMP}/desktop.cpio.gz" "${TMP}/desktop.log" -display cocoa -device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci
-grep -q "Alpenglow desktop GUI running" "${TMP}/desktop.log" || fail "desktop GUI did not keep running"
-grep -q "Alpenglow desktop wayland smoke OK" "${TMP}/desktop.log" || fail "desktop wayland smoke failed"
+  chmod +x "${TMP}/desktop/init" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
+  pack_root "${TMP}/desktop" "${TMP}/desktop.cpio.gz"
+  run_qemu "${TMP}/desktop.cpio.gz" "${TMP}/desktop.log" -display cocoa -device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci
+  grep -q "Alpenglow desktop GUI running" "${TMP}/desktop.log" || fail "desktop GUI did not keep running"
+  grep -q "Alpenglow desktop wayland smoke OK" "${TMP}/desktop.log" || fail "desktop wayland smoke failed"
+fi
 
 echo "test-aarch64-installers: ok"
