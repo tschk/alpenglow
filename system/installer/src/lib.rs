@@ -34,6 +34,24 @@ pub struct InstallRequest {
     pub allow_regular_file: bool,
 }
 
+pub fn default_live_source() -> PathBuf {
+    PathBuf::from("/run/alpenglow/alpenglow.img.zst")
+}
+
+pub fn parse_install_args<I, T>(args: I) -> (PathBuf, Option<PathBuf>)
+where
+    I: IntoIterator<Item = T>,
+    T: Into<PathBuf>,
+{
+    let mut args = args.into_iter();
+    let source = args
+        .next()
+        .map(Into::into)
+        .unwrap_or_else(default_live_source);
+    let target = args.next().map(Into::into);
+    (source, target)
+}
+
 pub fn validate_target(target: &Path, allow_regular_file: bool) -> Result<(), InstallError> {
     if allow_regular_file && !target.exists() {
         return Ok(());

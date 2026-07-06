@@ -1,4 +1,4 @@
-use alpenglow_installer::install_image_maybe_compressed;
+use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
 use crepuscularity_tui::{ratatui, Template};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
@@ -7,12 +7,7 @@ use std::path::PathBuf;
 const UI: &str = include_str!("../../ui/tui.crepus");
 
 fn main() {
-    let mut args = std::env::args_os().skip(1);
-    let source = args
-        .next()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/run/alpenglow/alpenglow.img.zst"));
-    let target = args.next().map(PathBuf::from);
+    let (source, target) = parse_install_args(std::env::args_os().skip(1));
     if let Err(err) = draw(&source, target.as_ref()) {
         eprintln!("installer ui failed: {err}");
         std::process::exit(1);
