@@ -23,6 +23,7 @@ build_in_tree() {
   cd "${kdir}"
   make ARCH=i386 i386_defconfig >/dev/null 2>&1
   cat "${BACKEND}/kernel/v86-i686.fragment" >> .config
+  cat "${BACKEND}/kernel/v86-i686-fast.fragment" >> .config
   make ARCH=i386 olddefconfig >/dev/null 2>&1
   ./scripts/config --disable DRM --disable SOUND --disable USB_SUPPORT 2>/dev/null || true
   make ARCH=i386 olddefconfig >/dev/null 2>&1
@@ -77,6 +78,7 @@ docker run --rm --platform linux/amd64 \
     cd "'"${KERNEL_TAR}"'"
     make ARCH=i386 i386_defconfig >/dev/null 2>&1
     cat /kcfg/v86-i686.fragment >> .config
+    cat /kcfg/v86-i686-fast.fragment >> .config
     make ARCH=i386 olddefconfig >/dev/null 2>&1
     ./scripts/config --disable DRM --disable SOUND --disable USB_SUPPORT 2>/dev/null || true
     make ARCH=i386 olddefconfig >/dev/null 2>&1
