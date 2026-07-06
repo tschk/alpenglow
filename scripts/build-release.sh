@@ -31,13 +31,18 @@ mkdir -p "${OUT_DIR}" "${MNT_ROOT}" "${MNT_STATE}"
 
 # ── 1. Build kernel + initramfs ────────────────────────────────────
 echo "→ Building kernel and initramfs..."
-KERNEL_BUILD=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5 || {
+KERNEL_BUILD=1 BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5 || {
   echo "WARNING: boot-native.sh failed, trying without custom kernel"
-  "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5
+  BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5
 }
 cp "${KERNEL}" "${OUT_DIR}/vmlinuz" 2>/dev/null || true
 cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}" 2>/dev/null || true
-cp "${OUT_DIR}/../native/initramfs.cpio.gz" "${INITRAMFS}" 2>/dev/null || true
+for native_initramfs in "${OUT_DIR}/../native/initramfs.cpio.zst" "${OUT_DIR}/../native/initramfs.cpio.lz4"; do
+  if [ -f "${native_initramfs}" ]; then
+    cp "${native_initramfs}" "${INITRAMFS}"
+    break
+  fi
+done
 
 # ── 2. Fetch Limine bootloader ─────────────────────────────────────
 echo "→ Fetching Limine ${LIMINE_VERSION}..."

@@ -17,6 +17,7 @@ ARCH="${KERNEL_ARCH:-x86_64}"
 BOOT_MODE="${BOOT_MODE:-diskless}"
 ALPENGLOW_MODULE="${ROOT_DIR}/build/native/alpenglow_core.ko"
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
+BUILD_ONLY="${BUILD_ONLY:-0}"
 if [ "${INITRAMFS:-}" = "" ]; then
   if [ "${BUILD_PROFILE}" = "desktop" ]; then
     INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
@@ -510,6 +511,14 @@ export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
+if [ -f /run/alpenglow/alpenglow.img.zst ]; then
+  export ALPENGLOWED_INSTALLER_SOURCE=/run/alpenglow/alpenglow.img.zst
+fi
+if [ -z "${ALPENGLOWED_INSTALLER_TARGET:-}" ]; then
+  for dev in /dev/vda /dev/sda /dev/nvme0n1 /dev/mmcblk0; do
+    [ -b "$dev" ] && { export ALPENGLOWED_INSTALLER_TARGET="$dev"; break; }
+  done
+fi
 exec /usr/bin/alpenglowed-bin --compositor "$@"
 ALPWRAP
     cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
@@ -525,6 +534,14 @@ GWRAP
 #!/bin/sh
 export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+if [ -f /run/alpenglow/alpenglow.img.zst ]; then
+  export ALPENGLOWED_INSTALLER_SOURCE=/run/alpenglow/alpenglow.img.zst
+fi
+if [ -z "${ALPENGLOWED_INSTALLER_TARGET:-}" ]; then
+  for dev in /dev/vda /dev/sda /dev/nvme0n1 /dev/mmcblk0; do
+    [ -b "$dev" ] && { export ALPENGLOWED_INSTALLER_TARGET="$dev"; break; }
+  done
+fi
 exec /usr/bin/alpenglowed-bin --compositor "$@"
 ALPWRAP
     cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
@@ -603,6 +620,11 @@ case "${BUILD_PROFILE}" in
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
     [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
+    if [ -f "${ROOTFS_DIR}/usr/bin/greetd" ]; then
+      BOOT_SERVICES="${BOOT_SERVICES} greetd"
+    elif [ -f "${ROOTFS_DIR}/usr/bin/alpenglowed-bin" ]; then
+      BOOT_SERVICES="${BOOT_SERVICES} alpenglowed"
+    fi
     ;;
 esac
 
@@ -880,6 +902,10 @@ echo ""
 # FAST kernel: tiny kernel with embedded initramfs
 if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
   KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
+fi
+
+if [ "${BUILD_ONLY}" = "1" ]; then
+  exit 0
 fi
 
 # Boot

@@ -4,15 +4,13 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
-PROFILE="${BUILD_PROFILE:-standard}"
+EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-standard}}"
 OUT_DIR="${ROOT_DIR}/build/release"
 ASSET_DIR="${OUT_DIR}/assets"
 IMAGE="${OUT_DIR}/alpenglow.img"
 KERNEL="${OUT_DIR}/vmlinuz"
 INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
 LIMINE_DIR="${OUT_DIR}/limine"
-ASSET_BASE="alpenglow-${VERSION}-${PROFILE}-${ARCH}"
-COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
 
 case "${ARCH}" in
   amd64) ARCH=x86_64 ;;
@@ -25,7 +23,44 @@ case "${ARCH}" in
   *) RUST_TARGET="" ;;
 esac
 
-ASSET_BASE="alpenglow-${VERSION}-${PROFILE}-${ARCH}"
+FAST=0
+GRAPHICAL=0
+BUILD_SERVICES=0
+ALPENGLOW_AUTOLOGIN=0
+
+case "${EDITION}" in
+  fast)
+    PROFILE=minimal
+    KERNEL_PROFILE=fast
+    FAST=1
+    GRAPHICAL=0
+    ;;
+  minimal)
+    PROFILE=minimal
+    KERNEL_PROFILE=minimal
+    GRAPHICAL=0
+    ;;
+  standard)
+    PROFILE=standard
+    KERNEL_PROFILE=minimal
+    GRAPHICAL=0
+    ;;
+  desktop)
+    PROFILE=desktop
+    KERNEL_PROFILE=desktop
+    GRAPHICAL=1
+    BUILD_SERVICES=1
+    ALPENGLOW_AUTOLOGIN=1
+    ;;
+  *)
+    echo "unknown edition: ${EDITION}. Use fast, minimal, standard, or desktop." >&2
+    exit 1
+    ;;
+esac
+
+export KERNEL_PROFILE FAST GRAPHICAL BUILD_SERVICES ALPENGLOW_AUTOLOGIN
+
+ASSET_BASE="alpenglow-${VERSION}-${EDITION}-${ARCH}"
 COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
 if [ -n "${RUST_TARGET}" ]; then
   INSTALLER_DIR="${ROOT_DIR}/target/${RUST_TARGET}/release"
@@ -86,12 +121,25 @@ rm -f "${COMPRESSED_IMAGE}" "${COMPRESSED_IMAGE}.sha256"
 zstd -T0 -19 -f "${IMAGE}" -o "${COMPRESSED_IMAGE}"
 sha256_file "${COMPRESSED_IMAGE}"
 
+if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
+  LIVE_ROOT="${ROOT_DIR}/build/native/rootfs"
+  mkdir -p "${LIVE_ROOT}/run/alpenglow" "${LIVE_ROOT}/usr/bin"
+  cp "${COMPRESSED_IMAGE}" "${LIVE_ROOT}/run/alpenglow/alpenglow.img.zst"
+  cp "${INSTALLER_DIR}/alpenglow-install" "${LIVE_ROOT}/usr/bin/"
+  cp "${INSTALLER_DIR}/alpenglow-install-tui" "${LIVE_ROOT}/usr/bin/"
+  if [ "${PROFILE}" = "desktop" ] && [ -f "${INSTALLER_DIR}/alpenglow-install-gui" ]; then
+    cp "${INSTALLER_DIR}/alpenglow-install-gui" "${LIVE_ROOT}/usr/bin/"
+  fi
+  (cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
+fi
+
 if command -v xorriso >/dev/null 2>&1; then
   ISO_ROOT="${OUT_DIR}/iso-root"
   ISO="${ASSET_DIR}/${ASSET_BASE}.iso"
   rm -rf "${ISO_ROOT}" "${ISO}" "${ISO}.sha256"
   mkdir -p "${ISO_ROOT}/boot/limine" "${ISO_ROOT}/run/alpenglow" "${ISO_ROOT}/usr/bin"
   cp "${COMPRESSED_IMAGE}" "${COMPRESSED_IMAGE}.sha256" "${ISO_ROOT}/run/alpenglow/"
+  cp "${COMPRESSED_IMAGE}" "${ISO_ROOT}/run/alpenglow/alpenglow.img.zst"
   cp "${INSTALLER_DIR}/alpenglow-install" "${ISO_ROOT}/usr/bin/"
   cp "${INSTALLER_DIR}/alpenglow-install-tui" "${ISO_ROOT}/usr/bin/"
   if [ "${PROFILE}" = "desktop" ] && [ -f "${INSTALLER_DIR}/alpenglow-install-gui" ]; then

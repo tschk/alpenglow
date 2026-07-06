@@ -19,6 +19,30 @@ Platform support:
 - riscv64 — `arch/riscv64` branch — QEMU virt, OpenSBI
 - Rockchip RK3566 — `board/rk3566` branch — PINE64 Quartz64
 
+## Downloads
+
+GitHub releases publish live installer ISOs and compressed disk images for each edition and architecture:
+
+| Asset | Use |
+|-------|-----|
+| `.iso` | Live installer. Boot it to try Alpenglow, then install from the TUI or desktop installer. |
+| `.img.zst` | Compressed disk image for direct flashing or scripted installs. |
+
+Release asset names use:
+
+```sh
+alpenglow-VERSION-EDITION-ARCH.iso
+alpenglow-VERSION-EDITION-ARCH.img.zst
+```
+
+Standard live ISOs use the terminal installer:
+
+```sh
+alpenglow-install-tui /run/alpenglow/alpenglow.img.zst /dev/sdX
+```
+
+Desktop live ISOs boot Alpenglowed and open the graphical installer against the same bundled image at `/run/alpenglow/alpenglow.img.zst`.
+
 ## Quick Start
 
 ```sh
@@ -62,23 +86,18 @@ docs/                   Architecture, build, install docs
 
 Kernel configs live at `system/backends/appliance/kernel/`.
 
-## Profiles
+## Editions
 
-Build profiles select the userspace image:
+Release editions combine a userspace profile with a kernel profile:
 
-| Profile | Variable | Scope |
-|---------|----------|-------|
-| Minimal | `BUILD_PROFILE=minimal` | Headless boot, SSH, time, logs, DNS, OOM guard |
-| Standard | `BUILD_PROFILE=standard` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
-| Desktop | `BUILD_PROFILE=desktop` | Standard plus Wayland, audio, WiFi, greetd, [Alpenglowed](https://github.com/tschk/alpenglowed), foot, and browser shell pieces |
+| Edition | Userspace | Kernel | Scope |
+|---------|-----------|--------|-------|
+| Fast | `minimal` | `fast` | Smallest headless diskless boot path |
+| Minimal | `minimal` | `minimal` | Headless appliance with networking, SSH, time, logs, DNS, and OOM guard |
+| Standard | `standard` | `minimal` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
+| Desktop | `desktop` | `desktop` | Live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, foot, and the GUI installer |
 
-Kernel profiles select hardware and boot policy:
-
-| Profile | Variable | Scope |
-|---------|----------|-------|
-| Fast | `KERNEL_PROFILE=fast` | Smallest headless diskless boot path |
-| Minimal | `KERNEL_PROFILE=minimal` | Networked appliance kernel with cgroups, PSI, zram, seccomp, Landlock, and root image filesystems |
-| Desktop | `KERNEL_PROFILE=desktop` | Minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware, and desktop filesystems |
+Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|standard|desktop`.
 
 ## Performance
 
