@@ -17,7 +17,6 @@ const buildIdPromise = fetch("/v86/initrd-build-id.txt", { cache: "no-store" })
   .catch(() => {});
 
 const v86ModulePromise = import("./v86/libv86.mjs");
-const pageT0 = performance.now();
 
 const asset = (path) => `${path}?v=${encodeURIComponent(buildId)}`;
 let emulator;
@@ -228,8 +227,6 @@ try {
     autostart: true,
   });
 
-  let serialTail = "";
-  let webLineSent = false;
   emulator.add_listener("serial0-output-byte", (byte) => {
     if (byte === 0xff) {
       return;
@@ -237,15 +234,6 @@ try {
     const ch = String.fromCharCode(byte);
     if (term) {
       term.write(ch);
-      if (!webLineSent && ch.charCodeAt(0) >= 32 && ch !== "\r") {
-        serialTail = (serialTail + ch).slice(-28);
-        const plain = serialTail.replace(/\x1b\[[0-9;]*m/g, "");
-        if (/alpenglow:.+# ?$/.test(plain)) {
-          webLineSent = true;
-          const webS = ((performance.now() - pageT0) / 1000).toFixed(1);
-          term.writeln(`\r\n\x1b[2mweb: ${webS}s (download + v86 + guest to shell)\x1b[0m`);
-        }
-      }
       return;
     }
     if (legacyPre) {
