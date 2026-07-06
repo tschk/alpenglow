@@ -69,9 +69,15 @@ if [ -n "${RUST_TARGET}" ]; then
 else
   INSTALLER_DIR="${ROOT_DIR}/target/release"
 fi
+GUI_INSTALLER=""
 
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}"
 export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}"
+
+if [ "${RUST_TARGET}" = "x86_64-unknown-linux-musl" ]; then
+  export CC_x86_64_unknown_linux_musl="${ROOT_DIR}/scripts/x86_64-linux-musl-zigcc"
+  export CXX_x86_64_unknown_linux_musl="${ROOT_DIR}/scripts/x86_64-linux-musl-zigcxx"
+fi
 
 if [ "${PROFILE}" = "desktop" ] && [ "${RUST_TARGET}" = "aarch64-unknown-linux-musl" ]; then
   GUI_SYSROOT="$(ALPENGLOW_AARCH64_GUI_SYSROOT="${ALPENGLOW_AARCH64_GUI_SYSROOT:-}" sh "${ROOT_DIR}/scripts/build-aarch64-gui-sysroot.sh")"
@@ -107,10 +113,16 @@ build_installer() {
   fi
 }
 
+build_host_gui_installer() {
+  cargo build --release --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+    --target-dir "${ROOT_DIR}/target" --features gui --bin alpenglow-install-gui
+  GUI_INSTALLER="${ROOT_DIR}/target/release/alpenglow-install-gui"
+}
+
 BUILD_PROFILE="${PROFILE}" ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
 build_installer --bin alpenglow-install --bin alpenglow-install-tui
-if [ "${PROFILE}" = "desktop" ]; then
-  build_installer --features gui --bin alpenglow-install-gui
+if [ "${PROFILE}" = "desktop" ] && [ "${ARCH}" = "x86_64" ]; then
+  build_host_gui_installer
 fi
 
 test -f "${IMAGE}" || {
@@ -129,8 +141,8 @@ if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
   cp "${COMPRESSED_IMAGE}" "${LIVE_ROOT}/run/alpenglow/alpenglow.img.zst"
   cp "${INSTALLER_DIR}/alpenglow-install" "${LIVE_ROOT}/usr/bin/"
   cp "${INSTALLER_DIR}/alpenglow-install-tui" "${LIVE_ROOT}/usr/bin/"
-  if [ "${PROFILE}" = "desktop" ] && [ -f "${INSTALLER_DIR}/alpenglow-install-gui" ]; then
-    cp "${INSTALLER_DIR}/alpenglow-install-gui" "${LIVE_ROOT}/usr/bin/"
+  if [ -n "${GUI_INSTALLER}" ] && [ -f "${GUI_INSTALLER}" ]; then
+    cp "${GUI_INSTALLER}" "${LIVE_ROOT}/usr/bin/"
   fi
   (cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
 fi
@@ -144,8 +156,8 @@ if command -v xorriso >/dev/null 2>&1; then
   cp "${COMPRESSED_IMAGE}" "${ISO_ROOT}/run/alpenglow/alpenglow.img.zst"
   cp "${INSTALLER_DIR}/alpenglow-install" "${ISO_ROOT}/usr/bin/"
   cp "${INSTALLER_DIR}/alpenglow-install-tui" "${ISO_ROOT}/usr/bin/"
-  if [ "${PROFILE}" = "desktop" ] && [ -f "${INSTALLER_DIR}/alpenglow-install-gui" ]; then
-    cp "${INSTALLER_DIR}/alpenglow-install-gui" "${ISO_ROOT}/usr/bin/"
+  if [ -n "${GUI_INSTALLER}" ] && [ -f "${GUI_INSTALLER}" ]; then
+    cp "${GUI_INSTALLER}" "${ISO_ROOT}/usr/bin/"
   fi
   if [ -f "${KERNEL}" ] && [ -f "${INITRAMFS}" ]; then
     cp "${KERNEL}" "${ISO_ROOT}/boot/vmlinuz"
