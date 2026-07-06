@@ -20,6 +20,13 @@ STATE_SIZE_MB="${STATE_SIZE_MB:-1024}"
 LIMINE_VERSION="${LIMINE_VERSION:-12.4.0}"
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
+sgdisk_ok() {
+  set +e
+  sgdisk "$@"
+  code=$?
+  set -e
+  [ "${code}" -eq 0 ] || [ "${code}" -eq 4 ]
+}
 
 echo "=== Alpenglow release build v${ALPENGLOW_VERSION} ==="
 echo "  arch:  ${ALPENGLOW_ARCH}"
@@ -66,11 +73,11 @@ ROOT_END=$(( ROOT_START + (BOOT_SIZE_MB * 2048) ))
 STATE_START=$(( ROOT_END + 2048 ))
 STATE_END=$(( STATE_START + (STATE_SIZE_MB * 2048) ))
 
-sgdisk -o "${IMAGE}" 2>/dev/null
-sgdisk -n 1:${ROOT_START}:${ROOT_END} -t 1:8300 -c 1:"alpenglow-boot" "${IMAGE}" 2>/dev/null
-sgdisk -n 2:${STATE_START}:${STATE_END} -t 2:8300 -c 2:"alpenglow-state" "${IMAGE}" 2>/dev/null
-sgdisk -n 3:${STATE_END}: -t 3:8301 -c 3:"Limine" "${IMAGE}" 2>/dev/null
-sgdisk -A 3:set:2 "${IMAGE}" 2>/dev/null  # Legacy BIOS bootable
+sgdisk_ok -o "${IMAGE}"
+sgdisk_ok -n 1:${ROOT_START}:${ROOT_END} -t 1:8300 -c 1:"alpenglow-boot" "${IMAGE}"
+sgdisk_ok -n 2:${STATE_START}:${STATE_END} -t 2:8300 -c 2:"alpenglow-state" "${IMAGE}"
+sgdisk_ok -n 3:${STATE_END}: -t 3:8301 -c 3:"Limine" "${IMAGE}"
+sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
 echo "→ Formatting partitions..."
