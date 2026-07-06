@@ -72,11 +72,12 @@ ROOT_START=2048
 ROOT_END=$(( ROOT_START + (BOOT_SIZE_MB * 2048) ))
 STATE_START=$(( ROOT_END + 2048 ))
 STATE_END=$(( STATE_START + (STATE_SIZE_MB * 2048) ))
+LIMINE_START=$(( STATE_END + 2048 ))
 
 sgdisk_ok -o "${IMAGE}"
 sgdisk_ok -n 1:${ROOT_START}:${ROOT_END} -t 1:8300 -c 1:"alpenglow-boot" "${IMAGE}"
 sgdisk_ok -n 2:${STATE_START}:${STATE_END} -t 2:8300 -c 2:"alpenglow-state" "${IMAGE}"
-sgdisk_ok -n 3:${STATE_END}: -t 3:8301 -c 3:"Limine" "${IMAGE}"
+sgdisk_ok -n 3:${LIMINE_START}: -t 3:8301 -c 3:"Limine" "${IMAGE}"
 sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
