@@ -86,6 +86,11 @@ REPOS
 apk_root_install fastfetch oksh
 FASTFETCH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
 OKSH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v oksh 2>/dev/null | sed 's/^oksh-//')"
+if [ -x "${ROOTFS}/usr/bin/oksh" ] && [ ! -e "${ROOTFS}/bin/oksh" ]; then
+  ln -sf ../usr/bin/oksh "${ROOTFS}/bin/oksh"
+fi
+rm -f "${ROOTFS}/bin/bash" "${ROOTFS}/usr/bin/bash" 2>/dev/null || true
+rm -rf "${ROOTFS}/usr/lib/bash" 2>/dev/null || true
 if [ -d "${ROOTFS}/etc" ] && [ ! -w "${ROOTFS}/etc" ]; then
   if command -v sudo >/dev/null 2>&1; then
     sudo chown -R "$(id -u):$(id -g)" "${ROOTFS}"
@@ -243,15 +248,25 @@ export COLORTERM=truecolor
 [ -c "$CON" ] || CON=/dev/console
 cd /
 {
-  /bin/echo "Alpenglow"
-  /bin/echo
-  /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
-  /bin/echo "Best: boot to shell in ~0.5s on minimal profile; idle RAM <64 MiB."
-  /bin/echo "Docs: cat readme.md  cat ideology.md  cat root-model.md  cat desktop.md  cat benchmarks.md"
-  /bin/echo "Try: fastfetch   wax info vro   oil search firefox   vro readme.md"
-  /bin/echo
-  /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
-  /bin/echo
+  esc=$(printf '\033')
+  r="${esc}[0m"
+  dim="${esc}[2m"
+  title="${esc}[1;36m"
+  stats="${esc}[0;32m"
+  hint="${esc}[0;33m"
+  boot_s=$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)
+  mem_line=$(awk '/MemTotal:/ {t=$2} /MemAvailable:/ {a=$2} END {
+    if (t > 0) {
+      u=t-a; printf "%.1f MiB / %.1f MiB (%d%%)", u/1024, t/1024, int(u*100/t+0.5)
+    } else print "?"
+  }' /proc/meminfo 2>/dev/null)
+  . /etc/os-release 2>/dev/null
+  printf '%s%sAlpenglow%s %s%s%s\n\n' "$title" "$r" "$dim" "${VERSION_ID:-browser}" "$r"
+  printf '%s%s%s\n' "$dim" "immutable RAM root · bcachefs /state · oksh · Oil" "$r"
+  printf '%s%sboot: %ss · memory: %s%s\n' "$stats" "$boot_s" "$mem_line" "$r"
+  printf '%s────────────────────────────────────────%s\n' "$dim" "$r"
+  printf '%sdocs:%s cat readme.md · ideology.md · benchmarks.md\n' "$hint" "$r"
+  printf '%stry:%s fastfetch · vro readme.md · wax info oksh\n\n' "$hint" "$r"
   /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
   /bin/echo
 } >"$CON" 2>&1
@@ -270,8 +285,10 @@ if [ -c "$CON" ]; then
   /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
 printf '\n' >"$CON"
-if [ -x /bin/oksh ]; then
-  exec /bin/setsid -c /bin/oksh -i <"$CON" >"$CON" 2>&1
+login_shell=/bin/oksh
+[ -x "$login_shell" ] || login_shell=/usr/bin/oksh
+if [ -x "$login_shell" ]; then
+  exec /bin/setsid -c "$login_shell" -i <"$CON" >"$CON" 2>&1
 fi
 exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
 INIT

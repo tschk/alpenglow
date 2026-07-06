@@ -11,3 +11,7 @@ Target: ~2s boot to login on headless minimal on real hardware.
 | Oil binary | ~1 MB |
 
 v86 browser demo is slower and heavier; it is a preview, not the performance target.
+
+## Browser serial banner
+
+At login the demo prints **measured** boot seconds and memory use (green), not marketing targets. Color key: [readme.md](readme.md#boot-banner-colors).
