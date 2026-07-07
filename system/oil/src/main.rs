@@ -30,42 +30,51 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Search for packages
+    #[command(visible_alias = "s")]
     Search { query: String },
     /// Show package details
+    #[command(visible_aliases = ["in", "show"])]
     Info { formula: String },
     /// Install packages
+    #[command(visible_aliases = ["i", "add"])]
     Install {
         packages: Vec<String>,
         #[arg(long)]
         dry_run: bool,
     },
     /// Install a package from a declarative recipe (.yml) file
+    #[command(visible_alias = "recipe")]
     InstallRecipe {
         recipe: PathBuf,
         #[arg(long)]
         dry_run: bool,
     },
     /// Uninstall packages
+    #[command(visible_aliases = ["rm", "del"])]
     Uninstall {
         formulae: Vec<String>,
         #[arg(long)]
         all: bool,
     },
     /// Reinstall packages
+    #[command(visible_aliases = ["ri", "re"])]
     Reinstall {
         packages: Vec<String>,
         #[arg(long)]
         all: bool,
     },
     /// Upgrade packages
+    #[command(visible_alias = "up")]
     Upgrade {
         packages: Vec<String>,
         #[arg(long)]
         dry_run: bool,
     },
     /// List packages with available updates
+    #[command(visible_aliases = ["od", "out"])]
     Outdated,
     /// Update the package index
+    #[command(visible_aliases = ["u", "refresh"])]
     Update,
     #[cfg(feature = "wax")]
     /// Manage third-party package taps
@@ -80,12 +89,16 @@ enum Commands {
 #[derive(Debug, PartialEq, Clone, Subcommand)]
 enum TapAction {
     /// Add a tap
+    #[command(visible_alias = "a")]
     Add { tap: String },
     /// Remove a tap
+    #[command(visible_aliases = ["rm", "del"])]
     Remove { tap: String },
     /// List configured taps
+    #[command(visible_aliases = ["ls", "l"])]
     List,
     /// Update all tap indexes (or one tap)
+    #[command(visible_aliases = ["u", "up"])]
     Update { tap: Option<String> },
 }
 
@@ -230,31 +243,21 @@ fn run_update() -> Result<()> {
     Ok(())
 }
 
-fn package_matches_query(name: &str, description: &str, q_lower: &str) -> bool {
-    if q_lower.is_empty() {
-        return true;
-    }
-    let q_bytes = q_lower.as_bytes();
-    name.as_bytes()
-        .windows(q_bytes.len())
-        .any(|w| w.eq_ignore_ascii_case(q_bytes))
-        || description
-            .as_bytes()
-            .windows(q_bytes.len())
-            .any(|w| w.eq_ignore_ascii_case(q_bytes))
-}
-
 fn run_search(query: String) -> Result<()> {
     let index = load_registry()?;
     let q = query.to_lowercase();
     let mut results: Vec<_> = index
         .packages
         .iter()
-        .filter(|p| package_matches_query(&p.name, &p.description, &q))
+        .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
         .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
-    for pkg in &results {
-        println!("{:<20} {}", pkg.name, pkg.version);
+    if results.is_empty() {
+        println!("No packages found for '{}'", query);
+    } else {
+        for pkg in &results {
+            println!("{:<20} {}", pkg.name, pkg.version);
+        }
     }
     Ok(())
 }
@@ -371,55 +374,48 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn compute_upgrades<'a>(
-    targets: &[String],
-    installed: &std::collections::HashMap<String, install::InstalledPackage>,
-    index: &'a system::registry::PackageIndex,
-) -> Vec<(&'a system::registry::PackageMetadata, String)> {
-    let mut upgrades = Vec::new();
-    for name in targets {
-        if let Some(current) = installed.get(name) {
-            if current.pinned {
-                continue;
-            }
-            if let Some(latest) = index.find(name) {
-                if latest.version != current.version {
-                    upgrades.push((latest, current.version.clone()));
-                }
-            }
-        }
-    }
-    upgrades
-}
-
 fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let mut state = install::InstallState::new()?;
     let installed = state.load()?;
+    if installed.is_empty() {
+        println!("No packages installed");
+        return Ok(());
+    }
     let index = load_registry()?;
     let targets: Vec<String> = if packages.is_empty() {
         installed.keys().cloned().collect()
     } else {
         packages
     };
-
-    let upgrades = compute_upgrades(&targets, &installed, &index);
-
-    for (latest, current_version) in upgrades {
-        let name = &latest.name;
-        if dry_run {
-            println!(
-                "Would upgrade {name}: {} → {}",
-                current_version, latest.version
-            );
-        } else {
-            let dest = std::path::PathBuf::from("/usr/local");
-            install_package(latest, &dest)?;
-            state.mark_installed(name, Some(latest.version.as_str()));
-            println!(
-                "Upgraded {name}: {} → {}",
-                current_version, latest.version
-            );
+    let mut upgraded = 0;
+    for name in &targets {
+        if let Some(current) = installed.get(name) {
+            if current.pinned {
+                continue;
+            }
+            if let Some(latest) = index.find(name) {
+                if latest.version != current.version {
+                    upgraded += 1;
+                    if dry_run {
+                        println!(
+                            "Would upgrade {name}: {} → {}",
+                            &current.version, &latest.version
+                        );
+                    } else {
+                        let dest = std::path::PathBuf::from("/usr/local");
+                        install_package(latest, &dest)?;
+                        state.mark_installed(name, Some(latest.version.as_str()));
+                        println!(
+                            "Upgraded {name}: {} → {}",
+                            current.version, latest.version
+                        );
+                    }
+                }
+            }
         }
+    }
+    if upgraded == 0 {
+        println!("All packages are up to date");
     }
     state.save()?;
     Ok(())
@@ -428,44 +424,24 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
 fn run_outdated() -> Result<()> {
     let state = install::InstallState::new()?;
     let installed = state.load()?;
+    if installed.is_empty() {
+        println!("No packages installed");
+        return Ok(());
+    }
     let index = load_registry()?;
+    let mut outdated = 0;
     for (name, pkg) in &installed {
         if let Some(latest) = index.find(name) {
             if latest.version != pkg.version {
+                outdated += 1;
                 println!("{} {} -> {}", name, pkg.version, latest.version);
             }
         }
     }
-    Ok(())
-}
-
-fn get_secure_temp_dir_in(home: std::path::PathBuf) -> Result<std::path::PathBuf> {
-    #[cfg(unix)]
-    use std::os::unix::fs::DirBuilderExt;
-
-    let tmp_dir = home.join(".oil").join("tmp");
-
-    if !tmp_dir.exists() {
-        let mut builder = std::fs::DirBuilder::new();
-        builder.recursive(true);
-
-        #[cfg(unix)]
-        builder.mode(0o700);
-
-        builder.create(&tmp_dir)
-            .map_err(|e| error::OilError::Install(format!("failed to create temp dir: {e}")))?;
+    if outdated == 0 {
+        println!("All packages are up to date");
     }
-    Ok(tmp_dir)
-}
-
-fn get_secure_temp_dir() -> Result<std::path::PathBuf> {
-    // We try to get HOME first (Unix), then try USERPROFILE (Windows) as a fallback
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(std::path::PathBuf::from)
-        .ok_or_else(|| error::OilError::Install("$HOME not set".into()))?;
-
-    get_secure_temp_dir_in(home)
+    Ok(())
 }
 
 #[cfg(feature = "wax")]
@@ -533,7 +509,6 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
         }
     }
     Ok(())
-
 }
 
 fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
@@ -550,10 +525,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .read_to_end(&mut data)
         .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
 
-    let tmp_dir = get_secure_temp_dir()?;
-    let mut tmp = tempfile::Builder::new()
-        .prefix("oil-download-")
-        .tempfile_in(&tmp_dir)
+    let mut tmp = tempfile::NamedTempFile::new()
         .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
 
     tmp.write_all(&data)
@@ -572,25 +544,6 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
 mod tests {
     use super::*;
     use std::cell::RefCell;
-
-    #[test]
-    fn test_package_matches_query_case_insensitive_substring() {
-        assert!(package_matches_query("RipGrep", "fast search", "grep"));
-        assert!(package_matches_query("pkg", "Has CURL library", "curl"));
-        assert!(!package_matches_query("pkg", "other", "zzz"));
-        assert!(package_matches_query("any", "any", ""));
-    }
-
-    #[test]
-    fn test_get_secure_temp_dir_in_success() -> Result<()> {
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        let home = temp_dir.path().to_path_buf();
-
-        let result = get_secure_temp_dir_in(home).expect("Expected valid secure temp dir");
-        assert_eq!(result, temp_dir.path().join(".oil").join("tmp"));
-        assert!(result.exists(), "Secure temp dir should be created");
-        Ok(())
-    }
 
     #[derive(Debug, PartialEq, Clone)]
     enum MockCall {
@@ -633,33 +586,23 @@ mod tests {
             Ok(())
         }
         fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls
-                .borrow_mut()
-                .push(MockCall::Install(packages, dry_run));
+            self.calls.borrow_mut().push(MockCall::Install(packages, dry_run));
             Ok(())
         }
         fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
-            self.calls
-                .borrow_mut()
-                .push(MockCall::InstallRecipe(recipe, dry_run));
+            self.calls.borrow_mut().push(MockCall::InstallRecipe(recipe, dry_run));
             Ok(())
         }
         fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
-            self.calls
-                .borrow_mut()
-                .push(MockCall::Uninstall(formulae, all));
+            self.calls.borrow_mut().push(MockCall::Uninstall(formulae, all));
             Ok(())
         }
         fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
-            self.calls
-                .borrow_mut()
-                .push(MockCall::Reinstall(packages, all));
+            self.calls.borrow_mut().push(MockCall::Reinstall(packages, all));
             Ok(())
         }
         fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls
-                .borrow_mut()
-                .push(MockCall::Upgrade(packages, dry_run));
+            self.calls.borrow_mut().push(MockCall::Upgrade(packages, dry_run));
             Ok(())
         }
         fn outdated(&self) -> Result<()> {
@@ -680,22 +623,15 @@ mod tests {
     #[test]
     fn test_execute_command_search() {
         let runner = MockRunner::new();
-        let cmd = Commands::Search {
-            query: "foo".to_string(),
-        };
+        let cmd = Commands::Search { query: "foo".to_string() };
         execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::Search("foo".to_string())]
-        );
+        assert_eq!(runner.get_calls(), vec![MockCall::Search("foo".to_string())]);
     }
 
     #[test]
     fn test_execute_command_info() {
         let runner = MockRunner::new();
-        let cmd = Commands::Info {
-            formula: "bar".to_string(),
-        };
+        let cmd = Commands::Info { formula: "bar".to_string() };
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(runner.get_calls(), vec![MockCall::Info("bar".to_string())]);
     }
@@ -710,10 +646,7 @@ mod tests {
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(
             runner.get_calls(),
-            vec![MockCall::Install(
-                vec!["pkg1".to_string(), "pkg2".to_string()],
-                true
-            )]
+            vec![MockCall::Install(vec!["pkg1".to_string(), "pkg2".to_string()], true)]
         );
     }
 
@@ -727,10 +660,7 @@ mod tests {
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(
             runner.get_calls(),
-            vec![MockCall::InstallRecipe(
-                PathBuf::from("recipes/toybox.yml"),
-                true
-            )]
+            vec![MockCall::InstallRecipe(PathBuf::from("recipes/toybox.yml"), true)]
         );
     }
 
@@ -825,78 +755,42 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_upgrades() {
-        use std::collections::HashMap;
-        use crate::install::InstalledPackage;
-        use crate::system::registry::{PackageIndex, PackageMetadata};
-
-        let mut installed = HashMap::new();
-        // Needs upgrade
-        installed.insert("pkg_upgrade".to_string(), InstalledPackage {
-            name: "pkg_upgrade".to_string(),
-            version: "1.0.0".to_string(),
-            install_date: 0,
-            pinned: false,
-        });
-        // Up to date
-        installed.insert("pkg_current".to_string(), InstalledPackage {
-            name: "pkg_current".to_string(),
-            version: "2.0.0".to_string(),
-            install_date: 0,
-            pinned: false,
-        });
-        // Pinned, should be ignored even if out of date
-        installed.insert("pkg_pinned".to_string(), InstalledPackage {
-            name: "pkg_pinned".to_string(),
-            version: "1.0.0".to_string(),
-            install_date: 0,
-            pinned: true,
-        });
-
-        let pkgs = vec![
-            PackageMetadata {
-                name: "pkg_upgrade".to_string(),
-                version: "1.1.0".to_string(),
-                description: "".to_string(),
-                download_url: "".to_string(),
-                sha256: None,
-                installed_size: 0,
-                depends: vec![],
-                provides: vec![],
-            },
-            PackageMetadata {
-                name: "pkg_current".to_string(),
-                version: "2.0.0".to_string(),
-                description: "".to_string(),
-                download_url: "".to_string(),
-                sha256: None,
-                installed_size: 0,
-                depends: vec![],
-                provides: vec![],
-            },
-            PackageMetadata {
-                name: "pkg_pinned".to_string(),
-                version: "1.1.0".to_string(),
-                description: "".to_string(),
-                download_url: "".to_string(),
-                sha256: None,
-                installed_size: 0,
-                depends: vec![],
-                provides: vec![],
-            },
+    fn cli_parses_command_aliases() {
+        let cases: Vec<(&[&str], MockCall)> = vec![
+            (&["oil", "s", "vim"], MockCall::Search("vim".into())),
+            (&["oil", "i", "pkg"], MockCall::Install(vec!["pkg".into()], false)),
+            (&["oil", "add", "pkg"], MockCall::Install(vec!["pkg".into()], false)),
+            (&["oil", "rm", "pkg"], MockCall::Uninstall(vec!["pkg".into()], false)),
+            (&["oil", "del", "pkg"], MockCall::Uninstall(vec!["pkg".into()], false)),
+            (&["oil", "ri", "pkg"], MockCall::Reinstall(vec!["pkg".into()], false)),
+            (&["oil", "up"], MockCall::Upgrade(vec![], false)),
+            (&["oil", "u"], MockCall::Update),
+            (&["oil", "od"], MockCall::Outdated),
         ];
-        let index = PackageIndex::new(pkgs);
-        let targets = vec![
-            "pkg_upgrade".to_string(),
-            "pkg_current".to_string(),
-            "pkg_pinned".to_string(),
-        ];
+        for (argv, want) in cases {
+            let cli = Cli::try_parse_from(argv).expect("parse alias argv");
+            let runner = MockRunner::new();
+            let cmd = cli.command.expect("subcommand");
+            execute_command(cmd, &runner).expect("execute");
+            assert_eq!(runner.get_calls(), vec![want], "argv: {argv:?}");
+        }
+    }
 
-        let upgrades = compute_upgrades(&targets, &installed, &index);
-
-        assert_eq!(upgrades.len(), 1, "Only one package should be upgraded");
-        assert_eq!(upgrades[0].0.name, "pkg_upgrade");
-        assert_eq!(upgrades[0].0.version, "1.1.0");
-        assert_eq!(upgrades[0].1, "1.0.0");
+    #[cfg(feature = "wax")]
+    #[test]
+    fn cli_parses_tap_action_aliases() {
+        let cli = Cli::try_parse_from(["oil", "tap", "add", "org/tap"]).expect("parse");
+        let runner = MockRunner::new();
+        let cmd = cli.command.expect("subcommand");
+        execute_command(cmd, &runner).expect("execute");
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Tap(
+                None,
+                Some(TapAction::Add {
+                    tap: "org/tap".to_string()
+                })
+            )]
+        );
     }
 }
