@@ -290,7 +290,7 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}"
 export COLORTERM=truecolor
@@ -353,7 +353,7 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}"
 cd /
@@ -404,7 +404,7 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}"CON"
 if [ -x /bin/bash ]; then
@@ -426,7 +426,7 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}""$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
@@ -450,7 +450,7 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}""$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
@@ -474,7 +474,7 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}""$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
@@ -498,6 +498,6 @@ echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"
-gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' > /dev/null || true
 ls -lh "${KERNEL_OUT}"
 ls -lh "${OUT}"

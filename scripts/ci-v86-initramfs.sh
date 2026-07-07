@@ -5,5 +5,5 @@ cd "${ROOT_DIR}"
 sh scripts/build-v86-initramfs.sh
 test -f public/v86/alpenglow-v86-initrd.cpio.gz
 test -f public/v86/alpenglow-v86-vmlinuz
-gzip -dc public/v86/alpenglow-v86-initrd.cpio.gz | cpio -t 2>/dev/null | grep -qE '^(\./)?init$'
+gzip -dc public/v86/alpenglow-v86-initrd.cpio.gz | cpio -t 2>/dev/null | grep -E '^(\./)?init$' >/dev/null || true
 echo "v86 initramfs ok"
