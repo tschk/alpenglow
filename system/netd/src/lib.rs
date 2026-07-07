@@ -233,16 +233,20 @@ mod tests {
     }
 
     #[test]
-    fn read_snapshot_non_existent_root() {
+    fn read_snapshot_non_existent_root() -> io::Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "alpenglow-netd-test-nonexistent-{}-{}",
+            "alpenglow-netd-test-nonexistent-{}-{}-{}",
             std::process::id(),
-            now_unix_ms()
+            now_unix_ms(),
+            COUNTER.fetch_add(1, Ordering::SeqCst)
         ));
 
-        let snapshot = read_snapshot(&path).expect("snapshot should parse gracefully when root does not exist");
+        let snapshot = read_snapshot(&path)?;
         assert!(snapshot.interfaces.is_empty());
+        Ok(())
     }
 
     #[test]
