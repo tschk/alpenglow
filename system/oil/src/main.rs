@@ -243,13 +243,25 @@ fn run_update() -> Result<()> {
     Ok(())
 }
 
+fn contains_ignore_ascii_case(haystack: &str, needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    let haystack_bytes = haystack.as_bytes();
+    if haystack_bytes.len() < needle.len() {
+        return false;
+    }
+    haystack_bytes.windows(needle.len()).any(|w| w.eq_ignore_ascii_case(needle))
+}
+
 fn run_search(query: String) -> Result<()> {
     let index = load_registry()?;
-    let q = query.to_lowercase();
+    let q = query.to_ascii_lowercase();
+    let q_bytes = q.as_bytes();
     let mut results: Vec<_> = index
         .packages
         .iter()
-        .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
+        .filter(|p| contains_ignore_ascii_case(&p.name, q_bytes) || contains_ignore_ascii_case(&p.description, q_bytes))
         .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
     if results.is_empty() {
