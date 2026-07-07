@@ -374,21 +374,15 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
-    let mut state = install::InstallState::new()?;
-    let installed = state.load()?;
-    if installed.is_empty() {
-        println!("No packages installed");
-        return Ok(());
-    }
-    let index = load_registry()?;
-    let targets: Vec<String> = if packages.is_empty() {
-        installed.keys().cloned().collect()
-    } else {
-        packages
-    };
+fn upgrade_packages(
+    targets: &[String],
+    installed: &std::collections::HashMap<String, install::InstalledPackage>,
+    index: &system::registry::PackageIndex,
+    state: &mut install::InstallState,
+    dry_run: bool,
+) -> Result<usize> {
     let mut upgraded = 0;
-    for name in &targets {
+    for name in targets {
         if let Some(current) = installed.get(name) {
             if current.pinned {
                 continue;
@@ -414,6 +408,25 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
             }
         }
     }
+    Ok(upgraded)
+}
+
+fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
+    let mut state = install::InstallState::new()?;
+    let installed = state.load()?;
+    if installed.is_empty() {
+        println!("No packages installed");
+        return Ok(());
+    }
+    let index = load_registry()?;
+    let targets: Vec<String> = if packages.is_empty() {
+        installed.keys().cloned().collect()
+    } else {
+        packages
+    };
+
+    let upgraded = upgrade_packages(&targets, &installed, &index, &mut state, dry_run)?;
+
     if upgraded == 0 {
         println!("All packages are up to date");
     }
