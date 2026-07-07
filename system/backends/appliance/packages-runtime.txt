@@ -88,5 +88,8 @@ chrony
 # Local DNS caching
 dnsmasq
 
+# Image processing (HEIC thumbnail for Cupboard)
+imagemagick
+
 # OOM guard
 earlyoom
