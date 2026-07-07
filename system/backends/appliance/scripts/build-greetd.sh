@@ -2,7 +2,7 @@
 # Build greetd as static musl binary
 set -eu
 
-OUT_DIR="${1:-/build/out}"
+OUT_DIR="${1:?OUT_DIR must be specified}"
 VERSION="${2:-0.10.3}"
 
 echo "→ Building greetd ${VERSION}..."
