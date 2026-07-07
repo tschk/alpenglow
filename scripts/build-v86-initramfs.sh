@@ -7,7 +7,7 @@ if [ "${V86_SSH:-}" = 1 ] && [ -z "${V86_SKIP_SSH:-}" ]; then
 fi
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-ALP_VERSION="${ALP_VERSION:-0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)}"
+ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
 BUILD_DIR="${ROOT_DIR}/build/v86"
 ROOTFS="${BUILD_DIR}/rootfs"
 OUT="${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
@@ -83,14 +83,9 @@ REPOS
   ' sh "$@"
 }
 
-apk_root_install fastfetch oksh
+apk_root_install fastfetch bash
 FASTFETCH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v fastfetch 2>/dev/null | sed 's/^fastfetch-//')"
-OKSH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v oksh 2>/dev/null | sed 's/^oksh-//')"
-if [ -x "${ROOTFS}/usr/bin/oksh" ] && [ ! -e "${ROOTFS}/bin/oksh" ]; then
-  ln -sf ../usr/bin/oksh "${ROOTFS}/bin/oksh"
-fi
-rm -f "${ROOTFS}/bin/bash" "${ROOTFS}/usr/bin/bash" 2>/dev/null || true
-rm -rf "${ROOTFS}/usr/lib/bash" 2>/dev/null || true
+BASH_VERSION="$(docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 apk --root /rootfs info -e -v bash 2>/dev/null | sed 's/^bash-//')"
 if [ -d "${ROOTFS}/etc" ] && [ ! -w "${ROOTFS}/etc" ]; then
   if command -v sudo >/dev/null 2>&1; then
     sudo chown -R "$(id -u):$(id -g)" "${ROOTFS}"
@@ -107,9 +102,9 @@ cat > "${ROOTFS}/.oil/installed.json" <<EOF
     "install_date": 0,
     "pinned": false
   },
-  "oksh": {
-    "name": "oksh",
-    "version": "${OKSH_VERSION}",
+  "bash": {
+    "name": "bash",
+    "version": "${BASH_VERSION}",
     "install_date": 0,
     "pinned": false
   }
@@ -184,10 +179,7 @@ if [ ! -x "${VRO_CACHE}" ]; then
     echo "warning: no i686 vro source or SSH host available, falling back to busybox" >&2
   fi
 fi
-if [ "${V86_SKIP_VRO:-}" = 1 ]; then
-  ln -sf /bin/busybox "${ROOTFS}/usr/local/bin/vro"
-  echo "v86 initramfs: V86_SKIP_VRO=1 (smaller initrd, vro=busybox)" >&2
-elif [ -x "${VRO_CACHE}" ]; then
+if [ -x "${VRO_CACHE}" ]; then
   cp "${VRO_CACHE}" "${ROOTFS}/usr/local/bin/vro"
   chmod 755 "${ROOTFS}/usr/local/bin/vro"
 else
@@ -198,11 +190,11 @@ cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/"
 cp "${ROOT_DIR}/docs/browser/"*.md "${ROOTFS}/usr/share/alpenglow/browser/"
 
 mkdir -p "${ROOTFS}/etc/profile.d"
-ln -sf oksh "${ROOTFS}/bin/login-shell" 2>/dev/null || true
+ln -sf bash "${ROOTFS}/bin/login-shell" 2>/dev/null || true
 cat > "${ROOTFS}/etc/profile" <<'PROF'
 export PATH=/bin:/usr/bin:/usr/local/bin
 export HOME=/
-export SHELL=/bin/oksh
+export SHELL=/bin/bash
 export TERM=xterm-256color
 export COLORTERM=truecolor
 export CLICOLOR=1
@@ -225,7 +217,11 @@ if /bin/stty -F "$CON" sane 2>/dev/null; then
 fi
 TTY
 cat > "${ROOTFS}/etc/profile.d/prompt.sh" <<'PROMPT'
-export PS1='alpenglow:\w# '
+if [ -n "${BASH_VERSION}" ]; then
+  export PS1='\[\033[1;36m\]alpenglow\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]# '
+else
+  export PS1='alpenglow:~# '
+fi
 PROMPT
 
 cat > "${ROOTFS}/init" <<'INIT'
@@ -248,25 +244,13 @@ export COLORTERM=truecolor
 [ -c "$CON" ] || CON=/dev/console
 cd /
 {
-  esc=$(printf '\033')
-  r="${esc}[0m"
-  dim="${esc}[2m"
-  title="${esc}[1;36m"
-  stats="${esc}[0;32m"
-  hint="${esc}[0;33m"
-  boot_s=$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)
-  mem_line=$(awk '/MemTotal:/ {t=$2} /MemAvailable:/ {a=$2} END {
-    if (t > 0) {
-      u=t-a; printf "%.1f MiB / %.1f MiB (%d%%)", u/1024, t/1024, int(u*100/t+0.5)
-    } else print "?"
-  }' /proc/meminfo 2>/dev/null)
-  . /etc/os-release 2>/dev/null
-  printf '%sAlpenglow%s %s\n\n' "$title" "$r" "${VERSION_ID:-browser}"
-  printf '%simmutable RAM root | bcachefs /state | oksh | Oil%s\n' "$dim" "$r"
-  printf '%sboot: %ss  memory: %s%s\n' "$stats" "$boot_s" "$mem_line" "$r"
-  printf '%s----------------------------------------%s\n' "$dim" "$r"
-  printf '%sdocs:%s cat readme.md, ideology.md, benchmarks.md\n' "$hint" "$r"
-  printf '%stry:%s fastfetch, vro readme.md, wax info oksh\n\n' "$hint" "$r"
+  /bin/echo "Alpenglow"
+  /bin/echo
+  /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
+  /bin/echo "Best: boot to shell in ~0.5s on minimal profile; idle RAM <64 MiB."
+  /bin/echo "Docs: cat readme.md  cat ideology.md  cat root-model.md  cat desktop.md  cat benchmarks.md"
+  /bin/echo "Try: fastfetch   wax info vro   oil search firefox   vro readme.md"
+  /bin/echo
   /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
   /bin/echo
   /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
@@ -287,10 +271,216 @@ if [ -c "$CON" ]; then
   /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
 fi
 printf '\n' >"$CON"
-login_shell=/bin/oksh
-[ -x "$login_shell" ] || login_shell=/usr/bin/oksh
-if [ -x "$login_shell" ]; then
-  exec /bin/setsid -c "$login_shell" -i <"$CON" >"$CON" 2>&1
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+fi
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
+INIT
+chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+
+(cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
+echo "init in archive:"
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+ls -lh "${KERNEL_OUT}"
+ls -lh "${OUT}"
+export COLORTERM=truecolor
+/bin/mount -t proc proc /proc 2>/dev/null
+/bin/mount -t sysfs sysfs /sys 2>/dev/null
+/bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null || {
+  /bin/mkdir -p /dev 2>/dev/null
+  /bin/mknod /dev/console c 5 1 2>/dev/null
+  /bin/mknod /dev/ttyS0 c 4 64 2>/dev/null
+  /bin/mknod /dev/null c 1 3 2>/dev/null
+}
+/bin/mount -t tmpfs tmpfs /run 2>/dev/null
+/bin/hostname alpenglow 2>/dev/null
+[ -c "$CON" ] || CON=/dev/console
+cd /
+{
+  /bin/echo "Alpenglow"
+  /bin/echo
+  /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
+  /bin/echo "Docs: cat readme.md  cat ideology.md  cat root-model.md  cat desktop.md  cat benchmarks.md"
+  /bin/echo "Try: fastfetch   wax info vro   oil search firefox"
+  /bin/echo "     vro included; tap support available in standard profile."
+  /bin/echo
+  /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
+  /bin/echo
+  /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
+  /bin/echo
+} >"$CON" 2>&1
+export ENV=/etc/profile
+if [ -c "$CON" ]; then
+  /bin/stty -F "$CON" sane 2>/dev/null || true
+  # Use terminal size provided by the host via kernel cmdline if available.
+  cols=80
+  rows=24
+  for arg in $(cat /proc/cmdline 2>/dev/null); do
+    case "$arg" in
+      alpenglow.cols=*) cols="${arg#*=}" ;;
+      alpenglow.rows=*) rows="${arg#*=}" ;;
+    esac
+  done
+  /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
+fi
+printf '\n' >"$CON"
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+fi
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
+INIT
+chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+
+(cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
+echo "init in archive:"
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+ls -lh "${KERNEL_OUT}"
+ls -lh "${OUT}"
+cd /
+{
+  /bin/echo "Alpenglow"
+  /bin/echo
+  /bin/echo "Alpenglow: headless appliance or full desktop (Alpenglowed); immutable RAM root + disk /state."
+  /bin/echo "Docs: cat readme.md  cat ideology.md  cat root-model.md  cat desktop.md  cat benchmarks.md"
+  /bin/echo "Try: fastfetch   wax info vro   oil search firefox"
+  /bin/echo "     vro included; tap support available in standard profile."
+  /bin/echo
+  /usr/bin/fastfetch 2>/dev/null || /bin/fastfetch 2>/dev/null || true
+  /bin/echo
+  /bin/ls -1 --color=never *.md 2>/dev/null || /bin/ls -1 --color=never
+  /bin/echo
+} >"$CON" 2>&1
+export ENV=/etc/profile
+if [ -c "$CON" ]; then
+  /bin/stty -F "$CON" sane 2>/dev/null || true
+  # Use terminal size provided by the host via kernel cmdline if available.
+  cols=80
+  rows=24
+  for arg in $(cat /proc/cmdline 2>/dev/null); do
+    case "$arg" in
+      alpenglow.cols=*) cols="${arg#*=}" ;;
+      alpenglow.rows=*) rows="${arg#*=}" ;;
+    esac
+  done
+  /bin/stty -F "$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
+fi
+printf '\n' >"$CON"
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+fi
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
+INIT
+chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+
+(cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
+echo "init in archive:"
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+ls -lh "${KERNEL_OUT}"
+ls -lh "${OUT}"CON"
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+fi
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
+INIT
+chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+
+(cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
+echo "init in archive:"
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+ls -lh "${KERNEL_OUT}"
+ls -lh "${OUT}""$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
+fi
+printf '\n' >"$CON"
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+fi
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
+INIT
+chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+
+(cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
+echo "init in archive:"
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+ls -lh "${KERNEL_OUT}"
+ls -lh "${OUT}""$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
+fi
+printf '\n' >"$CON"
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
+fi
+exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
+INIT
+chmod 755 "${ROOTFS}/init"
+# Kernel must execute /init; script shebang needs /bin/sh -> busybox present.
+ln -sf busybox "${ROOTFS}/bin/sh"
+chmod 755 "${ROOTFS}/bin/sh" 2>/dev/null || true
+
+# Ensure our custom Alpenglow-branded busybox survives any apk overwrites.
+cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
+chmod 755 "${ROOTFS}/bin/busybox"
+
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+
+(cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
+echo "init in archive:"
+gzip -dc "${OUT}" | cpio -t 2>/dev/null | grep -E '^(\./)?init$' || true
+ls -lh "${KERNEL_OUT}"
+ls -lh "${OUT}""$CON" rows "${rows}" cols "${cols}" 2>/dev/null || true
+fi
+printf '\n' >"$CON"
+if [ -x /bin/bash ]; then
+  exec /bin/setsid -c /bin/bash --login -i <"$CON" >"$CON" 2>&1
 fi
 exec /bin/setsid -c /bin/sh -i <"$CON" >"$CON" 2>&1
 INIT
