@@ -216,27 +216,29 @@ mod tests {
     }
 
     #[test]
-    fn test_install_state_load_method() -> Result<()> {
+    fn test_install_state_load() -> Result<()> {
         let _guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
         std::env::set_var("HOME", temp_dir.path());
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 
-        // Before adding anything
-        let loaded = state.load().expect("Failed to load");
-        assert!(loaded.is_empty());
+        // Before adding anything, load should return an empty map
+        let loaded = state.load().expect("Failed to load empty state");
+        assert!(loaded.is_empty(), "Loaded state should initially be empty");
 
         // Add some packages
         state.mark_installed("pkg-x", Some("1.0.0"));
         state.mark_installed("pkg-y", Some("2.0.0"));
 
-        let loaded = state.load().expect("Failed to load");
-        assert_eq!(loaded.len(), 2);
+        // load() should return a HashMap reflecting the current internal state
+        let loaded = state.load().expect("Failed to load state");
+        assert_eq!(loaded.len(), 2, "Loaded state should contain 2 packages");
 
         let pkg_x = loaded.get("pkg-x").expect("pkg-x should exist in loaded map");
         assert_eq!(pkg_x.name, "pkg-x");
         assert_eq!(pkg_x.version, "1.0.0");
+        assert!(!pkg_x.pinned);
 
         let pkg_y = loaded.get("pkg-y").expect("pkg-y should exist in loaded map");
         assert_eq!(pkg_y.name, "pkg-y");
