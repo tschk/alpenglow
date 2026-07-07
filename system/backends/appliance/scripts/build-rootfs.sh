@@ -46,7 +46,9 @@ echo ""
 
 if ! command -v "${OIL_CMD}" >/dev/null 2>&1; then
   echo "Oil (${OIL_CMD}) not found." >&2
-  echo "Install Oil first. Please see https://oil.sh/ for secure installation instructions." >&2
+  echo "Build: OIL_BUILD=1 ${ROOT_DIR}/system/appliance/scripts/oil-installer.sh" >&2
+  echo "Or install from https://github.com/semitechnological/oil" >&2
+  echo "Tap index: oil tap add undivisible/tap  (https://github.com/undivisible/tap)" >&2
   exit 1
 fi
 
