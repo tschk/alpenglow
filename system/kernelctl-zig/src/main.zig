@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const linux = std.os.linux;
 const mem = std.mem;
@@ -227,19 +228,32 @@ fn writeEnv(path: []const u8, key: []const u8, value: []const u8) !void {
     try writeFile(path, line, true);
 }
 
+/// Zig 0.16 testing.tmpDir lives at cwd/.zig-cache/tmp/{sub_path}.
+fn kernelctlTestTmpAbsPath(alloc: mem.Allocator, tmp: std.testing.TmpDir) ![]const u8 {
+    var rel_z: [256]u8 = undefined;
+    const rel = try std.fmt.bufPrint(&rel_z, ".zig-cache/tmp/{s}", .{tmp.sub_path[0..]});
+    rel_z[rel.len] = 0;
+    var out: [std.posix.PATH_MAX]u8 = undefined;
+    const rp = std.c.realpath(@ptrCast(&rel_z), &out) orelse return error.RealpathFailed;
+    return alloc.dupe(u8, mem.sliceTo(rp, 0));
+}
+
+fn readTmpFile(tmp: std.testing.TmpDir, name: []const u8, buf: []u8) ![]u8 {
+    return tmp.dir.readFile(std.testing.io, name, buf);
+}
+
 test "wU64 writes correctly" {
+    if (builtin.os.tag != .linux) return;
     const testing = std.testing;
     var tmp = testing.tmpDir(.{});
     defer tmp.cleanup();
 
-    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    const tmp_path = try kernelctlTestTmpAbsPath(testing.allocator, tmp);
     defer testing.allocator.free(tmp_path);
-
     try wU64(tmp_path, "test.txt", 42);
 
-    const data = try tmp.dir.readFileAlloc(testing.allocator, "test.txt", 1024);
-    defer testing.allocator.free(data);
-
+    var buf: [32]u8 = undefined;
+    const data = try readTmpFile(tmp, "test.txt", &buf);
     try testing.expectEqualStrings("42\n", data);
 }
 
@@ -248,15 +262,43 @@ test "wU64 does not write on null" {
     var tmp = testing.tmpDir(.{});
     defer tmp.cleanup();
 
-    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    const tmp_path = try kernelctlTestTmpAbsPath(testing.allocator, tmp);
     defer testing.allocator.free(tmp_path);
-
     try wU64(tmp_path, "test_null.txt", null);
 
-    // Ensure file does not exist
-    tmp.dir.access("test_null.txt", .{}) catch |err| {
+    tmp.dir.access(std.testing.io, "test_null.txt", .{}) catch |err| {
         try testing.expect(err == error.FileNotFound);
         return;
     };
     return error.ExpectedFileNotFound;
+}
+
+test "wU64 writes zero correctly" {
+    if (builtin.os.tag != .linux) return;
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try kernelctlTestTmpAbsPath(testing.allocator, tmp);
+    defer testing.allocator.free(tmp_path);
+    try wU64(tmp_path, "test_zero.txt", 0);
+
+    var buf: [32]u8 = undefined;
+    const data = try readTmpFile(tmp, "test_zero.txt", &buf);
+    try testing.expectEqualStrings("0\n", data);
+}
+
+test "wU64 writes max u64 correctly" {
+    if (builtin.os.tag != .linux) return;
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try kernelctlTestTmpAbsPath(testing.allocator, tmp);
+    defer testing.allocator.free(tmp_path);
+    try wU64(tmp_path, "test_max.txt", std.math.maxInt(u64));
+
+    var buf: [64]u8 = undefined;
+    const data = try readTmpFile(tmp, "test_max.txt", &buf);
+    try testing.expectEqualStrings("18446744073709551615\n", data);
 }
