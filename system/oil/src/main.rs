@@ -245,11 +245,31 @@ fn run_update() -> Result<()> {
 
 fn run_search(query: String) -> Result<()> {
     let index = load_registry()?;
-    let q = query.to_lowercase();
+    let q_bytes = query.as_bytes();
     let mut results: Vec<_> = index
         .packages
         .iter()
-        .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
+        .filter(|p| {
+            let name_match = if q_bytes.is_empty() {
+                true
+            } else if q_bytes.len() > p.name.len() {
+                false
+            } else {
+                p.name.as_bytes().windows(q_bytes.len()).any(|w| w.eq_ignore_ascii_case(q_bytes))
+            };
+
+            let desc_match = if name_match {
+                true
+            } else if q_bytes.is_empty() {
+                true
+            } else if q_bytes.len() > p.description.len() {
+                false
+            } else {
+                p.description.as_bytes().windows(q_bytes.len()).any(|w| w.eq_ignore_ascii_case(q_bytes))
+            };
+
+            name_match || desc_match
+        })
         .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
     if results.is_empty() {
