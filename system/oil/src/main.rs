@@ -243,13 +243,53 @@ fn run_update() -> Result<()> {
     Ok(())
 }
 
+fn contains_ignore_ascii_case(haystack: &str, needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if haystack.len() < needle.len() {
+        return false;
+    }
+    haystack
+        .as_bytes()
+        .windows(needle.len())
+        .any(|w| w.eq_ignore_ascii_case(needle))
+}
+
+fn oil_secure_tmp_dir() -> Result<PathBuf> {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+        .ok_or_else(|| error::OilError::Install("HOME or USERPROFILE not set".into()))?;
+    let tmp_dir = home.join(".oil").join("tmp");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(&tmp_dir)
+            .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(&tmp_dir)
+            .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+    }
+    Ok(tmp_dir)
+}
+
 fn run_search(query: String) -> Result<()> {
     let index = load_registry()?;
-    let q = query.to_lowercase();
+    let q = query.to_ascii_lowercase();
+    let q_bytes = q.as_bytes();
     let mut results: Vec<_> = index
         .packages
         .iter()
-        .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
+        .filter(|p| {
+            contains_ignore_ascii_case(&p.name, q_bytes)
+                || contains_ignore_ascii_case(&p.description, q_bytes)
+        })
         .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
     if results.is_empty() {
@@ -374,6 +414,31 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     Ok(())
 }
 
+fn plan_upgrades<'a>(
+    targets: &'a [String],
+    installed: &'a std::collections::HashMap<String, install::InstalledPackage>,
+    index: &'a PackageIndex,
+) -> Vec<(
+        &'a String,
+        &'a install::InstalledPackage,
+        &'a system::registry::PackageMetadata,
+    )> {
+    let mut upgrades = Vec::new();
+    for name in targets {
+        if let Some(current) = installed.get(name) {
+            if current.pinned {
+                continue;
+            }
+            if let Some(latest) = index.find(name) {
+                if latest.version != current.version {
+                    upgrades.push((name, current, latest));
+                }
+            }
+        }
+    }
+    upgrades
+}
+
 fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let mut state = install::InstallState::new()?;
     let installed = state.load()?;
@@ -387,34 +452,22 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     } else {
         packages
     };
-    let mut upgraded = 0;
-    for name in &targets {
-        if let Some(current) = installed.get(name) {
-            if current.pinned {
-                continue;
-            }
-            if let Some(latest) = index.find(name) {
-                if latest.version != current.version {
-                    upgraded += 1;
-                    if dry_run {
-                        println!(
-                            "Would upgrade {name}: {} → {}",
-                            &current.version, &latest.version
-                        );
-                    } else {
-                        let dest = std::path::PathBuf::from("/usr/local");
-                        install_package(latest, &dest)?;
-                        state.mark_installed(name, Some(latest.version.as_str()));
-                        println!(
-                            "Upgraded {name}: {} → {}",
-                            current.version, latest.version
-                        );
-                    }
-                }
-            }
+    let upgrades = plan_upgrades(&targets, &installed, &index);
+
+    for (name, current, latest) in &upgrades {
+        if dry_run {
+            println!(
+                "Would upgrade {name}: {} → {}",
+                current.version, latest.version
+            );
+        } else {
+            let dest = std::path::PathBuf::from("/usr/local");
+            install_package(latest, &dest)?;
+            state.mark_installed(name, Some(latest.version.as_str()));
+            println!("Upgraded {name}: {} → {}", current.version, latest.version);
         }
     }
-    if upgraded == 0 {
+    if upgrades.is_empty() {
         println!("All packages are up to date");
     }
     state.save()?;
@@ -525,7 +578,9 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .read_to_end(&mut data)
         .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
 
-    let mut tmp = tempfile::NamedTempFile::new()
+    let tmp_dir = oil_secure_tmp_dir()?;
+    let mut tmp = tempfile::Builder::new()
+        .tempfile_in(&tmp_dir)
         .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
 
     tmp.write_all(&data)
