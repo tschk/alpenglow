@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::error::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPackage {
     pub name: String,
     pub version: String,
@@ -241,6 +241,8 @@ mod tests {
         let pkg_y = loaded.get("pkg-y").expect("pkg-y should exist in loaded map");
         assert_eq!(pkg_y.name, "pkg-y");
         assert_eq!(pkg_y.version, "2.0.0");
+
+        assert_eq!(loaded, state.packages);
 
         Ok(())
     }
