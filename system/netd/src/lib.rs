@@ -347,6 +347,64 @@ mod tests {
         assert_eq!(env_contents, render_runtime_env(&snapshot));
     }
 
+    #[test]
+    fn write_snapshot_state_json_error() {
+        let fixture = TestSysfs::new();
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![],
+        };
+
+        let state_json = fixture.path().join("out/state_json_dir");
+        fs::create_dir_all(&state_json).expect("should create directory");
+        let runtime_env = fixture.path().join("out/runtime.env");
+
+        let result = write_snapshot(&snapshot, &state_json, &runtime_env);
+        let error = result.expect_err("should return an error when writing to a directory");
+        assert_eq!(error.kind(), io::ErrorKind::IsADirectory);
+    }
+
+    #[test]
+    fn write_snapshot_runtime_env_error() {
+        let fixture = TestSysfs::new();
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![],
+        };
+
+        let state_json = fixture.path().join("out/state.json");
+        let runtime_env = fixture.path().join("out/runtime_env_dir");
+        fs::create_dir_all(&runtime_env).expect("should create directory");
+
+        let result = write_snapshot(&snapshot, &state_json, &runtime_env);
+        let error = result.expect_err("should return an error when writing to a directory");
+        assert_eq!(error.kind(), io::ErrorKind::IsADirectory);
+
+        // Verify that state_json was successfully written before the error
+        assert!(state_json.exists());
+        let json_contents = fs::read_to_string(&state_json)
+            .expect("should read state.json file successfully");
+        assert_eq!(json_contents, render_json(&snapshot));
+    }
+
+    #[test]
+    fn write_snapshot_success() {
+        let fixture = TestSysfs::new();
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![],
+        };
+
+        let state_json = fixture.path().join("out/state.json");
+        let runtime_env = fixture.path().join("out/runtime.env");
+
+        let result = write_snapshot(&snapshot, &state_json, &runtime_env);
+        assert!(result.is_ok(), "write_snapshot should return Ok on success");
+
+        assert!(state_json.exists());
+        assert!(runtime_env.exists());
+    }
+
     struct TestSysfs {
         path: PathBuf,
     }
