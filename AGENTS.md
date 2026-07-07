@@ -1,134 +1,106 @@
-# AGENTS.md - Alpenglow Project Guide
+# AGENTS.md — Alpenglow
 
-## What is Alpenglow?
+Guide for humans and coding agents working in this repo.
 
-Diskless, hardened, immutable Linux appliance. erofs/squashfs RAM root, dinit init, Oil native packages, toybox userland. ~2s boot to login.
+## What Alpenglow is
 
-Early-stage. Not production-ready.
+Musl Linux distribution: **immutable root** loaded from initramfs (erofs/squashfs) into RAM, **mutable state** on bcachefs (`/state`, `/home` bind mounts). **dinit** PID 1, **toybox** userland, **oksh** on appliance, **Oil** package manager (APK payloads, Rust).
 
-## Design
+Early-stage; not production-hardened for arbitrary deployments.
 
-| Decision | Choice |
-|----------|--------|
-| Boot | Diskless — full OS in RAM via initramfs |
-| Root FS | erofs/squashfs for immutable RAM root. bcachefs for `/state` and `/home` |
-| Init | dinit — parallel dependency-graph |
-| Compiler | Standard profile ships LLVM/Clang; Inauguration track selectable via COMPILER=inauguration |
-| Package mgr | Oil (Rust) — APK-only, sync HTTP, 2.3K LOC |
-| Userland | toybox — minimal BSD coreutils |
-| Shell | oksh |
-| Kernel | Hardened — three profiles: `fast` (boot speed), `minimal` (SSH/net/time/logs), `desktop` (display/audio/WiFi). Tracks kernel.org latest stable |
-| Kernel ctrl | kernelctl — Zig (72KB static) + Rust (501KB static) |
-| Display | Wayland + Smithay target via Alpenglowed + foot |
-| Audio | ALSA + PipeWire |
-| Networking | udhcpc + iwd |
-| Arch | x86_64, aarch64 (aarch64 CI cross-compile only; x86_64 boot-tested in CI) |
+## Non-negotiables for agents
 
-### What's not in the base (by design)
+- **JS/TS**: Bun only (no npm/yarn/pnpm).
+- **Rust**: workspace under `system/oil`, kernel modules, installer crates — run `scripts/ci-rust-core.sh` before claiming done.
+- **Zig**: `system/kernelctl-zig`, `netd-zig`, etc. — `scripts/ci-zig.sh` when touched.
+- **Do not** pipe remote install scripts (`curl | sh`). Oil comes from **this tree**, **https://github.com/semitechnological/oil**, or the **undivisible/tap** index (`oil tap add undivisible/tap` → `https://github.com/undivisible/tap`). Not oil.sh.
+- **CLAUDE.md** must stay a symlink to **AGENTS.md** (enforced in `scripts/ci-os-appliance.sh`).
+- Preserve existing comments in files you edit; no license banners or drive-by reformatting.
 
-Diskless appliance — system root lives in RAM. Persistent user and system state lives on disk under `/state`, with `/home` bind-mounted from bcachefs-backed state.
-VPN, Tailscale, WireGuard, custom firewall rules — users install
-via Oil or drop a binary in /usr/local. No need to bloat the base
-image with something only some deployments use. Same logic applies
-to any userspace service: base provides SSH + networking + package
-manager, user adds what they need.
+## Design snapshot
 
-Build profile system keeps the line clear:
-minimal = what you need to boot, connect SSH, and have time+logs.
-standard = more than minimal: compiler/tooling, network tools, filesystem tools, and system utilities.
-desktop = plug-and-play desktop: display/audio/WiFi/greetd/alpenglowed/foot.
-Everything else is `oil install <pkg>` away.
+| Area | Choice |
+|------|--------|
+| Boot | Initramfs → RAM root; Limine/UEFI on disk images |
+| Init | dinit (parallel service graph) |
+| Packages | Oil — sync HTTP, Alpine APK index + optional taps |
+| Shell (appliance) | oksh |
+| Shell (v86 browser demo) | bash (demo initramfs only) |
+| Kernel | Profiles: `fast`, `minimal`, `desktop` — see `system/backends/appliance/kernel/` |
+| Desktop | `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/tschk/alpenglowed) (Wayland/Smithay) |
+| Arch | x86_64 primary; branches for aarch64, riscv64, RK3566 |
 
-Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use standard for that. `COMPILER=inauguration` selects the `../inauguration` compiler track, but lavapipe's Mesa LLVM dependency is a graphics-runtime issue, not a compiler-track issue.
+**Build profiles** (`BUILD_PROFILE`): `minimal` (boot + SSH + time + logs), `standard` (+ tooling), `desktop` (+ graphics stack). **Editions** pair userspace profile with kernel profile — see root `readme.md`.
 
-Kernel profiles are separate from build profiles:
-fast = smallest headless diskless boot path.
-minimal = networked appliance kernel with cgroups, PSI, zram, seccomp, Landlock, and root image filesystems.
-desktop = minimal plus display, audio, USB, HID, WiFi, Bluetooth, firmware, and desktop filesystems.
+**Kernel profiles** ≠ build profiles: `fast` = smallest boot; `minimal` = networked appliance kernel; `desktop` = display/audio/WiFi firmware path.
 
-## Architecture
+Base image stays lean; VPN, extra daemons, etc. via `oil install` or `/usr/local`.
 
-```
-Initramfs — Custom boot layer (Limine+UEFI+extlinux)
-Immutable root image — erofs/squashfs loaded into RAM
-dinit — Dependency-graph init (PID 1)
-Oil — Native APK package manager (Rust)
-toybox — Minimal core userland
-kernelctl — Kernel policy + cgroup tooling (Zig+Rust)
-alpenglow-netd — Network state daemon (Zig)
-```
-
-## Project Layout
+## Repo layout
 
 ```
 system/
-  kernelctl-zig/    Cgroup + kernel policy (Zig, 72KB static)
-  netd-zig/         Network state daemon (Zig)
-  oil/              Native package manager (Rust, APK-only)
-  backends/
-    appliance/      Primary target (dinit, toybox, Oil, diskless)
-docs/               Architecture, build, install docs
-
-Kernel configs live at `system/backends/appliance/kernel/`.
+  oil/                 Package manager (Rust); recipes in recipes/
+  backends/appliance/  Kernel configs, dinit units, rootfs scripts
+  kernelctl-zig/       Kernel/cgroup policy (~72–89KB static)
+  netd-zig/            Network daemon
+  kernel-modules/      Rust modules (alpenglow_core, …)
+scripts/               boot-native.sh, CI, v86 initramfs, release
+docs/                  Architecture; docs/browser/ = v86 guest copy
+public/v86/            Browser demo kernel + initrd artifacts
 ```
 
-## CI
+## Oil (agents)
 
-| Gate | Script | What |
-|------|--------|------|
-| Rust core | `scripts/ci-rust-core.sh` | cargo check + test all crates |
-| Rust audit | `.github/workflows/ci.yml` | cargo audit on dependencies |
-| Zig code | `scripts/ci-zig.sh` | zig build kernelctl-zig and small system helpers |
-| OS appliance | `scripts/ci-os-appliance.sh` | Policy contract validation |
-| Boot benchmark | `scripts/bench-boot.sh` | QEMU boot time measurement |
-## Testing
+- **In-tree build**: `OIL_BUILD=1 system/appliance/scripts/oil-installer.sh` or `cargo build -p oil --release` in `system/oil`.
+- **Upstream source**: https://github.com/semitechnological/oil
+- **Tap / binary channel**: `undivisible/tap` → https://github.com/undivisible/tap (`wax` is the user-facing name for the oil binary in some paths).
+- **CLI**: short aliases on subcommands (`oil i`, `oil up`, `oil rm`, …) — defined in `system/oil/src/main.rs`.
+- **Recipes**: declarative `.yml` under `system/oil/recipes/`.
+
+## Common commands
 
 ```sh
+./scripts/boot-native.sh                    # build + QEMU boot
 ./scripts/ci-rust-core.sh
-./scripts/ci-zig.sh              # skip if no zig
+./scripts/ci-zig.sh                         # if zig installed
 ./scripts/ci-os-appliance.sh
-./scripts/bench-boot.sh          # needs built disk image
+sh scripts/build-v86-initramfs.sh           # browser i686 initrd → public/v86/
+cargo test -p oil
 ```
 
-## Status
+`KERNEL_BUILD=1`, `BUILD_PROFILE=desktop`, `ALPENGLOW_EDITION=…` — see `readme.md` and `docs/`.
 
-| Milestone | Status | Notes |
-|-----------|--------|-------|
-| Boot to shell + login | ✅ | ~2s, dinit + getty |
-| DHCP networking | ✅ | udhcpc via dinit |
-| State persistence | ✅ | bcachefs target for `/state`, bind mounts for `/home` and mutable state |
-| Oil package mgr | ✅ | APK-only, in initramfs |
-| Wayland display | ✅ | alpenglowed Smithay compositor + foot |
-| Audio | ✅ | ALSA + PipeWire dinit services |
-| WiFi | ✅ | iwd daemon, 16+ drivers |
-| Power management | ✅ | /sys/power, no elogind |
-| SSH server | ✅ | dropbear, dinit-managed |
-| NTP (chrony) | ✅ | chronyd, dinit-managed |
-| Logging (syslogd) | ✅ | toybox syslogd, dinit-managed |
-| Cron (crond) | ✅ | toybox crond, dinit-managed |
-| DNS caching (dnsmasq) | ✅ | dnsmasq, dinit-managed |
-| Editor (vro) | ✅ | replaces toybox vi |
-| Bootable disk image | ✅ | GPT + Limine |
-| kernelctl Zig | ✅ | 72KB static, built in CI |
-| Custom kernel build | ✅ | `KERNEL_BUILD=1` works |
-| Immutable root image | ✅ | erofs/squashfs active |
-| Real hardware boot | ✅ | Tested on Orange Pi 3B and Mac mini 2012 |
-| Build profiles | ✅ | `BUILD_PROFILE=minimal|standard|desktop` |
-| Interactive installer | 🟡 | Planned |
-| Alpenglowed DE | ✅ | Alpenglowed desktop shell |
+## CI gates
 
-## SSH Hosts (for cross-compilation testing)
+| Gate | Script |
+|------|--------|
+| Rust | `scripts/ci-rust-core.sh` |
+| Zig | `scripts/ci-zig.sh` |
+| Appliance contract | `scripts/ci-os-appliance.sh` |
+| Boot bench | `scripts/bench-boot.sh` (needs image) |
 
-| Host | IP | User | OS | Tools |
-|------|-----|------|----|-------|
-| ultramarine | 192.168.4.134 | undivisible | Ultramarine (Fedora-like, glibc), WSL2, x86_64 | zig 0.14, cargo 1.93, docker, qemu+kvm |
-| chimera | 192.168.4.168 | undivisible | Chimera Linux (musl), x86_64 | cargo/rustc, /dev/kvm, no zig/docker/qemu |
+## SSH lab hosts (optional)
 
-Alpenglow targets musl+Linux (Chimera-style). Use ultramarine for Zig builds and QEMU boot testing (has docker, qemu+kvm).
+| Host | IP | Notes |
+|------|-----|--------|
+| ultramarine | 192.168.4.134 | x86_64, WSL2, zig, docker, qemu+kvm |
+| chimera | 192.168.4.168 | musl, kvm; no zig/docker |
 
-## Language Tooling Notes
+Alpenglow targets **musl + Linux**. Use ultramarine for cross/docker/QEMU.
 
-- **Rust**: Oil package manager. Sync-only, no tokio. ~2.3K LOC total.
-- **Zig**: kernelctl, netd, zramctl, pressurectl, and small initramfs helpers. Targets <100KB initramfs helpers.
-- **Zig**: kernelctl (72KB static, 7x smaller than Rust). Targets <100KB initramfs helpers.
-- **Equilibrium** (external): Zig/Nim/D/Rust FFI bridge. Not integrated yet.
+## v86 browser demo
+
+Not the full appliance: fixed **i686** initramfs (busybox, oil/wax, bash, fastfetch, browser docs). Artifacts under `public/v86/`. Production appliance uses oksh and full dinit graph — do not assume v86 behavior matches hardware images.
+
+## Status (high level)
+
+Boot to login, Oil in initramfs, bcachefs state model, dropbear/chrony/dnsmasq/syslogd via dinit, desktop path with Alpenglowed — largely working in tree. Interactive installer: partial. Full milestone table lives in root `readme.md` **Status** section.
+
+## Where to read more
+
+- `readme.md` — editions, performance table, downloads
+- `docs/` — architecture and install flows
+- `docs/browser/` — text copied into the v86 guest
+
+When instructions conflict: user message wins unless it weakens security (secrets, `curl | sh`, disabling verification).
