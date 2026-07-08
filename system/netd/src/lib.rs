@@ -347,6 +347,42 @@ mod tests {
         assert_eq!(env_contents, render_runtime_env(&snapshot));
     }
 
+    #[test]
+    fn write_snapshot_returns_error_if_state_json_write_fails() {
+        let fixture = TestSysfs::new();
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![],
+        };
+
+        let state_json = fixture.path().join("out/state.json");
+        let runtime_env = fixture.path().join("out/runtime.env");
+
+        // Create a directory at the state_json path to cause fs::write to fail
+        fs::create_dir_all(&state_json).unwrap();
+
+        let result = write_snapshot(&snapshot, &state_json, &runtime_env);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn write_snapshot_returns_error_if_runtime_env_write_fails() {
+        let fixture = TestSysfs::new();
+        let snapshot = NetworkSnapshot {
+            generated_unix_ms: 123,
+            interfaces: vec![],
+        };
+
+        let state_json = fixture.path().join("out/state.json");
+        let runtime_env = fixture.path().join("out/runtime.env");
+
+        // Create a directory at the runtime_env path to cause fs::write to fail
+        fs::create_dir_all(&runtime_env).unwrap();
+
+        let result = write_snapshot(&snapshot, &state_json, &runtime_env);
+        assert!(result.is_err());
+    }
+
     struct TestSysfs {
         path: PathBuf,
     }
