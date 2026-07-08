@@ -177,11 +177,11 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
         if let Some(parent) = dest.parent() {
             if !created_dirs.contains(parent) {
                 std::fs::create_dir_all(parent)?;
-                let mut current = parent.to_path_buf();
-                while !created_dirs.contains(&current) {
-                    created_dirs.insert(current.clone());
+                let mut current = parent;
+                while !created_dirs.contains(current) {
+                    created_dirs.insert(current.to_path_buf());
                     if let Some(p) = current.parent() {
-                        current = p.to_path_buf();
+                        current = p;
                     } else {
                         break;
                     }
@@ -230,11 +230,11 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             if let Some(parent) = dest.parent() {
                 if !created_dirs.contains(parent) {
                     std::fs::create_dir_all(parent)?;
-                    let mut current = parent.to_path_buf();
-                    while !created_dirs.contains(&current) {
-                        created_dirs.insert(current.clone());
+                    let mut current = parent;
+                    while !created_dirs.contains(current) {
+                        created_dirs.insert(current.to_path_buf());
                         if let Some(p) = current.parent() {
-                            current = p.to_path_buf();
+                            current = p;
                         } else {
                             break;
                         }
