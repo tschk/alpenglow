@@ -246,10 +246,17 @@ fn run_update() -> Result<()> {
 fn run_search(query: String) -> Result<()> {
     let index = load_registry()?;
     let q = query.to_lowercase();
+    let q_bytes = q.as_bytes();
     let mut results: Vec<_> = index
         .packages
         .iter()
-        .filter(|p| p.name.to_lowercase().contains(&q) || p.description.to_lowercase().contains(&q))
+        .filter(|p| {
+            if q_bytes.is_empty() {
+                return true;
+            }
+            p.name.as_bytes().windows(q_bytes.len()).any(|w| w.eq_ignore_ascii_case(q_bytes)) ||
+            p.description.as_bytes().windows(q_bytes.len()).any(|w| w.eq_ignore_ascii_case(q_bytes))
+        })
         .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
     if results.is_empty() {
