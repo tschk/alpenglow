@@ -525,7 +525,26 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .read_to_end(&mut data)
         .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
 
-    let mut tmp = tempfile::NamedTempFile::new()
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .ok_or_else(|| error::OilError::Install("Could not determine home directory".into()))?;
+
+    let tmp_dir = home.join(".oil").join("tmp");
+
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+
+    builder.create(&tmp_dir)
+        .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+
+    let mut tmp = tempfile::Builder::new()
+        .tempfile_in(&tmp_dir)
         .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
 
     tmp.write_all(&data)
