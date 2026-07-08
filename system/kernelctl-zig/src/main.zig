@@ -260,3 +260,35 @@ test "wU64 does not write on null" {
     };
     return error.ExpectedFileNotFound;
 }
+
+test "wU64 writes 0" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(tmp_path);
+
+    try wU64(tmp_path, "test_0.txt", 0);
+
+    const data = try tmp.dir.readFileAlloc(testing.allocator, "test_0.txt", 1024);
+    defer testing.allocator.free(data);
+
+    try testing.expectEqualStrings("0\n", data);
+}
+
+test "wU64 writes max u64" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(tmp_path);
+
+    try wU64(tmp_path, "test_max.txt", std.math.maxInt(u64));
+
+    const data = try tmp.dir.readFileAlloc(testing.allocator, "test_max.txt", 1024);
+    defer testing.allocator.free(data);
+
+    try testing.expectEqualStrings("18446744073709551615\n", data);
+}
