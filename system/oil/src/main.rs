@@ -439,6 +439,27 @@ fn plan_upgrades<'a>(
     upgrades
 }
 
+fn execute_upgrades(
+    upgrades: &[(&String, &install::InstalledPackage, &system::registry::PackageMetadata)],
+    dry_run: bool,
+    state: &mut install::InstallState,
+) -> Result<()> {
+    for (name, current, latest) in upgrades {
+        if dry_run {
+            println!(
+                "Would upgrade {name}: {} → {}",
+                current.version, latest.version
+            );
+        } else {
+            let dest = std::path::PathBuf::from("/usr/local");
+            install_package(latest, &dest)?;
+            state.mark_installed(name, Some(latest.version.as_str()));
+            println!("Upgraded {name}: {} → {}", current.version, latest.version);
+        }
+    }
+    Ok(())
+}
+
 fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let mut state = install::InstallState::new()?;
     let installed = state.load()?;
@@ -454,19 +475,8 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     };
     let upgrades = plan_upgrades(&targets, &installed, &index);
 
-    for (name, current, latest) in &upgrades {
-        if dry_run {
-            println!(
-                "Would upgrade {name}: {} → {}",
-                current.version, latest.version
-            );
-        } else {
-            let dest = std::path::PathBuf::from("/usr/local");
-            install_package(latest, &dest)?;
-            state.mark_installed(name, Some(latest.version.as_str()));
-            println!("Upgraded {name}: {} → {}", current.version, latest.version);
-        }
-    }
+    execute_upgrades(&upgrades, dry_run, &mut state)?;
+
     if upgrades.is_empty() {
         println!("All packages are up to date");
     }
