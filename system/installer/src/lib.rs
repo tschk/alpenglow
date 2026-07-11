@@ -132,3 +132,65 @@ fn is_block_device(metadata: &fs::Metadata) -> bool {
 fn is_block_device(_metadata: &fs::Metadata) -> bool {
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_validate_target_allow_regular_file_not_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("non_existent.img");
+
+        let result = validate_target(&target, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_target_allow_regular_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("exists.img");
+        fs::write(&target, b"dummy").unwrap();
+
+        let result = validate_target(&target, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_target_disallow_regular_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("exists.img");
+        fs::write(&target, b"dummy").unwrap();
+
+        let result = validate_target(&target, false);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("refusing to write image to non-block-device target"));
+    }
+
+    #[test]
+    fn test_validate_target_missing_file_when_not_allowed() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("non_existent.img");
+
+        let result = validate_target(&target, false);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            InstallError::Io(_) => {} // Expected
+            _ => panic!("Expected Io error for missing file when allow_regular_file is false"),
+        }
+    }
+
+    #[test]
+    fn test_validate_target_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("somedir");
+        fs::create_dir(&target).unwrap();
+
+        let result = validate_target(&target, true);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("refusing to write image to non-block-device target"));
+    }
+}
