@@ -104,8 +104,8 @@ impl Recipe {
             download_url: self.source.url.clone(),
             sha256: self.source.sha256.clone(),
             installed_size: 0,
-            depends: self.depends.clone(),
-            provides: self.provides.clone(),
+            depends: self.depends.iter().map(|s| std::sync::Arc::from(s.as_str())).collect(),
+            provides: self.provides.iter().map(|s| std::sync::Arc::from(s.as_str())).collect(),
         }
     }
 

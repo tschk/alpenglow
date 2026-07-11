@@ -2,6 +2,7 @@ pub mod apk;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageMetadata {
@@ -11,8 +12,8 @@ pub struct PackageMetadata {
     pub download_url: String,
     pub sha256: Option<String>,
     pub installed_size: u64,
-    pub depends: Vec<String>,
-    pub provides: Vec<String>,
+    pub depends: Vec<Arc<str>>,
+    pub provides: Vec<Arc<str>>,
 }
 
 pub struct PackageIndex {
@@ -28,7 +29,7 @@ impl PackageIndex {
 
         for (i, pkg) in packages.iter().enumerate() {
             for prov in &pkg.provides {
-                provides_index.entry(prov.clone()).or_insert(i);
+                provides_index.entry(prov.to_string()).or_insert(i);
             }
         }
 
@@ -110,7 +111,7 @@ mod tests {
                 sha256: None,
                 installed_size: 0,
                 depends: vec![],
-                provides: vec!["libssl".to_string()],
+                provides: vec!["libssl".into()],
             },
         ]);
         assert!(index.find("curl").is_some());

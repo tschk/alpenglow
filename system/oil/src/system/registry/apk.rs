@@ -231,6 +231,7 @@ fn parse_apkindex(
     arch: &str,
 ) -> Vec<PackageMetadata> {
     let mut packages = Vec::new();
+    let mut interner: std::collections::HashMap<&str, std::sync::Arc<str>> = std::collections::HashMap::new();
 
     for stanza in content.split("\n\n") {
         let stanza = stanza.trim();
@@ -242,8 +243,8 @@ fn parse_apkindex(
         let mut version = String::new();
         let mut description = String::new();
         let mut installed_size: u64 = 0;
-        let mut depends: Vec<String> = Vec::new();
-        let mut provides: Vec<String> = Vec::new();
+        let mut depends: Vec<std::sync::Arc<str>> = Vec::new();
+        let mut provides: Vec<std::sync::Arc<str>> = Vec::new();
 
         for line in stanza.lines() {
             if line.len() < 2 || line.as_bytes()[1] != b':' {
@@ -261,7 +262,8 @@ fn parse_apkindex(
                     for dep in val.split_whitespace() {
                         let dname = super::parse_dep_name(dep);
                         if !dname.is_empty() && !dname.starts_with('!') {
-                            depends.push(dname.to_string());
+                            let arc = interner.entry(dname).or_insert_with(|| std::sync::Arc::from(dname)).clone();
+                            depends.push(arc);
                         }
                     }
                 }
@@ -269,7 +271,8 @@ fn parse_apkindex(
                     for prov in val.split_whitespace() {
                         let pname = super::parse_dep_name(prov);
                         if !pname.is_empty() {
-                            provides.push(pname.to_string());
+                            let arc = interner.entry(pname).or_insert_with(|| std::sync::Arc::from(pname)).clone();
+                            provides.push(arc);
                         }
                     }
                 }
@@ -393,7 +396,7 @@ mod tests {
         let pkg = &packages[0];
         assert_eq!(pkg.name, "ripgrep");
         assert_eq!(pkg.version, "14.1.1-r0");
-        assert_eq!(pkg.provides, vec!["rg"]);
+        assert_eq!(pkg.provides, vec!["rg".into()]);
     }
 
     #[test]
