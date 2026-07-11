@@ -220,3 +220,27 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "sysOpen" {
+    const testing = std.testing;
+
+    const path = "/tmp/test_sysopen_file.txt";
+
+    // Ensure cleanup before and after
+    _ = linux.unlink(path);
+    defer _ = linux.unlink(path);
+
+    // 1. Test opening non-existent file (should fail with error.FileNotFound)
+    const err = sysOpen(path, .{ .ACCMODE = .RDONLY }, 0);
+    try testing.expectError(error.FileNotFound, err);
+
+    // 2. Test creating a file (should succeed and return valid fd)
+    const fd1 = try sysOpen(path, .{ .ACCMODE = .WRONLY, .CREAT = true, .TRUNC = true }, 0o644);
+    try testing.expect(fd1 >= 0);
+    sysClose(fd1);
+
+    // 3. Test opening the existing file (should succeed and return valid fd)
+    const fd2 = try sysOpen(path, .{ .ACCMODE = .RDONLY }, 0);
+    try testing.expect(fd2 >= 0);
+    sysClose(fd2);
+}
