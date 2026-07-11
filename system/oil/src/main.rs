@@ -196,14 +196,24 @@ fn load_registry() -> Result<PackageIndex> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().load()?;
     let mut all = apk.packages;
     let taps = tap::Taps::new()?;
+    let mut handles = Vec::new();
     for tap in taps.list() {
-        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
-        match registry.load() {
-            Ok(index) => {
-                eprintln!("Loaded {} packages from tap {}", index.packages.len(), tap.name);
-                all.extend(index.packages);
+        let name = tap.name.clone();
+        let url = tap.url.clone();
+        handles.push(std::thread::spawn(move || {
+            let registry = tap::TapRegistry::new(&name, &url);
+            (name, registry.load())
+        }));
+    }
+    for handle in handles {
+        if let Ok((name, result)) = handle.join() {
+            match result {
+                Ok(index) => {
+                    eprintln!("Loaded {} packages from tap {}", index.packages.len(), name);
+                    all.extend(index.packages);
+                }
+                Err(e) => eprintln!("warning: failed to load tap {}: {}", name, e),
             }
-            Err(e) => eprintln!("warning: failed to load tap {}: {}", tap.name, e),
         }
     }
     Ok(PackageIndex::new(all))
@@ -219,14 +229,24 @@ fn refresh_registry() -> Result<PackageIndex> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().refresh()?;
     let mut all = apk.packages;
     let taps = tap::Taps::new()?;
+    let mut handles = Vec::new();
     for tap in taps.list() {
-        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
-        match registry.update() {
-            Ok(index) => {
-                eprintln!("Refreshed {} packages from tap {}", index.packages.len(), tap.name);
-                all.extend(index.packages);
+        let name = tap.name.clone();
+        let url = tap.url.clone();
+        handles.push(std::thread::spawn(move || {
+            let registry = tap::TapRegistry::new(&name, &url);
+            (name, registry.update())
+        }));
+    }
+    for handle in handles {
+        if let Ok((name, result)) = handle.join() {
+            match result {
+                Ok(index) => {
+                    eprintln!("Refreshed {} packages from tap {}", index.packages.len(), name);
+                    all.extend(index.packages);
+                }
+                Err(e) => eprintln!("warning: failed to refresh tap {}: {}", name, e),
             }
-            Err(e) => eprintln!("warning: failed to refresh tap {}: {}", tap.name, e),
         }
     }
     Ok(PackageIndex::new(all))
@@ -524,11 +544,21 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
                     return Err(error::OilError::Install(format!("tap not found: {}", name)));
                 }
             } else {
+                let mut handles = Vec::new();
                 for entry in taps.list() {
-                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
-                    match registry.update() {
-                        Ok(index) => println!("Updated {} ({} packages)", entry.name, index.packages.len()),
-                        Err(e) => eprintln!("warning: failed to update tap {}: {}", entry.name, e),
+                    let name = entry.name.clone();
+                    let url = entry.url.clone();
+                    handles.push(std::thread::spawn(move || {
+                        let registry = tap::TapRegistry::new(&name, &url);
+                        (name, registry.update())
+                    }));
+                }
+                for handle in handles {
+                    if let Ok((name, result)) = handle.join() {
+                        match result {
+                            Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
+                            Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
+                        }
                     }
                 }
             }
