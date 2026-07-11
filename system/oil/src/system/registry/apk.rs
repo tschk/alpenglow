@@ -76,29 +76,54 @@ impl ApkRegistry {
             return Ok(PackageIndex::new(packages));
         }
 
-        let mut all_packages: Vec<PackageMetadata> = Vec::new();
+        let mut handles = Vec::new();
 
         for repo in &self.repos {
             let url = self.index_url(repo);
-            eprintln!("Fetching APK index: {url}");
+            let repo_clone = repo.clone();
+            let mirror_clone = self.mirror.clone();
+            let branch_clone = self.branch.clone();
+            let arch_clone = self.arch.clone();
 
-            let resp = ureq::get(&url).call().map_err(|e| {
-                OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
-            })?;
+            handles.push(std::thread::spawn(
+                move || -> Result<Vec<PackageMetadata>> {
+                    eprintln!("Fetching APK index: {url}");
 
-            let mut body = Vec::new();
-            resp.into_body()
-                .into_reader()
-                .read_to_end(&mut body)
-                .map_err(|e| OilError::Install(format!("Failed to read APK index body: {e}")))?;
+                    let resp = ureq::get(&url).call().map_err(|e| {
+                        OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
+                    })?;
 
-            let pkgs = parse_apkindex_archive(&body, &self.mirror, &self.branch, repo, &self.arch)?;
-            eprintln!(
-                "Parsed {} packages from {}/{}",
-                pkgs.len(),
-                self.branch,
-                repo
-            );
+                    let mut body = Vec::new();
+                    resp.into_body()
+                        .into_reader()
+                        .read_to_end(&mut body)
+                        .map_err(|e| {
+                            OilError::Install(format!("Failed to read APK index body: {e}"))
+                        })?;
+
+                    let pkgs = parse_apkindex_archive(
+                        &body,
+                        &mirror_clone,
+                        &branch_clone,
+                        &repo_clone,
+                        &arch_clone,
+                    )?;
+                    eprintln!(
+                        "Parsed {} packages from {}/{}",
+                        pkgs.len(),
+                        branch_clone,
+                        repo_clone
+                    );
+                    Ok(pkgs)
+                },
+            ));
+        }
+
+        let mut all_packages: Vec<PackageMetadata> = Vec::new();
+        for handle in handles {
+            let pkgs = handle.join().map_err(|_| {
+                OilError::Install("Thread panicked while fetching APK index".to_string())
+            })??;
             all_packages.extend(pkgs);
         }
 

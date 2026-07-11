@@ -234,11 +234,15 @@ mod tests {
         let loaded = state.load().expect("Failed to load");
         assert_eq!(loaded.len(), 2);
 
-        let pkg_x = loaded.get("pkg-x").expect("pkg-x should exist in loaded map");
+        let pkg_x = loaded
+            .get("pkg-x")
+            .expect("pkg-x should exist in loaded map");
         assert_eq!(pkg_x.name, "pkg-x");
         assert_eq!(pkg_x.version, "1.0.0");
 
-        let pkg_y = loaded.get("pkg-y").expect("pkg-y should exist in loaded map");
+        let pkg_y = loaded
+            .get("pkg-y")
+            .expect("pkg-y should exist in loaded map");
         assert_eq!(pkg_y.name, "pkg-y");
         assert_eq!(pkg_y.version, "2.0.0");
         assert!(!pkg_y.pinned);

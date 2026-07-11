@@ -168,7 +168,10 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             continue;
         }
 
-        let stripped = entry_str.strip_prefix("./").unwrap_or(entry_str.as_ref()).trim_start_matches('/');
+        let stripped = entry_str
+            .strip_prefix("./")
+            .unwrap_or(entry_str.as_ref())
+            .trim_start_matches('/');
         if stripped.is_empty() || stripped.contains("..") {
             continue;
         }
@@ -221,7 +224,10 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             let mut entry = entry_?;
             let entry_path = entry.path()?;
             let path = entry_path.to_string_lossy();
-            let stripped = path.strip_prefix("./").unwrap_or(path.as_ref()).trim_start_matches('/');
+            let stripped = path
+                .strip_prefix("./")
+                .unwrap_or(path.as_ref())
+                .trim_start_matches('/');
             if stripped.is_empty() || stripped.contains("..") {
                 continue;
             }
@@ -285,17 +291,23 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_too_many_requested() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_too_many_requested(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let stream = create_gz_stream(b"data")?;
         let result = split_gzip_streams(&stream, 4);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("Requested 4 streams, maximum is 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("Requested 4 streams, maximum is 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_not_enough_streams() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_not_enough_streams(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let stream1 = create_gz_stream(b"data 1")?;
         let stream2 = create_gz_stream(b"data 2")?;
         let mut combined = Vec::new();
@@ -305,12 +317,17 @@ mod tests {
         let result = split_gzip_streams(&combined, 3);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("APK has 2 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 2 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_corrupted_gzip() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_corrupted_gzip(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = create_gz_stream(b"stream 1 data")?;
         data.extend(create_gz_stream(b"stream 2 data")?);
         let mut corrupted_stream = create_gz_stream(b"stream 3 data")?;
@@ -332,24 +349,35 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_signature_info_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_extract_signature_info_success() -> std::result::Result<(), Box<dyn std::error::Error>>
+    {
         let mut tar_builder = tar::Builder::new(Vec::new());
         let mut header = tar::Header::new_gnu();
         let data = b"dummy signature data";
         header.set_size(data.len() as u64);
         header.set_cksum();
-        tar_builder.append_data(&mut header, ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub", &data[..])?;
+        tar_builder.append_data(
+            &mut header,
+            ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+            &data[..],
+        )?;
         let tar_data = tar_builder.into_inner()?;
         let result = extract_signature_info(&tar_data);
         assert!(result.is_some());
-        let (keyname, sig) = result.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Missing signature"))?;
-        assert_eq!(keyname, "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub");
+        let (keyname, sig) = result.ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "Missing signature")
+        })?;
+        assert_eq!(
+            keyname,
+            "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub"
+        );
         assert_eq!(sig, data);
         Ok(())
     }
 
     #[test]
-    fn test_extract_signature_info_not_found() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_extract_signature_info_not_found() -> std::result::Result<(), Box<dyn std::error::Error>>
+    {
         let mut tar_builder = tar::Builder::new(Vec::new());
         let mut header = tar::Header::new_gnu();
         let data = b"some other file";
@@ -363,7 +391,8 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_signature_info_invalid_tar() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_extract_signature_info_invalid_tar(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let invalid_tar_data = b"not a tar file";
         let result = extract_signature_info(invalid_tar_data);
         assert!(result.is_none());
