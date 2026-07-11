@@ -220,3 +220,24 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "MyArrayList operations" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    // test init
+    var list = MyArrayList(u32).init(allocator);
+    // test deinit (via defer)
+    defer list.deinit();
+
+    try testing.expectEqual(@as(usize, 0), list.items().len);
+
+    // test append
+    try list.append(1);
+    try list.append(2);
+
+    const items = list.items();
+    try testing.expectEqual(@as(usize, 2), items.len);
+    try testing.expectEqual(@as(u32, 1), items[0]);
+    try testing.expectEqual(@as(u32, 2), items[1]);
+}
