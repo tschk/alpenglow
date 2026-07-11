@@ -200,7 +200,11 @@ fn load_registry() -> Result<PackageIndex> {
         let registry = tap::TapRegistry::new(&tap.name, &tap.url);
         match registry.load() {
             Ok(index) => {
-                eprintln!("Loaded {} packages from tap {}", index.packages.len(), tap.name);
+                eprintln!(
+                    "Loaded {} packages from tap {}",
+                    index.packages.len(),
+                    tap.name
+                );
                 all.extend(index.packages);
             }
             Err(e) => eprintln!("warning: failed to load tap {}: {}", tap.name, e),
@@ -223,7 +227,11 @@ fn refresh_registry() -> Result<PackageIndex> {
         let registry = tap::TapRegistry::new(&tap.name, &tap.url);
         match registry.update() {
             Ok(index) => {
-                eprintln!("Refreshed {} packages from tap {}", index.packages.len(), tap.name);
+                eprintln!(
+                    "Refreshed {} packages from tap {}",
+                    index.packages.len(),
+                    tap.name
+                );
                 all.extend(index.packages);
             }
             Err(e) => eprintln!("warning: failed to refresh tap {}: {}", tap.name, e),
@@ -269,12 +277,15 @@ fn oil_secure_tmp_dir() -> Result<PathBuf> {
             .recursive(true)
             .mode(0o700)
             .create(&tmp_dir)
-            .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+            .map_err(|e| {
+                error::OilError::Install(format!("failed to create secure tmp dir: {e}"))
+            })?;
     }
     #[cfg(not(unix))]
     {
-        std::fs::create_dir_all(&tmp_dir)
-            .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+        std::fs::create_dir_all(&tmp_dir).map_err(|e| {
+            error::OilError::Install(format!("failed to create secure tmp dir: {e}"))
+        })?;
     }
     Ok(tmp_dir)
 }
@@ -419,10 +430,10 @@ fn plan_upgrades<'a>(
     installed: &'a std::collections::HashMap<String, install::InstalledPackage>,
     index: &'a PackageIndex,
 ) -> Vec<(
-        &'a String,
-        &'a install::InstalledPackage,
-        &'a system::registry::PackageMetadata,
-    )> {
+    &'a String,
+    &'a install::InstalledPackage,
+    &'a system::registry::PackageMetadata,
+)> {
     let mut upgrades = Vec::new();
     for name in targets {
         if let Some(current) = installed.get(name) {
@@ -527,7 +538,9 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
                 for entry in taps.list() {
                     let registry = tap::TapRegistry::new(&entry.name, &entry.url);
                     match registry.update() {
-                        Ok(index) => println!("Updated {} ({} packages)", entry.name, index.packages.len()),
+                        Ok(index) => {
+                            println!("Updated {} ({} packages)", entry.name, index.packages.len())
+                        }
                         Err(e) => eprintln!("warning: failed to update tap {}: {}", entry.name, e),
                     }
                 }
@@ -641,23 +654,33 @@ mod tests {
             Ok(())
         }
         fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Install(packages, dry_run));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Install(packages, dry_run));
             Ok(())
         }
         fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::InstallRecipe(recipe, dry_run));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::InstallRecipe(recipe, dry_run));
             Ok(())
         }
         fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Uninstall(formulae, all));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Uninstall(formulae, all));
             Ok(())
         }
         fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Reinstall(packages, all));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Reinstall(packages, all));
             Ok(())
         }
         fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Upgrade(packages, dry_run));
+            self.calls
+                .borrow_mut()
+                .push(MockCall::Upgrade(packages, dry_run));
             Ok(())
         }
         fn outdated(&self) -> Result<()> {
@@ -678,15 +701,22 @@ mod tests {
     #[test]
     fn test_execute_command_search() {
         let runner = MockRunner::new();
-        let cmd = Commands::Search { query: "foo".to_string() };
+        let cmd = Commands::Search {
+            query: "foo".to_string(),
+        };
         execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Search("foo".to_string())]);
+        assert_eq!(
+            runner.get_calls(),
+            vec![MockCall::Search("foo".to_string())]
+        );
     }
 
     #[test]
     fn test_execute_command_info() {
         let runner = MockRunner::new();
-        let cmd = Commands::Info { formula: "bar".to_string() };
+        let cmd = Commands::Info {
+            formula: "bar".to_string(),
+        };
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(runner.get_calls(), vec![MockCall::Info("bar".to_string())]);
     }
@@ -701,7 +731,10 @@ mod tests {
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(
             runner.get_calls(),
-            vec![MockCall::Install(vec!["pkg1".to_string(), "pkg2".to_string()], true)]
+            vec![MockCall::Install(
+                vec!["pkg1".to_string(), "pkg2".to_string()],
+                true
+            )]
         );
     }
 
@@ -715,7 +748,10 @@ mod tests {
         execute_command(cmd, &runner).expect("execute_command failed");
         assert_eq!(
             runner.get_calls(),
-            vec![MockCall::InstallRecipe(PathBuf::from("recipes/toybox.yml"), true)]
+            vec![MockCall::InstallRecipe(
+                PathBuf::from("recipes/toybox.yml"),
+                true
+            )]
         );
     }
 
@@ -813,11 +849,26 @@ mod tests {
     fn cli_parses_command_aliases() {
         let cases: Vec<(&[&str], MockCall)> = vec![
             (&["oil", "s", "vim"], MockCall::Search("vim".into())),
-            (&["oil", "i", "pkg"], MockCall::Install(vec!["pkg".into()], false)),
-            (&["oil", "add", "pkg"], MockCall::Install(vec!["pkg".into()], false)),
-            (&["oil", "rm", "pkg"], MockCall::Uninstall(vec!["pkg".into()], false)),
-            (&["oil", "del", "pkg"], MockCall::Uninstall(vec!["pkg".into()], false)),
-            (&["oil", "ri", "pkg"], MockCall::Reinstall(vec!["pkg".into()], false)),
+            (
+                &["oil", "i", "pkg"],
+                MockCall::Install(vec!["pkg".into()], false),
+            ),
+            (
+                &["oil", "add", "pkg"],
+                MockCall::Install(vec!["pkg".into()], false),
+            ),
+            (
+                &["oil", "rm", "pkg"],
+                MockCall::Uninstall(vec!["pkg".into()], false),
+            ),
+            (
+                &["oil", "del", "pkg"],
+                MockCall::Uninstall(vec!["pkg".into()], false),
+            ),
+            (
+                &["oil", "ri", "pkg"],
+                MockCall::Reinstall(vec!["pkg".into()], false),
+            ),
             (&["oil", "up"], MockCall::Upgrade(vec![], false)),
             (&["oil", "u"], MockCall::Update),
             (&["oil", "od"], MockCall::Outdated),
