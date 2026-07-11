@@ -220,3 +220,34 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "makeDir basic functionality and errors" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(tmp_path);
+
+    const test_dir = try std.fmt.allocPrint(testing.allocator, "{s}/test_mkdir", .{tmp_path});
+    defer testing.allocator.free(test_dir);
+
+    // Should create a new directory successfully
+    try makeDir(test_dir);
+    try testing.expect(fileExists(test_dir));
+
+    // Should not return an error if it already exists
+    try makeDir(test_dir);
+    try testing.expect(fileExists(test_dir));
+
+    // Error: Non-existent parent directory
+    const missing_parent_dir = try std.fmt.allocPrint(testing.allocator, "{s}/nonexistent/test_mkdir", .{tmp_path});
+    defer testing.allocator.free(missing_parent_dir);
+    try testing.expectError(error.FileNotFound, makeDir(missing_parent_dir));
+
+    // Error: NameTooLong
+    const long_path = try testing.allocator.alloc(u8, 4096);
+    defer testing.allocator.free(long_path);
+    @memset(long_path, 'a');
+    try testing.expectError(error.NameTooLong, makeDir(long_path));
+}
