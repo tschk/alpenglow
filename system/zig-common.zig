@@ -220,3 +220,32 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "readFileLimited" {
+    const allocator = std.testing.allocator;
+    const test_file = "test_read_file_limited.txt";
+
+    // Ensure cleanup
+    defer std.fs.cwd().deleteFile(test_file) catch {};
+
+    // Write test data
+    const content = "Hello, Zig!";
+    try writeFile(test_file, content, true);
+
+    // Test 1: Read with sufficient limit
+    {
+        const read_data = try readFileLimited(allocator, test_file, 1024);
+        defer allocator.free(read_data);
+        try std.testing.expectEqualStrings(content, read_data);
+    }
+
+    // Test 2: Read with exact limit
+    {
+        const read_data = try readFileLimited(allocator, test_file, content.len);
+        defer allocator.free(read_data);
+        try std.testing.expectEqualStrings(content, read_data);
+    }
+
+    // Test 3: Read with insufficient limit
+    try std.testing.expectError(error.FileTooBig, readFileLimited(allocator, test_file, content.len - 1));
+}
