@@ -59,6 +59,10 @@ impl Taps {
         self.taps.remove(name);
     }
 
+    pub fn get(&self, name: &str) -> Option<&Tap> {
+        self.taps.get(name)
+    }
+
     pub fn list(&self) -> Vec<&Tap> {
         let mut taps: Vec<_> = self.taps.values().collect();
         taps.sort_by(|a, b| a.name.cmp(&b.name));
@@ -123,9 +127,9 @@ impl TapRegistry {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
         eprintln!("Fetching tap index: {url}");
-        let resp = ureq::get(&url).call().map_err(|e| {
-            OilError::Install(format!("Failed to fetch tap index from {url}: {e}"))
-        })?;
+        let resp = ureq::get(&url)
+            .call()
+            .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
         let mut body = Vec::new();
         resp.into_body()
             .into_reader()
