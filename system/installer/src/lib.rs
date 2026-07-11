@@ -34,8 +34,10 @@ pub struct InstallRequest {
     pub allow_regular_file: bool,
 }
 
+pub const DEFAULT_LIVE_SOURCE_PATH: &str = "/run/alpenglow/live";
+
 pub fn default_live_source() -> PathBuf {
-    PathBuf::from("/run/alpenglow/alpenglow.img.zst")
+    PathBuf::from(DEFAULT_LIVE_SOURCE_PATH)
 }
 
 pub fn parse_install_args<I, T>(args: I) -> (PathBuf, Option<PathBuf>)
@@ -131,4 +133,17 @@ fn is_block_device(metadata: &fs::Metadata) -> bool {
 #[cfg(not(unix))]
 fn is_block_device(_metadata: &fs::Metadata) -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_live_source() {
+        assert_eq!(
+            default_live_source(),
+            PathBuf::from(DEFAULT_LIVE_SOURCE_PATH)
+        );
+    }
 }
