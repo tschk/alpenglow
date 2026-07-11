@@ -132,3 +132,41 @@ fn is_block_device(metadata: &fs::Metadata) -> bool {
 fn is_block_device(_metadata: &fs::Metadata) -> bool {
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_parse_install_args_zero_args() {
+        let args: Vec<String> = vec![];
+        let (source, target) = parse_install_args(args);
+        assert_eq!(source, default_live_source());
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn test_parse_install_args_one_arg() {
+        let args = vec!["custom_source.img"];
+        let (source, target) = parse_install_args(args);
+        assert_eq!(source, PathBuf::from("custom_source.img"));
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn test_parse_install_args_two_args() {
+        let args = vec!["custom_source.img", "/dev/sda"];
+        let (source, target) = parse_install_args(args);
+        assert_eq!(source, PathBuf::from("custom_source.img"));
+        assert_eq!(target, Some(PathBuf::from("/dev/sda")));
+    }
+
+    #[test]
+    fn test_parse_install_args_three_args() {
+        let args = vec!["custom_source.img", "/dev/sda", "extra_arg"];
+        let (source, target) = parse_install_args(args);
+        assert_eq!(source, PathBuf::from("custom_source.img"));
+        assert_eq!(target, Some(PathBuf::from("/dev/sda")));
+    }
+}
