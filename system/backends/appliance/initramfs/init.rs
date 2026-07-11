@@ -21,7 +21,7 @@ fn main() {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
-        match Command::new("modprobe").arg(m).status() {
+        match Command::new("modprobe").arg(m).env_clear().status() {
             Ok(status) if !status.success() => {
                 eprintln!("init: modprobe {} failed with status: {}", m, status);
             }
@@ -40,7 +40,7 @@ fn main() {
     let _ = Command::new("/usr/bin/sh").env_clear().exec();
 }
 fn run(prog: &str, args: &[&str]) {
-    if let Err(e) = Command::new(prog).args(args).status() {
+    if let Err(e) = Command::new(prog).args(args).env_clear().status() {
         eprintln!("init: {} failed: {}", prog, e);
     }
 }
