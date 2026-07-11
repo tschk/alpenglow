@@ -79,8 +79,8 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
     let mut starts: Vec<usize> = Vec::new();
     let mut last_pos = 0;
 
-    for i in 0..data.len().saturating_sub(1) {
-        if data[i] == 0x1f && data[i + 1] == 0x8b {
+    for (i, w) in data.windows(2).enumerate() {
+        if w == [0x1f, 0x8b] {
             if i < last_pos {
                 return Err(OilError::Install("Invalid gzip stream overlap".into()));
             }
