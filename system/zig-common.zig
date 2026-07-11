@@ -220,3 +220,36 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "fileExists" {
+    const testing = std.testing;
+
+    // Test a file that is known to exist
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const file_name = "test_exists.txt";
+    const file = try tmp.dir.createFile(file_name, .{});
+    file.close();
+
+    const tmp_path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(tmp_path);
+
+    const full_path = try std.fs.path.join(testing.allocator, &[_][]const u8{ tmp_path, file_name });
+    defer testing.allocator.free(full_path);
+
+    try testing.expect(fileExists(full_path));
+
+    // Test a file that does not exist
+    const non_existent_path = try std.fs.path.join(testing.allocator, &[_][]const u8{ tmp_path, "does_not_exist.txt" });
+    defer testing.allocator.free(non_existent_path);
+
+    try testing.expect(!fileExists(non_existent_path));
+
+    // Test a path that is too long (4096 bytes or more)
+    const long_path = try testing.allocator.alloc(u8, 4096);
+    defer testing.allocator.free(long_path);
+    @memset(long_path, 'a');
+
+    try testing.expect(!fileExists(long_path));
+}
