@@ -220,3 +220,37 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+const testing = std.testing;
+
+test "checkSyscall" {
+    // Success cases
+    try checkSyscall(0);
+    try checkSyscall(42);
+
+    // Helper to generate a return code from an errno
+    const makeErr = struct {
+        fn call(e: linux.E) usize {
+            return @bitCast(-@as(isize, @intCast(@intFromEnum(e))));
+        }
+    }.call;
+
+    // Known errors
+    try testing.expectError(error.FileNotFound, checkSyscall(makeErr(.NOENT)));
+    try testing.expectError(error.AccessDenied, checkSyscall(makeErr(.ACCES)));
+    try testing.expectError(error.PathAlreadyExists, checkSyscall(makeErr(.EXIST)));
+    try testing.expectError(error.NotDir, checkSyscall(makeErr(.NOTDIR)));
+    try testing.expectError(error.IsDir, checkSyscall(makeErr(.ISDIR)));
+    try testing.expectError(error.InvalidArgument, checkSyscall(makeErr(.INVAL)));
+    try testing.expectError(error.OutOfMemory, checkSyscall(makeErr(.NOMEM)));
+    try testing.expectError(error.FileTooBig, checkSyscall(makeErr(.FBIG)));
+    try testing.expectError(error.InputOutput, checkSyscall(makeErr(.IO)));
+    try testing.expectError(error.DeviceBusy, checkSyscall(makeErr(.BUSY)));
+    try testing.expectError(error.WouldBlock, checkSyscall(makeErr(.AGAIN)));
+    try testing.expectError(error.Interrupted, checkSyscall(makeErr(.INTR)));
+    try testing.expectError(error.NameTooLong, checkSyscall(makeErr(.NAMETOOLONG)));
+    try testing.expectError(error.NotEmpty, checkSyscall(makeErr(.NOTEMPTY)));
+
+    // Unexpected error (using an errno we don't map explicitly, e.g. BADF)
+    try testing.expectError(error.Unexpected, checkSyscall(makeErr(.BADF)));
+}
