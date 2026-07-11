@@ -220,3 +220,46 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "pathToZ" {
+    const testing = std.testing;
+
+    var buf: [16]u8 = undefined;
+
+    // Happy path - string fits with extra space
+    const res1 = pathToZ("hello", &buf);
+    try testing.expect(res1 != null);
+    try testing.expectEqualStrings("hello", res1.?);
+    try testing.expect(res1.?.len == 5);
+    try testing.expect(res1.?[5] == 0); // sentinel access
+
+    // Happy path - string fits exactly (needs 1 byte for null)
+    var small_buf: [6]u8 = undefined;
+    const res2 = pathToZ("hello", &small_buf);
+    try testing.expect(res2 != null);
+    try testing.expectEqualStrings("hello", res2.?);
+
+    // Edge case - empty string
+    const res3 = pathToZ("", &buf);
+    try testing.expect(res3 != null);
+    try testing.expectEqualStrings("", res3.?);
+
+    // Error condition - buffer too small by 1 (no room for null terminator)
+    var tiny_buf: [5]u8 = undefined;
+    const res4 = pathToZ("hello", &tiny_buf);
+    try testing.expect(res4 == null);
+
+    // Error condition - buffer way too small
+    var too_small_buf: [2]u8 = undefined;
+    const res5 = pathToZ("hello", &too_small_buf);
+    try testing.expect(res5 == null);
+
+    // Error condition - empty buffer
+    var empty_buf: [0]u8 = undefined;
+    const res6 = pathToZ("hello", &empty_buf);
+    try testing.expect(res6 == null);
+
+    // Error condition - empty string but empty buffer
+    const res7 = pathToZ("", &empty_buf);
+    try testing.expect(res7 == null);
+}
