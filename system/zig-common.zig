@@ -220,3 +220,27 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+const testing = std.testing;
+
+test "writeFile" {
+    const filename = "test_writeFile.txt";
+    _ = std.os.linux.unlink(filename);
+    defer _ = std.os.linux.unlink(filename);
+
+    try writeFile(filename, "hello", false);
+
+    const content1 = try readFileLimited(testing.allocator, filename, 1024);
+    defer testing.allocator.free(content1);
+    try testing.expectEqualStrings("hello", content1);
+
+    try writeFile(filename, "foo", false);
+    const content2 = try readFileLimited(testing.allocator, filename, 1024);
+    defer testing.allocator.free(content2);
+    try testing.expectEqualStrings("foolo", content2);
+
+    try writeFile(filename, "bar", true);
+    const content3 = try readFileLimited(testing.allocator, filename, 1024);
+    defer testing.allocator.free(content3);
+    try testing.expectEqualStrings("bar", content3);
+}
