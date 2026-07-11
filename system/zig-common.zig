@@ -88,6 +88,25 @@ pub fn getErrno(rc: usize) linux.E {
     return .SUCCESS;
 }
 
+test "getErrno" {
+    const testing = std.testing;
+
+    // Positive values (success)
+    try testing.expectEqual(.SUCCESS, getErrno(0));
+    try testing.expectEqual(.SUCCESS, getErrno(1));
+    try testing.expectEqual(.SUCCESS, getErrno(4096));
+
+    // Valid error ranges
+    try testing.expectEqual(.PERM, getErrno(@bitCast(@as(isize, -1))));
+    try testing.expectEqual(.NOENT, getErrno(@bitCast(@as(isize, -2))));
+    try testing.expectEqual(.BADF, getErrno(@bitCast(@as(isize, -9))));
+
+    // Edge cases
+    try testing.expectEqual(@as(linux.E, @enumFromInt(4095)), getErrno(@bitCast(@as(isize, -4095))));
+    try testing.expectEqual(.SUCCESS, getErrno(@bitCast(@as(isize, -4096))));
+    try testing.expectEqual(.SUCCESS, getErrno(@bitCast(@as(isize, -4097))));
+}
+
 pub fn checkSyscall(rc: usize) SyscallError!void {
     switch (getErrno(rc)) {
         .SUCCESS => return,
