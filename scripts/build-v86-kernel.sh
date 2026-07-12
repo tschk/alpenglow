@@ -1,12 +1,12 @@
 #!/bin/sh
-# Alpenglow Linux 7.0.12 bzImage for browser v86 (i686 / 32-bit CPU).
+# Alpenglow Linux bzImage for browser v86 (i686 / 32-bit CPU).
 set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build/v86"
 KERNEL_OUT="${ROOT_DIR}/public/v86/alpenglow-v86-vmlinuz"
 BACKEND="${ROOT_DIR}/system/backends/appliance"
-KERNEL_VERSION="${KERNEL_VERSION:-7.0.12}"
+KERNEL_VERSION="${KERNEL_VERSION:-$(grep -E '^KERNEL_VERSION="\$\{KERNEL_VERSION:-' "${ROOT_DIR}/scripts/boot-native.sh" | sed -n 's/.*KERNEL_VERSION:-\([0-9.]*\).*/\1/p')}"
 KERNEL_TAR="linux-${KERNEL_VERSION}"
 STAMP="${BUILD_DIR}/.kernel-v86-i686-${KERNEL_VERSION}.ok"
 

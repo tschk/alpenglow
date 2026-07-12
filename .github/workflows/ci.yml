@@ -47,7 +47,6 @@ jobs:
         run: cargo install bindgen-cli --locked 2>/dev/null
       - name: Build Rust kernel module
         env:
-          KERNEL_VER: "7.0.12"
           PATH: ${{ env.PATH }}:${{ env.HOME }}/.cargo/bin
         run: scripts/ci-rust-kernel-module.sh
 

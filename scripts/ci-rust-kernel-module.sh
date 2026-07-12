@@ -2,8 +2,8 @@
 # CI: Validate Rust kernel module compilation against Alpenglow's Linux 7.x line.
 set -eu
 
-KERNEL_VER="${KERNEL_VER:-7.0.12}"
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+KERNEL_VER="${KERNEL_VER:-$(grep -E '^KERNEL_VERSION="\$\{KERNEL_VERSION:-' "${REPO_ROOT}/scripts/boot-native.sh" | sed -n 's/.*KERNEL_VERSION:-\([0-9.]*\).*/\1/p')}"
 RUST_FRAGMENT="${REPO_ROOT}/system/backends/appliance/kernel/ci-rust-kmod.fragment"
 
 if ! command -v rustc >/dev/null 2>&1 || ! command -v bindgen >/dev/null 2>&1; then
