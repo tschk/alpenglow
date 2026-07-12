@@ -76,30 +76,40 @@ impl ApkRegistry {
             return Ok(PackageIndex::new(packages));
         }
 
-        let mut all_packages: Vec<PackageMetadata> = Vec::new();
-
+        let mut handles = Vec::with_capacity(self.repos.len());
         for repo in &self.repos {
             let url = self.index_url(repo);
-            eprintln!("Fetching APK index: {url}");
+            let repo = repo.clone();
+            let mirror = self.mirror.clone();
+            let branch = self.branch.clone();
+            let arch = self.arch.clone();
+            handles.push(std::thread::spawn(
+                move || -> Result<Vec<PackageMetadata>> {
+                    eprintln!("Fetching APK index: {url}");
+                    let resp = ureq::get(&url).call().map_err(|e| {
+                        OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
+                    })?;
+                    let mut body = Vec::new();
+                    resp.into_body()
+                        .into_reader()
+                        .read_to_end(&mut body)
+                        .map_err(|e| {
+                            OilError::Install(format!("Failed to read APK index body: {e}"))
+                        })?;
+                    let packages = parse_apkindex_archive(&body, &mirror, &branch, &repo, &arch)?;
+                    eprintln!("Parsed {} packages from {branch}/{repo}", packages.len());
+                    Ok(packages)
+                },
+            ));
+        }
 
-            let resp = ureq::get(&url).call().map_err(|e| {
-                OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
-            })?;
-
-            let mut body = Vec::new();
-            resp.into_body()
-                .into_reader()
-                .read_to_end(&mut body)
-                .map_err(|e| OilError::Install(format!("Failed to read APK index body: {e}")))?;
-
-            let pkgs = parse_apkindex_archive(&body, &self.mirror, &self.branch, repo, &self.arch)?;
-            eprintln!(
-                "Parsed {} packages from {}/{}",
-                pkgs.len(),
-                self.branch,
-                repo
+        let mut all_packages: Vec<PackageMetadata> = Vec::new();
+        for handle in handles {
+            all_packages.extend(
+                handle
+                    .join()
+                    .map_err(|_| OilError::Install("APK index fetch worker panicked".into()))??,
             );
-            all_packages.extend(pkgs);
         }
 
         // Deduplicate
