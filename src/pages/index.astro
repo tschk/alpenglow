@@ -14,7 +14,7 @@
   </head>
   <body class="m-0 h-full overflow-hidden bg-black text-white antialiased">
     <header class="boot-top-bar" aria-label="Alpenglow links">
-      <a href="https://github.com/tschk/alpenglow/releases/tag/v0.1.393" target="_blank" rel="noopener noreferrer">v0.1.393</a>
+      <a id="release-link" href="https://github.com/tschk/alpenglow/releases/latest" target="_blank" rel="noopener noreferrer" aria-live="polite">latest release</a>
       <span class="boot-top-sep" aria-hidden="true">·</span>
       <a href="https://github.com/tschk/alpenglow" target="_blank" rel="noopener noreferrer">GitHub</a>
       <span class="boot-top-sep" aria-hidden="true">·</span>
@@ -39,6 +39,13 @@
     </main>
     <script>
       import "../shell.js";
+
+      const releaseLink = document.querySelector<HTMLAnchorElement>("#release-link");
+      const release = await fetch("https://api.github.com/repos/tschk/alpenglow/releases/latest").then((response) => response.ok ? response.json() : undefined);
+      if (releaseLink && typeof release?.tag_name === "string" && typeof release?.html_url === "string") {
+        releaseLink.textContent = release.tag_name;
+        releaseLink.href = release.html_url;
+      }
     </script>
   </body>
 </html>
