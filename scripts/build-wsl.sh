@@ -51,7 +51,7 @@ EOF
 
 mkdir -p "${OUT_DIR}"
 rm -f "${ASSET}" "${ASSET}.sha256"
-tar --uid 0 --gid 0 --uname root --gname root --numeric-owner --format pax -cf "${ASSET}" -C "${STAGING}" .
+tar -cf "${ASSET}" -C "${STAGING}" .
 
 if command -v sha256sum >/dev/null 2>&1; then
   sha256sum "${ASSET}" > "${ASSET}.sha256"
