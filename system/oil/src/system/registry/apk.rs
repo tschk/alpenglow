@@ -1,7 +1,7 @@
 use super::{PackageIndex, PackageMetadata};
 use crate::error::{OilError, Result};
-use flate2::read::MultiGzDecoder;
-use std::io::Read;
+use flate2::{read::MultiGzDecoder, write::GzEncoder, Compression};
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
@@ -41,7 +41,7 @@ impl ApkRegistry {
         let dir = home.join(".oil").join("cache").join("system");
         std::fs::create_dir_all(&dir)?;
         Ok(dir.join(format!(
-            "apk-{}-{}-{}.json",
+            "apk-{}-{}-{}.json.gz",
             cache_key(&self.mirror),
             cache_key(&self.branch),
             cache_key(&self.arch)
@@ -64,6 +64,7 @@ impl ApkRegistry {
         if cache_path.exists() {
             std::fs::remove_file(&cache_path)?;
         }
+        let _ = std::fs::remove_file(cache_path.with_extension(""));
         self.load()
     }
 
@@ -71,8 +72,7 @@ impl ApkRegistry {
         let cache_path = self.cache_path()?;
 
         if Self::is_cache_fresh(&cache_path) {
-            let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
+            let packages = read_cache(&cache_path)?;
             return Ok(PackageIndex::new(packages));
         }
 
@@ -119,7 +119,8 @@ impl ApkRegistry {
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&cache_path, &serde_json::to_string(&all_packages)?)?;
+        write_cache(&cache_path, &all_packages)?;
+        let _ = std::fs::remove_file(cache_path.with_extension(""));
 
         Ok(PackageIndex::new(all_packages))
     }
@@ -130,6 +131,18 @@ impl ApkRegistry {
             self.mirror, self.branch, repo, self.arch
         )
     }
+}
+
+fn read_cache(path: &std::path::Path) -> Result<Vec<PackageMetadata>> {
+    let decoder = MultiGzDecoder::new(std::fs::File::open(path)?);
+    Ok(serde_json::from_reader(decoder)?)
+}
+
+fn write_cache(path: &std::path::Path, packages: &[PackageMetadata]) -> Result<()> {
+    let mut encoder = GzEncoder::new(std::fs::File::create(path)?, Compression::fast());
+    serde_json::to_writer(&mut encoder, packages)?;
+    encoder.finish()?.flush()?;
+    Ok(())
 }
 
 fn cache_key(value: &str) -> String {
@@ -446,5 +459,24 @@ mod tests {
         .expect("failed to parse APKINDEX archive");
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].name, "ripgrep");
+    }
+
+    #[test]
+    fn compressed_cache_round_trips_packages() {
+        let dir = tempfile::tempdir().expect("failed to create cache directory");
+        let path = dir.path().join("apk.json.gz");
+        let packages = parse_apkindex(
+            "P:ripgrep\nV:14.1.1-r0\nT:Search tool\nI:12345\n\n",
+            "https://example.com/alpine",
+            "v3.21",
+            "community",
+            "aarch64",
+        );
+
+        write_cache(&path, &packages).expect("failed to write cache");
+        let cached = read_cache(&path).expect("failed to read cache");
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].name, packages[0].name);
+        assert_eq!(cached[0].download_url, packages[0].download_url);
     }
 }
