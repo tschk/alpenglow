@@ -113,7 +113,14 @@ Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|sta
 
 ### Oil and apk (aarch64 QEMU TCG)
 
-On an Alpine 3.21 aarch64 guest under QEMU TCG (not hardware or HVF), three cold runs before the cache-format change measured Oil's parallel index refresh at 1.845 s median versus apk's 2.057 s, and cached `search busybox` at 0.641 s versus 1.458 s. Oil's static binary was 2.15 MiB versus apk's 67.6 KiB. APK's compressed indexes used 2.46 MiB; Oil's compressed JSON index cache now uses 1.78 MiB after the gzip cache change (5.5x smaller than its prior 9.90 MiB raw cache). Package installation was excluded because `hello` was unavailable to both commands in this guest.
+| Metric | Oil | apk |
+|---|---:|---:|
+| Cold index refresh median | 1.845 s | 2.057 s |
+| Cached `search busybox` median | 0.641 s | 1.458 s |
+| Binary size | 2.15 MiB | 67.6 KiB |
+| Index cache | 1.78 MiB | 2.46 MiB |
+
+Three cold runs before the cache-format change on an Alpine 3.21 aarch64 guest under QEMU TCG (not hardware or HVF). Oil's gzip cache is 5.5x smaller than its prior 9.90 MiB raw cache. Package installation was excluded because `hello` was unavailable to both commands in this guest.
 
 ### Boot target (QEMU KVM, quiet)
 
