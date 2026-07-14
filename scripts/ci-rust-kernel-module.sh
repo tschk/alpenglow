@@ -64,7 +64,7 @@ cp -r "${REPO_ROOT}/system/kernel-modules/alpenglow_core" /tmp/alpenglow-kmod
 mkdir -p /tmp/alpenglow-kmod/scripts
 cp scripts/target.json /tmp/alpenglow-kmod/scripts/target.json
 
-make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" > /tmp/kmod-build.log 2>&1 \
+make -C /tmp/alpenglow-kmod KERNEL_SRC="$PWD" KBUILD_MODPOST_WARN=1 > /tmp/kmod-build.log 2>&1 \
   || { tail -40 /tmp/kmod-build.log; exit 1; }
 test -f /tmp/alpenglow-kmod/alpenglow_core.ko || { echo "ci-rust-kernel-module: missing alpenglow_core.ko"; exit 1; }
 echo "Rust kernel module OK (Linux ${KERNEL_VER})"
