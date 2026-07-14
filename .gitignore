@@ -79,7 +79,6 @@ third_party/ghostty/zig-out/
 Module.symvers
 *.symvers
 modules.order
-README.md
 .agents/
 system/backends/appliance/vro/vro
 
@@ -88,3 +87,5 @@ system/backends/appliance/vro/vro
 piolium/
 zig-linux-x86_64-0.14.0/
 *.orig
+.pi-subagents/
+/sbin/
