@@ -43,11 +43,11 @@ docker run --rm --platform linux/amd64 \
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
       if [ -f /out/'"${KERNEL_TAR}"'.tar.xz ]; then
-        cp /out/'"${KERNEL_TAR}"'.tar.xz k.tar.xz
-      elif [ ! -f k.tar.xz ]; then
-        wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O k.tar.xz
+        cp /out/'"${KERNEL_TAR}"'.tar.xz '"${KERNEL_TAR}"'.tar.xz
+      elif [ ! -f '"${KERNEL_TAR}"'.tar.xz ]; then
+        wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O '"${KERNEL_TAR}"'.tar.xz
       fi
-      tar -xf k.tar.xz
+      tar -xf '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
     cp /kcfg/alpenglow-virt.config .config

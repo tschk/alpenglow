@@ -112,6 +112,17 @@ sha256_file() {
 
 require_cmd zstd
 
+if [ "${ARCH}" = "aarch64" ] && [ "${PROFILE}" = "desktop" ]; then
+  require_cmd tar
+  sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "${EDITION}"
+  mkdir -p "${ASSET_DIR}"
+  BUNDLE="${ASSET_DIR}/${ASSET_BASE}-qemu.tar.zst"
+  tar -C "${ROOT_DIR}/build/cross/aarch64" -cf - "vmlinuz-${EDITION}" "initramfs-${EDITION}.cpio.gz" | zstd -T0 -19 -f -o "${BUNDLE}"
+  sha256_file "${BUNDLE}"
+  printf '%s\n' "${BUNDLE}"
+  exit 0
+fi
+
 build_installer() {
   if [ -n "${RUST_TARGET}" ]; then
     cargo build --release --target "${RUST_TARGET}" --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \

@@ -21,7 +21,7 @@ Platform support:
 
 ## Downloads
 
-GitHub releases publish live installer ISOs and compressed disk images for each edition and architecture:
+GitHub releases publish testing-only, unstable images under active development: live installer ISOs and compressed disk images for each edition and architecture.
 
 | Asset | Use |
 |-------|-----|

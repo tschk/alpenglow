@@ -24,7 +24,8 @@ else
   echo "warning: ${VRO_I686} missing; remote initramfs may use busybox vro stub" >&2
 fi
 
-ALP_VERSION="0.1.$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)"
+ALP_VERSION="${ALP_VERSION:-$(git -C "${ROOT_DIR}" describe --tags --abbrev=0 2>/dev/null || printf 'v0.1.%s' "$(git -C "${ROOT_DIR}" rev-list --count HEAD 2>/dev/null || echo 0)")}"
+ALP_VERSION="${ALP_VERSION#v}"
 echo "→ remote build (Alpenglow Linux 7 i686 kernel + initramfs, ${ALP_VERSION})"
 ssh -o ConnectTimeout=15 "${HOST}" "cd ${REMOTE} && ALP_VERSION='${ALP_VERSION}' V86_SKIP_SSH=1 V86_KERNEL_DOCKER=1 FORCE_V86_INITRD=1 sh scripts/build-v86-initramfs.sh"
 
