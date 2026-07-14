@@ -69,6 +69,8 @@ sh scripts/build-v86-initramfs.sh           # browser i686 initrd → public/v86
 cargo test -p oil
 ```
 
+Release tags use `v0.1.<git rev-list --count HEAD>`.
+
 `KERNEL_BUILD=1`, `BUILD_PROFILE=desktop`, `ALPENGLOW_EDITION=…` — see `readme.md` and `docs/`.
 
 ## CI gates
