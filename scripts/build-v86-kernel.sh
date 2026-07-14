@@ -36,9 +36,9 @@ build_in_tree() {
 }
 
 fetch_kernel() {
-  if [ ! -d "${BUILD_DIR}/${KERNEL_TAR}" ]; then
-    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/${KERNEL_TAR}.tar.xz" -o "${BUILD_DIR}/k.tar.xz"
-    tar -xf "${BUILD_DIR}/k.tar.xz" -C "${BUILD_DIR}"
+if [ ! -d "${BUILD_DIR}/${KERNEL_TAR}" ]; then
+    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/${KERNEL_TAR}.tar.xz" -o "${BUILD_DIR}/${KERNEL_TAR}.tar.xz"
+    tar -xf "${BUILD_DIR}/${KERNEL_TAR}.tar.xz" -C "${BUILD_DIR}"
   fi
 }
 
@@ -72,8 +72,8 @@ docker run --rm --platform linux/amd64 \
       gcc-i686-linux-gnu >/dev/null
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
-      wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O k.tar.xz
-      tar -xf k.tar.xz
+      wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O '"${KERNEL_TAR}"'.tar.xz
+      tar -xf '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
     make ARCH=i386 i386_defconfig >/dev/null 2>&1
