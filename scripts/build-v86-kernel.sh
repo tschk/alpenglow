@@ -16,12 +16,12 @@ if [ -f "${STAMP}" ] && [ -f "${KERNEL_OUT}" ] && [ "${FORCE_V86_KERNEL:-}" != 1
 fi
 
 mkdir -p "${BUILD_DIR}"
+rm -rf "${BUILD_DIR}/${KERNEL_TAR}"
 
 build_in_tree() {
   kdir="$1"
   cross="$2"
   cd "${kdir}"
-  make ARCH=i386 mrproper >/dev/null 2>&1
   make ARCH=i386 i386_defconfig >/dev/null 2>&1
   cat "${BACKEND}/kernel/v86-i686.fragment" >> .config
   cat "${BACKEND}/kernel/v86-i686-fast.fragment" >> .config
@@ -77,7 +77,6 @@ docker run --rm --platform linux/amd64 \
       tar -xf '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
-    make ARCH=i386 mrproper >/dev/null 2>&1
     make ARCH=i386 i386_defconfig >/dev/null 2>&1
     cat /kcfg/v86-i686.fragment >> .config
     cat /kcfg/v86-i686-fast.fragment >> .config
