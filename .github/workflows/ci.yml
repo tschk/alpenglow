@@ -43,6 +43,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.93.0
+          components: rust-src
       - name: Install bindgen
         run: cargo install bindgen-cli --locked 2>/dev/null
       - name: Build Rust kernel module
