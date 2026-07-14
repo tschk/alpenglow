@@ -4,8 +4,6 @@
 
 use kernel::prelude::*;
 
-const __LOG_PREFIX: &[u8] = b"alpenglow_core\0";
-
 module! {
     type: AlpenglowCore,
     name: "alpenglow_core",
