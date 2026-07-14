@@ -9,7 +9,7 @@ const __LOG_PREFIX: &[u8] = b"alpenglow_core\0";
 module! {
     type: AlpenglowCore,
     name: "alpenglow_core",
-    author: "Alpenglow Contributors",
+    authors: ["Alpenglow Contributors"],
     description: "Alpenglow appliance core module",
     license: "GPL",
 }
