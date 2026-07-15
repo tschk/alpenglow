@@ -29,6 +29,7 @@ if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
 fi
 
 echo "→ Building custom aarch64 ${PROFILE} kernel (Linux ${KERNEL_VERSION})..."
+rm -rf "${OUT_DIR}/${KERNEL_TAR}"
 
 docker run --rm --platform linux/amd64 \
   -v "${OUT_DIR}:/out" \
