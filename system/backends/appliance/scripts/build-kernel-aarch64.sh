@@ -21,6 +21,10 @@ if [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ]; then
   exit 0
 fi
 
+LOCK="${OUT_DIR}/.kernel-aarch64.lock"
+mkdir "${LOCK}" 2>/dev/null || { echo "aarch64 kernel build already running" >&2; exit 1; }
+trap 'rmdir "${LOCK}"' EXIT
+
 # Reuse the x86_64 kernel source tarball if already present locally.
 NATIVE_SRC="${OUT_DIR}/../../native/${KERNEL_TAR}.tar.xz"
 if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
