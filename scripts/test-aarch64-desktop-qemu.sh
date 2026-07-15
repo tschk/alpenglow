@@ -2,6 +2,11 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+KILL_EXISTING=0
+if [ "${1:-}" = --kill-existing ]; then
+  KILL_EXISTING=1
+  shift
+fi
 EDITION="${1:-desktop}"
 ACCEL="${ACCEL:-}"
 MEMORY_MB="${MEMORY_MB:-4096}"
@@ -9,10 +14,19 @@ SMP="${SMP:-4}"
 
 case "${EDITION}" in
   desktop|desktop-full) ;;
-  *) echo "usage: $0 [desktop|desktop-full]" >&2; exit 1 ;;
+  *) echo "usage: $0 [--kill-existing] [desktop|desktop-full]" >&2; exit 1 ;;
 esac
 
 command -v qemu-system-aarch64 >/dev/null 2>&1 || { echo "missing: qemu-system-aarch64" >&2; exit 1; }
+
+if [ "${KILL_EXISTING}" = 1 ]; then
+  docker ps -q --filter label=alpenglow.aarch64-build=1 | while IFS= read -r cid; do
+    [ -z "${cid}" ] || docker stop "${cid}" >/dev/null 2>&1 || true
+  done
+  pkill -f "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" 2>/dev/null || true
+  pkill -f "${ROOT_DIR}/system/backends/appliance/scripts/build-kernel-aarch64.sh" 2>/dev/null || true
+  rm -rf "${ROOT_DIR}/build/cross/aarch64/.kernel-aarch64.lock"
+fi
 
 if [ -z "${ACCEL}" ]; then
   if timeout 2 qemu-system-aarch64 -M none -accel hvf >/dev/null 2>&1; then

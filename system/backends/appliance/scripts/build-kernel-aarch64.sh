@@ -36,6 +36,7 @@ echo "→ Building custom aarch64 ${PROFILE} kernel (Linux ${KERNEL_VERSION})...
 rm -rf "${OUT_DIR}/${KERNEL_TAR}"
 
 docker run --rm --platform linux/amd64 \
+  --label alpenglow.aarch64-build=1 \
   -v "${OUT_DIR}:/out" \
   -v "${BACKEND}/kernel:/kcfg:ro" \
   debian:bookworm-slim sh -c '
