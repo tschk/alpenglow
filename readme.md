@@ -1,5 +1,7 @@
 # Alpenglow
 
+> **Warning:** Desktop images and graphical features are unstable, testing-only, and still under active development.
+
 General-purpose musl Linux distribution. dinit init, Oil packages.
 **Boots to login in &lt;1s** on native virt (x86_64 KVM or aarch64 HVF).
 

@@ -1,5 +1,7 @@
 # Alpenglow Docs
 
+> **Warning:** Desktop images and graphical features are unstable, testing-only, and still under active development.
+
 ## Quick Start
 
 ```sh
