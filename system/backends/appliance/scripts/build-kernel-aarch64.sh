@@ -15,6 +15,7 @@ KERNEL_TAR="linux-${KERNEL_VERSION}"
 VMLINUZ="${OUT_DIR}/vmlinuz"
 PROFILE="${KERNEL_PROFILE:-fast}"
 STAMP="${OUT_DIR}/.kernel-aarch64-${PROFILE}.ok"
+JOBS="${AARCH64_KERNEL_JOBS:-4}"
 
 if [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ]; then
   echo "  kernel: ${VMLINUZ} (cached)"
@@ -89,7 +90,7 @@ docker run --rm --platform linux/amd64 \
 
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig >/dev/null 2>&1
     echo "→ compiling Image.gz (this can take several minutes)..."
-    make -j"$(nproc)" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz
+    make -j"'"${JOBS}"'" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz
     cp arch/arm64/boot/Image.gz /out/vmlinuz
     touch /out/.kernel-aarch64-'"${PROFILE}"'.ok
   '
