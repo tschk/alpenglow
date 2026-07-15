@@ -28,11 +28,13 @@ else
   CPU=max
 fi
 
-sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "${EDITION}"
-
 OUT_DIR="${ROOT_DIR}/build/cross/aarch64"
 KERNEL="${OUT_DIR}/vmlinuz-${EDITION}"
 INITRAMFS="${OUT_DIR}/initramfs-${EDITION}.cpio.gz"
+
+if [ ! -s "${KERNEL}" ] || [ ! -s "${INITRAMFS}" ]; then
+  sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "${EDITION}"
+fi
 
 test -s "${KERNEL}"
 test -s "${INITRAMFS}"
