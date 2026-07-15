@@ -57,7 +57,7 @@ mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mkdir -p /run/user/0
 chmod 700 /run/user/0
-exec /sbin/dinit -d /etc/dinit.d -s -t boot
+exec /usr/sbin/dinit -d /etc/dinit.d -s -t boot
 EOF
 cat > "${ROOTFS}/etc/dinit.d/boot" <<'EOF'
 type = internal
