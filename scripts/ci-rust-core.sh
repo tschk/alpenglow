@@ -34,8 +34,7 @@ if [ -f .cargo/config.toml ]; then
 fi
 
 run_cargo cargo check --workspace
-run_cargo cargo test -p alpenglow-netd
 run_cargo cargo test -p oil
-run_cargo cargo test -p oil --no-default-features --features system-apk
+run_cargo cargo test -p oil --no-default-features
 
 printf 'ci-rust-core: ok\n'

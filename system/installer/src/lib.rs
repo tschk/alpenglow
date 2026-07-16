@@ -1,3 +1,6 @@
+mod tui;
+
+use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, BufWriter};
@@ -50,6 +53,54 @@ where
         .unwrap_or_else(default_live_source);
     let target = args.next().map(Into::into);
     (source, target)
+}
+
+/// Parses installer argv: optional `--tui`, then optional source and target paths.
+pub fn parse_installer_args<I>(args: I) -> (bool, PathBuf, Option<PathBuf>)
+where
+    I: IntoIterator<Item = OsString>,
+{
+    let mut tui = false;
+    let mut positionals = Vec::new();
+    for arg in args {
+        if arg == "--tui" {
+            tui = true;
+        } else {
+            positionals.push(arg);
+        }
+    }
+    let (source, target) = parse_install_args(positionals);
+    (tui, source, target)
+}
+
+/// Shared entry for `alpenglow-install` and the `alpenglow-install-tui` wrapper.
+pub fn run_installer<I>(args: I) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+{
+    let (tui, source, target) = parse_installer_args(args);
+    if tui {
+        if let Err(err) = tui::draw_installer_tui(&source, target.as_deref()) {
+            eprintln!("installer ui failed: {err}");
+            return 1;
+        }
+    }
+    let Some(target) = target else {
+        eprintln!(
+            "usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>"
+        );
+        return 2;
+    };
+    match install_image_maybe_compressed(&source, &target, false) {
+        Ok(bytes) => {
+            println!("wrote {bytes} bytes to {}", target.display());
+            0
+        }
+        Err(err) => {
+            eprintln!("install failed: {err}");
+            1
+        }
+    }
 }
 
 pub fn validate_target(target: &Path, allow_regular_file: bool) -> Result<(), InstallError> {

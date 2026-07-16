@@ -30,7 +30,9 @@ Early-stage; not production-hardened for arbitrary deployments.
 | Desktop | `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/tschk/alpenglowed) (Wayland/Smithay) |
 | Arch | x86_64 primary; branches for aarch64, riscv64, RK3566 |
 
-**Build profiles** (`BUILD_PROFILE`): `minimal` (boot + SSH + time + logs), `standard` (+ tooling), `desktop` (+ graphics stack). **Editions** pair userspace profile with kernel profile — see root `readme.md`.
+**Editions** (`ALPENGLOW_EDITION`, default `standard`): primary release/local build knob — `fast`, `minimal`, `standard`, `desktop`, `desktop-full`. Maps via root `editions.toml` and `scripts/edition-resolve.sh` to `BUILD_PROFILE`, `KERNEL_PROFILE`, and related flags.
+
+**Build profiles** (`BUILD_PROFILE`): `minimal` (boot + SSH + time + logs), `standard` (+ tooling), `desktop` (+ graphics stack). Prefer `ALPENGLOW_EDITION` over hand-setting `BUILD_PROFILE` for release-shaped builds.
 
 **Kernel profiles** ≠ build profiles: `fast` = smallest boot; `minimal` = networked appliance kernel; `desktop` = display/audio/WiFi firmware path.
 

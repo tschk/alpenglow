@@ -9,15 +9,15 @@
     "deploy": "bun run build && wrangler pages deploy dist --project-name alpenglow"
   },
   "dependencies": {
-    "@astrojs/check": "latest",
-    "astro": "latest",
+    "@astrojs/check": "0.9.9",
+    "astro": "7.0.6",
     "ghostty-web": "^0.4.0",
-    "typescript": "latest",
-    "v86": "latest"
+    "typescript": "6.0.3",
+    "v86": "0.5.420"
   },
   "devDependencies": {
     "@unocss/astro": "^66.7.4",
     "unocss": "^66.7.4",
-    "wrangler": "latest"
+    "wrangler": "4.107.0"
   }
 }

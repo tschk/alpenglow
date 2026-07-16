@@ -11,7 +11,6 @@ path = "src/main.rs"
 [features]
 default = ["wax"]
 wax = []
-system-apk = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -30,5 +29,4 @@ signature = "2"
 signal-hook = "0.3"
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
-lazy_static = "1.5.0"
 serde_norway = "0.9.42"

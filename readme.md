@@ -50,7 +50,7 @@ wsl -d Alpenglow
 Standard live ISOs use the terminal installer:
 
 ```sh
-alpenglow-install-tui /run/alpenglow/alpenglow.img.zst /dev/sdX
+alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX
 ```
 
 Desktop live ISOs boot Alpenglowed and open the graphical installer against the same bundled image at `/run/alpenglow/alpenglow.img.zst`.

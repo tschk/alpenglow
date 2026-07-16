@@ -87,11 +87,12 @@ impl InstallState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
+    use std::sync::{Mutex, OnceLock};
 
-    // A static mutex to serialize access to the $HOME environment variable during tests
-    lazy_static::lazy_static! {
-        static ref ENV_LOCK: Mutex<()> = Mutex::new(());
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn env_lock() -> &'static Mutex<()> {
+        ENV_LOCK.get_or_init(|| Mutex::new(()))
     }
 
     struct EnvGuard {
@@ -101,7 +102,7 @@ mod tests {
 
     impl EnvGuard {
         fn new() -> Self {
-            let lock = ENV_LOCK.lock().expect("Failed to acquire ENV_LOCK");
+            let lock = env_lock().lock().expect("Failed to acquire ENV_LOCK");
             let original_home = std::env::var_os("HOME");
             Self {
                 _lock: lock,

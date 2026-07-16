@@ -11,7 +11,7 @@ div w-full h-full flex-col bg-zinc-950 text-zinc-100 p-1
       "Target: {target}"
   div h-[5] tui-panel title="Run"
     div text-yellow-300
-      "Use: alpenglow-install-tui /run/alpenglow/alpenglow.img.zst /dev/sdX"
+      "Use: alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX"
     div text-red-300
       "The target disk will be overwritten."
   div flex-1

@@ -4,7 +4,9 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
-EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-standard}}"
+export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-standard}}"
+. "${ROOT_DIR}/scripts/edition-resolve.sh"
+EDITION="${ALPENGLOW_EDITION}"
 OUT_DIR="${ROOT_DIR}/build/release"
 ASSET_DIR="${OUT_DIR}/assets"
 IMAGE="${OUT_DIR}/alpenglow.img"
@@ -23,51 +25,6 @@ case "${ARCH}" in
   *) RUST_TARGET="" ;;
 esac
 
-FAST=0
-GRAPHICAL=0
-BUILD_SERVICES=0
-ALPENGLOW_AUTOLOGIN=0
-ALPENGLOW_DESKTOP_FULL=0
-
-case "${EDITION}" in
-  fast)
-    PROFILE=minimal
-    KERNEL_PROFILE=fast
-    FAST=1
-    GRAPHICAL=0
-    ;;
-  minimal)
-    PROFILE=minimal
-    KERNEL_PROFILE=minimal
-    GRAPHICAL=0
-    ;;
-  standard)
-    PROFILE=standard
-    KERNEL_PROFILE=minimal
-    GRAPHICAL=0
-    ;;
-  desktop)
-    PROFILE=desktop
-    KERNEL_PROFILE=desktop
-    GRAPHICAL=1
-    BUILD_SERVICES=0
-    ALPENGLOW_AUTOLOGIN=1
-    ;;
-  desktop-full)
-    PROFILE=desktop
-    KERNEL_PROFILE=desktop
-    GRAPHICAL=1
-    BUILD_SERVICES=1
-    ALPENGLOW_AUTOLOGIN=1
-    ALPENGLOW_DESKTOP_FULL=1
-    ;;
-  *)
-    echo "unknown edition: ${EDITION}. Use fast, minimal, standard, desktop, or desktop-full." >&2
-    exit 1
-    ;;
-esac
-
-export KERNEL_PROFILE FAST GRAPHICAL BUILD_SERVICES ALPENGLOW_AUTOLOGIN ALPENGLOW_DESKTOP_FULL
 export KERNEL_ARCH="${ARCH}"
 export KERNEL_7=0
 
@@ -88,7 +45,7 @@ if [ "${RUST_TARGET}" = "x86_64-unknown-linux-musl" ]; then
   export CXX_x86_64_unknown_linux_musl="${ROOT_DIR}/scripts/x86_64-linux-musl-zigcxx"
 fi
 
-if [ "${PROFILE}" = "desktop" ] && [ "${RUST_TARGET}" = "aarch64-unknown-linux-musl" ]; then
+if [ "${BUILD_PROFILE}" = "desktop" ] && [ "${RUST_TARGET}" = "aarch64-unknown-linux-musl" ]; then
   GUI_SYSROOT="$(ALPENGLOW_AARCH64_GUI_SYSROOT="${ALPENGLOW_AARCH64_GUI_SYSROOT:-}" sh "${ROOT_DIR}/scripts/build-aarch64-gui-sysroot.sh")"
   export CC_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcc"
   export CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx"
@@ -112,7 +69,7 @@ sha256_file() {
 
 require_cmd zstd
 
-if [ "${ARCH}" = "aarch64" ] && [ "${PROFILE}" = "desktop" ]; then
+if [ "${ARCH}" = "aarch64" ] && [ "${BUILD_PROFILE}" = "desktop" ]; then
   require_cmd tar
   sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "${EDITION}"
   mkdir -p "${ASSET_DIR}"
@@ -139,7 +96,7 @@ build_host_gui_installer() {
   GUI_INSTALLER="${ROOT_DIR}/target/release/alpenglow-install-gui"
 }
 
-BUILD_PROFILE="${PROFILE}" ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
+ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
 build_installer --bin alpenglow-install --bin alpenglow-install-tui
 if [ "${EDITION}" = "desktop-full" ] && [ "${ARCH}" = "x86_64" ]; then
   build_host_gui_installer
@@ -189,7 +146,7 @@ if command -v xorriso >/dev/null 2>&1; then
   cat > "${ISO_ROOT}/install-alpenglow.sh" <<EOF
 #!/bin/sh
 set -eu
-exec /usr/bin/alpenglow-install-tui /run/alpenglow/${ASSET_BASE}.img.zst "\${1:?target disk required}"
+exec /usr/bin/alpenglow-install --tui /run/alpenglow/${ASSET_BASE}.img.zst "\${1:?target disk required}"
 EOF
   chmod +x "${ISO_ROOT}/install-alpenglow.sh"
   cp "${ROOT_DIR}/readme.md" "${ISO_ROOT}/" 2>/dev/null || true

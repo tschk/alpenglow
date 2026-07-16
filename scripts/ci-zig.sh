@@ -14,6 +14,10 @@ fi
 
 ZIG_VERSION="$(zig version 2>&1)"
 echo "ci-zig: zig ${ZIG_VERSION}"
+case "${ZIG_VERSION}" in
+  0.1[5-9].*|0.[2-9][0-9].*) ;;
+  *) fail "zig >= 0.15 required (got ${ZIG_VERSION})" ;;
+esac
 
 # standardOptimizeOption exposes -Drelease=true in Zig 0.14+.
 RELEASE_FLAG="-Drelease=true"

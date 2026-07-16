@@ -1,7 +1,8 @@
 use alpenglow_installer::{
     default_live_source, install_image, install_image_maybe_compressed, parse_install_args,
-    validate_target,
+    parse_installer_args, validate_target,
 };
+use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
 
@@ -46,4 +47,16 @@ fn install_args_accept_source_and_target() {
     let (source, target) = parse_install_args(["source.img.zst", "/dev/vda"]);
     assert_eq!(source, PathBuf::from("source.img.zst"));
     assert_eq!(target, Some(PathBuf::from("/dev/vda")));
+}
+
+#[test]
+fn installer_args_strip_tui_flag() {
+    let (tui, source, target) = parse_installer_args([
+        OsString::from("--tui"),
+        OsString::from("a.img"),
+        OsString::from("/dev/vdb"),
+    ]);
+    assert!(tui);
+    assert_eq!(source, PathBuf::from("a.img"));
+    assert_eq!(target, Some(PathBuf::from("/dev/vdb")));
 }

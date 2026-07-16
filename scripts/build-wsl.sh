@@ -4,7 +4,9 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-x86_64}"
-EDITION="${ALPENGLOW_EDITION:-standard}"
+export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-standard}"
+. "${ROOT_DIR}/scripts/edition-resolve.sh"
+EDITION="${ALPENGLOW_EDITION}"
 ROOTFS="${ALPENGLOW_WSL_ROOTFS:-${ROOT_DIR}/build/native/rootfs}"
 OUT_DIR="${ROOT_DIR}/build/release/assets"
 
@@ -22,7 +24,7 @@ fi
 
 if [ ! -d "${ROOTFS}" ]; then
   echo "missing rootfs: ${ROOTFS}" >&2
-  echo "run: BUILD_PROFILE=${EDITION} BUILD_ONLY=1 ./scripts/boot-native.sh" >&2
+  echo "run: ALPENGLOW_EDITION=${EDITION} BUILD_ONLY=1 ./scripts/boot-native.sh" >&2
   echo "or set ALPENGLOW_WSL_ROOTFS=/path/to/rootfs" >&2
   exit 1
 fi

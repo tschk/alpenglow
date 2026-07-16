@@ -133,22 +133,25 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 # Enable dinit boot services (profile-aware)
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}"
+if [ -n "${WORLD_FILE:-}" ] && [ "${WORLD_FILE#/}" = "${WORLD_FILE}" ]; then
+  WORLD_FILE="${BACKEND_DIR}/${WORLD_FILE}"
+fi
 case "${BUILD_PROFILE}" in
   minimal)
     BOOT_SERVICES="state-mount networking earlyoom dropbear chronyd syslogd crond dnsmasq"
-    WORLD_FILE="${BACKEND_DIR}/packages-minimal.txt"
+    WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-minimal.txt}"
     ;;
   standard)
     BOOT_SERVICES="state-mount alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq"
-    WORLD_FILE="${BACKEND_DIR}/packages-standard.txt"
+    WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-standard.txt}"
     ;;
   desktop)
     if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
       BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
-      WORLD_FILE="${BACKEND_DIR}/packages-runtime.txt"
+      WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-runtime.txt}"
     else
       BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom syslogd crond alpenglowed foot"
-      WORLD_FILE="${BACKEND_DIR}/packages-desktop-lite.txt"
+      WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-desktop-lite.txt}"
     fi
     ;;
   *)

@@ -27,7 +27,7 @@ struct Cli {
     yes: bool,
 }
 
-#[derive(Subcommand)]
+#[derive(Clone, Debug, PartialEq, Subcommand)]
 enum Commands {
     /// Search for packages
     #[command(visible_alias = "s")]
@@ -107,7 +107,7 @@ fn main() {
     let cli = Cli::parse();
 
     let result: Result<()> = match cli.command {
-        Some(cmd) => run_command(cmd),
+        Some(cmd) => dispatch_command(cmd),
         None => {
             eprintln!("Usage: oil <command>\nAlpenglow native package manager\nRun `oil --help` for options");
             Ok(())
@@ -120,75 +120,24 @@ fn main() {
     }
 }
 
-trait CommandRunner {
-    fn search(&self, query: String) -> Result<()>;
-    fn info(&self, formula: String) -> Result<()>;
-    fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
-    fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()>;
-    fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()>;
-    fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()>;
-    fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()>;
-    fn outdated(&self) -> Result<()>;
-    fn update(&self) -> Result<()>;
-    #[cfg(feature = "wax")]
-    fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()>;
-}
-
-struct DefaultRunner;
-
-impl CommandRunner for DefaultRunner {
-    fn search(&self, query: String) -> Result<()> {
-        run_search(query)
-    }
-    fn info(&self, formula: String) -> Result<()> {
-        run_info(formula)
-    }
-    fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-        run_install(packages, dry_run)
-    }
-    fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
-        run_install_recipe(recipe, dry_run)
-    }
-    fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
-        run_uninstall(formulae, all)
-    }
-    fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
-        run_reinstall(packages, all)
-    }
-    fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-        run_upgrade(packages, dry_run)
-    }
-    fn outdated(&self) -> Result<()> {
-        run_outdated()
-    }
-    fn update(&self) -> Result<()> {
-        run_update()
-    }
-    #[cfg(feature = "wax")]
-    fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()> {
-        run_tap(tap, action)
-    }
-}
-
-fn execute_command<R: CommandRunner>(cmd: Commands, runner: &R) -> Result<()> {
+fn dispatch_command(cmd: Commands) -> Result<()> {
     match cmd {
-        Commands::Search { query } => runner.search(query),
-        Commands::Info { formula } => runner.info(formula),
-        Commands::Install { packages, dry_run } => runner.install(packages, dry_run),
-        Commands::InstallRecipe { recipe, dry_run } => runner.install_recipe(recipe, dry_run),
-        Commands::Uninstall { formulae, all } => runner.uninstall(formulae, all),
-        Commands::Reinstall { packages, all } => runner.reinstall(packages, all),
-        Commands::Upgrade { packages, dry_run } => runner.upgrade(packages, dry_run),
-        Commands::Outdated => runner.outdated(),
-        Commands::Update => runner.update(),
+        Commands::Search { query } => run_search(query),
+        Commands::Info { formula } => run_info(formula),
+        Commands::Install { packages, dry_run } => run_install(packages, dry_run),
+        Commands::InstallRecipe { recipe, dry_run } => run_install_recipe(recipe, dry_run),
+        Commands::Uninstall { formulae, all } => run_uninstall(formulae, all),
+        Commands::Reinstall { packages, all } => run_reinstall(packages, all),
+        Commands::Upgrade { packages, dry_run } => run_upgrade(packages, dry_run),
+        Commands::Outdated => run_outdated(),
+        Commands::Update => run_update(),
         #[cfg(feature = "wax")]
-        Commands::Tap { tap, action } => runner.tap(tap, action),
+        Commands::Tap { tap, action } => run_tap(tap, action),
     }
 }
 
 fn run_command(cmd: Commands) -> Result<()> {
-    let runner = DefaultRunner;
-    execute_command(cmd, &runner)
+    dispatch_command(cmd)
 }
 
 #[cfg(feature = "wax")]
@@ -598,196 +547,6 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
-
-    #[derive(Debug, PartialEq, Clone)]
-    enum MockCall {
-        Search(String),
-        Info(String),
-        Install(Vec<String>, bool),
-        InstallRecipe(PathBuf, bool),
-        Uninstall(Vec<String>, bool),
-        Reinstall(Vec<String>, bool),
-        Upgrade(Vec<String>, bool),
-        Outdated,
-        Update,
-        #[cfg(feature = "wax")]
-        Tap(Option<String>, Option<TapAction>),
-    }
-
-    struct MockRunner {
-        calls: RefCell<Vec<MockCall>>,
-    }
-
-    impl MockRunner {
-        fn new() -> Self {
-            MockRunner {
-                calls: RefCell::new(Vec::new()),
-            }
-        }
-
-        fn get_calls(&self) -> Vec<MockCall> {
-            self.calls.borrow().clone()
-        }
-    }
-
-    impl CommandRunner for MockRunner {
-        fn search(&self, query: String) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Search(query));
-            Ok(())
-        }
-        fn info(&self, formula: String) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Info(formula));
-            Ok(())
-        }
-        fn install(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Install(packages, dry_run));
-            Ok(())
-        }
-        fn install_recipe(&self, recipe: PathBuf, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::InstallRecipe(recipe, dry_run));
-            Ok(())
-        }
-        fn uninstall(&self, formulae: Vec<String>, all: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Uninstall(formulae, all));
-            Ok(())
-        }
-        fn reinstall(&self, packages: Vec<String>, all: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Reinstall(packages, all));
-            Ok(())
-        }
-        fn upgrade(&self, packages: Vec<String>, dry_run: bool) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Upgrade(packages, dry_run));
-            Ok(())
-        }
-        fn outdated(&self) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Outdated);
-            Ok(())
-        }
-        fn update(&self) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Update);
-            Ok(())
-        }
-        #[cfg(feature = "wax")]
-        fn tap(&self, tap: Option<String>, action: Option<TapAction>) -> Result<()> {
-            self.calls.borrow_mut().push(MockCall::Tap(tap, action));
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn test_execute_command_search() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Search { query: "foo".to_string() };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Search("foo".to_string())]);
-    }
-
-    #[test]
-    fn test_execute_command_info() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Info { formula: "bar".to_string() };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Info("bar".to_string())]);
-    }
-
-    #[test]
-    fn test_execute_command_install() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Install {
-            packages: vec!["pkg1".to_string(), "pkg2".to_string()],
-            dry_run: true,
-        };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::Install(vec!["pkg1".to_string(), "pkg2".to_string()], true)]
-        );
-    }
-
-    #[test]
-    fn test_execute_command_install_recipe() {
-        let runner = MockRunner::new();
-        let cmd = Commands::InstallRecipe {
-            recipe: PathBuf::from("recipes/toybox.yml"),
-            dry_run: true,
-        };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::InstallRecipe(PathBuf::from("recipes/toybox.yml"), true)]
-        );
-    }
-
-    #[test]
-    fn test_execute_command_uninstall() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Uninstall {
-            formulae: vec!["pkg1".to_string()],
-            all: false,
-        };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::Uninstall(vec!["pkg1".to_string()], false)]
-        );
-    }
-
-    #[test]
-    fn test_execute_command_reinstall() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Reinstall {
-            packages: vec!["pkg1".to_string()],
-            all: true,
-        };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::Reinstall(vec!["pkg1".to_string()], true)]
-        );
-    }
-
-    #[test]
-    fn test_execute_command_upgrade() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Upgrade {
-            packages: vec![],
-            dry_run: false,
-        };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Upgrade(vec![], false)]);
-    }
-
-    #[test]
-    fn test_execute_command_outdated() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Outdated;
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Outdated]);
-    }
-
-    #[test]
-    fn test_execute_command_update() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Update;
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(runner.get_calls(), vec![MockCall::Update]);
-    }
-
-    #[cfg(feature = "wax")]
-    #[test]
-    fn test_execute_command_tap_bare_shorthand() {
-        let runner = MockRunner::new();
-        let cmd = Commands::Tap {
-            tap: Some("undivisible/tap".to_string()),
-            action: None,
-        };
-        execute_command(cmd, &runner).expect("execute_command failed");
-        assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::Tap(Some("undivisible/tap".to_string()), None)]
-        );
-    }
 
     #[test]
     fn test_run_install_recipe_dry_run_does_not_touch_network() {
@@ -811,23 +570,57 @@ mod tests {
 
     #[test]
     fn cli_parses_command_aliases() {
-        let cases: Vec<(&[&str], MockCall)> = vec![
-            (&["oil", "s", "vim"], MockCall::Search("vim".into())),
-            (&["oil", "i", "pkg"], MockCall::Install(vec!["pkg".into()], false)),
-            (&["oil", "add", "pkg"], MockCall::Install(vec!["pkg".into()], false)),
-            (&["oil", "rm", "pkg"], MockCall::Uninstall(vec!["pkg".into()], false)),
-            (&["oil", "del", "pkg"], MockCall::Uninstall(vec!["pkg".into()], false)),
-            (&["oil", "ri", "pkg"], MockCall::Reinstall(vec!["pkg".into()], false)),
-            (&["oil", "up"], MockCall::Upgrade(vec![], false)),
-            (&["oil", "u"], MockCall::Update),
-            (&["oil", "od"], MockCall::Outdated),
+        let cases: Vec<(&[&str], Commands)> = vec![
+            (&["oil", "s", "vim"], Commands::Search { query: "vim".into() }),
+            (
+                &["oil", "i", "pkg"],
+                Commands::Install {
+                    packages: vec!["pkg".into()],
+                    dry_run: false,
+                },
+            ),
+            (
+                &["oil", "add", "pkg"],
+                Commands::Install {
+                    packages: vec!["pkg".into()],
+                    dry_run: false,
+                },
+            ),
+            (
+                &["oil", "rm", "pkg"],
+                Commands::Uninstall {
+                    formulae: vec!["pkg".into()],
+                    all: false,
+                },
+            ),
+            (
+                &["oil", "del", "pkg"],
+                Commands::Uninstall {
+                    formulae: vec!["pkg".into()],
+                    all: false,
+                },
+            ),
+            (
+                &["oil", "ri", "pkg"],
+                Commands::Reinstall {
+                    packages: vec!["pkg".into()],
+                    all: false,
+                },
+            ),
+            (
+                &["oil", "up"],
+                Commands::Upgrade {
+                    packages: vec![],
+                    dry_run: false,
+                },
+            ),
+            (&["oil", "u"], Commands::Update),
+            (&["oil", "od"], Commands::Outdated),
         ];
         for (argv, want) in cases {
             let cli = Cli::try_parse_from(argv).expect("parse alias argv");
-            let runner = MockRunner::new();
             let cmd = cli.command.expect("subcommand");
-            execute_command(cmd, &runner).expect("execute");
-            assert_eq!(runner.get_calls(), vec![want], "argv: {argv:?}");
+            assert_eq!(cmd, want, "argv: {argv:?}");
         }
     }
 
@@ -835,17 +628,15 @@ mod tests {
     #[test]
     fn cli_parses_tap_action_aliases() {
         let cli = Cli::try_parse_from(["oil", "tap", "add", "org/tap"]).expect("parse");
-        let runner = MockRunner::new();
         let cmd = cli.command.expect("subcommand");
-        execute_command(cmd, &runner).expect("execute");
         assert_eq!(
-            runner.get_calls(),
-            vec![MockCall::Tap(
-                None,
-                Some(TapAction::Add {
+            cmd,
+            Commands::Tap {
+                tap: None,
+                action: Some(TapAction::Add {
                     tap: "org/tap".to_string()
-                })
-            )]
+                }),
+            }
         );
     }
 }

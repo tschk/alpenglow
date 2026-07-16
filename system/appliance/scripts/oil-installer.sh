@@ -22,7 +22,7 @@ resolve_oil_bin() {
   fi
 
   if [ "${OIL_BUILD:-0}" = "1" ]; then
-    cargo build --release --no-default-features --features system-apk --manifest-path "${OIL_ROOT}/Cargo.toml"
+    cargo build --release --no-default-features --manifest-path "${OIL_ROOT}/Cargo.toml"
     printf '%s\n' "${OIL_ROOT}/target/release/oil"
     return
   fi

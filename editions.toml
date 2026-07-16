@@ -1,0 +1,52 @@
+# Release editions: userspace build_profile + kernel_profile + image options.
+# Resolved by scripts/edition-resolve.sh (ALPENGLOW_EDITION, default standard).
+
+[editions.fast]
+build_profile = "minimal"
+kernel_profile = "fast"
+fast = 1
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-minimal.txt"
+
+[editions.minimal]
+build_profile = "minimal"
+kernel_profile = "minimal"
+fast = 0
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-minimal.txt"
+
+[editions.standard]
+build_profile = "standard"
+kernel_profile = "minimal"
+fast = 0
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-standard.txt"
+
+[editions.desktop]
+build_profile = "desktop"
+kernel_profile = "desktop"
+fast = 0
+graphical = 1
+build_services = 0
+alpenglow_autologin = 1
+alpenglow_desktop_full = 0
+world_file = "packages-desktop-lite.txt"
+
+[editions.desktop-full]
+build_profile = "desktop"
+kernel_profile = "desktop"
+fast = 0
+graphical = 1
+build_services = 1
+alpenglow_autologin = 1
+alpenglow_desktop_full = 1
+world_file = "packages-runtime.txt"

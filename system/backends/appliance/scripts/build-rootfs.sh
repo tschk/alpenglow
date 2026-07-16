@@ -74,7 +74,7 @@ if [ "${BUILD_PROFILE}" != "minimal" ]; then
     if [ ! -x "${WAX_BIN}" ]; then
       (
         cd "${WAX_REPO}"
-        cargo build --release --no-default-features --features system-apk >/dev/null 2>&1
+        cargo build --release --no-default-features >/dev/null 2>&1
       )
       cp "${WAX_REPO}/target/release/oil" "${WAX_BIN}"
     fi

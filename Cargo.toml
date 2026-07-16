@@ -1,11 +1,9 @@
-# Alpenglow Workspace Cargo Configuration
-# This file is used by crate_universe to resolve Rust dependencies
+# Alpenglow workspace
 
 [workspace]
 resolver = "2"
 members = [
     "system/installer",
-    "system/netd",
     "system/oil",
 ]
 
