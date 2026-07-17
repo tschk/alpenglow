@@ -81,7 +81,7 @@ sgdisk -o "${IMAGE}" >/dev/null
 sgdisk -n 1:2048:+"${ESP_SIZE_MB}"M -t 1:EF00 -c 1:ALPENGLOW-EFI "${IMAGE}" >/dev/null
 sgdisk -n 2:0:0 -t 2:8300 -c 2:alpenglow-state "${IMAGE}" >/dev/null
 LOOP_DEV="$(sudo losetup --find --show --partscan "${IMAGE}")"
-sudo mkfs.vfat -F 32 -n ALPENGLOW_EFI "${LOOP_DEV}p1" >/dev/null
+sudo mkfs.vfat -F 32 -n ALP_EFI "${LOOP_DEV}p1" >/dev/null
 sudo mkfs.bcachefs -L alpenglow-state "${LOOP_DEV}p2" >/dev/null
 sudo mount "${LOOP_DEV}p1" "${MNT_ESP}"
 sudo mkdir -p "${MNT_ESP}/EFI/BOOT" "${MNT_ESP}/EFI/Alpenglow"
@@ -115,7 +115,7 @@ EOF
 rm -rf "${ISO_ROOT}" "${ESP_IMAGE}" "${ISO}"
 mkdir -p "${ISO_ROOT}/EFI/BOOT" "${ISO_ROOT}/EFI/Alpenglow"
 truncate -s 64M "${ESP_IMAGE}"
-mkfs.vfat -F 32 -n ALPENGLOW_ISO "${ESP_IMAGE}" >/dev/null
+mkfs.vfat -F 32 -n ALP_ISO "${ESP_IMAGE}" >/dev/null
 MTOOLS_SKIP_CHECK=1 mmd -i "${ESP_IMAGE}" ::/EFI ::/EFI/BOOT ::/EFI/Alpenglow
 MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIMINE_DIR}/BOOTAA64.EFI" ::/EFI/BOOT/BOOTAA64.EFI
 MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIVE_CONFIG}" ::/limine.conf
