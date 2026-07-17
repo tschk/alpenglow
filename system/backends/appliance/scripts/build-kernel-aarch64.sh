@@ -83,10 +83,7 @@ docker run --rm --platform linux/amd64 \
     ./scripts/config --disable MODULE_SIG --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA256 --disable MODULE_SIG_FORCE --disable MODULE_SIG_VERIFY
 
     # aarch64 kernels are gzip-compressed; lz4 is not supported for Image.gz
-    ./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "/out/initramfs-proper.cpio.lz4"
-    ./scripts/config --set-val CONFIG_INITRAMFS_ROOT_UID 0
-    ./scripts/config --set-val CONFIG_INITRAMFS_ROOT_GID 0
-    ./scripts/config --enable INITRAMFS_COMPRESSION_LZ4
+    ./scripts/config --set-str CONFIG_INITRAMFS_SOURCE ""
 
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig >/dev/null 2>&1
     echo "→ compiling Image.gz (this can take several minutes)..."

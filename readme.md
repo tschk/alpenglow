@@ -18,7 +18,7 @@ system/backends/appliance/scripts/qemu.sh   # boot existing build
 
 Platform support:
 - x86_64 — `main` branch (primary target)
-- aarch64 — `arch/aarch64` branch — QEMU virt, Apple Silicon HVF
+- aarch64 — `arch/aarch64` branch — generic UEFI disk and installer ISO for UTM, ARM servers, and UEFI-capable boards
 - riscv64 — `arch/riscv64` branch — QEMU virt, OpenSBI
 - Rockchip RK3566 — `board/rk3566` branch — PINE64 Quartz64
 
@@ -54,6 +54,8 @@ alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX
 ```
 
 Desktop live ISOs boot Alpenglowed and open the graphical installer against the same bundled image at `/run/alpenglow/alpenglow.img.zst`.
+
+Aarch64 desktop and desktop-full assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They boot on generic ARM64 UEFI firmware, including UTM. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
 
 ## Quick Start
 

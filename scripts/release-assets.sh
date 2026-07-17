@@ -70,13 +70,9 @@ sha256_file() {
 require_cmd zstd
 
 if [ "${ARCH}" = "aarch64" ] && [ "${BUILD_PROFILE}" = "desktop" ]; then
-  require_cmd tar
-  sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "${EDITION}"
-  mkdir -p "${ASSET_DIR}"
-  BUNDLE="${ASSET_DIR}/${ASSET_BASE}-qemu.tar.zst"
-  tar -C "${ROOT_DIR}/build/cross/aarch64" -cf - "vmlinuz-${EDITION}" "initramfs-${EDITION}.cpio.gz" | zstd -T0 -19 -f -o "${BUNDLE}"
-  sha256_file "${BUNDLE}"
-  printf '%s\n' "${BUNDLE}"
+  cargo build --release --target "${RUST_TARGET}" --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
+    --target-dir "${ROOT_DIR}/target" --bin alpenglow-install
+  sh "${ROOT_DIR}/scripts/build-aarch64-efi-release.sh" "${EDITION}" "${VERSION}" "${INSTALLER_DIR}/alpenglow-install"
   exit 0
 fi
 

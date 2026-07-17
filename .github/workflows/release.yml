@@ -72,7 +72,7 @@ jobs:
       - name: Install release tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dwarves flex gdisk kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev pkg-config qemu-utils xorriso zstd
+          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dosfstools dwarves flex gdisk grub-efi-arm64-bin kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev mtools pkg-config qemu-efi-aarch64 qemu-system-arm qemu-utils xorriso zstd
 
       - name: Build release assets (${{ matrix.arch }} / ${{ matrix.edition }})
         env:
@@ -80,6 +80,20 @@ jobs:
           ALPENGLOW_EDITION: ${{ matrix.edition }}
         run: |
           sh scripts/release-assets.sh "${{ steps.version.outputs.version }}"
+
+      - name: Boot aarch64 desktop ISO with UEFI
+        if: matrix.arch == 'aarch64' && startsWith(matrix.edition, 'desktop')
+        run: |
+          iso="build/release/assets/alpenglow-${{ steps.version.outputs.version }}-${{ matrix.edition }}-aarch64.iso"
+          firmware="$(find /usr/share -type f \( -name AAVMF_CODE.fd -o -name QEMU_EFI.fd \) -print -quit)"
+          test -s "${iso}"
+          test -n "${firmware}"
+          set +e
+          timeout 90 qemu-system-aarch64 -M virt -cpu cortex-a72 -m 2048 -smp 2 -bios "${firmware}" -cdrom "${iso}" -nographic > aarch64-uefi.log 2>&1
+          status=$?
+          set -e
+          test "${status}" -eq 124
+          grep -q 'Alpenglow aarch64 root ready' aarch64-uefi.log
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -196,6 +210,6 @@ jobs:
           if ! gh release view "${version}" >/dev/null 2>&1; then
             gh release create "${version}" \
               --title "Alpenglow ${version}" \
-              --notes "Testing-only, unstable images under active development. Disk images and live installer ISOs cover x86_64 editions; aarch64 desktop and desktop-full ship as QEMU kernel/initramfs bundles. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built), alpenglow-\${version}-\${edition}-aarch64-qemu.tar.zst, alpenglow-\${version}-standard-x86_64-wsl.tar, and alpenglow-\${version}-fast-riscv64.tar.zst."
+              --notes "Testing-only, unstable images under active development. x86_64 and aarch64 desktop editions ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built), alpenglow-\${version}-standard-x86_64-wsl.tar, and alpenglow-\${version}-fast-riscv64.tar.zst."
           fi
           gh release upload "${version}" upload/* --clobber

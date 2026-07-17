@@ -10,8 +10,8 @@ KERNEL="${OUT_DIR}/vmlinuz-${EDITION}"
 CID=""
 
 case "${EDITION}" in
-  desktop) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland" ;;
-  desktop-full) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland pipewire wireplumber alsa-lib alsa-utils iwd dropbear chrony dnsmasq curl ca-certificates" ;;
+  desktop) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland zstd" ;;
+  desktop-full) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland pipewire wireplumber alsa-lib alsa-utils iwd dropbear chrony dnsmasq curl ca-certificates zstd" ;;
   *) echo "usage: $0 [desktop|desktop-full]" >&2; exit 1 ;;
 esac
 
@@ -56,6 +56,10 @@ mount -t devtmpfs devtmpfs /dev
 mount -t devpts devpts /dev/pts
 [ -e /dev/ptmx ] || ln -s pts/ptmx /dev/ptmx
 mount -t tmpfs tmpfs /run
+printf 'Alpenglow aarch64 root ready\n' > /dev/console
+mkdir -p /state /home
+mount -L alpenglow-state /state 2>/dev/null || true
+[ -d /state/home ] && mount --bind /state/home /home 2>/dev/null || true
 mkdir -p /run/user/0
 chmod 700 /run/user/0
 exec /usr/sbin/dinit -d /etc/dinit.d -s -t boot
