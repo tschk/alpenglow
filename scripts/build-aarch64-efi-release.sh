@@ -14,9 +14,9 @@ ESP_IMAGE="${OUT_DIR}/alpenglow-aarch64-esp.img"
 ISO="${ASSET_DIR}/${ASSET_BASE}.iso"
 COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
 LIVE_INITRAMFS="${ARM_DIR}/initramfs-${EDITION}-live.cpio.gz"
-EFI_BINARY="${OUT_DIR}/BOOTAA64.EFI"
-BOOT_CONFIG="${OUT_DIR}/grub-aarch64.cfg"
-LIVE_CONFIG="${OUT_DIR}/grub-aarch64-live.cfg"
+LIMINE_DIR="${OUT_DIR}/limine-aarch64"
+BOOT_CONFIG="${OUT_DIR}/limine-aarch64.conf"
+LIVE_CONFIG="${OUT_DIR}/limine-aarch64-live.conf"
 ISO_ROOT="${OUT_DIR}/iso-aarch64"
 MNT_ESP="${OUT_DIR}/mnt/esp-aarch64"
 LOOP_DEV=""
@@ -43,7 +43,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for cmd in cpio grub-mkstandalone gzip losetup mcopy mmd mkfs.bcachefs mkfs.vfat sgdisk sudo xorriso zstd; do
+for cmd in cpio curl gzip losetup mcopy mmd mkfs.bcachefs mkfs.vfat sgdisk sudo tar xorriso zstd; do
   require_cmd "${cmd}"
 done
 
@@ -58,17 +58,22 @@ test -s "${INITRAMFS}"
 test -d "${ROOTFS}"
 
 mkdir -p "${OUT_DIR}" "${ASSET_DIR}" "${MNT_ESP}"
+if [ ! -f "${LIMINE_DIR}/BOOTAA64.EFI" ]; then
+  mkdir -p "${LIMINE_DIR}"
+  curl -fsSL "https://github.com/limine-bootloader/limine/releases/download/v12.4.0/limine-binary.tar.xz" -o "${OUT_DIR}/limine-aarch64.tar.xz"
+  tar -xJf "${OUT_DIR}/limine-aarch64.tar.xz" -C "${LIMINE_DIR}" --strip-components=1
+fi
+file "${LIMINE_DIR}/BOOTAA64.EFI" | grep -Eqi 'aarch64|arm aarch64'
 cat > "${BOOT_CONFIG}" <<'EOF'
-set timeout=3
-set default=0
+timeout: 3
+verbose: no
 
-menuentry 'Alpenglow desktop' {
-  linux /EFI/Alpenglow/vmlinuz console=tty0 console=ttyAMA0,115200 init=/init alpenglow.state=LABEL=alpenglow-state
-  initrd /EFI/Alpenglow/initramfs.cpio.gz
-}
+/Alpenglow desktop
+  protocol: linux
+  path: boot():/EFI/Alpenglow/vmlinuz
+  cmdline: console=tty0 console=ttyAMA0,115200 init=/init alpenglow.state=LABEL=alpenglow-state
+  module_path: boot():/EFI/Alpenglow/initramfs.cpio.gz
 EOF
-grub-mkstandalone -O arm64-efi -o "${EFI_BINARY}" "boot/grub/grub.cfg=${BOOT_CONFIG}"
-file "${EFI_BINARY}" | grep -Eqi 'aarch64|arm aarch64'
 
 rm -f "${IMAGE}"
 truncate -s "${IMAGE_SIZE_MB}M" "${IMAGE}"
@@ -80,7 +85,8 @@ sudo mkfs.vfat -F 32 -n ALPENGLOW_EFI "${LOOP_DEV}p1" >/dev/null
 sudo mkfs.bcachefs -L alpenglow-state "${LOOP_DEV}p2" >/dev/null
 sudo mount "${LOOP_DEV}p1" "${MNT_ESP}"
 sudo mkdir -p "${MNT_ESP}/EFI/BOOT" "${MNT_ESP}/EFI/Alpenglow"
-sudo cp "${EFI_BINARY}" "${MNT_ESP}/EFI/BOOT/BOOTAA64.EFI"
+sudo cp "${LIMINE_DIR}/BOOTAA64.EFI" "${MNT_ESP}/EFI/BOOT/BOOTAA64.EFI"
+sudo cp "${BOOT_CONFIG}" "${MNT_ESP}/limine.conf"
 sudo cp "${KERNEL}" "${MNT_ESP}/EFI/Alpenglow/vmlinuz"
 sudo cp "${INITRAMFS}" "${MNT_ESP}/EFI/Alpenglow/initramfs.cpio.gz"
 sudo umount "${MNT_ESP}"
@@ -96,22 +102,23 @@ cp "${COMPRESSED_IMAGE}" "${ROOTFS}/run/alpenglow/alpenglow.img.zst"
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${LIVE_INITRAMFS}")
 
 cat > "${LIVE_CONFIG}" <<'EOF'
-set timeout=3
-set default=0
+timeout: 3
+verbose: no
 
-menuentry 'Alpenglow live installer' {
-  linux /EFI/Alpenglow/vmlinuz console=tty0 console=ttyAMA0,115200 init=/init alpenglow.live=1
-  initrd /EFI/Alpenglow/initramfs.cpio.gz
-}
+/Alpenglow live installer
+  protocol: linux
+  path: boot():/EFI/Alpenglow/vmlinuz
+  cmdline: console=tty0 console=ttyAMA0,115200 init=/init alpenglow.live=1
+  module_path: boot():/EFI/Alpenglow/initramfs.cpio.gz
 EOF
-grub-mkstandalone -O arm64-efi -o "${EFI_BINARY}" "boot/grub/grub.cfg=${LIVE_CONFIG}"
 
 rm -rf "${ISO_ROOT}" "${ESP_IMAGE}" "${ISO}"
 mkdir -p "${ISO_ROOT}/EFI/BOOT" "${ISO_ROOT}/EFI/Alpenglow"
 truncate -s 64M "${ESP_IMAGE}"
 mkfs.vfat -F 32 -n ALPENGLOW_ISO "${ESP_IMAGE}" >/dev/null
 MTOOLS_SKIP_CHECK=1 mmd -i "${ESP_IMAGE}" ::/EFI ::/EFI/BOOT ::/EFI/Alpenglow
-MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${EFI_BINARY}" ::/EFI/BOOT/BOOTAA64.EFI
+MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIMINE_DIR}/BOOTAA64.EFI" ::/EFI/BOOT/BOOTAA64.EFI
+MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIVE_CONFIG}" ::/limine.conf
 MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${KERNEL}" ::/EFI/Alpenglow/vmlinuz
 MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIVE_INITRAMFS}" ::/EFI/Alpenglow/initramfs.cpio.gz
 cp "${ESP_IMAGE}" "${ISO_ROOT}/efi.img"

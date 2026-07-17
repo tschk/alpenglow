@@ -72,7 +72,7 @@ jobs:
       - name: Install release tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dosfstools dwarves flex gdisk grub-efi-arm64-bin kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev mtools pkg-config qemu-efi-aarch64 qemu-system-arm qemu-utils xorriso zstd
+          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev mtools pkg-config qemu-efi-aarch64 qemu-system-arm qemu-utils xorriso zstd
 
       - name: Build release assets (${{ matrix.arch }} / ${{ matrix.edition }})
         env:
