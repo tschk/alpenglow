@@ -20,7 +20,7 @@ LIVE_CONFIG="${OUT_DIR}/limine-aarch64-live.conf"
 ISO_ROOT="${OUT_DIR}/iso-aarch64"
 MNT_ESP="${OUT_DIR}/mnt/esp-aarch64"
 LOOP_DEV=""
-IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-2048}"
+IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-1536}"
 ESP_SIZE_MB="${ESP_SIZE_MB:-512}"
 
 require_cmd() {
@@ -93,10 +93,18 @@ sudo umount "${MNT_ESP}"
 sudo losetup -d "${LOOP_DEV}"
 LOOP_DEV=""
 
+# ponytail: free ~700 MB before zstd — kernel tarball + rootfs package tree
+rm -f "${ARM_DIR}/linux-*.tar.xz"
+if [ -d "${ROOTFS}" ]; then
+  for _d in bin lib sbin usr var etc; do
+    [ -d "${ROOTFS}/${_d}" ] && find "${ROOTFS}/${_d}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+  done
+fi
+
 zstd -T0 -19 -f "${IMAGE}" -o "${COMPRESSED_IMAGE}"
 sha256_file "${COMPRESSED_IMAGE}"
 
-mkdir -p "${ROOTFS}/run/alpenglow" "${ROOTFS}/usr/bin"
+mkdir -p "${ROOTFS}/dev/pts" "${ROOTFS}/etc/dinit.d/boot.d" "${ROOTFS}/proc" "${ROOTFS}/run/user/0" "${ROOTFS}/run/alpenglow" "${ROOTFS}/sys" "${ROOTFS}/usr/bin"
 cp "${INSTALLER}" "${ROOTFS}/usr/bin/alpenglow-install"
 cp "${COMPRESSED_IMAGE}" "${ROOTFS}/run/alpenglow/alpenglow.img.zst"
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${LIVE_INITRAMFS}")
