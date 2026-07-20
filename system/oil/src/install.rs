@@ -87,13 +87,7 @@ impl InstallState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-    fn env_lock() -> &'static Mutex<()> {
-        ENV_LOCK.get_or_init(|| Mutex::new(()))
-    }
+    use crate::test_support::home_env_lock;
 
     struct EnvGuard {
         _lock: std::sync::MutexGuard<'static, ()>,
@@ -102,7 +96,7 @@ mod tests {
 
     impl EnvGuard {
         fn new() -> Self {
-            let lock = env_lock().lock().expect("Failed to acquire ENV_LOCK");
+            let lock = home_env_lock();
             let original_home = std::env::var_os("HOME");
             Self {
                 _lock: lock,

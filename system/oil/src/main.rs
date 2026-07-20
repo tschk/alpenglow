@@ -3,6 +3,8 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
+#[cfg(test)]
+mod test_support;
 #[cfg(feature = "wax")]
 mod tap;
 
@@ -547,6 +549,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::IsolatedHome;
 
     #[test]
     fn test_run_install_recipe_dry_run_does_not_touch_network() {
@@ -570,20 +573,21 @@ mod tests {
 
     #[test]
     fn cli_parses_command_aliases() {
+        let _home = IsolatedHome::new();
         let cases: Vec<(&[&str], Commands)> = vec![
             (&["oil", "s", "vim"], Commands::Search { query: "vim".into() }),
             (
-                &["oil", "i", "pkg"],
+                &["oil", "i", "--dry-run", "zlib"],
                 Commands::Install {
-                    packages: vec!["pkg".into()],
-                    dry_run: false,
+                    packages: vec!["zlib".into()],
+                    dry_run: true,
                 },
             ),
             (
-                &["oil", "add", "pkg"],
+                &["oil", "add", "--dry-run", "zlib"],
                 Commands::Install {
-                    packages: vec!["pkg".into()],
-                    dry_run: false,
+                    packages: vec!["zlib".into()],
+                    dry_run: true,
                 },
             ),
             (
@@ -621,12 +625,14 @@ mod tests {
             let cli = Cli::try_parse_from(argv).expect("parse alias argv");
             let cmd = cli.command.expect("subcommand");
             assert_eq!(cmd, want, "argv: {argv:?}");
+            run_command(cmd).expect("run_command");
         }
     }
 
     #[cfg(feature = "wax")]
     #[test]
     fn cli_parses_tap_action_aliases() {
+        let _home = IsolatedHome::new();
         let cli = Cli::try_parse_from(["oil", "tap", "add", "org/tap"]).expect("parse");
         let cmd = cli.command.expect("subcommand");
         assert_eq!(
@@ -638,5 +644,6 @@ mod tests {
                 }),
             }
         );
+        run_command(cmd).expect("run_command");
     }
 }

@@ -50,7 +50,11 @@ jobs:
         run: |
           version="${{ github.event.inputs.version || '' }}"
           if [ -z "${version}" ]; then
-            version="v0.1.$(git rev-list --count HEAD)"
+            ref="${{ github.ref_name }}"
+            case "${ref}" in
+              v*) version="${ref}" ;;
+              *) version="v0.1.$(git rev-list --count HEAD)" ;;
+            esac
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
@@ -114,7 +118,11 @@ jobs:
         run: |
           version="${{ github.event.inputs.version || '' }}"
           if [ -z "${version}" ]; then
-            version="v0.1.$(git rev-list --count HEAD)"
+            ref="${{ github.ref_name }}"
+            case "${ref}" in
+              v*) version="${ref}" ;;
+              *) version="v0.1.$(git rev-list --count HEAD)" ;;
+            esac
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
@@ -189,7 +197,11 @@ jobs:
         run: |
           version="${{ github.event.inputs.version || '' }}"
           if [ -z "${version}" ]; then
-            version="v0.1.$(git rev-list --count HEAD)"
+            ref="${{ github.ref_name }}"
+            case "${ref}" in
+              v*) version="${ref}" ;;
+              *) version="v0.1.$(git rev-list --count HEAD)" ;;
+            esac
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
