@@ -92,4 +92,5 @@ docker run --rm --platform linux/amd64 \
     touch /out/.kernel-aarch64-'"${PROFILE}"'.ok
   '
 
+rm -rf "${OUT_DIR}/${KERNEL_TAR}"
 echo "  kernel: ${VMLINUZ}"
