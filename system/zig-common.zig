@@ -273,3 +273,21 @@ test "checkSyscall errors" {
     const eperm_rc: usize = @bitCast(-@as(isize, @intFromEnum(std.os.linux.E.PERM)));
     try testing.expectError(error.Unexpected, checkSyscall(eperm_rc));
 }
+
+test "MyArrayList.appendSlice" {
+    const allocator = std.testing.allocator;
+    var list = MyArrayList(u8).init(allocator);
+    defer list.deinit();
+
+    // Happy path
+    try list.appendSlice(&[_]u8{ 1, 2, 3 });
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 2, 3 }, list.items());
+
+    // Edge case: empty slice
+    try list.appendSlice(&[_]u8{});
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 2, 3 }, list.items());
+
+    // Happy path: append again
+    try list.appendSlice(&[_]u8{ 4, 5 });
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 2, 3, 4, 5 }, list.items());
+}
