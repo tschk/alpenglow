@@ -226,19 +226,6 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
                 continue;
             }
             let dest = dest_dir.join(stripped);
-            if let Some(parent) = dest.parent() {
-                if !created_dirs.contains(parent) {
-                    std::fs::create_dir_all(parent)?;
-                    let mut current = parent;
-                    while !created_dirs.contains(current) {
-                        created_dirs.insert(current.to_path_buf());
-                        current = match current.parent() {
-                            Some(p) => p,
-                            None => break,
-                        };
-                    }
-                }
-            }
             entry.unpack(&dest)?;
             if !entry.header().entry_type().is_dir() {
                 files.push(dest);
