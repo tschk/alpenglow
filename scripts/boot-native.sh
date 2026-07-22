@@ -347,6 +347,7 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
     CHRONY_VERSION="4.5"
     cd /tmp
     curl -fsSL "https://chrony-project.org/releases/chrony-${CHRONY_VERSION}.tar.gz" -o chrony.tar.gz 2>/dev/null || exit 0
+    echo "19fe1d9f4664d445a69a96c71e8fdb60bcd8df24c73d1386e02287f7366ad422  chrony.tar.gz" | sha256sum -c - || exit 1
     tar -xf chrony.tar.gz
     cd "chrony-${CHRONY_VERSION}"
     ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
