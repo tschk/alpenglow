@@ -3,7 +3,7 @@ use crate::error::{OilError, Result};
 use flate2::{read::MultiGzDecoder, write::GzEncoder, Compression};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use crate::util::cache::{cache_key, is_cache_fresh};
 
 pub struct ApkRegistry {
     mirror: String,
@@ -48,17 +48,6 @@ impl ApkRegistry {
         )))
     }
 
-    fn is_cache_fresh(path: &std::path::Path) -> bool {
-        if let Ok(meta) = std::fs::metadata(path) {
-            if let Ok(modified) = meta.modified() {
-                if let Ok(elapsed) = SystemTime::now().duration_since(modified) {
-                    return elapsed < Duration::from_secs(24 * 3600);
-                }
-            }
-        }
-        false
-    }
-
     pub fn refresh(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
         if cache_path.exists() {
@@ -71,7 +60,7 @@ impl ApkRegistry {
     pub fn load(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
 
-        if Self::is_cache_fresh(&cache_path) {
+        if is_cache_fresh(&cache_path) {
             let packages = read_cache(&cache_path)?;
             return Ok(PackageIndex::new(packages));
         }
@@ -143,13 +132,6 @@ fn write_cache(path: &std::path::Path, packages: &[PackageMetadata]) -> Result<(
     serde_json::to_writer(&mut encoder, packages)?;
     encoder.finish()?.flush()?;
     Ok(())
-}
-
-fn cache_key(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect()
 }
 
 fn alpine_branch_from_os_release() -> Option<String> {
