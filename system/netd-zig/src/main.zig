@@ -290,22 +290,66 @@ fn updateSnapshotScoped(gpa: std.mem.Allocator, sys_class_net: []const u8, state
     try updateSnapshot(allocator, sys_class_net, state_json, runtime_env);
 }
 
-fn sleepSeconds(seconds: u64) void {
-    var req: linux.timespec = .{ .sec = @intCast(seconds), .nsec = 0 };
-    var rem: linux.timespec = undefined;
-    while (true) {
-        const rc = linux.nanosleep(&req, &rem);
-        if (getErrno(rc) == .SUCCESS) break;
-        if (rem.sec <= 0 and rem.nsec <= 0) break;
-        req = rem;
-    }
-}
-
 fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []const u8, runtime_env: []const u8) !void {
     try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
+
+    const fd = std.posix.socket(std.posix.AF.NETLINK, std.posix.SOCK.RAW | std.posix.SOCK.CLOEXEC, 0) catch {
+        // Fallback to sleep-based polling if netlink fails
+        writeStderr("alpenglow-netd-zig: warning: failed to open netlink socket, falling back to polling\n");
+        while (true) {
+            var req: linux.timespec = .{ .sec = 2, .nsec = 0 };
+            var rem: linux.timespec = undefined;
+            while (true) {
+                const rc = linux.nanosleep(&req, &rem);
+                if (getErrno(rc) == .SUCCESS) break;
+                if (rem.sec <= 0 and rem.nsec <= 0) break;
+                req = rem;
+            }
+            try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
+        }
+    };
+    defer std.posix.close(fd);
+
+    var sa: linux.sockaddr.nl = .{
+        .family = std.posix.AF.NETLINK,
+        .pid = 0,
+        .groups = 1 | 0x10 | 0x100, // RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR
+    };
+
+    std.posix.bind(fd, @ptrCast(&sa), @intCast(@sizeOf(linux.sockaddr.nl))) catch {
+        // Fallback if we cannot bind (e.g. lack of permissions)
+        writeStderr("alpenglow-netd-zig: warning: failed to bind netlink socket, falling back to polling\n");
+        while (true) {
+            var req: linux.timespec = .{ .sec = 2, .nsec = 0 };
+            var rem: linux.timespec = undefined;
+            while (true) {
+                const rc = linux.nanosleep(&req, &rem);
+                if (getErrno(rc) == .SUCCESS) break;
+                if (rem.sec <= 0 and rem.nsec <= 0) break;
+                req = rem;
+            }
+            try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
+        }
+    };
+
+    var buf: [4096]u8 = undefined;
     while (true) {
-        sleepSeconds(2);
-        try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
+        const n = std.posix.read(fd, &buf) catch |err| {
+            if (err == error.WouldBlock) continue;
+            // E.g. ENOBUFS. We just resync and continue.
+            writeStderr("alpenglow-netd-zig: warning: netlink read error\n");
+            try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
+            continue;
+        };
+        if (n > 0) {
+            // Read any other pending messages immediately to debounce
+            while (true) {
+                const pending_n = std.posix.recv(fd, &buf, linux.MSG.DONTWAIT) catch 0;
+                if (pending_n == 0) break;
+            }
+
+            try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
+        }
     }
 }
 
@@ -335,7 +379,6 @@ fn nowUnixMs() u64 {
     const nsec: u64 = @intCast(ts.nsec);
     return sec * 1000 + nsec / 1_000_000;
 }
-
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
