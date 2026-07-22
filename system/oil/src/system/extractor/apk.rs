@@ -369,4 +369,13 @@ mod tests {
         assert!(result.is_none());
         Ok(())
     }
+
+    #[test]
+    fn test_untar_invalid_tar() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let invalid_tar_data = b"not a valid tar file";
+        let result = untar(invalid_tar_data, dir.path());
+        assert!(result.is_err());
+        Ok(())
+    }
 }
