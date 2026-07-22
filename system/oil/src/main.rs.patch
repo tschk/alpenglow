@@ -1,0 +1,11 @@
+--- system/oil/src/main.rs
++++ system/oil/src/main.rs
+@@ -624,7 +624,7 @@
+             }
+         }
+
+-        for (_, cmd) in cases {
++        for (idx, (_, cmd)) in cases.into_iter().enumerate() {
+             run_command(cmd).expect("run_command");
+         }
+     }
