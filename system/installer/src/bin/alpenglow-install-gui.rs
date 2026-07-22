@@ -1,3 +1,14 @@
+fn format_disk_size(sectors: u64) -> String {
+    let bytes = sectors.saturating_mul(512);
+    let gib = bytes as f64 / 1024.0 / 1024.0 / 1024.0;
+    if gib >= 1.0 {
+        format!("{gib:.1} GiB")
+    } else {
+        let mib = bytes as f64 / 1024.0 / 1024.0;
+        format!("{mib:.0} MiB")
+    }
+}
+
 #[cfg(feature = "gui")]
 fn main() {
     use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
@@ -301,17 +312,6 @@ fn main() {
             && !name.contains("zram")
     }
 
-    fn format_disk_size(sectors: u64) -> String {
-        let bytes = sectors.saturating_mul(512);
-        let gib = bytes as f64 / 1024.0 / 1024.0 / 1024.0;
-        if gib >= 1.0 {
-            format!("{gib:.1} GiB")
-        } else {
-            let mib = bytes as f64 / 1024.0 / 1024.0;
-            format!("{mib:.0} MiB")
-        }
-    }
-
     let (source, target) = parse_install_args(std::env::args_os().skip(1));
     Application::new().run(|cx: &mut App| {
         let options = gpui_window_options(
@@ -328,4 +328,32 @@ fn main() {
         })
         .unwrap();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_disk_size() {
+        // Zero sectors
+        assert_eq!(format_disk_size(0), "0 MiB");
+
+        // MiB range
+        assert_eq!(format_disk_size(2048), "1 MiB");
+        assert_eq!(format_disk_size(102400), "50 MiB");
+        assert_eq!(format_disk_size(2097151), "1024 MiB");
+
+        // GiB range (2097152 sectors = 1 GiB)
+        assert_eq!(format_disk_size(2097152), "1.0 GiB");
+        assert_eq!(format_disk_size(3145728), "1.5 GiB");
+        assert_eq!(format_disk_size(5000000), "2.4 GiB");
+        assert_eq!(format_disk_size(4194304), "2.0 GiB");
+
+        // Large sectors testing saturating multiply
+        // u64::MAX = 18446744073709551615
+        // u64::MAX as f64 = 18446744073709551616.0
+        // (u64::MAX as f64) / 1024.0 / 1024.0 / 1024.0 = 17179869184.0
+        assert_eq!(format_disk_size(u64::MAX), "17179869184.0 GiB");
+    }
 }
