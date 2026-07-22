@@ -249,3 +249,27 @@ test "pathToZ" {
     const large_z = pathToZ(large_path, &buf);
     try testing.expect(large_z == null);
 }
+
+test "checkSyscall success" {
+    // 0 is SUCCESS
+    try checkSyscall(0);
+
+    // Positive values (like a valid fd or bytes read) are SUCCESS
+    try checkSyscall(100);
+}
+
+test "checkSyscall errors" {
+    const testing = std.testing;
+
+    // Test specific error mapping (e.g. ENOENT)
+    const enoent_rc: usize = @bitCast(-@as(isize, @intFromEnum(std.os.linux.E.NOENT)));
+    try testing.expectError(error.FileNotFound, checkSyscall(enoent_rc));
+
+    // Test another mapped error (e.g. EACCES)
+    const eacces_rc: usize = @bitCast(-@as(isize, @intFromEnum(std.os.linux.E.ACCES)));
+    try testing.expectError(error.AccessDenied, checkSyscall(eacces_rc));
+
+    // Test fallback for unmapped errors (e.g. EPERM)
+    const eperm_rc: usize = @bitCast(-@as(isize, @intFromEnum(std.os.linux.E.PERM)));
+    try testing.expectError(error.Unexpected, checkSyscall(eperm_rc));
+}
