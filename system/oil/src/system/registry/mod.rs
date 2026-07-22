@@ -64,29 +64,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_dep_name_simple() {
-        assert_eq!(parse_dep_name("libc6"), "libc6");
-    }
+    fn test_parse_dep_name() {
+        let cases = vec![
+            // happy path
+            ("libc6", "libc6"),
+            // with version
+            ("libc6 (>= 2.17)", "libc6"),
+            // with equals constraint
+            ("rg=14.1.1-r0", "rg"),
+            // complex edge cases
+            ("", ""),
+            ("   ", ""),
+            (">=1.0.0", ""),
+            ("pkg=1.0=2.0", "pkg"),
+            ("so:libssl.so.3", "so:libssl.so.3"),
+            ("cmd:bash", "cmd:bash"),
+            ("  pkg  ", "pkg"),
+        ];
 
-    #[test]
-    fn test_parse_dep_name_with_version() {
-        assert_eq!(parse_dep_name("libc6 (>= 2.17)"), "libc6");
-    }
-
-    #[test]
-    fn test_parse_dep_name_with_equals_constraint() {
-        assert_eq!(parse_dep_name("rg=14.1.1-r0"), "rg");
-    }
-
-    #[test]
-    fn test_parse_dep_name_complex_edge_cases() {
-        assert_eq!(parse_dep_name(""), "");
-        assert_eq!(parse_dep_name("   "), "");
-        assert_eq!(parse_dep_name(">=1.0.0"), "");
-        assert_eq!(parse_dep_name("pkg=1.0=2.0"), "pkg");
-        assert_eq!(parse_dep_name("so:libssl.so.3"), "so:libssl.so.3");
-        assert_eq!(parse_dep_name("cmd:bash"), "cmd:bash");
-        assert_eq!(parse_dep_name("  pkg  "), "pkg");
+        for (input, expected) in cases {
+            assert_eq!(
+                parse_dep_name(input),
+                expected,
+                "failed on input: '{}'",
+                input
+            );
+        }
     }
 
     #[test]
