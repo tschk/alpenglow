@@ -81,15 +81,10 @@ docker run --rm --platform linux/amd64 -e GRAPHICS_BACKEND="${GRAPHICS_BACKEND}"
   mkdir -p /out/usr/share/vulkan/icd.d
   if [ "${GRAPHICS_BACKEND}" = "software" ]; then
     # Fix ICD json to use absolute path
-    cat > /out/usr/share/vulkan/icd.d/lvp_icd.json << ICDJSON
-{
-    "ICD": {
-        "api_version": "1.4.305",
-        "library_path": "/lib/x86_64-linux-gnu/libvulkan_lvp.so"
-    },
-    "file_format_version": "1.0.0"
-}
-ICDJSON
+    cp /usr/share/vulkan/icd.d/lvp_icd*.json /out/usr/share/vulkan/icd.d/lvp_icd.json 2>/dev/null || true
+    if [ -f "/out/usr/share/vulkan/icd.d/lvp_icd.json" ]; then
+      sed -i "s#\"library_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" /out/usr/share/vulkan/icd.d/lvp_icd.json
+    fi
   else
     cp /usr/share/vulkan/icd.d/*.json /out/usr/share/vulkan/icd.d/ 2>/dev/null || true
     rm -f /out/usr/share/vulkan/icd.d/lvp_icd*.json /out/usr/share/vulkan/icd.d/radeon_icd*.json
