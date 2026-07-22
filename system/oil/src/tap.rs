@@ -179,4 +179,31 @@ mod tests {
         let registry = TapRegistry::new("mytap", "https://example.com/tap");
         assert_eq!(registry.index_url(), "https://example.com/tap/index.json");
     }
+
+    #[test]
+    fn test_is_cache_fresh() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("cache.json");
+
+        // 1. Missing file: should return false
+        assert!(!TapRegistry::is_cache_fresh(&file_path));
+
+        // Create the file
+        let file = std::fs::File::create(&file_path).unwrap();
+
+        // 2. Fresh file: should return true
+        assert!(TapRegistry::is_cache_fresh(&file_path));
+
+        // 3. Stale file: > 24 hours
+        let stale_time = SystemTime::now() - Duration::from_secs(25 * 3600);
+        let times = std::fs::FileTimes::new().set_modified(stale_time);
+        file.set_times(times).unwrap();
+        assert!(!TapRegistry::is_cache_fresh(&file_path));
+
+        // 4. Future file: modification time in the future
+        let future_time = SystemTime::now() + Duration::from_secs(3600);
+        let times = std::fs::FileTimes::new().set_modified(future_time);
+        file.set_times(times).unwrap();
+        assert!(!TapRegistry::is_cache_fresh(&file_path));
+    }
 }
