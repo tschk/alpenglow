@@ -4,10 +4,10 @@ mod recipe;
 mod signal;
 mod system;
 pub mod util;
-#[cfg(test)]
-mod test_support;
 #[cfg(feature = "wax")]
 mod tap;
+#[cfg(test)]
+mod test_support;
 
 use clap::{Parser, Subcommand};
 use error::Result;
@@ -153,7 +153,11 @@ fn load_registry() -> Result<PackageIndex> {
         let registry = tap::TapRegistry::new(&tap.name, &tap.url);
         match registry.load() {
             Ok(index) => {
-                eprintln!("Loaded {} packages from tap {}", index.packages.len(), tap.name);
+                eprintln!(
+                    "Loaded {} packages from tap {}",
+                    index.packages.len(),
+                    tap.name
+                );
                 all.extend(index.packages);
             }
             Err(e) => eprintln!("warning: failed to load tap {}: {}", tap.name, e),
@@ -176,7 +180,11 @@ fn refresh_registry() -> Result<PackageIndex> {
         let registry = tap::TapRegistry::new(&tap.name, &tap.url);
         match registry.update() {
             Ok(index) => {
-                eprintln!("Refreshed {} packages from tap {}", index.packages.len(), tap.name);
+                eprintln!(
+                    "Refreshed {} packages from tap {}",
+                    index.packages.len(),
+                    tap.name
+                );
                 all.extend(index.packages);
             }
             Err(e) => eprintln!("warning: failed to refresh tap {}: {}", tap.name, e),
@@ -222,12 +230,15 @@ fn oil_secure_tmp_dir() -> Result<PathBuf> {
             .recursive(true)
             .mode(0o700)
             .create(&tmp_dir)
-            .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+            .map_err(|e| {
+                error::OilError::Install(format!("failed to create secure tmp dir: {e}"))
+            })?;
     }
     #[cfg(not(unix))]
     {
-        std::fs::create_dir_all(&tmp_dir)
-            .map_err(|e| error::OilError::Install(format!("failed to create secure tmp dir: {e}")))?;
+        std::fs::create_dir_all(&tmp_dir).map_err(|e| {
+            error::OilError::Install(format!("failed to create secure tmp dir: {e}"))
+        })?;
     }
     Ok(tmp_dir)
 }
@@ -372,10 +383,10 @@ fn plan_upgrades<'a>(
     installed: &'a std::collections::HashMap<String, install::InstalledPackage>,
     index: &'a PackageIndex,
 ) -> Vec<(
-        &'a String,
-        &'a install::InstalledPackage,
-        &'a system::registry::PackageMetadata,
-    )> {
+    &'a String,
+    &'a install::InstalledPackage,
+    &'a system::registry::PackageMetadata,
+)> {
     let mut upgrades = Vec::new();
 
     if let Some(targets) = targets {
@@ -495,7 +506,9 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
                 for entry in taps.list() {
                     let registry = tap::TapRegistry::new(&entry.name, &entry.url);
                     match registry.update() {
-                        Ok(index) => println!("Updated {} ({} packages)", entry.name, index.packages.len()),
+                        Ok(index) => {
+                            println!("Updated {} ({} packages)", entry.name, index.packages.len())
+                        }
                         Err(e) => eprintln!("warning: failed to update tap {}: {}", entry.name, e),
                     }
                 }
@@ -610,7 +623,12 @@ mod tests {
     fn cli_parses_command_aliases() {
         let _home = IsolatedHome::new();
         let cases: Vec<(&[&str], Commands)> = vec![
-            (&["oil", "s", "vim"], Commands::Search { query: "vim".into() }),
+            (
+                &["oil", "s", "vim"],
+                Commands::Search {
+                    query: "vim".into(),
+                },
+            ),
             (
                 &["oil", "i", "--dry-run", "zlib"],
                 Commands::Install {
