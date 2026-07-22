@@ -220,3 +220,32 @@ pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
+
+test "pathToZ" {
+    const testing = std.testing;
+    var buf: [16]u8 = undefined;
+
+    // Test with empty path
+    const empty_path = "";
+    const empty_z = pathToZ(empty_path, &buf);
+    try testing.expect(empty_z != null);
+    try testing.expectEqualStrings("", empty_z.?);
+    try testing.expect(empty_z.?[0] == 0); // null termination
+
+    // Test with valid path
+    const valid_path = "hello";
+    const valid_z = pathToZ(valid_path, &buf);
+    try testing.expect(valid_z != null);
+    try testing.expectEqualStrings("hello", valid_z.?);
+    try testing.expect(valid_z.?[5] == 0); // null termination
+
+    // Test with path exactly the size of the buffer (needs 1 byte for null terminator, so fails)
+    const exact_path = "0123456789abcdef"; // 16 bytes
+    const exact_z = pathToZ(exact_path, &buf);
+    try testing.expect(exact_z == null);
+
+    // Test with path larger than buffer
+    const large_path = "0123456789abcdef01"; // 18 bytes
+    const large_z = pathToZ(large_path, &buf);
+    try testing.expect(large_z == null);
+}
