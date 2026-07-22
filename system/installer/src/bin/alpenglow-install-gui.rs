@@ -9,6 +9,17 @@ fn format_disk_size(sectors: u64) -> String {
     }
 }
 
+fn is_install_disk_name(name: &str) -> bool {
+    (name.starts_with("sd")
+        || name.starts_with("vd")
+        || name.starts_with("xvd")
+        || name.starts_with("nvme")
+        || name.starts_with("mmcblk"))
+        && !name.contains("loop")
+        && !name.contains("ram")
+        && !name.contains("zram")
+}
+
 #[cfg(feature = "gui")]
 fn main() {
     use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
@@ -301,17 +312,6 @@ fn main() {
         disks
     }
 
-    fn is_install_disk_name(name: &str) -> bool {
-        (name.starts_with("sd")
-            || name.starts_with("vd")
-            || name.starts_with("xvd")
-            || name.starts_with("nvme")
-            || name.starts_with("mmcblk"))
-            && !name.contains("loop")
-            && !name.contains("ram")
-            && !name.contains("zram")
-    }
-
     let (source, target) = parse_install_args(std::env::args_os().skip(1));
     Application::new().run(|cx: &mut App| {
         let options = gpui_window_options(
@@ -357,5 +357,44 @@ mod tests {
         // u64::MAX as f64 = 18446744073709551616.0
         // (u64::MAX as f64) / 1024.0 / 1024.0 / 1024.0 = 17179869184.0
         assert_eq!(format_disk_size(u64::MAX), "17179869184.0 GiB");
+    }
+
+    #[test]
+    fn test_is_install_disk_name() {
+        let valid_names = vec![
+            "sda",
+            "sdb1",
+            "vda",
+            "vdb",
+            "xvda",
+            "nvme0n1",
+            "mmcblk0",
+        ];
+
+        let invalid_names = vec![
+            "loop0",
+            "ram0",
+            "zram0",
+            "nvme0n1p1-loop",
+            "sda-ram",
+            "ttyS0",
+            "sr0",
+        ];
+
+        for name in valid_names {
+            assert!(
+                is_install_disk_name(name),
+                "Expected {} to be a valid install disk name",
+                name
+            );
+        }
+
+        for name in invalid_names {
+            assert!(
+                !is_install_disk_name(name),
+                "Expected {} to be an invalid install disk name",
+                name
+            );
+        }
     }
 }
