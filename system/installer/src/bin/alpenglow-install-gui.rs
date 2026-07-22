@@ -323,9 +323,11 @@ fn main() {
             ))),
             Some(size(gpui::px(940.), gpui::px(620.))),
         );
-        cx.open_window(options, |_, cx| {
+        if let Err(e) = cx.open_window(options, |_, cx| {
             cx.new(|_| InstallerView::new(source, target))
-        })
-        .unwrap();
+        }) {
+            eprintln!("Failed to open window: {:?}", e);
+            cx.quit();
+        }
     });
 }
