@@ -3,6 +3,7 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
+pub mod util;
 #[cfg(test)]
 mod test_support;
 #[cfg(feature = "wax")]

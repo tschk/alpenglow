@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
 
 use crate::error::{OilError, Result};
+use crate::util::cache::{cache_key, is_cache_fresh};
 use crate::system::registry::{PackageIndex, PackageMetadata};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,17 +108,6 @@ impl TapRegistry {
         Ok(dir.join(format!("tap-{}.json", cache_key(&self.name))))
     }
 
-    fn is_cache_fresh(path: &std::path::Path) -> bool {
-        if let Ok(meta) = std::fs::metadata(path) {
-            if let Ok(modified) = meta.modified() {
-                if let Ok(elapsed) = SystemTime::now().duration_since(modified) {
-                    return elapsed < Duration::from_secs(24 * 3600);
-                }
-            }
-        }
-        false
-    }
-
     pub fn update(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
@@ -142,20 +131,13 @@ impl TapRegistry {
 
     pub fn load(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
-        if Self::is_cache_fresh(&cache_path) {
+        if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
             let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
             return Ok(PackageIndex::new(packages));
         }
         self.update()
     }
-}
-
-fn cache_key(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect()
 }
 
 #[cfg(test)]
