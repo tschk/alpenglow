@@ -26,8 +26,9 @@ fail() { echo "bench: $1" >&2; exit 1; }
 
 echo "==> Booting Alpenglow in QEMU (${SMP} vCPU, ${MEMORY_MB}MB, ${ACCEL}) and timing boot phases..."
 
-OUTFILE="$(mktemp -t alpenglow-bench-serial.XXXXXX)"
-rm -f "${OUTFILE}"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT INT TERM
+OUTFILE="${TMP_DIR}/serial.log"
 
 START="$(date +%s%N)"
 
