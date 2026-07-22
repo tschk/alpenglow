@@ -61,9 +61,8 @@ fi
 
 cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
-for applet in sh ash mount mkdir mknod chmod cat ls pwd echo uname free dmesg clear hostname sleep stty setsid cttyhack; do
-  ln -sf busybox "${ROOTFS}/bin/${applet}"
-done
+need_docker
+docker run --rm --platform linux/386 -v "${ROOTFS}:/rootfs" alpine:3.20 chroot /rootfs /bin/busybox --install -s /bin
 cp "${OIL}" "${ROOTFS}/bin/oil"
 chmod 755 "${ROOTFS}/bin/oil"
 ln -sf oil "${ROOTFS}/bin/wax"
