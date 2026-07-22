@@ -86,9 +86,7 @@ where
         }
     }
     let Some(target) = target else {
-        eprintln!(
-            "usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>"
-        );
+        eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
     match install_image_maybe_compressed(&source, &target, false) {
@@ -148,6 +146,7 @@ pub fn install_image_maybe_compressed(
     validate_target(target, allow_regular_file)?;
     let mut child = Command::new("zstd")
         .arg("-dc")
+        .arg("--")
         .arg(source)
         .stdout(Stdio::piped())
         .spawn()?;
