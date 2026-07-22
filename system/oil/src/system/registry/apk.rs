@@ -140,12 +140,26 @@ fn alpine_branch_from_os_release() -> Option<String> {
 }
 
 fn branch_from_os_release(os_release: &str) -> Option<String> {
-    if os_release.lines().any(|line| {
+    let mut is_alpine = false;
+    let mut is_alpenglow = false;
+    for line in os_release.lines() {
         let t = line.trim();
-        t == "ID=alpenglow" || t == "ID=\"alpenglow\""
-    }) {
+        if t == "ID=alpenglow" || t == "ID=\"alpenglow\"" {
+            is_alpenglow = true;
+        }
+        if t == "ID=alpine" || t == "ID=\"alpine\"" {
+            is_alpine = true;
+        }
+    }
+
+    if is_alpenglow {
         return Some("v3.20".to_string());
     }
+
+    if !is_alpine {
+        return None;
+    }
+
     let version = os_release.lines().find_map(|line| {
         let value = line.strip_prefix("VERSION_ID=")?;
         Some(value.trim_matches('"'))
