@@ -166,6 +166,52 @@ mod tests {
     }
 
     #[test]
+    fn normalize_user_repo_shorthand_with_git_extension() {
+        let (name, url) = normalize_tap("user/repo.git");
+        assert_eq!(name, "user/repo.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_http_url_passthrough() {
+        let (name, url) = normalize_tap("http://example.com/tap");
+        assert_eq!(name, "http://example.com/tap");
+        assert_eq!(url, "http://example.com/tap");
+    }
+
+    #[test]
+    fn normalize_plain_name() {
+        let (name, url) = normalize_tap("mytap");
+        assert_eq!(name, "mytap");
+        assert_eq!(url, "mytap");
+    }
+
+    #[test]
+    fn normalize_too_many_slashes() {
+        let (name, url) = normalize_tap("user/repo/extra");
+        assert_eq!(name, "user/repo/extra");
+        assert_eq!(url, "user/repo/extra");
+    }
+
+    #[test]
+    fn normalize_leading_trailing_slashes() {
+        let (name1, url1) = normalize_tap("/leading-slash");
+        assert_eq!(name1, "/leading-slash");
+        assert_eq!(url1, "/leading-slash");
+
+        let (name2, url2) = normalize_tap("trailing-slash/");
+        assert_eq!(name2, "trailing-slash/");
+        assert_eq!(url2, "trailing-slash/");
+    }
+
+    #[test]
+    fn normalize_empty_string() {
+        let (name, url) = normalize_tap("");
+        assert_eq!(name, "");
+        assert_eq!(url, "");
+    }
+
+    #[test]
     fn index_url_for_github_repo() {
         let registry = TapRegistry::new("undivisible/tap", "https://github.com/undivisible/tap");
         assert_eq!(
