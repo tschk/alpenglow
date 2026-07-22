@@ -319,6 +319,21 @@ mod tests {
     }
 
     #[test]
+    fn test_split_gzip_streams_fake_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut data = create_gz_stream(b"stream 1")?;
+
+        // Append raw magic bytes in between valid streams to test the function's boundary splitting logic
+        // This simulates a "fake magic" sequence where the function will incorrectly split, causing GzDecoder to fail.
+        data.extend_from_slice(&[0x1f, 0x8b, 0x00, 0x00, 0x00]);
+        data.extend(create_gz_stream(b"stream 2")?);
+        data.extend(create_gz_stream(b"stream 3")?);
+
+        let result = split_gzip_streams(&data, 3);
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
     fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
         let missing_path = dir.path().join("does_not_exist.apk");
