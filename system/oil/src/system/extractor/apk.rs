@@ -322,6 +322,16 @@ mod tests {
     }
 
     #[test]
+    fn test_split_gzip_streams_no_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let data = b"dummy string without gzip magic bytes";
+        let result = split_gzip_streams(data, 3);
+        assert!(result.is_err());
+        let err_msg = result.expect_err("Expected an error").to_string();
+        assert!(err_msg.contains("APK has 0 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        Ok(())
+    }
+
+    #[test]
     fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
         let missing_path = dir.path().join("does_not_exist.apk");
