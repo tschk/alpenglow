@@ -186,6 +186,7 @@ fn is_block_device(_metadata: &fs::Metadata) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::{tempdir, NamedTempFile};
 
     #[test]
     fn test_parse_install_args_zero_args() {
@@ -217,5 +218,53 @@ mod tests {
         let (source, target) = parse_install_args(args);
         assert_eq!(source, PathBuf::from("custom_source.img"));
         assert_eq!(target, Some(PathBuf::from("/dev/nvme0n1")));
+    }
+
+        #[test]
+    fn test_validate_target_new_file_allowed() {
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("new_file.img");
+
+        let result = validate_target(&target, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_target_existing_file_allowed() {
+        let file = NamedTempFile::new().unwrap();
+        let target = file.path();
+
+        let result = validate_target(target, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_target_existing_file_not_allowed() {
+        let file = NamedTempFile::new().unwrap();
+        let target = file.path();
+
+        let result = validate_target(target, false);
+        assert!(result.is_err());
+        match result {
+            Err(InstallError::InvalidTarget(msg)) => {
+                assert!(msg.contains("refusing to write image to non-block-device target"));
+            }
+            _ => panic!("Expected InvalidTarget error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_target_not_found_not_allowed() {
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("non_existent.img");
+
+        let result = validate_target(&target, false);
+        assert!(result.is_err());
+        match result {
+            Err(InstallError::Io(err)) => {
+                assert_eq!(err.kind(), io::ErrorKind::NotFound);
+            }
+            _ => panic!("Expected Io error"),
+        }
     }
 }
