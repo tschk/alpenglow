@@ -553,6 +553,24 @@ mod tests {
     use crate::test_support::IsolatedHome;
 
     #[test]
+    fn test_contains_ignore_ascii_case() {
+        // Happy paths
+        assert!(contains_ignore_ascii_case("hello world", b"world"));
+        assert!(contains_ignore_ascii_case("HELLO WORLD", b"world"));
+        assert!(contains_ignore_ascii_case("hello world", b"WORLD"));
+        assert!(contains_ignore_ascii_case("HeLlO wOrLd", b"WoRlD"));
+
+        // Error/not found
+        assert!(!contains_ignore_ascii_case("hello world", b"earth"));
+        assert!(!contains_ignore_ascii_case("hello", b"hello world"));
+
+        // Edge cases
+        assert!(contains_ignore_ascii_case("hello", b"")); // empty needle
+        assert!(contains_ignore_ascii_case("", b"")); // empty both
+        assert!(!contains_ignore_ascii_case("", b"hello")); // empty haystack
+    }
+
+    #[test]
     fn test_run_install_recipe_dry_run_does_not_touch_network() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("pkg.yml");
