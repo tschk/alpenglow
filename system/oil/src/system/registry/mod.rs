@@ -118,4 +118,42 @@ mod tests {
         assert!(index.find("libssl").is_some());
         assert!(index.find("nonexistent").is_none());
     }
+
+    #[test]
+    fn test_package_index_find_edge_cases() {
+        let empty_index = PackageIndex::new(vec![]);
+        assert!(empty_index.find("anything").is_none());
+        assert!(empty_index.find("").is_none());
+
+        let index = PackageIndex::new(vec![
+            PackageMetadata {
+                name: "pkgA".to_string(),
+                version: "1.0.0".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec!["providerA".to_string(), "shared".to_string()],
+            },
+            PackageMetadata {
+                name: "providerA".to_string(),
+                version: "2.0.0".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec!["shared".to_string()],
+            },
+        ]);
+
+        assert!(index.find("pkga").is_none());
+
+        let found = index.find("providerA").unwrap();
+        assert_eq!(found.version, "2.0.0");
+
+        let found_shared = index.find("shared").unwrap();
+        assert_eq!(found_shared.version, "1.0.0");
+    }
 }
