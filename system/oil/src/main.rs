@@ -366,7 +366,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
 }
 
 fn plan_upgrades<'a>(
-    targets: &'a [String],
+    targets: Option<&'a [String]>,
     installed: &'a std::collections::HashMap<String, install::InstalledPackage>,
     index: &'a PackageIndex,
 ) -> Vec<(
@@ -375,8 +375,22 @@ fn plan_upgrades<'a>(
         &'a system::registry::PackageMetadata,
     )> {
     let mut upgrades = Vec::new();
-    for name in targets {
-        if let Some(current) = installed.get(name) {
+
+    if let Some(targets) = targets {
+        for name in targets {
+            if let Some(current) = installed.get(name) {
+                if current.pinned {
+                    continue;
+                }
+                if let Some(latest) = index.find(name) {
+                    if latest.version != current.version {
+                        upgrades.push((name, current, latest));
+                    }
+                }
+            }
+        }
+    } else {
+        for (name, current) in installed {
             if current.pinned {
                 continue;
             }
@@ -387,6 +401,7 @@ fn plan_upgrades<'a>(
             }
         }
     }
+
     upgrades
 }
 
@@ -398,12 +413,12 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     let index = load_registry()?;
-    let targets: Vec<String> = if packages.is_empty() {
-        installed.keys().cloned().collect()
+    let targets = if packages.is_empty() {
+        None
     } else {
-        packages
+        Some(packages)
     };
-    let upgrades = plan_upgrades(&targets, &installed, &index);
+    let upgrades = plan_upgrades(targets.as_deref(), &installed, &index);
 
     for (name, current, latest) in &upgrades {
         if dry_run {
