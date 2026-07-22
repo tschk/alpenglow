@@ -331,6 +331,18 @@ mod tests {
     }
 
     #[test]
+    fn test_branch_from_os_release_quoted_alpenglow_id() {
+        let os_release = "ID=\"alpenglow\"\nVERSION_ID=\"0.1\"\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
+    }
+
+    #[test]
+    fn test_branch_from_os_release_full_file() {
+        let os_release = "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.21.0\nPRETTY_NAME=\"Alpine Linux v3.21\"\nHOME_URL=\"https://alpinelinux.org/\"\nBUG_REPORT_URL=\"https://gitlab.alpinelinux.org/alpine/aports/-/issues\"\n";
+        assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.21"));
+    }
+
+    #[test]
     fn test_branch_from_os_release_uses_major_minor() {
         let os_release = "ID=alpine\nVERSION_ID=3.20.3\n";
         assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
