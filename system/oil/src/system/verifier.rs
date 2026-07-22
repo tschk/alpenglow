@@ -123,10 +123,7 @@ fn verify_message_digest(
     attrs: &cms::signed_data::SignedAttributes,
     computed_hash: &[u8],
 ) -> Result<()> {
-    for attr in attrs.iter() {
-        if attr.oid != OID_MD {
-            continue;
-        }
+    if let Some(attr) = attrs.iter().find(|attr| attr.oid == OID_MD) {
         for val in attr.values.iter() {
             if let Ok(octet) = val.decode_as::<der::asn1::OctetString>() {
                 if octet.as_bytes() == computed_hash {
