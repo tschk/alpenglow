@@ -503,15 +503,24 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
                     return Err(error::OilError::Install(format!("tap not found: {}", name)));
                 }
             } else {
-                for entry in taps.list() {
-                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
-                    match registry.update() {
-                        Ok(index) => {
-                            println!("Updated {} ({} packages)", entry.name, index.packages.len())
-                        }
-                        Err(e) => eprintln!("warning: failed to update tap {}: {}", entry.name, e),
+                let entries: Vec<_> = taps.list().into_iter().cloned().collect();
+                std::thread::scope(|s| {
+                    let mut handles = Vec::new();
+                    for entry in entries {
+                        handles.push(s.spawn(move || {
+                            let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                            let result = registry.update();
+                            (entry.name, result)
+                        }));
                     }
-                }
+                    for handle in handles {
+                        let (name, result) = handle.join().unwrap();
+                        match result {
+                            Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
+                            Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
+                        }
+                    }
+                });
             }
         }
         Some(TapAction::List) => {
