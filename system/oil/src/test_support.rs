@@ -9,7 +9,7 @@ pub fn home_env_lock() -> std::sync::MutexGuard<'static, ()> {
     HOME_ENV_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
-        .expect("HOME_ENV_LOCK")
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 #[cfg(test)]

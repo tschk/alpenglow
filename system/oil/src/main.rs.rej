@@ -1,0 +1,28 @@
+diff a/system/oil/src/main.rs b/system/oil/src/main.rs	(rejected hunks)
+@@ -138,9 +138,6 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
+     }
+ }
+ 
+-fn run_command(cmd: Commands) -> Result<()> {
+-    dispatch_command(cmd)
+-}
+ 
+ #[cfg(feature = "wax")]
+ fn load_registry() -> Result<PackageIndex> {
+@@ -625,7 +622,7 @@ mod tests {
+             let cli = Cli::try_parse_from(argv).expect("parse alias argv");
+             let cmd = cli.command.expect("subcommand");
+             assert_eq!(cmd, want, "argv: {argv:?}");
+-            run_command(cmd).expect("run_command");
++
+         }
+     }
+ 
+@@ -644,6 +641,6 @@ mod tests {
+                 }),
+             }
+         );
+-        run_command(cmd).expect("run_command");
++
+     }
+ }

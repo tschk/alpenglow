@@ -163,7 +163,7 @@ mod tests {
     fn test_from_ureq_error() {
         // ureq::Error doesn't easily let us construct all variants, but we can use an invalid URL
         // We construct a std::io::Error and convert it into a ureq::Error.
-        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "mock transport error");
+        let io_err = std::io::Error::other("mock transport error");
         let ureq_err: ureq::Error = io_err.into();
         let err_msg = ureq_err.to_string();
 

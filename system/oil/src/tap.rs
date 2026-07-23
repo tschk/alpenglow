@@ -252,4 +252,65 @@ mod tests {
         file.set_times(times).unwrap();
         assert!(!TapRegistry::is_cache_fresh(&file_path));
     }
+
+    struct HomeGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl HomeGuard {
+        fn new() -> Self {
+            let lock = crate::test_support::home_env_lock();
+            let previous = std::env::var_os("HOME");
+            Self {
+                _lock: lock,
+                previous,
+            }
+        }
+
+        fn remove_home(self) -> Self {
+            std::env::remove_var("HOME");
+            self
+        }
+    }
+
+    impl Drop for HomeGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_cache_path_home_not_set() {
+        let _guard = HomeGuard::new().remove_home();
+
+        let registry = TapRegistry::new("mytap", "https://example.com/tap");
+        let result = registry.cache_path();
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert_eq!(e.to_string(), "$HOME not set");
+        }
+    }
+
+    #[test]
+    fn test_cache_path_create_dir_error() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let home_dir = std::path::PathBuf::from(std::env::var_os("HOME").unwrap());
+
+        let cache_dir = home_dir.join(".oil").join("cache").join("taps");
+        std::fs::create_dir_all(cache_dir.parent().unwrap()).unwrap();
+        std::fs::write(&cache_dir, b"").unwrap();
+
+        let registry = TapRegistry::new("mytap", "https://example.com/tap");
+        let result = registry.cache_path();
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, OilError::Io(_)));
+        }
+    }
 }
