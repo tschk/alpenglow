@@ -156,6 +156,33 @@ fn extract_signature_info(tar_data: &[u8]) -> Option<(String, Vec<u8>)> {
     None
 }
 
+fn is_safe_symlink(link_target: &Path, dest: &Path, dest_dir: &Path) -> bool {
+    if link_target.is_absolute() {
+        return false;
+    }
+
+    let mut resolved = dest.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
+
+    for comp in link_target.components() {
+        match comp {
+            std::path::Component::ParentDir => {
+                if !resolved.pop() {
+                    return false;
+                }
+                if !resolved.starts_with(dest_dir) {
+                    return false;
+                }
+            }
+            std::path::Component::Normal(c) => {
+                resolved.push(c);
+            }
+            _ => continue,
+        }
+    }
+
+    resolved.starts_with(dest_dir)
+}
+
 fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     let mut archive = Archive::new(tar_data);
     let mut files = Vec::new();
@@ -205,6 +232,12 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
             dirs.push(dest);
         } else if kind.is_symlink() {
             if let Some(link_target) = entry.link_name()? {
+                if !is_safe_symlink(link_target.as_ref(), &dest, dest_dir) {
+                    return Err(OilError::Install(format!(
+                        "Unsafe symlink target {:?} for {:?}",
+                        link_target, dest
+                    )));
+                }
                 let _ = std::fs::remove_file(&dest);
                 let _ = std::fs::remove_dir_all(&dest);
                 #[cfg(unix)]
@@ -479,5 +512,34 @@ mod tests {
         let result = find_apk_key_in_root(dir.path(), "testkey4");
         assert!(result.is_none());
         Ok(())
+    }
+
+    #[test]
+    fn test_is_safe_symlink() {
+        let dest_dir = Path::new("/tmp/dest");
+
+        let link_target = Path::new("bar");
+        let dest = Path::new("/tmp/dest/foo");
+        assert!(is_safe_symlink(link_target, dest, dest_dir));
+
+        let link_target = Path::new("/etc/passwd");
+        let dest = Path::new("/tmp/dest/foo");
+        assert!(!is_safe_symlink(link_target, dest, dest_dir));
+
+        let link_target = Path::new("../../../etc/passwd");
+        let dest = Path::new("/tmp/dest/foo");
+        assert!(!is_safe_symlink(link_target, dest, dest_dir));
+
+        let link_target = Path::new("../bar/baz");
+        let dest = Path::new("/tmp/dest/foo/qux");
+        assert!(is_safe_symlink(link_target, dest, dest_dir));
+
+        let link_target = Path::new("../../tmp/dest/bar");
+        let dest = Path::new("/tmp/dest/foo/qux");
+        assert!(!is_safe_symlink(link_target, dest, dest_dir));
+
+        let link_target = Path::new("../../tmp/dest/bar");
+        let dest = Path::new("/tmp/dest/foo");
+        assert!(!is_safe_symlink(link_target, dest, dest_dir));
     }
 }
