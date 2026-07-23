@@ -143,6 +143,7 @@ impl TapRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{Duration, SystemTime};
 
     #[test]
     fn normalize_user_repo_shorthand() {
