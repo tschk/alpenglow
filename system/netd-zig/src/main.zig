@@ -14,6 +14,9 @@ const sysWrite = common.sysWrite;
 const sysClose = common.sysClose;
 const sysMkdir = common.sysMkdir;
 const sysGetdents64 = common.sysGetdents64;
+const sysSocket = common.sysSocket;
+const sysBind = common.sysBind;
+const sysRecv = common.sysRecv;
 const makeDir = common.makeDir;
 const makePathRecursive = common.makePathRecursive;
 const writeFile = common.writeFile;
@@ -293,7 +296,7 @@ fn updateSnapshotScoped(gpa: std.mem.Allocator, sys_class_net: []const u8, state
 fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []const u8, runtime_env: []const u8) !void {
     try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
 
-    const fd = std.posix.socket(std.posix.AF.NETLINK, std.posix.SOCK.RAW | std.posix.SOCK.CLOEXEC, 0) catch {
+    const fd = sysSocket(linux.AF.NETLINK, linux.SOCK.RAW | linux.SOCK.CLOEXEC, 0) catch {
         // Fallback to sleep-based polling if netlink fails
         writeStderr("alpenglow-netd-zig: warning: failed to open netlink socket, falling back to polling\n");
         while (true) {
@@ -308,15 +311,15 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
             try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
         }
     };
-    defer std.posix.close(fd);
+    defer sysClose(fd);
 
     var sa: linux.sockaddr.nl = .{
-        .family = std.posix.AF.NETLINK,
+        .family = linux.AF.NETLINK,
         .pid = 0,
         .groups = 1 | 0x10 | 0x100, // RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR
     };
 
-    std.posix.bind(fd, @ptrCast(&sa), @intCast(@sizeOf(linux.sockaddr.nl))) catch {
+    sysBind(fd, @ptrCast(&sa), @intCast(@sizeOf(linux.sockaddr.nl))) catch {
         // Fallback if we cannot bind (e.g. lack of permissions)
         writeStderr("alpenglow-netd-zig: warning: failed to bind netlink socket, falling back to polling\n");
         while (true) {
@@ -334,7 +337,7 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
 
     var buf: [4096]u8 = undefined;
     while (true) {
-        const n = std.posix.read(fd, &buf) catch |err| {
+        const n = sysRead(fd, &buf) catch |err| {
             if (err == error.WouldBlock) continue;
             // E.g. ENOBUFS. We just resync and continue.
             writeStderr("alpenglow-netd-zig: warning: netlink read error\n");
@@ -344,7 +347,7 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
         if (n > 0) {
             // Read any other pending messages immediately to debounce
             while (true) {
-                const pending_n = std.posix.recv(fd, &buf, linux.MSG.DONTWAIT) catch 0;
+                const pending_n = sysRecv(fd, &buf, linux.MSG.DONTWAIT) catch 0;
                 if (pending_n == 0) break;
             }
 

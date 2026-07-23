@@ -159,6 +159,23 @@ pub fn sysGetdents64(fd: i32, buf: []u8) SyscallError!usize {
     return rc;
 }
 
+pub fn sysSocket(domain: u32, socket_type: u32, protocol: u32) SyscallError!i32 {
+    const rc = linux.socket(domain, socket_type, protocol);
+    try checkSyscall(rc);
+    return @intCast(rc);
+}
+
+pub fn sysBind(fd: i32, addr: *const linux.sockaddr, addrlen: linux.socklen_t) SyscallError!void {
+    const rc = linux.bind(fd, @ptrCast(addr), addrlen);
+    try checkSyscall(rc);
+}
+
+pub fn sysRecv(fd: i32, buf: []u8, flags: u32) SyscallError!usize {
+    const rc = linux.recvfrom(fd, buf.ptr, buf.len, flags, null, null);
+    try checkSyscall(rc);
+    return rc;
+}
+
 pub fn fileExists(path: []const u8) bool {
     var buf: [4096]u8 = undefined;
     const path_z = pathToZ(path, &buf) orelse return false;
