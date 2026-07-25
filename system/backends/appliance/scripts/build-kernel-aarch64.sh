@@ -26,6 +26,19 @@ LOCK="${OUT_DIR}/.kernel-aarch64.lock"
 mkdir "${LOCK}" 2>/dev/null || { echo "aarch64 kernel build already running" >&2; exit 1; }
 trap 'rmdir "${LOCK}"' EXIT
 
+# Docker kernel builds leave root-owned trees on the host volume.
+remove_kernel_tree() {
+  if [ ! -e "${OUT_DIR}/${KERNEL_TAR}" ]; then
+    return 0
+  fi
+  if rm -rf "${OUT_DIR}/${KERNEL_TAR}" 2>/dev/null; then
+    return 0
+  fi
+  docker run --rm --platform linux/amd64 \
+    -v "${OUT_DIR}:/out" \
+    alpine:3.21 rm -rf "/out/${KERNEL_TAR}"
+}
+
 # Reuse the x86_64 kernel source tarball if already present locally.
 NATIVE_SRC="${OUT_DIR}/../../native/${KERNEL_TAR}.tar.xz"
 if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
@@ -34,7 +47,7 @@ if [ ! -f "${OUT_DIR}/${KERNEL_TAR}.tar.xz" ] && [ -f "${NATIVE_SRC}" ]; then
 fi
 
 echo "→ Building custom aarch64 ${PROFILE} kernel (Linux ${KERNEL_VERSION})..."
-rm -rf "${OUT_DIR}/${KERNEL_TAR}"
+remove_kernel_tree
 
 docker run --rm --platform linux/amd64 \
   --label alpenglow.aarch64-build=1 \
@@ -92,5 +105,5 @@ docker run --rm --platform linux/amd64 \
     touch /out/.kernel-aarch64-'"${PROFILE}"'.ok
   '
 
-rm -rf "${OUT_DIR}/${KERNEL_TAR}"
+remove_kernel_tree
 echo "  kernel: ${VMLINUZ}"
