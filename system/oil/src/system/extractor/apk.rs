@@ -35,14 +35,13 @@ fn find_apk_key_in_root(root: &Path, keyname: &str) -> Option<String> {
 }
 
 /// Extract an APK package and return (files, dirs) of absolute paths written.
-/// If no trusted key is found verification is skipped (degraded mode).
 pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     let data = std::fs::read(path)?;
 
     // Split into three gzip streams
     let streams = split_gzip_streams(&data, 3)?;
 
-    // Try to verify signature from stream 1 against data tar (stream 3)
+    // Verify signature from stream 1 against data tar (stream 3)
     let sig_keyname = extract_signature_info(&streams.0);
     if let Some((keyname, sig_bytes)) = sig_keyname {
         if let Some(pubkey_pem) = find_apk_key(&keyname) {
@@ -50,9 +49,17 @@ pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Ve
             verifier::verify_apk_signature(&streams.2, &sig_bytes, &pubkey_pem)
                 .map_err(|e| OilError::Install(format!("signature verification failed: {e}")))?;
             eprintln!("Signature OK.");
-        } else {
+        } else if crate::util::security::insecure_mode() {
             eprintln!("Warning: no public key found for '{keyname}', skipping verification");
+        } else {
+            return Err(OilError::Install(format!(
+                "no public key found for '{keyname}'; set OIL_INSECURE_NO_VERIFY=1 to override"
+            )));
         }
+    } else if !crate::util::security::insecure_mode() {
+        return Err(OilError::Install(
+            "APK has no signature stream; set OIL_INSECURE_NO_VERIFY=1 to override".into(),
+        ));
     }
 
     // Extract data tar (stream 3) — this is what goes on disk
@@ -187,7 +194,6 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
     let mut archive = Archive::new(tar_data);
     let mut files = Vec::new();
     let mut dirs = Vec::new();
-    let mut entries_buf: Vec<Vec<u8>> = Vec::new();
     let mut created_dirs = std::collections::HashSet::new();
     created_dirs.insert(dest_dir.to_path_buf());
 
@@ -245,35 +251,16 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
                 files.push(dest);
             }
         } else if kind.is_hard_link() {
-            // ponytail: sort so regular files unpack first, then hard links
-            let mut data = Vec::new();
-            entry.read_to_end(&mut data)?;
-            entries_buf.push(data);
-        } else {
+            return Err(OilError::Install(format!(
+                "hard links are not allowed in APK payloads: {stripped}"
+            )));
+        } else if kind.is_file() {
             entry.unpack(&dest)?;
             files.push(dest);
-        }
-    }
-
-    // Now unpack hard links (regular files should already exist)
-    for data in &entries_buf {
-        let mut archive = Archive::new(&data[..]);
-        for entry_ in archive.entries()? {
-            let mut entry = entry_?;
-            let entry_path = entry.path()?;
-            let path = entry_path.to_string_lossy();
-            let stripped = path
-                .strip_prefix("./")
-                .unwrap_or(path.as_ref())
-                .trim_start_matches('/');
-            if stripped.is_empty() || stripped.contains("..") {
-                continue;
-            }
-            let dest = dest_dir.join(stripped);
-            entry.unpack(&dest)?;
-            if !entry.header().entry_type().is_dir() {
-                files.push(dest);
-            }
+        } else {
+            return Err(OilError::Install(format!(
+                "unsupported tar entry type for {stripped}"
+            )));
         }
     }
 

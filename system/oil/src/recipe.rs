@@ -17,6 +17,7 @@ use serde::Deserialize;
 
 use crate::error::Result;
 use crate::system::registry::PackageMetadata;
+use crate::util;
 
 fn default_install_path() -> String {
     "/usr/local".to_string()
@@ -89,6 +90,7 @@ impl Recipe {
                 "'source.url' must not be empty".into(),
             ));
         }
+        util::security::validate_install_dest(Path::new(&self.install))?;
         Ok(())
     }
 
@@ -179,6 +181,19 @@ source:
 "#;
         let err = Recipe::parse(yaml).expect_err("empty name should be rejected");
         assert!(err.to_string().contains("'name'"));
+    }
+
+    #[test]
+    fn rejects_disallowed_install_path() {
+        let yaml = r#"
+name: pkg
+version: "1.0"
+source:
+  url: https://dl-cdn.alpinelinux.org/alpine/edge/main/x86_64/busybox.apk
+install: /etc
+"#;
+        let err = Recipe::parse(yaml).expect_err("disallowed install path");
+        assert!(err.to_string().contains("install path"));
     }
 
     #[test]
