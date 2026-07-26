@@ -1,7 +1,9 @@
 pub mod apk;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+use crate::error::{OilError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageMetadata {
@@ -51,6 +53,67 @@ impl PackageIndex {
             return Some(&self.packages[i]);
         }
         None
+    }
+
+    /// Resolve `roots` and their transitive dependencies into install order
+    /// (dependencies before dependents). Skips names present in `skip`.
+    pub fn resolve_install_order<'a>(
+        &'a self,
+        roots: &[String],
+        skip: &HashSet<String>,
+    ) -> Result<Vec<&'a PackageMetadata>> {
+        let mut order = Vec::new();
+        let mut visiting = HashSet::new();
+        let mut scheduled = HashSet::new();
+
+        for root in roots {
+            self.visit_install_deps(root, skip, &mut visiting, &mut scheduled, &mut order)?;
+        }
+
+        Ok(order)
+    }
+
+    fn visit_install_deps<'a>(
+        &'a self,
+        name: &str,
+        skip: &HashSet<String>,
+        visiting: &mut HashSet<String>,
+        scheduled: &mut HashSet<String>,
+        order: &mut Vec<&'a PackageMetadata>,
+    ) -> Result<()> {
+        if skip.contains(name) {
+            return Ok(());
+        }
+
+        let pkg = self
+            .find(name)
+            .ok_or_else(|| OilError::FormulaNotFound(name.to_string()))?;
+
+        if scheduled.contains(&pkg.name) {
+            return Ok(());
+        }
+
+        if visiting.contains(&pkg.name) {
+            return Err(OilError::Install(format!(
+                "circular dependency involving {}",
+                pkg.name
+            )));
+        }
+
+        visiting.insert(pkg.name.clone());
+
+        for dep in &pkg.depends {
+            let dep_name = parse_dep_name(dep);
+            if dep_name.is_empty() {
+                continue;
+            }
+            self.visit_install_deps(dep_name, skip, visiting, scheduled, order)?;
+        }
+
+        visiting.remove(&pkg.name);
+        scheduled.insert(pkg.name.clone());
+        order.push(pkg);
+        Ok(())
     }
 }
 
@@ -158,5 +221,74 @@ mod tests {
 
         let found_shared = index.find("shared").unwrap();
         assert_eq!(found_shared.version, "1.0.0");
+    }
+
+    fn sample_pkg(name: &str, depends: Vec<String>) -> PackageMetadata {
+        PackageMetadata {
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            download_url: String::new(),
+            sha256: None,
+            installed_size: 0,
+            depends,
+            provides: vec![],
+        }
+    }
+
+    #[test]
+    fn test_resolve_install_order_deps_before_dependents() {
+        let index = PackageIndex::new(vec![
+            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("liba", vec![]),
+        ]);
+        let skip = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], &skip)
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["liba", "app"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_transitive() {
+        let index = PackageIndex::new(vec![
+            sample_pkg("app", vec!["libb".to_string()]),
+            sample_pkg("libb", vec!["liba".to_string()]),
+            sample_pkg("liba", vec![]),
+        ]);
+        let skip = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], &skip)
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["liba", "libb", "app"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_skips_installed() {
+        let index = PackageIndex::new(vec![
+            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("liba", vec![]),
+        ]);
+        let skip = HashSet::from(["liba".to_string()]);
+        let order = index
+            .resolve_install_order(&["app".to_string()], &skip)
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["app"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_circular_dependency() {
+        let index = PackageIndex::new(vec![
+            sample_pkg("a", vec!["b".to_string()]),
+            sample_pkg("b", vec!["a".to_string()]),
+        ]);
+        let skip = HashSet::new();
+        let result = index.resolve_install_order(&["a".to_string()], &skip);
+        assert!(result.is_err());
+        let err = result.expect_err("circular dep").to_string();
+        assert!(err.contains("circular dependency"));
     }
 }

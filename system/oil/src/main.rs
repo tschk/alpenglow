@@ -11,6 +11,8 @@ mod test_support;
 
 use clap::{Parser, Subcommand};
 use error::Result;
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use system::registry::PackageIndex;
@@ -416,10 +418,10 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     }
 
     let index = load_registry()?;
-    for name in &pending {
-        let pkg = index
-            .find(name)
-            .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
+    let skip: HashSet<String> = state.load()?.keys().cloned().collect();
+    let order = index.resolve_install_order(&pending, &skip)?;
+
+    for pkg in &order {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
@@ -682,7 +684,13 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .call()
         .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
 
-    let mut data = Vec::new();
+    let tmp_dir = oil_secure_tmp_dir()?;
+    let mut tmp = tempfile::Builder::new()
+        .tempfile_in(&tmp_dir)
+        .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
+
+    let mut hasher = Sha256::new();
+    let mut downloaded = 0usize;
     let mut reader = resp.into_body().into_reader();
     let mut buf = [0u8; 8192];
     loop {
@@ -692,27 +700,32 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         if n == 0 {
             break;
         }
-        if data.len() + n > util::security::MAX_DOWNLOAD_BYTES {
+        if downloaded + n > util::security::MAX_DOWNLOAD_BYTES {
             return Err(error::OilError::Install(format!(
                 "download for {} exceeds {} bytes",
                 pkg.name,
                 util::security::MAX_DOWNLOAD_BYTES
             )));
         }
-        data.extend_from_slice(&buf[..n]);
+        hasher.update(&buf[..n]);
+        tmp.write_all(&buf[..n])
+            .map_err(|e| error::OilError::Install(format!("write temp: {e}")))?;
+        downloaded += n;
     }
 
     if let Some(expected) = &pkg.sha256 {
-        util::security::verify_sha256(&data, expected)?;
+        let actual = format!("{:x}", hasher.finalize());
+        let expected = expected.trim().to_ascii_lowercase();
+        if actual != expected {
+            return Err(error::OilError::ChecksumMismatch {
+                expected,
+                actual,
+            });
+        }
     }
 
-    let tmp_dir = oil_secure_tmp_dir()?;
-    let mut tmp = tempfile::Builder::new()
-        .tempfile_in(&tmp_dir)
-        .map_err(|e| error::OilError::Install(format!("temp file: {e}")))?;
-
-    tmp.write_all(&data)
-        .map_err(|e| error::OilError::Install(format!("write temp: {e}")))?;
+    tmp.flush()
+        .map_err(|e| error::OilError::Install(format!("flush temp: {e}")))?;
 
     eprintln!("Extracting {}...", pkg.name);
 
