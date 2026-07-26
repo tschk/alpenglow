@@ -3,7 +3,7 @@
     "dev": "astro dev",
     "build:v86": "V86_SSH=1 sh scripts/build-v86-initramfs.sh",
     "build:v86:local": "sh scripts/build-v86-initramfs.sh",
-    "build:site": "astro check --minimumSeverity error && astro build",
+    "build:site": "sh scripts/write-site-version.sh && astro check --minimumSeverity error && astro build",
     "build": "V86_SSH=1 sh scripts/build-v86-initramfs.sh && bun run build:site",
     "preview": "astro preview",
     "deploy": "bun run build && wrangler pages deploy dist --project-name alpenglow"

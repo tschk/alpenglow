@@ -41,10 +41,17 @@
       import "../shell.js";
 
       const releaseLink = document.querySelector<HTMLAnchorElement>("#release-link");
-      const release = await fetch("https://api.github.com/repos/tschk/alpenglow/releases/latest").then((response) => response.ok ? response.json() : undefined);
-      if (releaseLink && typeof release?.tag_name === "string" && typeof release?.html_url === "string") {
-        releaseLink.textContent = release.tag_name;
-        releaseLink.href = release.html_url;
+      const versionRes = await fetch("/version.txt", { cache: "no-store" }).catch(() => undefined);
+      const bakedVersion = versionRes?.ok ? (await versionRes.text()).trim() : "";
+      if (releaseLink && bakedVersion) {
+        releaseLink.textContent = bakedVersion;
+        releaseLink.href = `https://github.com/tschk/alpenglow/releases/tag/${encodeURIComponent(bakedVersion)}`;
+      } else {
+        const release = await fetch("https://api.github.com/repos/tschk/alpenglow/releases/latest").then((response) => response.ok ? response.json() : undefined);
+        if (releaseLink && typeof release?.tag_name === "string" && typeof release?.html_url === "string") {
+          releaseLink.textContent = release.tag_name;
+          releaseLink.href = release.html_url;
+        }
       }
     </script>
   </body>

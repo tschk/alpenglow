@@ -9,9 +9,11 @@ BACKEND="${ROOT_DIR}/system/backends/appliance"
 KERNEL_VERSION="${KERNEL_VERSION:-$(grep -E '^KERNEL_VERSION="\$\{KERNEL_VERSION:-' "${ROOT_DIR}/scripts/boot-native.sh" | sed -n 's/.*KERNEL_VERSION:-\([0-9.]*\).*/\1/p')}"
 KERNEL_TAR="linux-${KERNEL_VERSION}"
 STAMP="${BUILD_DIR}/.kernel-v86-i686-${KERNEL_VERSION}.ok"
+V86_KERNEL_JOBS="${V86_KERNEL_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)}"
 
-if [ -f "${STAMP}" ] && [ -f "${KERNEL_OUT}" ] && [ "${FORCE_V86_KERNEL:-}" != 1 ]; then
+if [ -f "${KERNEL_OUT}" ] && [ "${FORCE_V86_KERNEL:-}" != 1 ]; then
   echo "v86 kernel: ${KERNEL_OUT} (cached)"
+  touch "${STAMP}"
   exit 0
 fi
 
@@ -83,7 +85,7 @@ docker run --rm --platform linux/amd64 \
     make ARCH=i386 olddefconfig >/dev/null 2>&1
     ./scripts/config --disable DRM --disable SOUND --disable USB_SUPPORT 2>/dev/null || true
     make ARCH=i386 olddefconfig >/dev/null 2>&1
-    make ARCH=i386 CROSS_COMPILE=i686-linux-gnu- -j"$(nproc)" bzImage
+    make ARCH=i386 CROSS_COMPILE=i686-linux-gnu- -j"'"${V86_KERNEL_JOBS}"'" bzImage
     cp arch/x86/boot/bzImage /out/alpenglow-v86-vmlinuz
   '
 
