@@ -79,12 +79,37 @@ enum Commands {
     /// Update the package index
     #[command(visible_aliases = ["u", "refresh"])]
     Update,
+    /// Staged system installs (rootfs builds)
+    System {
+        #[command(subcommand)]
+        command: SystemCommands,
+    },
     #[cfg(feature = "wax")]
     /// Manage third-party package taps
     Tap {
         tap: Option<String>,
         #[command(subcommand)]
         action: Option<TapAction>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Subcommand)]
+enum SystemCommands {
+    /// Install packages into a staged rootfs prefix
+    #[command(visible_alias = "add")]
+    Add {
+        packages: Vec<String>,
+        #[arg(long)]
+        prefix: Option<PathBuf>,
+        #[arg(long)]
+        no_script: bool,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Reconcile staged system state (no-op today; installs are immediate)
+    Sync {
+        #[arg(long)]
+        prefix: Option<PathBuf>,
     },
 }
 
@@ -134,6 +159,7 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
         Commands::Upgrade { packages, dry_run } => run_upgrade(packages, dry_run),
         Commands::Outdated => run_outdated(),
         Commands::Update => run_update(),
+        Commands::System { command } => run_system(command),
         #[cfg(feature = "wax")]
         Commands::Tap { tap, action } => run_tap(tap, action),
     }
@@ -145,25 +171,85 @@ fn run_command(cmd: Commands) -> Result<()> {
 }
 
 #[cfg(feature = "wax")]
+fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> PackageIndex {
+    let taps = match tap::Taps::new() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("warning: failed to load taps: {e}");
+            return PackageIndex::new(all);
+        }
+    };
+    let entries: Vec<_> = taps.list().into_iter().cloned().collect();
+    std::thread::scope(|s| {
+        let handles: Vec<_> = entries
+            .iter()
+            .map(|entry| {
+                s.spawn(|| {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    (entry.name.clone(), registry.load())
+                })
+            })
+            .collect();
+        for handle in handles {
+            let (name, result) = handle.join().unwrap();
+            match result {
+                Ok(index) => {
+                    eprintln!(
+                        "Loaded {} packages from tap {}",
+                        index.packages.len(),
+                        name
+                    );
+                    all.extend(index.packages);
+                }
+                Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
+            }
+        }
+    });
+    PackageIndex::new(all)
+}
+
+#[cfg(feature = "wax")]
+fn refresh_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> PackageIndex {
+    let taps = match tap::Taps::new() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("warning: failed to load taps: {e}");
+            return PackageIndex::new(all);
+        }
+    };
+    let entries: Vec<_> = taps.list().into_iter().cloned().collect();
+    std::thread::scope(|s| {
+        let handles: Vec<_> = entries
+            .iter()
+            .map(|entry| {
+                s.spawn(|| {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    (entry.name.clone(), registry.update())
+                })
+            })
+            .collect();
+        for handle in handles {
+            let (name, result) = handle.join().unwrap();
+            match result {
+                Ok(index) => {
+                    eprintln!(
+                        "Refreshed {} packages from tap {}",
+                        index.packages.len(),
+                        name
+                    );
+                    all.extend(index.packages);
+                }
+                Err(e) => eprintln!("warning: failed to refresh tap {name}: {e}"),
+            }
+        }
+    });
+    PackageIndex::new(all)
+}
+
+#[cfg(feature = "wax")]
 fn load_registry() -> Result<PackageIndex> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().load()?;
-    let mut all = apk.packages;
-    let taps = tap::Taps::new()?;
-    for tap in taps.list() {
-        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
-        match registry.load() {
-            Ok(index) => {
-                eprintln!(
-                    "Loaded {} packages from tap {}",
-                    index.packages.len(),
-                    tap.name
-                );
-                all.extend(index.packages);
-            }
-            Err(e) => eprintln!("warning: failed to load tap {}: {}", tap.name, e),
-        }
-    }
-    Ok(PackageIndex::new(all))
+    Ok(merge_tap_packages(apk.packages))
 }
 
 #[cfg(not(feature = "wax"))]
@@ -174,28 +260,60 @@ fn load_registry() -> Result<PackageIndex> {
 #[cfg(feature = "wax")]
 fn refresh_registry() -> Result<PackageIndex> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().refresh()?;
-    let mut all = apk.packages;
-    let taps = tap::Taps::new()?;
-    for tap in taps.list() {
-        let registry = tap::TapRegistry::new(&tap.name, &tap.url);
-        match registry.update() {
-            Ok(index) => {
-                eprintln!(
-                    "Refreshed {} packages from tap {}",
-                    index.packages.len(),
-                    tap.name
-                );
-                all.extend(index.packages);
-            }
-            Err(e) => eprintln!("warning: failed to refresh tap {}: {}", tap.name, e),
-        }
-    }
-    Ok(PackageIndex::new(all))
+    Ok(refresh_tap_packages(apk.packages))
 }
 
 #[cfg(not(feature = "wax"))]
 fn refresh_registry() -> Result<PackageIndex> {
     system::registry::apk::ApkRegistry::alpine_default().refresh()
+}
+
+fn install_dest(prefix: Option<&Path>) -> Result<PathBuf> {
+    util::security::resolve_install_dest(prefix, Path::new("/usr/local"))
+}
+
+fn system_prefix(cli: Option<PathBuf>) -> Option<PathBuf> {
+    cli.or_else(|| std::env::var_os("OIL_SYSTEM_PREFIX").map(PathBuf::from))
+}
+
+fn run_system(command: SystemCommands) -> Result<()> {
+    match command {
+        SystemCommands::Add {
+            packages,
+            prefix,
+            no_script: _,
+            dry_run,
+        } => {
+            if packages.is_empty() {
+                return Err(error::OilError::Install(
+                    "system add requires at least one package".into(),
+                ));
+            }
+            let dest = install_dest(system_prefix(prefix).as_deref())?;
+            let index = load_registry()?;
+            for name in packages {
+                let pkg = index
+                    .find(&name)
+                    .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
+                if dry_run {
+                    println!(
+                        "Would install {} {} into {}",
+                        pkg.name,
+                        pkg.version,
+                        dest.display()
+                    );
+                } else {
+                    install_package(pkg, &dest)?;
+                    println!("Installed {} {} into {}", pkg.name, pkg.version, dest.display());
+                }
+            }
+            Ok(())
+        }
+        SystemCommands::Sync { prefix: _ } => {
+            println!("system sync: staged installs are applied immediately");
+            Ok(())
+        }
+    }
 }
 
 fn run_update() -> Result<()> {
@@ -305,7 +423,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = std::path::PathBuf::from("/usr/local");
+            let dest = install_dest(None)?;
             install_package(pkg, &dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
@@ -329,7 +447,7 @@ fn run_install_recipe(recipe_path: PathBuf, dry_run: bool) -> Result<()> {
         );
         return Ok(());
     }
-    let dest = recipe.install_dest();
+    let dest = util::security::validate_install_dest(&recipe.install_dest())?;
     install_package(&pkg, &dest)?;
     let mut state = install::InstallState::new()?;
     state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
@@ -367,7 +485,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
-                let dest = std::path::PathBuf::from("/usr/local");
+                let dest = install_dest(None)?;
                 install_package(latest, &dest)?;
                 state.mark_installed(name, Some(latest.version.as_str()));
                 println!("Reinstalled {name} {}", latest.version);
@@ -440,7 +558,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 current.version, latest.version
             );
         } else {
-            let dest = std::path::PathBuf::from("/usr/local");
+            let dest = install_dest(None)?;
             install_package(latest, &dest)?;
             state.mark_installed(name, Some(latest.version.as_str()));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
@@ -555,6 +673,8 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
 }
 
 fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
+    let dest = util::security::validate_install_dest(dest)?;
+    util::security::validate_download_url(&pkg.download_url)?;
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
 
@@ -563,10 +683,28 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
 
     let mut data = Vec::new();
-    resp.into_body()
-        .into_reader()
-        .read_to_end(&mut data)
-        .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
+    let mut reader = resp.into_body().into_reader();
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| error::OilError::Install(format!("read failed for {}: {e}", pkg.name)))?;
+        if n == 0 {
+            break;
+        }
+        if data.len() + n > util::security::MAX_DOWNLOAD_BYTES {
+            return Err(error::OilError::Install(format!(
+                "download for {} exceeds {} bytes",
+                pkg.name,
+                util::security::MAX_DOWNLOAD_BYTES
+            )));
+        }
+        data.extend_from_slice(&buf[..n]);
+    }
+
+    if let Some(expected) = &pkg.sha256 {
+        util::security::verify_sha256(&data, expected)?;
+    }
 
     let tmp_dir = oil_secure_tmp_dir()?;
     let mut tmp = tempfile::Builder::new()
@@ -578,7 +716,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
 
     eprintln!("Extracting {}...", pkg.name);
 
-    let result = system::apk_extract::extract_tracked(tmp.path(), dest);
+    let result = system::apk_extract::extract_tracked(tmp.path(), &dest);
 
     let _ = std::fs::remove_file(tmp.path());
 
