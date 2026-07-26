@@ -27,6 +27,37 @@ done
 
 [ -n "${ALPENGLOW_DEBUG}" ] && set -x
 
+valid_image_path() {
+  case "$1" in
+    LABEL=*|/sysroot/*|/mnt/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+valid_state_path() {
+  case "$1" in
+    LABEL=alpenglow-state|/dev/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+rescue_or_halt() {
+  msg="$1"
+  echo "${msg}" >&2
+  if [ -n "${ALPENGLOW_DEBUG}" ]; then
+    exec /bin/sh
+  fi
+  echo "Halting (add alpenglow.debug to kernel cmdline for rescue shell)" >&2
+  exec /sbin/poweroff -f
+}
+
+if [ -n "${ALPENGLOW_IMAGE}" ] && ! valid_image_path "${ALPENGLOW_IMAGE}"; then
+  rescue_or_halt "Alpenglow: rejected alpenglow.image=${ALPENGLOW_IMAGE}"
+fi
+if [ -n "${ALPENGLOW_STATE}" ] && ! valid_state_path "${ALPENGLOW_STATE}"; then
+  rescue_or_halt "Alpenglow: rejected alpenglow.state=${ALPENGLOW_STATE}"
+fi
+
 for m in erofs squashfs bcachefs virtio-blk virtio-net \
          snd snd-pcm cfg80211 mac80211 iwlwifi ath9k \
          hid usbhid i2c-dev acpi-cpufreq; do
@@ -48,7 +79,11 @@ find_image() {
     mount -r "${found}" /mnt 2>/dev/null || true
     for ext in erofs squashfs; do
       img="/mnt/alpenglow/current.${ext}"
-      if [ -f "${img}" ]; then cp "${img}" "/sysroot/alpenglow/current.${img##*.}" 2>/dev/null; umount /mnt; echo "/sysroot/alpenglow/current.${img##*.}"; return; fi
+      if [ -f "${img}" ]; then
+        umount /mnt
+        echo "${img}"
+        return
+      fi
     done
     umount /mnt 2>/dev/null || true
   fi
@@ -58,8 +93,9 @@ find_image() {
     for ext in erofs squashfs; do
       img="/mnt/alpenglow/current.${ext}"
       if [ -f "${img}" ]; then
-        cp "${img}" "/sysroot/alpenglow/current.${img##*.}" 2>/dev/null
-        umount /mnt; echo "/sysroot/alpenglow/current.${img##*.}"; return
+        umount /mnt
+        echo "${img}"
+        return
       fi
     done
     umount /mnt 2>/dev/null || true
@@ -69,21 +105,22 @@ find_image() {
 
 ROOT_IMAGE=$(find_image)
 if [ -z "${ROOT_IMAGE}" ]; then
-  echo "Alpenglow: no immutable root image found, falling back to shell" >&2
-  echo "  To boot diskless: add alpenglow.image=<path> to kernel cmdline" >&2
-  exec /bin/sh
+  rescue_or_halt "Alpenglow: no immutable root image found"
 fi
 
 echo "Alpenglow: mounting ${ROOT_IMAGE}..."
 case "${ROOT_IMAGE}" in
   *.erofs)     mount -t erofs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
   *.squashfs)  mount -t squashfs -o ro,nodev "${ROOT_IMAGE}" /mnt/root ;;
+  *) rescue_or_halt "Alpenglow: unsupported root image type: ${ROOT_IMAGE}" ;;
 esac
 
 if [ -n "${ALPENGLOW_STATE}" ]; then
-  mount -t bcachefs -o rw,nosuid,nodev "${ALPENGLOW_STATE}" /mnt/root/state 2>/dev/null || { echo "Alpenglow: bcachefs state mount failed: ${ALPENGLOW_STATE}" >&2; exec /bin/sh; }
+  mount -t bcachefs -o rw,nosuid,nodev "${ALPENGLOW_STATE}" /mnt/root/state 2>/dev/null || \
+    rescue_or_halt "Alpenglow: bcachefs state mount failed: ${ALPENGLOW_STATE}"
 else
-  mount -t bcachefs -o rw,nosuid,nodev LABEL=alpenglow-state /mnt/root/state 2>/dev/null || { echo "Alpenglow: bcachefs state mount failed: LABEL=alpenglow-state" >&2; exec /bin/sh; }
+  mount -t bcachefs -o rw,nosuid,nodev LABEL=alpenglow-state /mnt/root/state 2>/dev/null || \
+    rescue_or_halt "Alpenglow: bcachefs state mount failed: LABEL=alpenglow-state"
 fi
 
 exec switch_root /mnt/root /sbin/init

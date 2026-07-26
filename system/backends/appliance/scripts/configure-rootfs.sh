@@ -58,9 +58,9 @@ ensure_group() { name="$1"; gid="$2"
     printf '%s:x:%s:\n' "${name}" "${gid}" >>"${ROOTFS}/etc/group"
   fi
 }
-ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"
+ensure_user() { name="$1"; uid="$2"; gid="$3"; home="$4"; shell="${5:-/usr/sbin/nologin}"
   if ! grep -q "^${name}:" "${ROOTFS}/etc/passwd" 2>/dev/null; then
-    printf '%s:x:%s:%s:%s:%s:/usr/sbin/nologin\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" >>"${ROOTFS}/etc/passwd"
+    printf '%s:x:%s:%s:%s:%s:%s\n' "${name}" "${uid}" "${gid}" "${name}" "${home}" "${shell}" >>"${ROOTFS}/etc/passwd"
   fi
 }
 
@@ -72,7 +72,7 @@ ensure_group "pipewire" "${PIPEWIRE_GID}"
 ensure_group "audio" 777
 ensure_group "video" 778
 ensure_group "input" 779
-ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow"
+ensure_user "alpenglow" "${ALPENGLOW_UID}" "${ALPENGLOW_GID}" "/var/lib/alpenglow" "/bin/sh"
 
 ensure_user "seatd" "${SEATD_UID}" "${SEATD_GID}" "/var/empty"
 ensure_user "iwd" "${IWD_UID}" "${IWD_GID}" "/var/empty"
@@ -466,7 +466,9 @@ chmod 644 "${ROOTFS}/etc/chrony/chrony.conf"
 
 # ── DNS: dnsmasq config ────────────────────────────────────────────
 cat > "${ROOTFS}/etc/dnsmasq.conf" <<'DNSMASQ'
-# Dnsmasq: local DNS caching resolver
+# Dnsmasq: local DNS caching resolver (loopback only)
+listen-address=127.0.0.1
+bind-interfaces
 port=53
 domain-needed
 bogus-priv

@@ -1,5 +1,5 @@
-# SSH server — remote administration
+# SSH server — key-only auth; use authorized_keys under /etc/dropbear/
 type = process
-command = /usr/sbin/dropbear -F -R
+command = /usr/sbin/dropbear -F -R -s -w
 restart = yes
 depends-on = networking

@@ -679,7 +679,7 @@ CROND
 # Dropbear — SSH server
 cat > "${ROOTFS_DIR}/etc/dinit.d/dropbear" << 'DROP'
 type = process
-command = /usr/bin/dropbear -F -R
+command = /usr/bin/dropbear -F -R -s -w
 restart = yes
 depends-on = networking
 DROP
@@ -865,6 +865,8 @@ CHRONY
 
 # Dnsmasq config
 cat > "${ROOTFS_DIR}/etc/dnsmasq.conf" << 'DNSMASQ'
+listen-address=127.0.0.1
+bind-interfaces
 port=53
 domain-needed
 bogus-priv
