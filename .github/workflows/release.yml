@@ -66,18 +66,32 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
 
-      - uses: docker/setup-qemu-action@v3
+      - name: Free disk space
+        if: matrix.arch == 'aarch64'
+        uses: jlumbroso/free-disk-space@main
         with:
-          platforms: arm64
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: true
 
-      - name: Free disk space (aarch64 desktop)
-        if: matrix.arch == 'aarch64' && startsWith(matrix.edition, 'desktop')
+      - name: Setup QEMU binfmt (arm64)
+        if: matrix.arch == 'aarch64'
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo apt-get clean
-          docker image prune -af
-          docker system prune -af
-          df -h .
+          set -eu
+          for attempt in 1 2 3; do
+            if docker run --privileged --rm tonistiigi/binfmt --install arm64; then
+              docker run --rm --platform linux/arm64 alpine:3.21 uname -m
+              exit 0
+            fi
+            echo "binfmt install attempt ${attempt} failed, retrying..."
+            sleep $((attempt * 20))
+          done
+          echo "failed to install arm64 binfmt after 3 attempts" >&2
+          exit 1
 
       - name: Install Rust targets
         run: rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
@@ -91,6 +105,7 @@ jobs:
         env:
           ALPENGLOW_ARCH: ${{ matrix.arch }}
           ALPENGLOW_EDITION: ${{ matrix.edition }}
+          AARCH64_KERNEL_JOBS: ${{ matrix.arch == 'aarch64' && '2' || '' }}
         run: |
           sh scripts/release-assets.sh "${{ steps.version.outputs.version }}"
 
@@ -142,9 +157,17 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
 
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
+      - name: Setup QEMU binfmt (arm64)
+        run: |
+          set -eu
+          for attempt in 1 2 3; do
+            if docker run --privileged --rm tonistiigi/binfmt --install arm64; then
+              exit 0
+            fi
+            echo "binfmt install attempt ${attempt} failed, retrying..."
+            sleep $((attempt * 20))
+          done
+          exit 1
 
       - name: Install RISC-V release tools
         run: |

@@ -66,6 +66,7 @@ docker run --rm --platform linux/amd64 \
         wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O '"${KERNEL_TAR}"'.tar.xz
       fi
       tar -xf '"${KERNEL_TAR}"'.tar.xz
+      rm -f '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
     cp /kcfg/alpenglow-virt.config .config
@@ -89,6 +90,9 @@ docker run --rm --platform linux/amd64 \
 
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig >/dev/null 2>&1
     ./scripts/config --disable OBJTOOL --disable STACK_VALIDATION --disable UNWINDER_ORC 2>/dev/null || true
+    ./scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_BTF --disable DEBUG_INFO_BTF_MODULES 2>/dev/null || true
+    ./scripts/config --disable DEBUG_INFO_DWARF5 2>/dev/null || true
+    ./scripts/config --enable DEBUG_INFO_NONE 2>/dev/null || true
     # Alpine virt config points to a nonexistent signing key; disable module signing.
     ./scripts/config --set-str MODULE_SIG_KEY ""
     ./scripts/config --set-str SYSTEM_TRUSTED_KEYS ""
@@ -101,6 +105,7 @@ docker run --rm --platform linux/amd64 \
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig >/dev/null 2>&1
     echo "→ compiling Image.gz (this can take several minutes)..."
     make -j"'"${JOBS}"'" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz
+    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- clean >/dev/null 2>&1 || true
     cp arch/arm64/boot/Image.gz /out/vmlinuz
     touch /out/.kernel-aarch64-'"${PROFILE}"'.ok
   '
