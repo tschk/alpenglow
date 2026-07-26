@@ -36,12 +36,12 @@ else
 fi
 file "${ZIG_INIT}" | grep -q aarch64 || { echo "ERROR: init not aarch64"; exit 1; }
 
-# ── 2. Cross-compile kernelctl-zig ─────────────────────────────────
+# ── 2. Cross-compile alpenglow-ctl (kernel compat binary) ──────────
 KERNELCTL="${BUILD_OUT}/alpenglow-kernelctl"
 if [ ! -f "${KERNELCTL}" ] || [ "${FORCE}" = "1" ]; then
-  echo "→ Cross-compiling kernelctl-zig for aarch64-linux-musl..."
+  echo "→ Cross-compiling alpenglow-ctl for aarch64-linux-musl..."
   require_cmd zig
-  cd "${REPO_ROOT}/system/kernelctl-zig"
+  cd "${REPO_ROOT}/system/alpenglow-ctl"
   rm -rf zig-out .zig-cache
   zig build -Dtarget=aarch64-linux-musl -Drelease=true 2>&1
   cp zig-out/bin/alpenglow-kernelctl "${KERNELCTL}"

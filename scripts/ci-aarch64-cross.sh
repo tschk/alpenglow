@@ -18,8 +18,8 @@ cd "${REPO_ROOT}/system/init"
 zig build-exe init.zig -target aarch64-linux-musl -O ReleaseSmall -fstrip -femit-bin="${BUILD_OUT}/zig-init"
 file "${BUILD_OUT}/zig-init" | grep -q aarch64 || { echo "ERROR: init not aarch64"; exit 1; }
 
-echo "→ kernelctl"
-cd "${REPO_ROOT}/system/kernelctl-zig"
+echo "→ kernelctl (alpenglow-ctl)"
+cd "${REPO_ROOT}/system/alpenglow-ctl"
 rm -rf zig-out .zig-cache
 zig build -Dtarget=aarch64-linux-musl -Drelease=true
 cp zig-out/bin/alpenglow-kernelctl "${BUILD_OUT}/alpenglow-kernelctl"

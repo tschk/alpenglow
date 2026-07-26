@@ -89,8 +89,9 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 system/
   backends/
     appliance/          Primary profile (kernel configs, dinit services, scripts)
-  kernelctl-zig/        Cgroup + kernel policy (Zig, 89KB static)
-  netd-zig/             Network state daemon (Zig, zero deps)
+  alpenglow-ctl/        Multicall kernel/net/pressure/zram daemons (Zig)
+  kernelctl-zig/        Deprecated build shim → alpenglow-ctl
+  netd-zig/             Deprecated build shim → alpenglow-ctl
   oil/                  Package manager (Rust, APK-compatible)
   kernel-modules/       Rust kernel modules (alpenglow_core, alpenglow_bootstat)
   init/                 Zig init (4.8KB static, initramfs fallback)
@@ -195,6 +196,6 @@ Alpenglow has one root model:
 
 QEMU boot is verified. Real hardware boot has also been tested on Orange Pi 3B and Mac mini 2012.
 
-Release **v0.1.487+** adds Oil dependency resolution and streaming installs, boot pipeline consolidation (`scripts/lib/`), optional LUKS `/state`, in-place initramfs root mounts, kernelctl cgroup path validation, and hardened netd runtime permissions.
+Release **v0.1.492+** consolidates kernelctl/netd/pressurectl/zramctl into `alpenglow-ctl`, drops the `alpenglow-install-tui` wrapper (`alpenglow-install --tui`), and adds GHA disk cleanup for aarch64 desktop releases.
 
 See [AGENTS.md](AGENTS.md) for full milestone table and [docs/](docs/) for architecture docs.

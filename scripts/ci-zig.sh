@@ -23,24 +23,13 @@ esac
 RELEASE_FLAG="-Drelease=true"
 echo "ci-zig: using ${RELEASE_FLAG}"
 
-# Build kernelctl-zig
-echo "ci-zig: building kernelctl-zig..."
-(cd "${REPO_ROOT}/system/kernelctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
-echo "ci-zig: kernelctl-zig built OK"
+# Build alpenglow-ctl (multicall kernel/net/pressure/zram daemons)
+echo "ci-zig: building alpenglow-ctl..."
+(cd "${REPO_ROOT}/system/alpenglow-ctl" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
+echo "ci-zig: alpenglow-ctl built OK"
 
-# Build netd-zig
-echo "ci-zig: building netd-zig..."
-(cd "${REPO_ROOT}/system/netd-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
-echo "ci-zig: netd-zig built OK"
-
-# Build zramctl-zig
-echo "ci-zig: building zramctl-zig..."
-(cd "${REPO_ROOT}/system/zramctl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
-echo "ci-zig: zramctl-zig built OK"
-
-# Build pressurectl-zig
-echo "ci-zig: building pressurectl-zig..."
-(cd "${REPO_ROOT}/system/pressurectl-zig" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl) 2>&1
-echo "ci-zig: pressurectl-zig built OK"
+echo "ci-zig: running alpenglow-ctl tests..."
+(cd "${REPO_ROOT}/system/alpenglow-ctl" && zig build test ${RELEASE_FLAG}) 2>&1
+echo "ci-zig: alpenglow-ctl tests OK"
 
 printf 'ci-zig: ok\n'

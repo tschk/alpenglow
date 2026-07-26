@@ -255,8 +255,7 @@ pub fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
     return getenv(key) orelse default;
 }
 
-// Follow-up: consolidate netd-zig, pressurectl-zig, kernelctl-zig, and zramctl-zig
-// into system/alpenglow-ctl/ with shared subcommands and zig-daemon-common helpers.
+// Shared Zig helpers for alpenglow-ctl and legacy *-zig build shims.
 
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);

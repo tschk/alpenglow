@@ -154,12 +154,10 @@ if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   fi
 fi
 if command -v "${ZIG}" >/dev/null 2>&1; then
-  for helper in kernelctl-zig netd-zig zramctl-zig pressurectl-zig; do
-    if [ ! -d "${OUT_DIR}/${helper}" ]; then
-      echo "→ Building ${helper}..."
-      (cd "${ROOT_DIR}/system/${helper}" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/${helper}") 2>&1 | tail -5
-    fi
-  done
+  if [ ! -f "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" ]; then
+    echo "→ Building alpenglow-ctl..."
+    (cd "${ROOT_DIR}/system/alpenglow-ctl" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/alpenglow-ctl") 2>&1 | tail -5
+  fi
 fi
 
 # Kernel
@@ -577,10 +575,10 @@ mkdir -p "${ROOTFS_DIR}/usr/local/bin"
 mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
 cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
 for pair in \
-  "kernelctl-zig/alpenglow-kernelctl:alpenglow-kernelctl" \
-  "netd-zig/alpenglow-netd-zig:alpenglow-netd" \
-  "zramctl-zig/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
-  "pressurectl-zig/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
+  "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
+  "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \
+  "alpenglow-ctl/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
+  "alpenglow-ctl/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
 do
   src="${pair%%:*}"
   dst="${pair##*:}"

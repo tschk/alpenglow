@@ -12,7 +12,7 @@ Early-stage; not production-hardened for arbitrary deployments.
 
 - **JS/TS**: Bun only (no npm/yarn/pnpm).
 - **Rust**: workspace under `system/oil`, kernel modules, installer crates — run `scripts/ci-rust-core.sh` before claiming done.
-- **Zig**: `system/kernelctl-zig`, `netd-zig`, etc. — `scripts/ci-zig.sh` when touched.
+- **Zig**: `system/alpenglow-ctl` (multicall daemons), legacy `*-zig/` shims — `scripts/ci-zig.sh` when touched.
 - **Do not** pipe remote install scripts (`curl | sh`). Oil comes from **this tree**, **https://github.com/semitechnological/oil**, or the **undivisible/tap** index (`oil tap add undivisible/tap` → `https://github.com/undivisible/tap`). Not oil.sh.
 - **CLAUDE.md** must stay a symlink to **AGENTS.md** (enforced in `scripts/ci-os-appliance.sh`).
 - Preserve existing comments in files you edit; no license banners or drive-by reformatting.
@@ -44,8 +44,9 @@ Base image stays lean; VPN, extra daemons, etc. via `oil install` or `/usr/local
 system/
   oil/                 Package manager (Rust); recipes in recipes/
   backends/appliance/  Kernel configs, dinit units, rootfs scripts
-  kernelctl-zig/       Kernel/cgroup policy (~72–89KB static)
-  netd-zig/            Network daemon
+  alpenglow-ctl/       kernel/net/pressure/zram multicall daemon (Zig)
+  kernelctl-zig/       Deprecated shim → alpenglow-ctl
+  netd-zig/            Deprecated shim → alpenglow-ctl
   kernel-modules/      Rust modules (alpenglow_core, …)
 scripts/               boot-native.sh, CI, v86 initramfs, release
 docs/                  Architecture; docs/browser/ = v86 guest copy

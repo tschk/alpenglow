@@ -57,6 +57,8 @@ dist/
 bundle/terminal/ghostty-vt.wasm
 # zig build cache (ghostty submodule)
 third_party/ghostty/.zig-cache/
+system/alpenglow-ctl/.zig-cache/
+system/alpenglow-ctl/zig-out/
 system/kernelctl-zig/.zig-cache/
 system/kernelctl-zig/zig-out/
 system/netd-zig/.zig-cache/
