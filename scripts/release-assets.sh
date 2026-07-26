@@ -93,7 +93,7 @@ build_host_gui_installer() {
 }
 
 ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
-build_installer --bin alpenglow-install --bin alpenglow-install-tui
+build_installer --bin alpenglow-install
 if [ "${EDITION}" = "desktop-full" ] && [ "${ARCH}" = "x86_64" ]; then
   build_host_gui_installer
 fi
@@ -116,7 +116,6 @@ if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
   mkdir -p "${LIVE_ROOT}/run/alpenglow" "${LIVE_ROOT}/usr/bin"
   cp "${COMPRESSED_IMAGE}" "${LIVE_ROOT}/run/alpenglow/alpenglow.img.zst"
   cp "${INSTALLER_DIR}/alpenglow-install" "${LIVE_ROOT}/usr/bin/"
-  cp "${INSTALLER_DIR}/alpenglow-install-tui" "${LIVE_ROOT}/usr/bin/"
   if [ -n "${GUI_INSTALLER}" ] && [ -f "${GUI_INSTALLER}" ]; then
     cp "${GUI_INSTALLER}" "${LIVE_ROOT}/usr/bin/"
   fi
@@ -131,7 +130,6 @@ if command -v xorriso >/dev/null 2>&1; then
   cp "${COMPRESSED_IMAGE}" "${COMPRESSED_IMAGE}.sha256" "${ISO_ROOT}/run/alpenglow/"
   cp "${COMPRESSED_IMAGE}" "${ISO_ROOT}/run/alpenglow/alpenglow.img.zst"
   cp "${INSTALLER_DIR}/alpenglow-install" "${ISO_ROOT}/usr/bin/"
-  cp "${INSTALLER_DIR}/alpenglow-install-tui" "${ISO_ROOT}/usr/bin/"
   if [ -n "${GUI_INSTALLER}" ] && [ -f "${GUI_INSTALLER}" ]; then
     cp "${GUI_INSTALLER}" "${ISO_ROOT}/usr/bin/"
   fi

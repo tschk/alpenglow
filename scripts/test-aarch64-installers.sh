@@ -60,11 +60,11 @@ if [ "${MODE}" = "all" ] || [ "${MODE}" = "tui" ]; then
 
   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
     cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
-    --target-dir "${ROOT_DIR}/target" --bin alpenglow-install --bin alpenglow-install-tui
+    --target-dir "${ROOT_DIR}/target" --bin alpenglow-install
 
   cp "${OUT_DIR}/toybox-aarch64" "${TMP}/standard/bin/toybox"
   ln -sf toybox "${TMP}/standard/bin/sh"
-  cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install-tui" "${TMP}/standard/bin/alpenglow-install-tui"
+  cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install" "${TMP}/standard/bin/alpenglow-install"
   cat > "${TMP}/standard/init" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc
@@ -73,11 +73,11 @@ mount -t devtmpfs devtmpfs /dev
 exec >/dev/ttyAMA0 2>&1
 mount -t tmpfs tmpfs /run
 echo "Alpenglow standard aarch64 installer smoke"
-TERM=xterm /bin/alpenglow-install-tui || true
+TERM=xterm /bin/alpenglow-install --tui || true
 echo "Alpenglow standard installer smoke OK"
 /bin/toybox poweroff -f
 EOF
-  chmod +x "${TMP}/standard/init" "${TMP}/standard/bin/toybox" "${TMP}/standard/bin/alpenglow-install-tui"
+  chmod +x "${TMP}/standard/init" "${TMP}/standard/bin/toybox" "${TMP}/standard/bin/alpenglow-install"
   pack_root "${TMP}/standard" "${TMP}/standard.cpio.gz"
   run_qemu "${TMP}/standard.cpio.gz" "${TMP}/standard.log" -display none
   grep -q "Alpenglow standard installer smoke OK" "${TMP}/standard.log" || fail "standard installer smoke failed"

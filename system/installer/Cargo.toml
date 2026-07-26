@@ -12,10 +12,6 @@ name = "alpenglow-install"
 path = "src/bin/alpenglow-install.rs"
 
 [[bin]]
-name = "alpenglow-install-tui"
-path = "src/bin/alpenglow-install-tui.rs"
-
-[[bin]]
 name = "alpenglow-install-gui"
 path = "src/bin/alpenglow-install-gui.rs"
 required-features = ["gui"]

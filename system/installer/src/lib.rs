@@ -73,7 +73,7 @@ where
     (tui, source, target)
 }
 
-/// Shared entry for `alpenglow-install` and the `alpenglow-install-tui` wrapper.
+/// Shared installer entry (`alpenglow-install --tui` enables the TUI).
 pub fn run_installer<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
