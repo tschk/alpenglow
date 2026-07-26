@@ -20,6 +20,7 @@ LIVE_CONFIG="${OUT_DIR}/limine-aarch64-live.conf"
 ISO_ROOT="${OUT_DIR}/iso-aarch64"
 MNT_ESP="${OUT_DIR}/mnt/esp-aarch64"
 LOOP_DEV=""
+LIVE_ROOT=""
 IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-1536}"
 ESP_SIZE_MB="${ESP_SIZE_MB:-512}"
 
@@ -39,6 +40,9 @@ cleanup() {
   if [ -n "${LOOP_DEV}" ]; then
     sudo umount "${MNT_ESP}" >/dev/null 2>&1 || true
     sudo losetup -d "${LOOP_DEV}" >/dev/null 2>&1 || true
+  fi
+  if [ -n "${LIVE_ROOT}" ] && [ -d "${LIVE_ROOT}" ]; then
+    rm -rf "${LIVE_ROOT}"
   fi
 }
 trap cleanup EXIT
@@ -93,21 +97,31 @@ sudo umount "${MNT_ESP}"
 sudo losetup -d "${LOOP_DEV}"
 LOOP_DEV=""
 
-# ponytail: free ~700 MB before zstd — kernel tarball + rootfs package tree
-rm -f "${ARM_DIR}/linux-*.tar.xz"
+# Free disk before zstd: boot initramfs is already on disk; drop the full rootfs tree.
+rm -f "${ARM_DIR}/linux-"*.tar.xz "${ARM_DIR}/initramfs-proper.cpio.lz4"
 if [ -d "${ROOTFS}" ]; then
-  for _d in bin lib sbin usr var etc; do
-    [ -d "${ROOTFS}/${_d}" ] && find "${ROOTFS}/${_d}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
-  done
+  rm -rf "${ROOTFS}" 2>/dev/null || \
+    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
+      rm -rf "/out/rootfs-${EDITION}" 2>/dev/null || true
 fi
+for _k in "${ARM_DIR}"/linux-*; do
+  [ -e "${_k}" ] || continue
+  rm -rf "${_k}" 2>/dev/null || \
+    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
+      sh -c 'rm -rf /out/linux-*' 2>/dev/null || true
+  break
+done
+docker image prune -f >/dev/null 2>&1 || true
 
-zstd -T0 -19 -f "${IMAGE}" -o "${COMPRESSED_IMAGE}"
+zstd -T0 -6 --rm -f "${IMAGE}" -o "${COMPRESSED_IMAGE}"
 sha256_file "${COMPRESSED_IMAGE}"
 
-mkdir -p "${ROOTFS}/dev/pts" "${ROOTFS}/etc/dinit.d/boot.d" "${ROOTFS}/proc" "${ROOTFS}/run/user/0" "${ROOTFS}/run/alpenglow" "${ROOTFS}/sys" "${ROOTFS}/usr/bin"
-cp "${INSTALLER}" "${ROOTFS}/usr/bin/alpenglow-install"
-cp "${COMPRESSED_IMAGE}" "${ROOTFS}/run/alpenglow/alpenglow.img.zst"
-(cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${LIVE_INITRAMFS}")
+LIVE_ROOT="$(mktemp -d)"
+( cd "${LIVE_ROOT}" && gzip -dc "${INITRAMFS}" | cpio -idm 2>/dev/null )
+mkdir -p "${LIVE_ROOT}/run/alpenglow" "${LIVE_ROOT}/usr/bin"
+cp "${INSTALLER}" "${LIVE_ROOT}/usr/bin/alpenglow-install"
+cp "${COMPRESSED_IMAGE}" "${LIVE_ROOT}/run/alpenglow/alpenglow.img.zst"
+( cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${LIVE_INITRAMFS}" )
 
 cat > "${LIVE_CONFIG}" <<'EOF'
 timeout: 3
