@@ -61,6 +61,23 @@ test -s "${KERNEL}"
 test -s "${INITRAMFS}"
 test -d "${ROOTFS}"
 
+# Rootfs can be hundreds of MB; drop it before allocating the GPT image.
+rm -f "${ARM_DIR}/linux-"*.tar.xz "${ARM_DIR}/initramfs-proper.cpio.lz4"
+if [ -d "${ROOTFS}" ]; then
+  rm -rf "${ROOTFS}" 2>/dev/null || \
+    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
+      rm -rf "/out/rootfs-${EDITION}" 2>/dev/null || true
+fi
+for _k in "${ARM_DIR}"/linux-*; do
+  [ -e "${_k}" ] || continue
+  rm -rf "${_k}" 2>/dev/null || \
+    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
+      sh -c 'rm -rf /out/linux-*' 2>/dev/null || true
+  break
+done
+docker image prune -f >/dev/null 2>&1 || true
+docker system prune -f >/dev/null 2>&1 || true
+
 mkdir -p "${OUT_DIR}" "${ASSET_DIR}" "${MNT_ESP}"
 if [ ! -f "${LIMINE_DIR}/BOOTAA64.EFI" ]; then
   mkdir -p "${LIMINE_DIR}"
@@ -96,24 +113,6 @@ sudo cp "${INITRAMFS}" "${MNT_ESP}/EFI/Alpenglow/initramfs.cpio.gz"
 sudo umount "${MNT_ESP}"
 sudo losetup -d "${LOOP_DEV}"
 LOOP_DEV=""
-
-# Free disk before zstd: boot initramfs is already on disk; drop the full rootfs tree.
-rm -f "${ARM_DIR}/linux-"*.tar.xz "${ARM_DIR}/initramfs-proper.cpio.lz4"
-if [ -d "${ROOTFS}" ]; then
-  rm -rf "${ROOTFS}" 2>/dev/null || \
-    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
-      rm -rf "/out/rootfs-${EDITION}" 2>/dev/null || true
-fi
-for _k in "${ARM_DIR}"/linux-*; do
-  [ -e "${_k}" ] || continue
-  rm -rf "${_k}" 2>/dev/null || \
-    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
-      sh -c 'rm -rf /out/linux-*' 2>/dev/null || true
-  break
-done
-docker image prune -f >/dev/null 2>&1 || true
-docker system prune -f >/dev/null 2>&1 || true
-rm -f "${ARM_DIR}/vmlinuz" "${OUT_DIR}/limine-aarch64.tar.xz"
 
 zstd -T0 -6 -c "${IMAGE}" > "${COMPRESSED_IMAGE}"
 rm -f "${IMAGE}"

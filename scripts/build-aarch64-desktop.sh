@@ -114,9 +114,10 @@ chmod 755 "${ROOTFS}/init" "${ROOTFS}/usr/local/bin/start-desktop"
 
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${OUT_DIR}/initramfs-proper.cpio.lz4")
-rm -f "${OUT_DIR}/vmlinuz" "${OUT_DIR}/.kernel-aarch64-desktop.ok"
-KERNEL_PROFILE=desktop sh "${ROOT_DIR}/system/backends/appliance/scripts/build-kernel-aarch64.sh" "${OUT_DIR}" "${ROOT_DIR}"
-cp "${OUT_DIR}/vmlinuz" "${KERNEL}"
+if [ ! -s "${KERNEL}" ]; then
+  KERNEL_PROFILE=desktop sh "${ROOT_DIR}/system/backends/appliance/scripts/build-kernel-aarch64.sh" "${OUT_DIR}" "${ROOT_DIR}"
+  cp "${OUT_DIR}/vmlinuz" "${KERNEL}"
+fi
 
 test -s "${INITRAMFS}"
 test -s "${KERNEL}"
