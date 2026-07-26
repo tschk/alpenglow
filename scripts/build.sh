@@ -44,4 +44,7 @@ export BUILD_ONLY
 if [ "$BOOT" = "1" ]; then
   exec sh "${ROOT_DIR}/scripts/boot-native.sh"
 fi
+if [ "$BUILD_ONLY" = "1" ]; then
+  exec sh "${ROOT_DIR}/system/backends/appliance/scripts/build-rootfs.sh"
+fi
 exec sh "${ROOT_DIR}/scripts/boot-native.sh"
