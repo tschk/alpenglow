@@ -55,6 +55,12 @@ assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.co
 # Build scripts
 assert_file scripts/boot-native.sh
 sh -n scripts/boot-native.sh 2>/dev/null || true
+for lib_script in scripts/lib/*.sh; do
+  [ -f "${lib_script}" ] || continue
+  sh -n "${lib_script}" 2>/dev/null || true
+done
+assert_file scripts/build.sh
+sh -n scripts/build.sh 2>/dev/null || true
 assert_file scripts/build-release.sh
 sh -n scripts/build-release.sh 2>/dev/null || true
 
