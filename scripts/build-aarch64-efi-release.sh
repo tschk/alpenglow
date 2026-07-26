@@ -21,7 +21,7 @@ ISO_ROOT="${OUT_DIR}/iso-aarch64"
 MNT_ESP="${OUT_DIR}/mnt/esp-aarch64"
 LOOP_DEV=""
 LIVE_ROOT=""
-IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-1536}"
+IMAGE_SIZE_MB="${IMAGE_SIZE_MB:-1024}"
 ESP_SIZE_MB="${ESP_SIZE_MB:-512}"
 
 require_cmd() {
@@ -112,8 +112,11 @@ for _k in "${ARM_DIR}"/linux-*; do
   break
 done
 docker image prune -f >/dev/null 2>&1 || true
+docker system prune -f >/dev/null 2>&1 || true
+rm -f "${ARM_DIR}/vmlinuz" "${OUT_DIR}/limine-aarch64.tar.xz"
 
-zstd -T0 -6 --rm -f "${IMAGE}" -o "${COMPRESSED_IMAGE}"
+zstd -T0 -6 -c "${IMAGE}" > "${COMPRESSED_IMAGE}"
+rm -f "${IMAGE}"
 sha256_file "${COMPRESSED_IMAGE}"
 
 LIVE_ROOT="$(mktemp -d)"
