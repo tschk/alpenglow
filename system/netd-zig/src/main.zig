@@ -20,6 +20,9 @@ const sysRecv = common.sysRecv;
 const makeDir = common.makeDir;
 const makePathRecursive = common.makePathRecursive;
 const writeFile = common.writeFile;
+const writeFileMode = common.writeFileMode;
+const getenv = common.getenv;
+const envOrDefault = common.envOrDefault;
 const writeStderr = common.writeStderr;
 
 const DEFAULT_SYS_CLASS_NET = "/sys/class/net";
@@ -277,7 +280,7 @@ fn writeSnapshot(gpa: std.mem.Allocator, snapshot: Snapshot, state_json: []const
     try writeFile(state_json, json, true);
 
     if (std.fs.path.dirname(runtime_env)) |parent| makePathRecursive(parent) catch {};
-    try writeFile(runtime_env, env, true);
+    try writeFileMode(runtime_env, env, true, 0o600);
 }
 
 fn updateSnapshot(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []const u8, runtime_env: []const u8) !void {
@@ -354,23 +357,6 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
             try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
         }
     }
-}
-
-extern "c" var environ: [*:null]?[*:0]u8;
-
-fn getenv(key: []const u8) ?[]const u8 {
-    var i: usize = 0;
-    while (environ[i]) |entry| : (i += 1) {
-        const e = std.mem.span(entry);
-        if (std.mem.startsWith(u8, e, key) and e.len > key.len and e[key.len] == '=') {
-            return e[key.len + 1 ..];
-        }
-    }
-    return null;
-}
-
-fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
-    return getenv(key) orelse default;
 }
 
 fn nowUnixMs() u64 {

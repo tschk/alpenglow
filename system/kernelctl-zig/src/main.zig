@@ -33,6 +33,33 @@ const CgPol = struct {
     pids_max: ?u64,
 };
 
+const InvalidCgroupPath = error{InvalidCgroupPath};
+
+fn validateCgroupPolicyPath(path: []const u8) InvalidCgroupPath!void {
+    if (std.mem.indexOf(u8, path, "..") != null) return error.InvalidCgroupPath;
+    const prefix = "alpenglow/";
+    if (!mem.startsWith(u8, path, prefix)) return error.InvalidCgroupPath;
+    const rest = path[prefix.len..];
+    if (rest.len == 0) return error.InvalidCgroupPath;
+    for (rest) |ch| {
+        switch (ch) {
+            'a'...'z', '0'...'9', '.', '_', '-' => {},
+            else => return error.InvalidCgroupPath,
+        }
+    }
+}
+
+fn validateCgroupAttachGroup(group: []const u8) InvalidCgroupPath!void {
+    if (group.len == 0 or std.mem.indexOf(u8, group, "..") != null) return error.InvalidCgroupPath;
+    if (std.mem.indexOfScalar(u8, group, '/')) |_| return error.InvalidCgroupPath;
+    for (group) |ch| {
+        switch (ch) {
+            'a'...'z', '0'...'9', '.', '_', '-' => {},
+            else => return error.InvalidCgroupPath,
+        }
+    }
+}
+
 
 fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
     var path_buf: [4096]u8 = undefined;
@@ -117,6 +144,7 @@ fn mainInner() !void {
     switch (cmd) {
         .attach => {
             if (group.len == 0 or pid == 0) return;
+            try validateCgroupAttachGroup(group);
             const cg = try std.fmt.allocPrint(allocator, "/sys/fs/cgroup/alpenglow/{s}", .{group});
             defer allocator.free(cg);
             makePathRecursive(cg) catch {};
@@ -180,6 +208,7 @@ fn applyCgroups(alloc: mem.Allocator, groups: []CgPol, dry: bool) !void {
     if (dry) return;
     makeDir("/sys/fs/cgroup/alpenglow/") catch {};
     for (groups) |g| {
+        try validateCgroupPolicyPath(g.path);
         const dir = try std.fmt.allocPrint(alloc, "/sys/fs/cgroup/{s}", .{g.path});
         defer alloc.free(dir);
         makeDir(dir) catch {};
@@ -240,6 +269,34 @@ fn kernelctlTestTmpAbsPath(alloc: mem.Allocator, tmp: std.testing.TmpDir) ![]con
 
 fn readTmpFile(tmp: std.testing.TmpDir, name: []const u8, buf: []u8) ![]u8 {
     return tmp.dir.readFile(std.testing.io, name, buf);
+}
+
+test "validateCgroupPolicyPath accepts policy paths" {
+    try validateCgroupPolicyPath("alpenglow/system");
+    try validateCgroupPolicyPath("alpenglow/foreground-renderer");
+    try validateCgroupPolicyPath("alpenglow/gpu-compositor");
+}
+
+test "validateCgroupPolicyPath rejects unsafe paths" {
+    const testing = std.testing;
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupPolicyPath("alpenglow/../etc"));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupPolicyPath("alpenglow/system/extra"));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupPolicyPath("other/system"));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupPolicyPath("alpenglow/"));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupPolicyPath("alpenglow/BAD"));
+}
+
+test "validateCgroupAttachGroup accepts group names" {
+    try validateCgroupAttachGroup("system");
+    try validateCgroupAttachGroup("foreground-renderer");
+}
+
+test "validateCgroupAttachGroup rejects unsafe groups" {
+    const testing = std.testing;
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupAttachGroup(".."));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupAttachGroup("system/extra"));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupAttachGroup(""));
+    try testing.expectError(error.InvalidCgroupPath, validateCgroupAttachGroup("BAD"));
 }
 
 test "wU64 writes correctly" {

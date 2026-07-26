@@ -225,14 +225,38 @@ pub fn readFileLimited(allocator: std.mem.Allocator, path: []const u8, max: usiz
 }
 
 pub fn writeFile(path: []const u8, data: []const u8, truncate: bool) !void {
+    return writeFileMode(path, data, truncate, 0o644);
+}
+
+pub fn writeFileMode(path: []const u8, data: []const u8, truncate: bool, mode: linux.mode_t) !void {
     var buf: [4096]u8 = undefined;
     const path_z = pathToZ(path, &buf) orelse return error.NameTooLong;
     var flags: linux.O = .{ .ACCMODE = .WRONLY, .CREAT = true, .CLOEXEC = true };
     if (truncate) flags.TRUNC = true;
-    const fd = try sysOpen(path_z, flags, 0o644);
+    const fd = try sysOpen(path_z, flags, mode);
     defer sysClose(fd);
     try sysWrite(fd, data);
 }
+
+extern "c" var environ: [*:null]?[*:0]u8;
+
+pub fn getenv(key: []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (environ[i]) |entry| : (i += 1) {
+        const e = std.mem.span(entry);
+        if (std.mem.startsWith(u8, e, key) and e.len > key.len and e[key.len] == '=') {
+            return e[key.len + 1 ..];
+        }
+    }
+    return null;
+}
+
+pub fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
+    return getenv(key) orelse default;
+}
+
+// Follow-up: consolidate netd-zig, pressurectl-zig, kernelctl-zig, and zramctl-zig
+// into system/alpenglow-ctl/ with shared subcommands and zig-daemon-common helpers.
 
 pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);

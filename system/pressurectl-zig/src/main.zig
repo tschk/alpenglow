@@ -14,12 +14,11 @@ const sysMkdir = common.sysMkdir;
 const makeDir = common.makeDir;
 const makePathRecursive = common.makePathRecursive;
 const writeFile = common.writeFile;
+const envOrDefault = common.envOrDefault;
 const writeStderr = common.writeStderr;
 
 const DEFAULT_PRESSURE_PATH = "/proc/pressure/memory";
 const DEFAULT_STATE_JSON = "/run/alpenglow/pressurectl/state.json";
-
-extern "c" var environ: [*:null]?[*:0]u8;
 
 const Pressure = struct {
     avg10: ?f64 = null,
@@ -27,21 +26,6 @@ const Pressure = struct {
     avg300: ?f64 = null,
     total: ?u64 = null,
 };
-
-fn getenv(key: []const u8) ?[]const u8 {
-    var i: usize = 0;
-    while (environ[i]) |entry| : (i += 1) {
-        const e = std.mem.span(entry);
-        if (std.mem.startsWith(u8, e, key) and e.len > key.len and e[key.len] == '=') {
-            return e[key.len + 1 ..];
-        }
-    }
-    return null;
-}
-
-fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
-    return getenv(key) orelse default;
-}
 
 fn readPressure(path: []const u8) !Pressure {
     var path_buf: [4096]u8 = undefined;
