@@ -8,19 +8,23 @@ mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 
-mkdir -p /dev/shm /run /tmp /sysroot
+mkdir -p /dev/shm /run /tmp /sysroot /mnt
 mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
-mkdir -p /run/user/0 /tmp
+mkdir -p /run/user/0 /tmp /mnt/root
 
 # Parse kernel cmdline
 ALPENGLOW_IMAGE=""
 ALPENGLOW_STATE=""
+ALPENGLOW_STATE_ENCRYPTED=""
+ALPENGLOW_STATE_KEY=""
 ALPENGLOW_DEBUG=""
 
 for arg in $(cat /proc/cmdline); do
   case "${arg}" in
     alpenglow.image=*)  ALPENGLOW_IMAGE="${arg#alpenglow.image=}" ;;
     alpenglow.state=*)  ALPENGLOW_STATE="${arg#alpenglow.state=}" ;;
+    alpenglow.state.encrypted=*) ALPENGLOW_STATE_ENCRYPTED="${arg#alpenglow.state.encrypted=}" ;;
+    alpenglow.state.key=*) ALPENGLOW_STATE_KEY="${arg#alpenglow.state.key=}" ;;
     alpenglow.debug)    ALPENGLOW_DEBUG="1" ;;
   esac
 done
@@ -58,13 +62,15 @@ if [ -n "${ALPENGLOW_STATE}" ] && ! valid_state_path "${ALPENGLOW_STATE}"; then
   rescue_or_halt "Alpenglow: rejected alpenglow.state=${ALPENGLOW_STATE}"
 fi
 
-for m in erofs squashfs bcachefs virtio-blk virtio-net \
+for m in erofs squashfs bcachefs dm-crypt virtio-blk virtio-net \
          snd snd-pcm cfg80211 mac80211 iwlwifi ath9k \
          hid usbhid i2c-dev acpi-cpufreq; do
   (modprobe "$m" 2>/dev/null || true) &
 done
 wait
 
+# find_image: leave the hosting filesystem mounted at /mnt so the image
+# path stays valid for a direct erofs/squashfs mount (no copy to /sysroot).
 find_image() {
   if [ -n "${ALPENGLOW_IMAGE}" ] && [ -f "${ALPENGLOW_IMAGE}" ]; then
     echo "${ALPENGLOW_IMAGE}"; return
@@ -76,31 +82,88 @@ find_image() {
   local found
   found=$(blkid -L alpenglow-boot 2>/dev/null || true)
   if [ -n "${found}" ]; then
-    mount -r "${found}" /mnt 2>/dev/null || true
-    for ext in erofs squashfs; do
-      img="/mnt/alpenglow/current.${ext}"
-      if [ -f "${img}" ]; then
-        umount /mnt
-        echo "${img}"
-        return
-      fi
-    done
-    umount /mnt 2>/dev/null || true
+    if mount -r "${found}" /mnt 2>/dev/null; then
+      for ext in erofs squashfs; do
+        img="/mnt/alpenglow/current.${ext}"
+        if [ -f "${img}" ]; then
+          echo "${img}"
+          return
+        fi
+      done
+      umount /mnt 2>/dev/null || true
+    fi
   fi
   for dev in /dev/vda* /dev/sda* /dev/nvme0n1* /dev/mmcblk0*; do
     [ -b "${dev}" ] || continue
-    mount -r "${dev}" /mnt 2>/dev/null || continue
-    for ext in erofs squashfs; do
-      img="/mnt/alpenglow/current.${ext}"
-      if [ -f "${img}" ]; then
-        umount /mnt
-        echo "${img}"
-        return
-      fi
-    done
-    umount /mnt 2>/dev/null || true
+    if mount -r "${dev}" /mnt 2>/dev/null; then
+      for ext in erofs squashfs; do
+        img="/mnt/alpenglow/current.${ext}"
+        if [ -f "${img}" ]; then
+          echo "${img}"
+          return
+        fi
+      done
+      umount /mnt 2>/dev/null || true
+    fi
   done
   echo ""
+}
+
+state_block_dev() {
+  spec="$1"
+  case "${spec}" in
+    LABEL=*) blkid -L "${spec#LABEL=}" 2>/dev/null || true ;;
+    /dev/*) echo "${spec}" ;;
+    *) echo "${spec}" ;;
+  esac
+}
+
+state_is_luks() {
+  dev="$1"
+  [ -n "${dev}" ] && [ "$(blkid -o value -s TYPE "${dev}" 2>/dev/null)" = "crypto_LUKS" ]
+}
+
+open_luks_state() {
+  spec="$1"
+  dev="$(state_block_dev "${spec}")"
+  if [ -z "${dev}" ]; then
+    echo "state device not found: ${spec}" >&2
+    return 1
+  fi
+
+  if [ -e /dev/mapper/alpenglow-state ]; then
+    echo /dev/mapper/alpenglow-state
+    return 0
+  fi
+
+  need_open=0
+  if [ "${ALPENGLOW_STATE_ENCRYPTED}" = "1" ]; then
+    need_open=1
+  elif state_is_luks "${dev}"; then
+    need_open=1
+  fi
+
+  if [ "${need_open}" -eq 0 ]; then
+    echo "${spec}"
+    return 0
+  fi
+
+  if ! state_is_luks "${dev}"; then
+    echo "alpenglow.state.encrypted=1 but device is not LUKS: ${dev}" >&2
+    return 1
+  fi
+
+  if ! command -v cryptsetup >/dev/null 2>&1; then
+    echo "LUKS state device requires cryptsetup" >&2
+    return 1
+  fi
+
+  if [ -n "${ALPENGLOW_STATE_KEY}" ] && [ -r "${ALPENGLOW_STATE_KEY}" ]; then
+    cryptsetup luksOpen "${dev}" alpenglow-state --key-file "${ALPENGLOW_STATE_KEY}" || return 1
+  else
+    cryptsetup luksOpen "${dev}" alpenglow-state || return 1
+  fi
+  echo /dev/mapper/alpenglow-state
 }
 
 ROOT_IMAGE=$(find_image)
@@ -116,11 +179,12 @@ case "${ROOT_IMAGE}" in
 esac
 
 if [ -n "${ALPENGLOW_STATE}" ]; then
-  mount -t bcachefs -o rw,nosuid,nodev "${ALPENGLOW_STATE}" /mnt/root/state 2>/dev/null || \
-    rescue_or_halt "Alpenglow: bcachefs state mount failed: ${ALPENGLOW_STATE}"
+  state_spec="${ALPENGLOW_STATE}"
 else
-  mount -t bcachefs -o rw,nosuid,nodev LABEL=alpenglow-state /mnt/root/state 2>/dev/null || \
-    rescue_or_halt "Alpenglow: bcachefs state mount failed: LABEL=alpenglow-state"
+  state_spec="LABEL=alpenglow-state"
 fi
+state_dev="$(open_luks_state "${state_spec}")" || rescue_or_halt "Alpenglow: LUKS state open failed: ${state_spec}"
+mount -t bcachefs -o rw,nosuid,nodev "${state_dev}" /mnt/root/state 2>/dev/null || \
+  rescue_or_halt "Alpenglow: bcachefs state mount failed: ${state_dev}"
 
 exec switch_root /mnt/root /sbin/init

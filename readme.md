@@ -195,6 +195,6 @@ Alpenglow has one root model:
 
 QEMU boot is verified. Real hardware boot has also been tested on Orange Pi 3B and Mac mini 2012.
 
-Release **v0.1.482+** hardens Oil (fail-closed APK verification, download checksums, URL allowlists), Dropbear (key-only), dnsmasq (loopback), greetd autologin (non-root `alpenglow` user), and initramfs cmdline validation. Set `OIL_INSECURE_NO_VERIFY=1` only for local Oil development.
+Release **v0.1.487+** adds Oil dependency resolution and streaming installs, boot pipeline consolidation (`scripts/lib/`), optional LUKS `/state`, in-place initramfs root mounts, kernelctl cgroup path validation, and hardened netd runtime permissions.
 
 See [AGENTS.md](AGENTS.md) for full milestone table and [docs/](docs/) for architecture docs.
