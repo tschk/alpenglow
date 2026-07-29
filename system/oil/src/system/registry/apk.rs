@@ -1,9 +1,9 @@
 use super::{PackageIndex, PackageMetadata};
 use crate::error::{OilError, Result};
+use crate::util::cache::{cache_key, is_cache_fresh};
 use flate2::{read::MultiGzDecoder, write::GzEncoder, Compression};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use crate::util::cache::{cache_key, is_cache_fresh};
 
 pub struct ApkRegistry {
     mirror: String,

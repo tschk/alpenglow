@@ -3,11 +3,11 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
-pub mod util;
 #[cfg(feature = "wax")]
 mod tap;
 #[cfg(test)]
 mod test_support;
+pub mod util;
 
 use clap::{Parser, Subcommand};
 use error::Result;
@@ -205,11 +205,7 @@ fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Packag
             };
             match result {
                 Ok(index) => {
-                    eprintln!(
-                        "Loaded {} packages from tap {}",
-                        index.packages.len(),
-                        name
-                    );
+                    eprintln!("Loaded {} packages from tap {}", index.packages.len(), name);
                     all.extend(index.packages);
                 }
                 Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
@@ -323,7 +319,12 @@ fn run_system(command: SystemCommands) -> Result<()> {
                     );
                 } else {
                     install_package(pkg, &dest)?;
-                    println!("Installed {} {} into {}", pkg.name, pkg.version, dest.display());
+                    println!(
+                        "Installed {} {} into {}",
+                        pkg.name,
+                        pkg.version,
+                        dest.display()
+                    );
                 }
             }
             Ok(())
@@ -614,89 +615,94 @@ fn run_outdated() -> Result<()> {
 }
 
 #[cfg(feature = "wax")]
+fn handle_tap_add(taps: &mut tap::Taps, name: &str) -> Result<()> {
+    let (name, url) = tap::normalize_tap(name);
+    taps.add(&name, &url);
+    taps.save()?;
+    println!("Tapped {} ({})", name, url);
+    Ok(())
+}
+
+#[cfg(feature = "wax")]
+fn handle_tap_remove(taps: &mut tap::Taps, name: &str) -> Result<()> {
+    taps.remove(name);
+    taps.save()?;
+    println!("Untapped {}", name);
+    Ok(())
+}
+
+#[cfg(feature = "wax")]
+fn handle_tap_update(taps: &mut tap::Taps, tap: Option<String>) -> Result<()> {
+    if let Some(name) = tap {
+        let entry = taps.list().into_iter().find(|t| t.name == name);
+        if let Some(entry) = entry {
+            let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+            let index = registry.update()?;
+            println!("Updated {} ({} packages)", name, index.packages.len());
+        } else {
+            return Err(error::OilError::Install(format!("tap not found: {}", name)));
+        }
+    } else {
+        let entries: Vec<_> = taps.list().into_iter().cloned().collect();
+        std::thread::scope(|s| {
+            let mut handles = Vec::new();
+            for entry in entries {
+                handles.push(s.spawn(move || {
+                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
+                    let result = registry.update();
+                    (entry.name, result)
+                }));
+            }
+            for handle in handles {
+                let (name, result) = match handle.join().map_err(|_| {
+                    error::OilError::Install("thread panicked while updating tap".into())
+                }) {
+                    Ok(res) => res,
+                    Err(e) => {
+                        eprintln!("warning: {e}");
+                        continue;
+                    }
+                };
+                match result {
+                    Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
+                    Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
+                }
+            }
+        });
+    }
+    Ok(())
+}
+
+#[cfg(feature = "wax")]
+fn handle_tap_list(taps: &mut tap::Taps) -> Result<()> {
+    let list = taps.list();
+    if list.is_empty() {
+        println!("No taps configured.");
+    } else {
+        for t in list {
+            println!("{} {}", t.name, t.url);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "wax")]
 fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
     let mut taps = tap::Taps::new()?;
 
     match action {
-        Some(TapAction::Add { tap: name }) => {
-            let (name, url) = tap::normalize_tap(&name);
-            taps.add(&name, &url);
-            taps.save()?;
-            println!("Tapped {} ({})", name, url);
-        }
-        Some(TapAction::Remove { tap: name }) => {
-            taps.remove(&name);
-            taps.save()?;
-            println!("Untapped {}", name);
-        }
-        Some(TapAction::Update { tap }) => {
-            if let Some(name) = tap {
-                let entry = taps.list().into_iter().find(|t| t.name == name);
-                if let Some(entry) = entry {
-                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
-                    let index = registry.update()?;
-                    println!("Updated {} ({} packages)", name, index.packages.len());
-                } else {
-                    return Err(error::OilError::Install(format!("tap not found: {}", name)));
-                }
-            } else {
-                let entries: Vec<_> = taps.list().into_iter().cloned().collect();
-                std::thread::scope(|s| {
-                    let mut handles = Vec::new();
-                    for entry in entries {
-                        handles.push(s.spawn(move || {
-                            let registry = tap::TapRegistry::new(&entry.name, &entry.url);
-                            let result = registry.update();
-                            (entry.name, result)
-                        }));
-                    }
-                    for handle in handles {
-                        let (name, result) = match handle.join().map_err(|_| {
-                            error::OilError::Install("thread panicked while updating tap".into())
-                        }) {
-                            Ok(res) => res,
-                            Err(e) => {
-                                eprintln!("warning: {e}");
-                                continue;
-                            }
-                        };
-                        match result {
-                            Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
-                            Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
-                        }
-                    }
-                });
-            }
-        }
-        Some(TapAction::List) => {
-            let list = taps.list();
-            if list.is_empty() {
-                println!("No taps configured.");
-            } else {
-                for t in list {
-                    println!("{} {}", t.name, t.url);
-                }
-            }
-        }
+        Some(TapAction::Add { tap: name }) => handle_tap_add(&mut taps, &name),
+        Some(TapAction::Remove { tap: name }) => handle_tap_remove(&mut taps, &name),
+        Some(TapAction::Update { tap }) => handle_tap_update(&mut taps, tap),
+        Some(TapAction::List) => handle_tap_list(&mut taps),
         None => {
             if let Some(name) = tap {
-                let (name, url) = tap::normalize_tap(&name);
-                taps.add(&name, &url);
-                taps.save()?;
-                println!("Tapped {} ({})", name, url);
+                handle_tap_add(&mut taps, &name)
             } else {
-                let list = taps.list();
-                if list.is_empty() {
-                    println!("No taps configured.");
-                } else {
-                    for t in list {
-                        println!("{} {}", t.name, t.url);
-                    }
-                }
+                handle_tap_list(&mut taps)
             }
         }
     }
-    Ok(())
 }
 
 fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
@@ -742,10 +748,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         let actual = format!("{:x}", hasher.finalize());
         let expected = expected.trim().to_ascii_lowercase();
         if actual != expected {
-            return Err(error::OilError::ChecksumMismatch {
-                expected,
-                actual,
-            });
+            return Err(error::OilError::ChecksumMismatch { expected, actual });
         }
     }
 
