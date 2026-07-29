@@ -32,9 +32,6 @@ impl PackageIndex {
             for prov in &pkg.provides {
                 provides_index.entry(prov.clone()).or_insert(i);
             }
-        }
-
-        for (i, pkg) in packages.iter().enumerate() {
             name_index.entry(pkg.name.clone()).or_insert(i);
         }
 
