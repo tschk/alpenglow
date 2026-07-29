@@ -4,10 +4,11 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+. "${ROOT_DIR}/scripts/lib/initramfs-codec-identity.sh"
 OUT_DIR="${ROOT_DIR}/build/release"
 IMAGE="${OUT_DIR}/alpenglow.img"
 KERNEL="${OUT_DIR}/vmlinuz"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
+INITRAMFS=""
 LIMINE_DIR="${OUT_DIR}/limine"
 MNT_ROOT="${OUT_DIR}/mnt/root"
 MNT_STATE="${OUT_DIR}/mnt/state"
@@ -44,14 +45,14 @@ KERNEL_BUILD=1 BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5 
 }
 cp "${KERNEL}" "${OUT_DIR}/vmlinuz" 2>/dev/null || true
 cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}" 2>/dev/null || true
-for native_initramfs in "${OUT_DIR}/../native/initramfs.cpio.zst" "${OUT_DIR}/../native/initramfs.cpio.lz4"; do
-  if [ -f "${native_initramfs}" ]; then
-    cp "${native_initramfs}" "${INITRAMFS}"
-    break
-  fi
-done
+INITRAMFS="$(initramfs_resolve_release_artifact "${OUT_DIR}/../native" "${OUT_DIR}" 2>/dev/null || true)"
+if [ -z "${INITRAMFS}" ] && [ -f "${OUT_DIR}/initramfs.cpio.gz" ]; then
+  INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
+fi
 test -f "${KERNEL}" || { echo "missing built kernel: ${KERNEL}" >&2; exit 1; }
-test -f "${INITRAMFS}" || { echo "missing built initramfs: ${INITRAMFS}" >&2; exit 1; }
+test -n "${INITRAMFS}" && test -f "${INITRAMFS}" || { echo "missing built initramfs under ${OUT_DIR}" >&2; exit 1; }
+initramfs_assert_codec_identity "${INITRAMFS}" || exit 1
+INITRAMFS_BASENAME="$(basename -- "${INITRAMFS}")"
 
 # ── 2. Fetch Limine bootloader ─────────────────────────────────────
 echo "→ Fetching Limine ${LIMINE_VERSION}..."
@@ -105,12 +106,12 @@ echo "→ Installing system..."
 sudo mount "${LOOP_ROOT}" "${MNT_ROOT}"
 sudo mkdir -p "${MNT_ROOT}/boot" "${MNT_ROOT}/state"
 sudo cp "${KERNEL}" "${MNT_ROOT}/boot/vmlinuz"
-sudo cp "${INITRAMFS}" "${MNT_ROOT}/boot/initramfs.cpio.gz"
+sudo cp "${INITRAMFS}" "${MNT_ROOT}/boot/${INITRAMFS_BASENAME}"
 
 # ── 6. Install Limine ─────────────────────────────────────────────
 echo "→ Installing Limine bootloader..."
 sudo mkdir -p "${MNT_ROOT}/boot/limine"
-cat > /tmp/limine.conf << 'LIMINE'
+cat > /tmp/limine.conf << LIMINE
 # Alpenglow Limine configuration
 timeout: 5
 verbose: no
@@ -119,7 +120,7 @@ verbose: no
   protocol: linux
   path: boot():/boot/vmlinuz
   cmdline: console=tty0 console=ttyS0 init=/init alpenglow.state=LABEL=alpenglow-state
-  module_path: boot():/boot/initramfs.cpio.gz
+  module_path: boot():/boot/${INITRAMFS_BASENAME}
 LIMINE
 sudo cp /tmp/limine.conf "${MNT_ROOT}/boot/limine/limine.conf"
 sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 2>/dev/null || true

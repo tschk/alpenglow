@@ -106,4 +106,10 @@ assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
 assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"alpenglowed"'
 scripts/ci-profile-matrix.sh
 
+assert_file scripts/lib/initramfs-codec-identity.sh
+assert_file scripts/test-initramfs-codec-identity.sh
+sh -n scripts/lib/initramfs-codec-identity.sh
+sh -n scripts/test-initramfs-codec-identity.sh
+sh scripts/test-initramfs-codec-identity.sh
+
 printf 'ci-os-appliance: ok\n'
