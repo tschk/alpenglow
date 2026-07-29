@@ -190,6 +190,80 @@ fn is_safe_symlink(link_target: &Path, dest: &Path, dest_dir: &Path) -> bool {
     resolved.starts_with(dest_dir)
 }
 
+fn process_tar_entry<R: std::io::Read>(
+    mut entry: tar::Entry<'_, R>,
+    dest_dir: &Path,
+    files: &mut Vec<PathBuf>,
+    dirs: &mut Vec<PathBuf>,
+    created_dirs: &mut std::collections::HashSet<PathBuf>,
+) -> Result<()> {
+    let entry_path = entry.path()?;
+    let entry_str = entry_path.to_string_lossy();
+
+    if entry_str == ".PKGINFO" || entry_str == ".INSTALL" || entry_str.starts_with(".SIGN.") {
+        return Ok(());
+    }
+
+    let stripped = entry_str
+        .strip_prefix("./")
+        .unwrap_or(entry_str.as_ref())
+        .trim_start_matches('/');
+    if stripped.is_empty() || stripped.contains("..") {
+        return Ok(());
+    }
+
+    let dest = dest_dir.join(stripped);
+    if let Some(parent) = dest.parent() {
+        if !created_dirs.contains(parent) {
+            std::fs::create_dir_all(parent)?;
+            let mut current = parent;
+            while !created_dirs.contains(current) {
+                created_dirs.insert(current.to_path_buf());
+                current = match current.parent() {
+                    Some(p) => p,
+                    None => break,
+                };
+            }
+        }
+    }
+
+    let kind = entry.header().entry_type();
+    if kind.is_dir() {
+        if !created_dirs.contains(&dest) {
+            std::fs::create_dir_all(&dest)?;
+            created_dirs.insert(dest.clone());
+        }
+        dirs.push(dest);
+    } else if kind.is_symlink() {
+        if let Some(link_target) = entry.link_name()? {
+            if !is_safe_symlink(link_target.as_ref(), &dest, dest_dir) {
+                return Err(OilError::Install(format!(
+                    "Unsafe symlink target {:?} for {:?}",
+                    link_target, dest
+                )));
+            }
+            let _ = std::fs::remove_file(&dest);
+            let _ = std::fs::remove_dir_all(&dest);
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(link_target.as_ref(), &dest)?;
+            files.push(dest);
+        }
+    } else if kind.is_hard_link() {
+        return Err(OilError::Install(format!(
+            "hard links are not allowed in APK payloads: {stripped}"
+        )));
+    } else if kind.is_file() {
+        entry.unpack(&dest)?;
+        files.push(dest);
+    } else {
+        return Err(OilError::Install(format!(
+            "unsupported tar entry type for {stripped}"
+        )));
+    }
+
+    Ok(())
+}
+
 fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     let mut archive = Archive::new(tar_data);
     let mut files = Vec::new();
@@ -198,70 +272,8 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
     created_dirs.insert(dest_dir.to_path_buf());
 
     for entry_result in archive.entries()? {
-        let mut entry = entry_result?;
-        let entry_path = entry.path()?;
-        let entry_str = entry_path.to_string_lossy();
-
-        if entry_str == ".PKGINFO" || entry_str == ".INSTALL" || entry_str.starts_with(".SIGN.") {
-            continue;
-        }
-
-        let stripped = entry_str
-            .strip_prefix("./")
-            .unwrap_or(entry_str.as_ref())
-            .trim_start_matches('/');
-        if stripped.is_empty() || stripped.contains("..") {
-            continue;
-        }
-
-        let dest = dest_dir.join(stripped);
-        if let Some(parent) = dest.parent() {
-            if !created_dirs.contains(parent) {
-                std::fs::create_dir_all(parent)?;
-                let mut current = parent;
-                while !created_dirs.contains(current) {
-                    created_dirs.insert(current.to_path_buf());
-                    current = match current.parent() {
-                        Some(p) => p,
-                        None => break,
-                    };
-                }
-            }
-        }
-
-        let kind = entry.header().entry_type();
-        if kind.is_dir() {
-            if !created_dirs.contains(&dest) {
-                std::fs::create_dir_all(&dest)?;
-                created_dirs.insert(dest.clone());
-            }
-            dirs.push(dest);
-        } else if kind.is_symlink() {
-            if let Some(link_target) = entry.link_name()? {
-                if !is_safe_symlink(link_target.as_ref(), &dest, dest_dir) {
-                    return Err(OilError::Install(format!(
-                        "Unsafe symlink target {:?} for {:?}",
-                        link_target, dest
-                    )));
-                }
-                let _ = std::fs::remove_file(&dest);
-                let _ = std::fs::remove_dir_all(&dest);
-                #[cfg(unix)]
-                std::os::unix::fs::symlink(link_target.as_ref(), &dest)?;
-                files.push(dest);
-            }
-        } else if kind.is_hard_link() {
-            return Err(OilError::Install(format!(
-                "hard links are not allowed in APK payloads: {stripped}"
-            )));
-        } else if kind.is_file() {
-            entry.unpack(&dest)?;
-            files.push(dest);
-        } else {
-            return Err(OilError::Install(format!(
-                "unsupported tar entry type for {stripped}"
-            )));
-        }
+        let entry = entry_result?;
+        process_tar_entry(entry, dest_dir, &mut files, &mut dirs, &mut created_dirs)?;
     }
 
     Ok((files, dirs))
@@ -351,17 +363,23 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_no_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_no_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let data = b"dummy string without gzip magic bytes";
         let result = split_gzip_streams(data, 3);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("APK has 0 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 0 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_fake_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_fake_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = create_gz_stream(b"stream 1")?;
 
         // Append raw magic bytes in between valid streams to test the function's boundary splitting logic
