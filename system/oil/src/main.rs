@@ -3,11 +3,11 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
-pub mod util;
 #[cfg(feature = "wax")]
 mod tap;
 #[cfg(test)]
 mod test_support;
+pub mod util;
 
 use clap::{Parser, Subcommand};
 use error::Result;
@@ -193,14 +193,19 @@ fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Packag
             })
             .collect();
         for handle in handles {
-            let (name, result) = handle.join().unwrap();
+            let (name, result) = match handle
+                .join()
+                .map_err(|_| error::OilError::Install("thread panicked while loading tap".into()))
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    eprintln!("warning: {e}");
+                    continue;
+                }
+            };
             match result {
                 Ok(index) => {
-                    eprintln!(
-                        "Loaded {} packages from tap {}",
-                        index.packages.len(),
-                        name
-                    );
+                    eprintln!("Loaded {} packages from tap {}", index.packages.len(), name);
                     all.extend(index.packages);
                 }
                 Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
@@ -231,7 +236,15 @@ fn refresh_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Pack
             })
             .collect();
         for handle in handles {
-            let (name, result) = handle.join().unwrap();
+            let (name, result) = match handle.join().map_err(|_| {
+                error::OilError::Install("thread panicked while refreshing tap".into())
+            }) {
+                Ok(res) => res,
+                Err(e) => {
+                    eprintln!("warning: {e}");
+                    continue;
+                }
+            };
             match result {
                 Ok(index) => {
                     eprintln!(
@@ -306,7 +319,12 @@ fn run_system(command: SystemCommands) -> Result<()> {
                     );
                 } else {
                     install_package(pkg, &dest)?;
-                    println!("Installed {} {} into {}", pkg.name, pkg.version, dest.display());
+                    println!(
+                        "Installed {} {} into {}",
+                        pkg.name,
+                        pkg.version,
+                        dest.display()
+                    );
                 }
             }
             Ok(())
@@ -634,9 +652,19 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
                         }));
                     }
                     for handle in handles {
-                        let (name, result) = handle.join().unwrap();
+                        let (name, result) = match handle.join().map_err(|_| {
+                            error::OilError::Install("thread panicked while updating tap".into())
+                        }) {
+                            Ok(res) => res,
+                            Err(e) => {
+                                eprintln!("warning: {e}");
+                                continue;
+                            }
+                        };
                         match result {
-                            Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
+                            Ok(index) => {
+                                println!("Updated {} ({} packages)", name, index.packages.len())
+                            }
                             Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
                         }
                     }
@@ -717,10 +745,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         let actual = format!("{:x}", hasher.finalize());
         let expected = expected.trim().to_ascii_lowercase();
         if actual != expected {
-            return Err(error::OilError::ChecksumMismatch {
-                expected,
-                actual,
-            });
+            return Err(error::OilError::ChecksumMismatch { expected, actual });
         }
     }
 
