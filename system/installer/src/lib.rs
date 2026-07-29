@@ -140,6 +140,12 @@ pub fn install_image_maybe_compressed(
     target: &Path,
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
+    if source.to_string_lossy().starts_with('-') {
+        return Err(InstallError::InvalidTarget(format!(
+            "invalid source path: {}",
+            source.display()
+        )));
+    }
     if source.extension().and_then(|ext| ext.to_str()) != Some("zst") {
         return install_image(source, target, allow_regular_file);
     }
@@ -220,7 +226,7 @@ mod tests {
         assert_eq!(target, Some(PathBuf::from("/dev/nvme0n1")));
     }
 
-        #[test]
+    #[test]
     fn test_validate_target_new_file_allowed() {
         let dir = tempdir().unwrap();
         let target = dir.path().join("new_file.img");
