@@ -19,6 +19,14 @@ for arg in $(cat /proc/cmdline 2>/dev/null); do
   esac
 done
 
+valid_key_path() {
+  case "$1" in
+    *..*) return 1 ;;
+    /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 state_block_dev() {
   spec="$1"
   case "${spec}" in
@@ -69,8 +77,16 @@ open_luks_state() {
   fi
 
   modprobe dm-crypt 2>/dev/null || true
-  if [ -n "${STATE_KEY}" ] && [ -r "${STATE_KEY}" ]; then
-    cryptsetup luksOpen "${dev}" alpenglow-state --key-file "${STATE_KEY}" || return 1
+  if [ -n "${STATE_KEY}" ]; then
+    if ! valid_key_path "${STATE_KEY}"; then
+      echo "invalid key path: ${STATE_KEY}" >&2
+      return 1
+    fi
+    if [ -r "${STATE_KEY}" ]; then
+      cryptsetup luksOpen "${dev}" alpenglow-state --key-file "${STATE_KEY}" || return 1
+    else
+      cryptsetup luksOpen "${dev}" alpenglow-state || return 1
+    fi
   else
     cryptsetup luksOpen "${dev}" alpenglow-state || return 1
   fi

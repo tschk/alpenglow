@@ -45,6 +45,14 @@ valid_state_path() {
   esac
 }
 
+valid_key_path() {
+  case "$1" in
+    *..*) return 1 ;;
+    /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 rescue_or_halt() {
   msg="$1"
   echo "${msg}" >&2
@@ -60,6 +68,9 @@ if [ -n "${ALPENGLOW_IMAGE}" ] && ! valid_image_path "${ALPENGLOW_IMAGE}"; then
 fi
 if [ -n "${ALPENGLOW_STATE}" ] && ! valid_state_path "${ALPENGLOW_STATE}"; then
   rescue_or_halt "Alpenglow: rejected alpenglow.state=${ALPENGLOW_STATE}"
+fi
+if [ -n "${ALPENGLOW_STATE_KEY}" ] && ! valid_key_path "${ALPENGLOW_STATE_KEY}"; then
+  rescue_or_halt "Alpenglow: rejected alpenglow.state.key=${ALPENGLOW_STATE_KEY}"
 fi
 
 for m in erofs squashfs bcachefs dm-crypt virtio-blk virtio-net \
