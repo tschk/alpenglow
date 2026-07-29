@@ -383,3 +383,12 @@ pub fn run() !void {
         std.process.exit(1);
     };
 }
+
+test "parseKind handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqualStrings("ethernet", parseKind(null));
+    try testing.expectEqualStrings("ethernet", parseKind("abc"));
+    try testing.expectEqualStrings("ethernet", parseKind("1"));
+    try testing.expectEqualStrings("loopback", parseKind("772"));
+    try testing.expectEqualStrings("ethernet", parseKind("-1"));
+}
