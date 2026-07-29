@@ -60,7 +60,6 @@ fn validateCgroupAttachGroup(group: []const u8) InvalidCgroupPath!void {
     }
 }
 
-
 fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
     var path_buf: [4096]u8 = undefined;
     const path_z = pathToZ("/proc/self/cmdline", &path_buf) orelse return error.NameTooLong;
@@ -90,7 +89,6 @@ fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
     }
     return try args.toOwnedSlice();
 }
-
 
 pub fn run() !void {
     mainInner() catch |err| {
@@ -242,6 +240,7 @@ fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) void {
     @memcpy(b[dir.len + 1 ..][0..file.len], file);
     const combined = b[0..path_len];
     var buf: [4096]u8 = undefined;
+    if (val.len + 1 > buf.len) return;
     @memcpy(buf[0..val.len], val);
     if (val.len == 0 or val[val.len - 1] != '\n') {
         buf[val.len] = '\n';
