@@ -105,8 +105,8 @@ docker run --rm --platform linux/amd64 \
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig >/dev/null 2>&1
     echo "→ compiling Image.gz (this can take several minutes)..."
     make -j"'"${JOBS}"'" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz
-    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- clean >/dev/null 2>&1 || true
     cp arch/arm64/boot/Image.gz /out/vmlinuz
+    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- clean >/dev/null 2>&1 || true
     touch /out/.kernel-aarch64-'"${PROFILE}"'.ok
   '
 

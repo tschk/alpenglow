@@ -29,6 +29,7 @@ if [ "${1:-}" = "--apply" ]; then
   sed -i.bak "s/^KERNEL_VERSION=\"\\\${KERNEL_VERSION:-[0-9.]*}/KERNEL_VERSION=\"\\\${KERNEL_VERSION:-${LATEST}}/" "${BOOT_SCRIPT}"
   rm -f "${BOOT_SCRIPT}.bak"
   echo "kernel: updated default in ${BOOT_SCRIPT} to ${LATEST}"
+  exit 0
 fi
 
 exit 1
