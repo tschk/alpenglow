@@ -4101,6 +4101,7 @@ dependencies = [
  "der",
  "flate2",
  "hex",
+ "memchr",
  "rsa",
  "serde",
  "serde_json",
@@ -5263,7 +5264,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

@@ -127,8 +127,10 @@ fn find_gzip_stream_starts(data: &[u8], count: usize) -> Result<Vec<usize>> {
     let mut starts: Vec<usize> = Vec::new();
     let mut last_pos = 0;
 
-    for i in 0..data.len().saturating_sub(1) {
-        if data[i] == 0x1f && data[i + 1] == 0x8b {
+    let mut offset = 0;
+    while let Some(pos) = memchr::memchr(0x1f, &data[offset..]) {
+        let i = offset + pos;
+        if i + 1 < data.len() && data[i + 1] == 0x8b {
             if i < last_pos {
                 return Err(OilError::Install("Invalid gzip stream overlap".into()));
             }
@@ -139,6 +141,7 @@ fn find_gzip_stream_starts(data: &[u8], count: usize) -> Result<Vec<usize>> {
                 break;
             }
         }
+        offset = i + 1;
     }
 
     if starts.len() < count {
