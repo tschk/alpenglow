@@ -88,29 +88,7 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
         )));
     }
 
-    let mut starts: Vec<usize> = Vec::new();
-    let mut last_pos = 0;
-
-    for i in 0..data.len().saturating_sub(1) {
-        if data[i] == 0x1f && data[i + 1] == 0x8b {
-            if i < last_pos {
-                return Err(OilError::Install("Invalid gzip stream overlap".into()));
-            }
-            starts.push(i);
-            last_pos = i;
-
-            if starts.len() >= count {
-                break;
-            }
-        }
-    }
-
-    if starts.len() < count {
-        return Err(OilError::Install(format!(
-            "APK has {} gzip streams, expected {count}",
-            starts.len()
-        )));
-    }
+    let starts = find_gzip_stream_starts(data, count)?;
 
     let mut out = Vec::with_capacity(count);
     let mut total_decompressed: usize = 0;
@@ -143,6 +121,34 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
     }
 
     Ok((out.remove(0), out.remove(0), out.remove(0)))
+}
+
+fn find_gzip_stream_starts(data: &[u8], count: usize) -> Result<Vec<usize>> {
+    let mut starts: Vec<usize> = Vec::new();
+    let mut last_pos = 0;
+
+    for i in 0..data.len().saturating_sub(1) {
+        if data[i] == 0x1f && data[i + 1] == 0x8b {
+            if i < last_pos {
+                return Err(OilError::Install("Invalid gzip stream overlap".into()));
+            }
+            starts.push(i);
+            last_pos = i;
+
+            if starts.len() >= count {
+                break;
+            }
+        }
+    }
+
+    if starts.len() < count {
+        return Err(OilError::Install(format!(
+            "APK has {} gzip streams, expected {count}",
+            starts.len()
+        )));
+    }
+
+    Ok(starts)
 }
 
 /// Extract the first `.SIGN.RSA.<keyname>` file from the signature tar
