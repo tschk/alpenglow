@@ -4,8 +4,8 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use crate::error::{OilError, Result};
-use crate::util::cache::{cache_key, is_cache_fresh};
 use crate::system::registry::{PackageIndex, PackageMetadata};
+use crate::util::cache::{cache_key, is_cache_fresh};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tap {
