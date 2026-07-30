@@ -1,5 +1,8 @@
 use crepuscularity_tui::{ratatui, Template};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    Terminal,
+};
 use std::io;
 use std::path::Path;
 
@@ -8,6 +11,14 @@ const UI: &str = include_str!("../ui/tui.crepus");
 pub fn draw_installer_tui(source: &Path, target: Option<&Path>) -> Result<(), String> {
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend).map_err(|err| err.to_string())?;
+    draw_installer_tui_internal(&mut terminal, source, target)
+}
+
+pub fn draw_installer_tui_internal<B: Backend>(
+    terminal: &mut Terminal<B>,
+    source: &Path,
+    target: Option<&Path>,
+) -> Result<(), String> {
     let mut ui = Template::from_source(UI);
     ui.set("source", source.display().to_string());
     ui.set(
@@ -22,4 +33,54 @@ pub fn draw_installer_tui(source: &Path, target: Option<&Path>) -> Result<(), St
         })
         .map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+
+    #[test]
+    fn test_draw_installer_tui_internal() {
+        let backend = TestBackend::new(100, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let source = Path::new("/dev/sda");
+        let target = Some(Path::new("/dev/sdb"));
+
+        let result = draw_installer_tui_internal(&mut terminal, source, target);
+        assert!(result.is_ok());
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(rendered.contains("Source: /dev/sda"));
+        assert!(rendered.contains("Target: /dev/sdb"));
+    }
+
+    #[test]
+    fn test_draw_installer_tui_internal_no_target() {
+        let backend = TestBackend::new(100, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let source = Path::new("/dev/sda");
+        let target = None;
+
+        let result = draw_installer_tui_internal(&mut terminal, source, target);
+        assert!(result.is_ok());
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(rendered.contains("Source: /dev/sda"));
+        assert!(rendered.contains("Target: pass target disk as second argument"));
+    }
 }
