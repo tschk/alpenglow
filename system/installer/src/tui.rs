@@ -51,10 +51,15 @@ mod tests {
         let result = draw_installer_tui_internal(&mut terminal, source, target);
         assert!(result.is_ok());
 
-        // Assert some drawing happened.
-        // We can check the terminal's backend state.
-        let _buffer = terminal.backend().buffer();
-        // Since we don't know the exact UI content, we can just ensure it didn't panic or error.
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(rendered.contains("Source: /dev/sda"));
+        assert!(rendered.contains("Target: /dev/sdb"));
     }
 
     #[test]
@@ -67,5 +72,15 @@ mod tests {
 
         let result = draw_installer_tui_internal(&mut terminal, source, target);
         assert!(result.is_ok());
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(rendered.contains("Source: /dev/sda"));
+        assert!(rendered.contains("Target: pass target disk as second argument"));
     }
 }
