@@ -35,6 +35,8 @@ const CgPol = struct {
 
 const InvalidCgroupPath = error{InvalidCgroupPath};
 
+const KernelFileError = error{ PathTooLong, ValueTooLong };
+
 fn validateCgroupPolicyPath(path: []const u8) InvalidCgroupPath!void {
     if (std.mem.indexOf(u8, path, "..") != null) return error.InvalidCgroupPath;
     const prefix = "alpenglow/";
@@ -59,7 +61,6 @@ fn validateCgroupAttachGroup(group: []const u8) InvalidCgroupPath!void {
         }
     }
 }
-
 
 fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
     var path_buf: [4096]u8 = undefined;
@@ -90,7 +91,6 @@ fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
     }
     return try args.toOwnedSlice();
 }
-
 
 pub fn run() !void {
     mainInner() catch |err| {
@@ -150,7 +150,7 @@ fn mainInner() !void {
             makePathRecursive(cg) catch {};
             const buf = try std.fmt.allocPrint(allocator, "{d}\n", .{pid});
             defer allocator.free(buf);
-            writeKernelFile(cg, "cgroup.procs", buf);
+            try writeKernelFile(cg, "cgroup.procs", buf);
         },
         .apply => {
             const raw = try readFileLimited(allocator, policy, 1024 * 1024);
@@ -223,25 +223,26 @@ fn applyCgroups(alloc: mem.Allocator, groups: []CgPol, dry: bool) !void {
 fn wU64(dir: []const u8, f: []const u8, v: ?u64) !void {
     if (v) |x| {
         var b: [32]u8 = undefined;
-        writeKernelFile(dir, f, try std.fmt.bufPrint(&b, "{d}\n", .{x}));
+        try writeKernelFile(dir, f, try std.fmt.bufPrint(&b, "{d}\n", .{x}));
     }
 }
 fn wStr(dir: []const u8, f: []const u8, v: ?[]const u8) !void {
     if (v) |s| {
-        writeKernelFile(dir, f, s);
+        try writeKernelFile(dir, f, s);
     }
 }
 
-fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) void {
+fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) KernelFileError!void {
     const path_len = dir.len + 1 + file.len;
     // ponytail: max path from /sys/fs/cgroup/ + group path + filename
     var b: [4096]u8 = undefined;
-    if (path_len + 1 > b.len) return;
+    if (path_len + 1 > b.len) return error.PathTooLong;
     @memcpy(b[0..dir.len], dir);
     b[dir.len] = '/';
     @memcpy(b[dir.len + 1 ..][0..file.len], file);
     const combined = b[0..path_len];
     var buf: [4096]u8 = undefined;
+    if (val.len + 1 > buf.len) return error.ValueTooLong;
     @memcpy(buf[0..val.len], val);
     if (val.len == 0 or val[val.len - 1] != '\n') {
         buf[val.len] = '\n';
@@ -358,4 +359,17 @@ test "wU64 writes max u64 correctly" {
     var buf: [64]u8 = undefined;
     const data = try readTmpFile(tmp, "test_max.txt", &buf);
     try testing.expectEqualStrings("18446744073709551615\n", data);
+}
+
+test "writeKernelFile surfaces error on oversized value" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const tmp_path = try kernelctlTestTmpAbsPath(testing.allocator, tmp);
+    defer testing.allocator.free(tmp_path);
+
+    // val.len + 1 must exceed the 4096-byte internal write buffer.
+    var big: [4096]u8 = undefined;
+    @memset(big[0..], 'x');
+    try testing.expectError(error.ValueTooLong, writeKernelFile(tmp_path, "oversized.txt", big[0..]));
 }
