@@ -10,10 +10,7 @@ pub fn is_cache_fresh(path: &std::path::Path) -> bool {
     false
 }
 pub fn cache_key(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect()
+    value.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect()
 }
 
 #[cfg(test)]
