@@ -267,4 +267,66 @@ mod tests {
             _ => panic!("Expected Io error"),
         }
     }
+
+    #[test]
+    fn test_parse_installer_args_empty() {
+        let args: Vec<OsString> = vec![];
+        let (tui, source, target) = parse_installer_args(args);
+        assert_eq!(tui, false);
+        assert_eq!(source, default_live_source());
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn test_parse_installer_args_tui_only() {
+        let args: Vec<OsString> = vec![OsString::from("--tui")];
+        let (tui, source, target) = parse_installer_args(args);
+        assert_eq!(tui, true);
+        assert_eq!(source, default_live_source());
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn test_parse_installer_args_source_only() {
+        let args: Vec<OsString> = vec![OsString::from("source.img")];
+        let (tui, source, target) = parse_installer_args(args);
+        assert_eq!(tui, false);
+        assert_eq!(source, PathBuf::from("source.img"));
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn test_parse_installer_args_tui_and_source() {
+        let args: Vec<OsString> = vec![OsString::from("--tui"), OsString::from("source.img")];
+        let (tui, source, target) = parse_installer_args(args);
+        assert_eq!(tui, true);
+        assert_eq!(source, PathBuf::from("source.img"));
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn test_parse_installer_args_tui_source_target() {
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from("source.img"),
+            OsString::from("/dev/sda"),
+        ];
+        let (tui, source, target) = parse_installer_args(args);
+        assert_eq!(tui, true);
+        assert_eq!(source, PathBuf::from("source.img"));
+        assert_eq!(target, Some(PathBuf::from("/dev/sda")));
+    }
+
+    #[test]
+    fn test_parse_installer_args_source_tui_target() {
+        let args: Vec<OsString> = vec![
+            OsString::from("source.img"),
+            OsString::from("--tui"),
+            OsString::from("/dev/sda"),
+        ];
+        let (tui, source, target) = parse_installer_args(args);
+        assert_eq!(tui, true);
+        assert_eq!(source, PathBuf::from("source.img"));
+        assert_eq!(target, Some(PathBuf::from("/dev/sda")));
+    }
 }
