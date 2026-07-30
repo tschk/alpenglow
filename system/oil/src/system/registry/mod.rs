@@ -32,9 +32,6 @@ impl PackageIndex {
             for prov in &pkg.provides {
                 provides_index.entry(prov.clone()).or_insert(i);
             }
-        }
-
-        for (i, pkg) in packages.iter().enumerate() {
             name_index.entry(pkg.name.clone()).or_insert(i);
         }
 
@@ -183,6 +180,56 @@ mod tests {
         assert!(index.find("libssl3").is_some());
         assert!(index.find("libssl").is_some());
         assert!(index.find("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_package_index_preserves_first_match_and_input_order() {
+        let packages = vec![
+            PackageMetadata {
+                name: "duplicate".to_string(),
+                version: "first".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec!["virtual".to_string(), "shared".to_string()],
+            },
+            PackageMetadata {
+                name: "virtual".to_string(),
+                version: "named".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec!["shared".to_string()],
+            },
+            PackageMetadata {
+                name: "duplicate".to_string(),
+                version: "second".to_string(),
+                description: String::new(),
+                download_url: String::new(),
+                sha256: None,
+                installed_size: 0,
+                depends: vec![],
+                provides: vec![],
+            },
+        ];
+        let index = PackageIndex::new(packages);
+
+        assert_eq!(
+            index
+                .packages
+                .iter()
+                .map(|pkg| pkg.version.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "named", "second"]
+        );
+        assert_eq!(index.find("duplicate").unwrap().version, "first");
+        assert_eq!(index.find("virtual").unwrap().version, "named");
+        assert_eq!(index.find("shared").unwrap().version, "first");
+        assert!(PackageIndex::new(vec![]).find("").is_none());
     }
 
     #[test]
