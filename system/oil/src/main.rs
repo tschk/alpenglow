@@ -193,7 +193,16 @@ fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Packag
             })
             .collect();
         for handle in handles {
-            let (name, result) = handle.join().unwrap();
+            let (name, result) = match handle
+                .join()
+                .map_err(|_| error::OilError::Install("thread panicked while loading tap".into()))
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    eprintln!("warning: {e}");
+                    continue;
+                }
+            };
             match result {
                 Ok(index) => {
                     eprintln!(
@@ -231,7 +240,15 @@ fn refresh_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Pack
             })
             .collect();
         for handle in handles {
-            let (name, result) = handle.join().unwrap();
+            let (name, result) = match handle.join().map_err(|_| {
+                error::OilError::Install("thread panicked while refreshing tap".into())
+            }) {
+                Ok(res) => res,
+                Err(e) => {
+                    eprintln!("warning: {e}");
+                    continue;
+                }
+            };
             match result {
                 Ok(index) => {
                     eprintln!(
@@ -634,7 +651,15 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
                         }));
                     }
                     for handle in handles {
-                        let (name, result) = handle.join().unwrap();
+                        let (name, result) = match handle.join().map_err(|_| {
+                            error::OilError::Install("thread panicked while updating tap".into())
+                        }) {
+                            Ok(res) => res,
+                            Err(e) => {
+                                eprintln!("warning: {e}");
+                                continue;
+                            }
+                        };
                         match result {
                             Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
                             Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
