@@ -13,7 +13,10 @@ pub fn verify_sha256(data: &[u8], expected: &str) -> Result<()> {
     let actual = format!("{:x}", Sha256::digest(data));
     let expected = expected.trim().to_ascii_lowercase();
     if actual != expected {
-        return Err(OilError::ChecksumMismatch { expected, actual });
+        return Err(OilError::ChecksumMismatch {
+            expected,
+            actual,
+        });
     }
     Ok(())
 }
@@ -52,7 +55,9 @@ pub fn validate_install_dest(dest: &Path) -> Result<PathBuf> {
             Component::Prefix(_) | Component::RootDir => normalized.push(component.as_os_str()),
             Component::CurDir => {}
             Component::ParentDir => {
-                return Err(OilError::Install("install path must not contain ..".into()));
+                return Err(OilError::Install(
+                    "install path must not contain ..".into(),
+                ));
             }
             Component::Normal(part) => normalized.push(part),
         }
@@ -82,9 +87,7 @@ pub fn resolve_install_dest(prefix: Option<&Path>, relative: &Path) -> Result<Pa
         relative
     };
     if dest.components().any(|c| matches!(c, Component::ParentDir)) {
-        return Err(OilError::Install(
-            "resolved install path escapes prefix".into(),
-        ));
+        return Err(OilError::Install("resolved install path escapes prefix".into()));
     }
     Ok(dest)
 }
