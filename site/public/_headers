@@ -1,0 +1,29 @@
+/v86/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/v86/v86.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/v86/v86-fallback.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/v86/seabios.bin
+  Cache-Control: public, max-age=86400
+
+/v86/vgabios.bin
+  Cache-Control: public, max-age=86400
+
+/v86/alpenglow-v86-vmlinuz
+  Cache-Control: public, max-age=300
+
+/v86/alpenglow-v86-initrd.cpio.gz
+  Cache-Control: public, max-age=300
+
+/v86/initrd-build-id.txt
+  Cache-Control: no-cache
+
+/root/*
+  Cache-Control: public, max-age=300

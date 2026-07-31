@@ -1,0 +1,42 @@
+{
+  "name": "alpenglow-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "start": "bun run src/server.ts",
+    "build": "bun run src/server.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@tschk/crepus-moonshine": "file:../../moonshine/packages/crepus-moonshine",
+    "@tschk/moonshine": "file:../../moonshine/packages/core",
+    "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
+    "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
+    "@tschk/moonshine-deploy-bun": "file:../../moonshine/packages/deploy-bun",
+    "@tschk/moonshine-framework": "file:../../moonshine/packages/framework",
+    "@tschk/moonshine-react": "file:../../moonshine/packages/react",
+    "@tschk/moonshine-router": "file:../../moonshine/packages/router",
+    "@tschk/moonshine-server": "file:../../moonshine/packages/server",
+    "@tschk/moonshine-shaders": "file:../../moonshine/packages/shaders",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "@tschk/moonshine": "file:../../moonshine/packages/core",
+    "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
+    "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
+    "@tschk/moonshine-framework": "file:../../moonshine/packages/framework",
+    "@tschk/moonshine-react": "file:../../moonshine/packages/react",
+    "@tschk/moonshine-router": "file:../../moonshine/packages/router",
+    "@tschk/moonshine-server": "file:../../moonshine/packages/server",
+    "@tschk/moonshine-shaders": "file:../../moonshine/packages/shaders"
+  }
+}

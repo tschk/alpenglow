@@ -1,12 +1,12 @@
 {
   "scripts": {
-    "dev": "astro dev",
+    "dev": "cd site && bun run dev",
     "build:v86": "V86_SSH=1 sh scripts/build-v86-initramfs.sh",
     "build:v86:local": "sh scripts/build-v86-initramfs.sh",
     "test:site": "sh scripts/test-site-v86-preload.sh",
-    "build:site": "sh scripts/write-site-version.sh && astro check --minimumSeverity error && astro build",
+    "build:site": "sh scripts/write-site-version.sh && cd site && bun run typecheck && bun run build",
     "build": "V86_SSH=1 sh scripts/build-v86-initramfs.sh && bun run build:site",
-    "preview": "astro preview",
+    "preview": "cd site && bun run start",
     "deploy": "bun run build && wrangler pages deploy dist --project-name alpenglow"
   },
   "dependencies": {
