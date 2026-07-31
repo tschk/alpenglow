@@ -7,6 +7,36 @@ const screen = document.getElementById("screen_container");
 const legacyPre = document.getElementById("terminal");
 const commandForm = document.getElementById("command_form");
 const commandInput = document.getElementById("command_input");
+const releaseLink = document.getElementById("release-link");
+
+async function applyReleaseLink() {
+  if (!releaseLink) {
+    return;
+  }
+  const versionRes = await fetch("/version.txt", { cache: "no-store" }).catch(
+    () => undefined,
+  );
+  const bakedVersion = versionRes?.ok ? (await versionRes.text()).trim() : "";
+  if (bakedVersion) {
+    releaseLink.textContent = bakedVersion;
+    releaseLink.href = `https://github.com/tschk/alpenglow/releases/tag/${encodeURIComponent(bakedVersion)}`;
+    return;
+  }
+  const release = await fetch(
+    "https://api.github.com/repos/tschk/alpenglow/releases/latest",
+  )
+    .then((response) => (response.ok ? response.json() : undefined))
+    .catch(() => undefined);
+  if (
+    typeof release?.tag_name === "string" &&
+    typeof release?.html_url === "string"
+  ) {
+    releaseLink.textContent = release.tag_name;
+    releaseLink.href = release.html_url;
+  }
+}
+
+await applyReleaseLink();
 
 let buildId = "dev";
 try {
@@ -19,6 +49,8 @@ try {
 }
 
 const asset = (path) => `${path}?v=${encodeURIComponent(buildId)}`;
+const libv86Url = "/v86/libv86.mjs";
+
 let emulator;
 let term;
 let fitAddon;
@@ -213,7 +245,7 @@ const { cols, rows } = terminalSize();
 const cmdline = `console=ttyS0 rdinit=/init quiet loglevel=2 alpenglow.cols=${cols} alpenglow.rows=${rows}`;
 
 try {
-  const { V86 } = await import("./v86/libv86.mjs");
+  const { V86 } = await import(libv86Url);
 
   emulator = new V86({
     wasm_path: asset("/v86/v86.wasm"),

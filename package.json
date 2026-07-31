@@ -3,22 +3,13 @@
     "dev": "cd site && bun run dev",
     "build:v86": "V86_SSH=1 sh scripts/build-v86-initramfs.sh",
     "build:v86:local": "sh scripts/build-v86-initramfs.sh",
-    "test:site": "sh scripts/test-site-v86-preload.sh",
+    "test:site": "sh scripts/test-site-v86-preload.sh && cd site && bun test",
     "build:site": "sh scripts/write-site-version.sh && cd site && bun run typecheck && bun run build",
     "build": "V86_SSH=1 sh scripts/build-v86-initramfs.sh && bun run build:site",
     "preview": "cd site && bun run start",
-    "deploy": "bun run build && wrangler pages deploy dist --project-name alpenglow"
-  },
-  "dependencies": {
-    "@astrojs/check": "0.9.9",
-    "astro": "7.0.6",
-    "ghostty-web": "^0.4.0",
-    "typescript": "6.0.3",
-    "v86": "0.5.420"
+    "deploy": "bun run build && wrangler pages deploy site/dist --project-name alpenglow"
   },
   "devDependencies": {
-    "@unocss/astro": "^66.7.4",
-    "unocss": "^66.7.4",
     "wrangler": "4.107.0"
   }
 }

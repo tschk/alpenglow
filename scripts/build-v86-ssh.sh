@@ -30,11 +30,11 @@ echo "→ remote build (Alpenglow Linux 7 i686 kernel + initramfs, ${ALP_VERSION
 ssh -o ConnectTimeout=15 "${HOST}" "cd ${REMOTE} && ALP_VERSION='${ALP_VERSION}' V86_SKIP_SSH=1 V86_KERNEL_DOCKER=1 FORCE_V86_INITRD=1 sh scripts/build-v86-initramfs.sh"
 
 echo "→ pull v86 artifacts"
-mkdir -p "${ROOT_DIR}/public/v86"
-rsync -az "${HOST}:${REMOTE}/public/v86/alpenglow-v86-initrd.cpio.gz" \
-  "${HOST}:${REMOTE}/public/v86/alpenglow-v86-vmlinuz" \
-  "${HOST}:${REMOTE}/public/v86/initrd-build-id.txt" \
-  "${ROOT_DIR}/public/v86/"
+mkdir -p "${ROOT_DIR}/site/public/v86"
+rsync -az "${HOST}:${REMOTE}/site/public/v86/alpenglow-v86-initrd.cpio.gz" \
+  "${HOST}:${REMOTE}/site/public/v86/alpenglow-v86-vmlinuz" \
+  "${HOST}:${REMOTE}/site/public/v86/initrd-build-id.txt" \
+  "${ROOT_DIR}/site/public/v86/"
 
-ls -lh "${ROOT_DIR}/public/v86/alpenglow-v86-vmlinuz" "${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
+ls -lh "${ROOT_DIR}/site/public/v86/alpenglow-v86-vmlinuz" "${ROOT_DIR}/site/public/v86/alpenglow-v86-initrd.cpio.gz"
 echo "v86 ssh build ok"

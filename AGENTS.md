@@ -50,7 +50,7 @@ system/
   kernel-modules/      Rust modules (alpenglow_core, …)
 scripts/               boot-native.sh, CI, v86 initramfs, release
 docs/                  Architecture; docs/browser/ = v86 guest copy
-public/v86/            Browser demo kernel + initrd artifacts
+site/                  Moonshine site (Bun + React SSR); site/public/v86/ = browser demo kernel + initrd artifacts
 ```
 
 ## Oil (agents)
@@ -68,7 +68,7 @@ public/v86/            Browser demo kernel + initrd artifacts
 ./scripts/ci-rust-core.sh
 ./scripts/ci-zig.sh                         # if zig installed
 ./scripts/ci-os-appliance.sh
-sh scripts/build-v86-initramfs.sh           # browser i686 initrd → public/v86/
+sh scripts/build-v86-initramfs.sh           # browser i686 initrd → site/public/v86/
 cargo test -p oil
 ```
 
@@ -96,7 +96,7 @@ Alpenglow targets **musl + Linux**. Use ultramarine for cross/docker/QEMU.
 
 ## v86 browser demo
 
-Not the full appliance: fixed **i686** initramfs (busybox, oil/wax, bash, fastfetch, browser docs). Artifacts under `public/v86/`. Production appliance uses oksh and full dinit graph — do not assume v86 behavior matches hardware images.
+Not the full appliance: fixed **i686** initramfs (busybox, oil/wax, bash, fastfetch, browser docs). Artifacts under `site/public/v86/`. Production appliance uses oksh and full dinit graph — do not assume v86 behavior matches hardware images.
 
 ## Status (high level)
 

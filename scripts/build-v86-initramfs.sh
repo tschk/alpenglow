@@ -11,8 +11,8 @@ ALP_VERSION="${ALP_VERSION:-$(git -C "${ROOT_DIR}" describe --tags --abbrev=0 2>
 ALP_VERSION="${ALP_VERSION#v}"
 BUILD_DIR="${ROOT_DIR}/build/v86"
 ROOTFS="${BUILD_DIR}/rootfs"
-OUT="${ROOT_DIR}/public/v86/alpenglow-v86-initrd.cpio.gz"
-KERNEL_OUT="${ROOT_DIR}/public/v86/alpenglow-v86-vmlinuz"
+OUT="${ROOT_DIR}/site/public/v86/alpenglow-v86-initrd.cpio.gz"
+KERNEL_OUT="${ROOT_DIR}/site/public/v86/alpenglow-v86-vmlinuz"
 BUSYBOX="${BUILD_DIR}/busybox-i386"
 OIL="${ROOT_DIR}/target/i686-unknown-linux-musl/release/oil"
 
@@ -286,7 +286,7 @@ cp "${BUSYBOX}" "${ROOTFS}/bin/busybox"
 chmod 755 "${ROOTFS}/bin/busybox"
 
 BUILD_ID="$(date +%Y%m%d%H%M%S)"
-echo "${BUILD_ID}" > "${ROOT_DIR}/public/v86/initrd-build-id.txt"
+echo "${BUILD_ID}" > "${ROOT_DIR}/site/public/v86/initrd-build-id.txt"
 
 (cd "${ROOTFS}" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUT}")
 echo "init in archive:"

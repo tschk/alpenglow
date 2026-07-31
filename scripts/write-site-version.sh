@@ -10,5 +10,5 @@ case "${VERSION}" in
 esac
 
 mkdir -p "${ROOT_DIR}/public"
-printf '%s\n' "${VERSION}" > "${ROOT_DIR}/public/version.txt"
+printf '%s\n' "${VERSION}" > "${ROOT_DIR}/site/public/version.txt"
 echo "site version: ${VERSION}"

@@ -1,38 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
-import { reactRenderer } from "@tschk/moonshine-react";
-import type {
-  RenderContext,
-  RouteArtifact,
-} from "@tschk/moonshine-framework";
 import { tryServeStatic } from "@tschk/moonshine-server";
 import { resolve } from "node:path";
+import { buildSite } from "../src/build";
+import { renderDocument, renderResponse } from "../src/document";
 
-const staticDir = resolve(import.meta.dir, "public");
-
-const route: RouteArtifact = {
-  id: "home",
-  path: "/",
-  file: resolve(import.meta.dir, "..", "src", "App.tsx"),
-  mode: "static",
-  runtime: "bun",
-  decision: "test",
-  clientEntries: ["/shell.js"],
-};
+const outDir = resolve(import.meta.dir, "..", "dist");
+const staticDir = await buildSite(outDir);
 
 async function handler(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
 
   if (pathname === "/") {
-    const ctx: RenderContext = {
-      request,
-      route,
-      params: {},
-      data: null,
-      signal: request.signal,
-    };
-    return reactRenderer.render(ctx);
+    return renderResponse(request);
   }
 
   if (request.method === "GET" || request.method === "HEAD") {
@@ -52,6 +33,8 @@ describe("alpenglow site", () => {
       expect(res.headers.get("content-type")).toContain("text/html");
       const html = await res.text();
       expect(html).toContain("<!DOCTYPE html>");
+      expect(html).toContain('<html lang="en">');
+      expect(html).toContain("<title>Alpenglow</title>");
       expect(html).toContain(
         "Alpenglow is an immutable RAM-root Linux distribution with persistent bcachefs-backed state.",
       );
@@ -63,9 +46,47 @@ describe("alpenglow site", () => {
       expect(html).toContain("https://tsc.hk");
       expect(html).toContain("<meter");
       expect(html).toContain("/shell.js");
+      expect(html).toContain("built with moonshine");
     } finally {
       await server.stop(true);
     }
+  });
+
+  test("carries every element the shell mounts against", async () => {
+    const html = await renderDocument(new Request("http://localhost/"));
+    for (const id of [
+      "screen_container",
+      "terminal",
+      "boot_status",
+      "boot_message",
+      "boot_progress",
+      "command_form",
+      "command_input",
+      "release-link",
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+  });
+
+  test("serves the bundled shell without bare imports", async () => {
+    const server = createBunServer({ fetch: handler, port: 0, staticDir });
+    try {
+      const res = await fetch(`${server.url.origin}/shell.js`);
+      expect(res.status).toBe(200);
+      const source = await res.text();
+      expect(source).not.toMatch(/^import[\s\S]*?["']ghostty-web["']/m);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  test("builds a deployable dist with the v86 assets", async () => {
+    expect(await Bun.file(resolve(outDir, "index.html")).exists()).toBe(true);
+    expect(await Bun.file(resolve(outDir, "shell.js")).exists()).toBe(true);
+    expect(await Bun.file(resolve(outDir, "_headers")).exists()).toBe(true);
+    expect(await Bun.file(resolve(outDir, "v86", "v86.wasm")).exists()).toBe(
+      true,
+    );
   });
 
   test("unknown path returns 404", async () => {

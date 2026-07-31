@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/server.ts",
+    "dev": "bun run --watch src/server.ts",
     "start": "bun run src/server.ts",
-    "build": "bun run src/server.ts",
+    "build": "bun run src/build.ts",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit"
   },
@@ -19,6 +19,7 @@
     "@tschk/moonshine-router": "^0.3.1",
     "@tschk/moonshine-server": "^0.3.1",
     "@tschk/moonshine-shaders": "^0.3.1",
+    "ghostty-web": "^0.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
