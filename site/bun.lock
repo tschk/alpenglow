@@ -5,7 +5,6 @@
     "": {
       "name": "alpenglow-site",
       "dependencies": {
-        "@tschk/crepus-moonshine": "file:../../moonshine/packages/crepus-moonshine",
         "@tschk/moonshine": "file:../../moonshine/packages/core",
         "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
         "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
@@ -30,6 +29,7 @@
     "@tschk/moonshine": "file:../../moonshine/packages/core",
     "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
     "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
+    "@tschk/moonshine-deploy-bun": "file:../../moonshine/packages/deploy-bun",
     "@tschk/moonshine-framework": "file:../../moonshine/packages/framework",
     "@tschk/moonshine-react": "file:../../moonshine/packages/react",
     "@tschk/moonshine-router": "file:../../moonshine/packages/router",
@@ -37,8 +37,6 @@
     "@tschk/moonshine-shaders": "file:../../moonshine/packages/shaders",
   },
   "packages": {
-    "@tschk/crepus-moonshine": ["@tschk/crepus-moonshine@file:../../moonshine/packages/crepus-moonshine", { "dependencies": { "@tschk/moonshine": "^0.3.1", "@tschk/moonshine-framework": "^0.3.1", "@tschk/moonshine-react": "^0.3.1" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
-
     "@tschk/moonshine": ["@tschk/moonshine@file:../../moonshine/packages/core", { "dependencies": { "@tschk/moonshine-react": "^0.3.1", "@tschk/moonshine-router": "^0.3.1", "@tschk/moonshine-server": "^0.3.1", "@tschk/moonshine-shaders": "^0.3.1" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
     "@tschk/moonshine-adapter-conformance": ["@tschk/moonshine-adapter-conformance@file:../../moonshine/packages/adapter-conformance", { "dependencies": { "@tschk/moonshine-framework": "^0.3.1", "@tschk/moonshine-react": "^0.3.1", "@tschk/moonshine-server": "^0.3.1", "react": "^19.1.0", "react-dom": "^19.1.0" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "typescript": "7.0.2" } }],
@@ -119,16 +117,6 @@
 
     "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
 
-    "@tschk/crepus-moonshine/@tschk/moonshine": ["@tschk/moonshine@file:../../moonshine/packages/core", {}],
-
-    "@tschk/crepus-moonshine/@tschk/moonshine-framework": ["@tschk/moonshine-framework@file:../../moonshine/packages/framework", {}],
-
-    "@tschk/crepus-moonshine/@tschk/moonshine-react": ["@tschk/moonshine-react@file:../../moonshine/packages/react", {}],
-
-    "@tschk/crepus-moonshine/react": ["react@19.1.0", "", {}, "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="],
-
-    "@tschk/crepus-moonshine/react-dom": ["react-dom@19.1.0", "", { "dependencies": { "scheduler": "^0.26.0" }, "peerDependencies": { "react": "^19.1.0" } }, "sha512-Xs1hdnE+DyKgeHJeJznQmYMIBG3TKIHJJT95Q58nHLSrElKlGQqDTR2HQ9fx5CN/Gk6Vh/kupBTDLU11/nDk/g=="],
-
     "@tschk/moonshine/@tschk/moonshine-react": ["@tschk/moonshine-react@file:../../moonshine/packages/react", {}],
 
     "@tschk/moonshine/@tschk/moonshine-router": ["@tschk/moonshine-router@file:../../moonshine/packages/router", {}],
@@ -176,8 +164,6 @@
     "@tschk/moonshine-server/@tschk/moonshine-framework": ["@tschk/moonshine-framework@file:../../moonshine/packages/framework", {}],
 
     "@tschk/moonshine-server/@tschk/moonshine-router": ["@tschk/moonshine-router@file:../../moonshine/packages/router", {}],
-
-    "@tschk/crepus-moonshine/react-dom/scheduler": ["scheduler@0.26.0", "", {}, "sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA=="],
 
     "@tschk/moonshine/react-dom/scheduler": ["scheduler@0.26.0", "", {}, "sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA=="],
   }

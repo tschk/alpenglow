@@ -10,7 +10,6 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@tschk/crepus-moonshine": "file:../../moonshine/packages/crepus-moonshine",
     "@tschk/moonshine": "file:../../moonshine/packages/core",
     "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
     "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
@@ -33,6 +32,7 @@
     "@tschk/moonshine": "file:../../moonshine/packages/core",
     "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
     "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
+    "@tschk/moonshine-deploy-bun": "file:../../moonshine/packages/deploy-bun",
     "@tschk/moonshine-framework": "file:../../moonshine/packages/framework",
     "@tschk/moonshine-react": "file:../../moonshine/packages/react",
     "@tschk/moonshine-router": "file:../../moonshine/packages/router",

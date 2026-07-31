@@ -1,12 +1,11 @@
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
-import { crepusRenderer } from "@tschk/crepus-moonshine";
+import { reactRenderer } from "@tschk/moonshine-react";
 import type {
   RenderContext,
   RouteArtifact,
 } from "@tschk/moonshine-framework";
 import { tryServeStatic } from "@tschk/moonshine-server";
 import { resolve } from "node:path";
-import { pageIr } from "./ir";
 
 const staticDir = resolve(import.meta.dir, "public");
 const port = Number(process.env.PORT) || 3000;
@@ -14,7 +13,7 @@ const port = Number(process.env.PORT) || 3000;
 const route: RouteArtifact = {
   id: "home",
   path: "/",
-  file: "ir.ts",
+  file: resolve(import.meta.dir, "App.tsx"),
   mode: "static",
   runtime: "bun",
   decision: "server",
@@ -30,10 +29,10 @@ async function fetch(request: Request): Promise<Response> {
       request,
       route,
       params: {},
-      data: pageIr,
+      data: null,
       signal: request.signal,
     };
-    return crepusRenderer.render(ctx);
+    return reactRenderer.render(ctx);
   }
 
   if (request.method === "GET" || request.method === "HEAD") {
