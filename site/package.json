@@ -10,15 +10,15 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../../moonshine/packages/core",
-    "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
-    "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
-    "@tschk/moonshine-deploy-bun": "file:../../moonshine/packages/deploy-bun",
-    "@tschk/moonshine-framework": "file:../../moonshine/packages/framework",
-    "@tschk/moonshine-react": "file:../../moonshine/packages/react",
-    "@tschk/moonshine-router": "file:../../moonshine/packages/router",
-    "@tschk/moonshine-server": "file:../../moonshine/packages/server",
-    "@tschk/moonshine-shaders": "file:../../moonshine/packages/shaders",
+    "@tschk/moonshine": "^0.3.1",
+    "@tschk/moonshine-adapter-conformance": "^0.3.1",
+    "@tschk/moonshine-compiler": "^0.3.1",
+    "@tschk/moonshine-deploy-bun": "^0.3.1",
+    "@tschk/moonshine-framework": "^0.3.1",
+    "@tschk/moonshine-react": "^0.3.1",
+    "@tschk/moonshine-router": "^0.3.1",
+    "@tschk/moonshine-server": "^0.3.1",
+    "@tschk/moonshine-shaders": "^0.3.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -27,16 +27,5 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "typescript": "^7.0.2"
-  },
-  "overrides": {
-    "@tschk/moonshine": "file:../../moonshine/packages/core",
-    "@tschk/moonshine-adapter-conformance": "file:../../moonshine/packages/adapter-conformance",
-    "@tschk/moonshine-compiler": "file:../../moonshine/packages/compiler",
-    "@tschk/moonshine-deploy-bun": "file:../../moonshine/packages/deploy-bun",
-    "@tschk/moonshine-framework": "file:../../moonshine/packages/framework",
-    "@tschk/moonshine-react": "file:../../moonshine/packages/react",
-    "@tschk/moonshine-router": "file:../../moonshine/packages/router",
-    "@tschk/moonshine-server": "file:../../moonshine/packages/server",
-    "@tschk/moonshine-shaders": "file:../../moonshine/packages/shaders"
   }
 }
