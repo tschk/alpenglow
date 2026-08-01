@@ -65,7 +65,7 @@ export default function App() {
           </meter>
         </section>
       </main>
-      <footer className="site-credit">built with moonshine</footer>
+      <footer className="site-credit">built with crepuscularity + moonshine</footer>
     </div>
   );
 }

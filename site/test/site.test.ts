@@ -46,7 +46,7 @@ describe("alpenglow site", () => {
       expect(html).toContain("https://tsc.hk");
       expect(html).toContain("<meter");
       expect(html).toContain("/shell.js");
-      expect(html).toContain("built with moonshine");
+      expect(html).toContain("built with crepuscularity + moonshine");
     } finally {
       await server.stop(true);
     }
