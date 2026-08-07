@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use crate::error::Result;
+
+static STATE_CACHE: Mutex<Option<(PathBuf, HashMap<String, InstalledPackage>)>> = Mutex::new(None);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPackage {
@@ -26,12 +29,24 @@ pub struct InstallState {
 impl InstallState {
     pub fn new() -> Result<Self> {
         let path = state_path()?;
+
+        let mut cache = STATE_CACHE.lock().unwrap();
+        if let Some((cached_path, cached_packages)) = cache.as_ref() {
+            if cached_path == &path {
+                return Ok(Self {
+                    packages: cached_packages.clone(),
+                });
+            }
+        }
+
         let packages = if path.exists() {
             let raw = std::fs::read_to_string(&path)?;
             serde_json::from_str(&raw).unwrap_or_default()
         } else {
             HashMap::new()
         };
+
+        *cache = Some((path.clone(), packages.clone()));
         Ok(Self { packages })
     }
 
@@ -45,6 +60,10 @@ impl InstallState {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&path, serde_json::to_string_pretty(&self.packages)?)?;
+
+        let mut cache = STATE_CACHE.lock().unwrap();
+        *cache = Some((path, self.packages.clone()));
+
         Ok(())
     }
 
