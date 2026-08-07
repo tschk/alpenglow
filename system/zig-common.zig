@@ -290,6 +290,29 @@ test "pathToZ" {
     try testing.expect(large_z == null);
 }
 
+test "getErrno" {
+    const testing = std.testing;
+
+    // Test zero (SUCCESS)
+    try testing.expectEqual(std.os.linux.E.SUCCESS, getErrno(0));
+
+    // Test positive values (SUCCESS)
+    try testing.expectEqual(std.os.linux.E.SUCCESS, getErrno(1));
+    try testing.expectEqual(std.os.linux.E.SUCCESS, getErrno(4096));
+    try testing.expectEqual(std.os.linux.E.SUCCESS, getErrno(8192));
+
+    // Test negative values corresponding to valid error codes
+    const enoent_rc: usize = @bitCast(-@as(isize, @intFromEnum(std.os.linux.E.NOENT)));
+    try testing.expectEqual(std.os.linux.E.NOENT, getErrno(enoent_rc));
+
+    // Test boundaries
+    const bound1: usize = @bitCast(@as(isize, -4096)); // <= -4096 is not a valid errno, returns SUCCESS
+    try testing.expectEqual(std.os.linux.E.SUCCESS, getErrno(bound1));
+
+    const bound2: usize = @bitCast(@as(isize, -4095)); // > -4096 is valid errno
+    try testing.expectEqual(@as(std.os.linux.E, @enumFromInt(4095)), getErrno(bound2));
+}
+
 test "checkSyscall success" {
     // 0 is SUCCESS
     try checkSyscall(0);
