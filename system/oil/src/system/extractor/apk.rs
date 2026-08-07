@@ -160,10 +160,11 @@ fn extract_signature_info(tar_data: &[u8]) -> Option<(String, Vec<u8>)> {
     let mut archive = Archive::new(tar_data);
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
-        let name = entry.path().ok()?;
-        let name_str = name.to_string_lossy();
-        if let Some(rest) = name_str.strip_prefix(".SIGN.RSA.") {
-            let keyname = rest.trim_end_matches('\0').to_string();
+        let bytes = entry.path_bytes();
+        if let Some(rest) = bytes.strip_prefix(b".SIGN.RSA.") {
+            let keyname = String::from_utf8_lossy(rest)
+                .trim_end_matches('\0')
+                .to_string();
             let mut sig = Vec::new();
             entry.read_to_end(&mut sig).ok()?;
             return Some((keyname, sig));
@@ -372,17 +373,23 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_no_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_no_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let data = b"dummy string without gzip magic bytes";
         let result = split_gzip_streams(data, 3);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("APK has 0 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 0 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_fake_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_fake_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = create_gz_stream(b"stream 1")?;
 
         // Append raw magic bytes in between valid streams to test the function's boundary splitting logic
