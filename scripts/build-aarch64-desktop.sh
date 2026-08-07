@@ -31,6 +31,7 @@ require_cmd file
 require_cmd gzip
 require_cmd lz4
 require_cmd tar
+require_cmd sha256sum
 
 mkdir -p "${OUT_DIR}"
 if [ ! -s "${KERNEL}" ]; then
@@ -40,6 +41,12 @@ fi
 
 if [ ! -x "${OUT_DIR}/toybox-aarch64" ]; then
   curl -fsSL -o "${OUT_DIR}/toybox-aarch64" "https://landley.net/bin/toybox/latest/toybox-aarch64"
+  EXPECTED_SHA256="223b5ff5929371225d0bc62fb3b99a148692295fb6f85ad86bb924f689a55ea4"
+  if ! echo "${EXPECTED_SHA256}  ${OUT_DIR}/toybox-aarch64" | sha256sum -c - >/dev/null 2>&1; then
+    echo "ERROR: Checksum validation failed for toybox-aarch64" >&2
+    rm -f "${OUT_DIR}/toybox-aarch64"
+    exit 1
+  fi
   chmod 755 "${OUT_DIR}/toybox-aarch64"
 fi
 file "${OUT_DIR}/toybox-aarch64" | grep -q 'aarch64' || { echo "not aarch64: ${OUT_DIR}/toybox-aarch64" >&2; exit 1; }
