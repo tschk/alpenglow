@@ -256,7 +256,11 @@ SYSCTL
 chmod +x "${ROOTFS}/usr/local/bin/"*.sh
 chmod +x "${ROOTFS}/opt/alpenglow/session-init" 2>/dev/null || true
 chmod +x "${ROOTFS}/init" 2>/dev/null || true
-find "${ROOTFS}/etc/dinit.d" -type f -exec chmod +x {} \; 2>/dev/null || true
+for f in "${ROOTFS}/etc/dinit.d"/*; do
+  if [ -f "$f" ]; then
+    chmod +x "$f" 2>/dev/null || true
+  fi
+done
 
 cat > "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" <<'KERNELPOLICY'
 #!/bin/sh
