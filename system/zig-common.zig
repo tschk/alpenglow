@@ -261,15 +261,6 @@ pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
 
-test "fileExists" {
-    const testing = std.testing;
-
-    // Existing file
-    try testing.expect(fileExists("system/zig-common.zig") == true);
-
-    // Non-existing file
-    try testing.expect(fileExists("system/does-not-exist.txt") == false);
-}
 
 test "pathToZ" {
     const testing = std.testing;
@@ -383,13 +374,14 @@ test "MyArrayList.appendSlice" {
 }
 
 test "fileExists" {
+    if (builtin.os.tag != .linux) return;
     const testing = std.testing;
 
-    // The test file itself should exist from the alpenglow-ctl build working directory
-    try testing.expect(fileExists("../zig-common.zig"));
+    // The current directory always exists (covers the success branch)
+    try testing.expect(fileExists("."));
 
     // A non-existent file should not exist
-    try testing.expect(!fileExists("../nonexistent-file-for-test.zig"));
+    try testing.expect(!fileExists("definitely-nonexistent-file-for-test"));
 }
 
 test "sysRead" {
@@ -457,4 +449,21 @@ test "sysWrite errors" {
     const invalid_fd: i32 = -1;
 
     try testing.expectError(error.Unexpected, sysWrite(invalid_fd, "test"));
+}
+test "sysOpenat" {
+    if (builtin.os.tag != .linux) return;
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    // Create a file in the temp directory first
+    const fd_create = try sysOpenat(tmp.dir.handle, "test_file.txt", .{ .CREAT = true, .ACCMODE = .WRONLY }, 0o644);
+    sysClose(fd_create);
+
+    // Now test opening it with sysOpenat
+    const fd_open = try sysOpenat(tmp.dir.handle, "test_file.txt", .{ .ACCMODE = .RDONLY }, 0);
+    sysClose(fd_open);
+
+    // Test opening a non-existent file
+    try testing.expectError(error.FileNotFound, sysOpenat(tmp.dir.handle, "does_not_exist.txt", .{ .ACCMODE = .RDONLY }, 0));
 }
