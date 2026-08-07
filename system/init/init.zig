@@ -68,7 +68,7 @@ pub fn main() void {
 
     mkdir("/run/user", 0o755);
     mkdir("/run/user/0", 0o700);
-    mkdir("/state", 0o755);
+    mkdir("/state", 0o700);
 
     write_console("\nAlpenglow boot\n\n");
 
