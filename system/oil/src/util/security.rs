@@ -116,4 +116,26 @@ mod tests {
             PathBuf::from("/usr/local")
         );
     }
+
+    #[test]
+    fn verify_sha256_valid() {
+        let data = b"hello world";
+        let expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
+        assert!(verify_sha256(data, expected).is_ok());
+    }
+
+    #[test]
+    fn verify_sha256_valid_with_uppercase_and_whitespace() {
+        let data = b"hello world";
+        let expected = "  B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9  \n";
+        assert!(verify_sha256(data, expected).is_ok());
+    }
+
+    #[test]
+    fn verify_sha256_mismatch() {
+        let data = b"hello world";
+        let expected = "0000000000000000000000000000000000000000000000000000000000000000";
+        let err = verify_sha256(data, expected).unwrap_err();
+        assert!(matches!(err, OilError::ChecksumMismatch { .. }));
+    }
 }
