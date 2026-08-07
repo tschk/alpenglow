@@ -362,7 +362,6 @@ test "fileExists" {
 test "sysRead" {
     if (builtin.os.tag != .linux) return;
     const testing = std.testing;
-
     // Use an isolated temporary file for the test.
     var tmp = testing.tmpDir(.{});
     defer tmp.cleanup();
