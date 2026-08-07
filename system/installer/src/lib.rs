@@ -220,7 +220,7 @@ mod tests {
         assert_eq!(target, Some(PathBuf::from("/dev/nvme0n1")));
     }
 
-        #[test]
+    #[test]
     fn test_validate_target_new_file_allowed() {
         let dir = tempdir().unwrap();
         let target = dir.path().join("new_file.img");
@@ -328,5 +328,30 @@ mod tests {
         assert_eq!(tui, true);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, Some(PathBuf::from("/dev/sda")));
+    }
+
+    #[test]
+    fn test_run_installer_no_args() {
+        let args: Vec<OsString> = vec![];
+        assert_eq!(run_installer(args), 2);
+    }
+
+    #[test]
+    fn test_run_installer_tui_no_target() {
+        let args: Vec<OsString> = vec![OsString::from("--tui")];
+        assert_eq!(run_installer(args), 2);
+    }
+
+    #[test]
+    fn test_run_installer_fail_invalid_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from("/dev/null_does_not_exist_xyz"),
+        ];
+        assert_eq!(run_installer(args), 1);
     }
 }
