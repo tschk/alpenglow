@@ -173,4 +173,18 @@ mod tests {
             _ => panic!("Expected OilError::Http"),
         }
     }
+
+    #[test]
+    fn test_from_serde_norway_error() {
+        let yaml_err: std::result::Result<serde_json::Value, serde_norway::Error> =
+            serde_norway::from_str("{");
+        let orig_err = yaml_err.unwrap_err();
+        let err_msg = orig_err.to_string();
+
+        let err: OilError = orig_err.into();
+        match err {
+            OilError::Recipe(msg) => assert_eq!(msg, err_msg),
+            _ => panic!("Expected OilError::Recipe"),
+        }
+    }
 }
