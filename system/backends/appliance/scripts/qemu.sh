@@ -21,15 +21,16 @@ command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86
 [ -f "${KERNEL}" ] || { echo "missing kernel: ${KERNEL}"; exit 1; }
 [ -f "${INITRAMFS}" ] || { echo "missing initramfs: ${INITRAMFS}"; exit 1; }
 
-DISPLAY="--display default"
-INPUT=""
+set -- qemu-system-x86_64 -machine "q35,accel=${ACCEL}" -m "${MEMORY_MB}" -smp 2 -no-reboot
+
 if [ "${HEADLESS}" = "1" ]; then
-  DISPLAY="-nographic"
+  set -- "$@" -nographic
 elif [ -n "${VNC}" ]; then
-  DISPLAY="-display none -vnc ${VNC}"
-  INPUT="-device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci"
+  set -- "$@" -display none -vnc "${VNC}"
+  set -- "$@" -device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci
 else
-  INPUT="-device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci"
+  set -- "$@" --display default
+  set -- "$@" -device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci
 fi
 
 # Find OVMF firmware for EFI boot
@@ -41,12 +42,10 @@ if [ "${EFI}" = "1" ]; then
   done
 fi
 
-QEMU_CMD="qemu-system-x86_64 -machine q35,accel=${ACCEL} -m ${MEMORY_MB} -smp 2 -no-reboot ${DISPLAY} ${INPUT}"
-
 if [ -n "${OVMF}" ]; then
   # Try OVMF + kernel EFI stub. If firmware fails (e.g. EFI stub missing), fall through.
-  ${QEMU_CMD} -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}" 2>/dev/null && exit 0 || true
+  "$@" -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}" 2>/dev/null && exit 0 || true
 fi
 
 # SeaBIOS / direct kernel boot (no EFI stub or OVMF unavailable)
-exec ${QEMU_CMD} -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"
+exec "$@" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}"
