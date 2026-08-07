@@ -3,16 +3,15 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
+pub mod util;
 #[cfg(feature = "wax")]
 mod tap;
 #[cfg(test)]
 mod test_support;
-pub mod util;
 
 use clap::{Parser, Subcommand};
 use error::Result;
 use sha2::{Digest, Sha256};
-
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use system::registry::PackageIndex;
@@ -205,7 +204,11 @@ fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Packag
             };
             match result {
                 Ok(index) => {
-                    eprintln!("Loaded {} packages from tap {}", index.packages.len(), name);
+                    eprintln!(
+                        "Loaded {} packages from tap {}",
+                        index.packages.len(),
+                        name
+                    );
                     all.extend(index.packages);
                 }
                 Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
@@ -319,12 +322,7 @@ fn run_system(command: SystemCommands) -> Result<()> {
                     );
                 } else {
                     install_package(pkg, &dest)?;
-                    println!(
-                        "Installed {} {} into {}",
-                        pkg.name,
-                        pkg.version,
-                        dest.display()
-                    );
+                    println!("Installed {} {} into {}", pkg.name, pkg.version, dest.display());
                 }
             }
             Ok(())
@@ -747,7 +745,10 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         let actual = format!("{:x}", hasher.finalize());
         let expected = expected.trim().to_ascii_lowercase();
         if actual != expected {
-            return Err(error::OilError::ChecksumMismatch { expected, actual });
+            return Err(error::OilError::ChecksumMismatch {
+                expected,
+                actual,
+            });
         }
     }
 
