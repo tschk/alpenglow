@@ -11,6 +11,8 @@ mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/shm /run /tmp /sysroot /mnt
 mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
 mkdir -p /run/user/0 /tmp /mnt/root
+chown 0:0 /run/user/0 2>/dev/null || true
+chmod 700 /run/user/0 2>/dev/null || true
 
 # Parse kernel cmdline
 ALPENGLOW_IMAGE=""
