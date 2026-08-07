@@ -105,9 +105,13 @@ pub fn main() void {
 
     mkdir("/run/user", 0o755);
     mkdir("/run/user/0", 0o700);
-    mkdir("/state", 0o755);
+<<<<<<< HEAD
+    mkdir("/state", 0o700);
     mkdir("/tmp", 0o1777);
     mount("tmpfs", "/tmp", "tmpfs", 0, @ptrFromInt(@intFromPtr("mode=1777"))) catch {};
+=======
+    mkdir("/state", 0o700);
+>>>>>>> e915720 (🔒 Fix insecure file permissions for /state directory)
 
     write_console("\nAlpenglow boot\n\n");
 
