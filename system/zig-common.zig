@@ -331,3 +331,20 @@ test "MyArrayList.appendSlice" {
     try list.appendSlice(&[_]u8{ 4, 5 });
     try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 2, 3, 4, 5 }, list.items());
 }
+
+test "sysOpenat" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    // Create a file in the temp directory first
+    const fd_create = try sysOpenat(tmp.dir.fd, "test_file.txt", .{ .CREAT = true, .ACCMODE = .WRONLY }, 0o644);
+    sysClose(fd_create);
+
+    // Now test opening it with sysOpenat
+    const fd_open = try sysOpenat(tmp.dir.fd, "test_file.txt", .{ .ACCMODE = .RDONLY }, 0);
+    sysClose(fd_open);
+
+    // Test opening a non-existent file
+    try testing.expectError(error.FileNotFound, sysOpenat(tmp.dir.fd, "does_not_exist.txt", .{ .ACCMODE = .RDONLY }, 0));
+}
