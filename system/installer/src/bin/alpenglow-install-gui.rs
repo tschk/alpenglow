@@ -176,7 +176,7 @@ fn main() {
             let disk_2_detail = self.disk_detail(2);
             let disk_3 = self.disk_label(3);
             let disk_3_detail = self.disk_detail(3);
-            let has_disk_0 = self.disks.first().is_some();
+            let has_disk_0 = !self.disks.is_empty();
             let has_disk_1 = self.disks.get(1).is_some();
             let has_disk_2 = self.disks.get(2).is_some();
             let has_disk_3 = self.disks.get(3).is_some();
@@ -272,42 +272,51 @@ fn main() {
     }
 
     fn discover_disks() -> Vec<DiskChoice> {
-        let mut disks = fs::read_dir("/sys/block")
-            .ok()
-            .into_iter()
-            .flat_map(|entries| entries.filter_map(Result::ok))
-            .filter_map(|entry| {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !is_install_disk_name(&name) {
-                    return None;
-                }
-                let path = PathBuf::from("/dev").join(&name);
-                if !path.exists() {
-                    return None;
-                }
-                let size = fs::read_to_string(entry.path().join("size")).ok();
-                let model = fs::read_to_string(entry.path().join("device/model"))
-                    .ok()
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty());
-                let detail = match (
-                    model,
-                    size.and_then(|value| value.trim().parse::<u64>().ok()),
-                ) {
-                    (Some(model), Some(sectors)) => {
-                        format!("{model} - {}", format_disk_size(sectors))
+        let mut disks: Vec<DiskChoice> = std::thread::scope(|s| {
+            let entries = fs::read_dir("/sys/block")
+                .ok()
+                .into_iter()
+                .flat_map(|entries| entries.filter_map(Result::ok))
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if !is_install_disk_name(&name) {
+                        return None;
                     }
-                    (Some(model), None) => model,
-                    (None, Some(sectors)) => format_disk_size(sectors),
-                    (None, None) => "Block device".to_string(),
-                };
-                Some(DiskChoice {
-                    path,
-                    name: name.to_string(),
-                    detail,
+                    let path = PathBuf::from("/dev").join(&name);
+                    if !path.exists() {
+                        return None;
+                    }
+                    Some((entry, name, path))
                 })
-            })
-            .collect::<Vec<_>>();
+                .collect::<Vec<_>>();
+
+            let mut handles = Vec::with_capacity(entries.len());
+            for (entry, name, path) in entries {
+                let h = s.spawn(move || {
+                    let size = fs::read_to_string(entry.path().join("size")).ok();
+                    let model = fs::read_to_string(entry.path().join("device/model"))
+                        .ok()
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty());
+                    let detail = match (
+                        model,
+                        size.and_then(|value| value.trim().parse::<u64>().ok()),
+                    ) {
+                        (Some(model), Some(sectors)) => {
+                            format!("{model} - {}", format_disk_size(sectors))
+                        }
+                        (Some(model), None) => model,
+                        (None, Some(sectors)) => format_disk_size(sectors),
+                        (None, None) => "Block device".to_string(),
+                    };
+                    DiskChoice { path, name, detail }
+                });
+                handles.push(h);
+            }
+
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+
         disks.sort_by(|left, right| left.name.cmp(&right.name));
         disks
     }
@@ -361,15 +370,7 @@ mod tests {
 
     #[test]
     fn test_is_install_disk_name() {
-        let valid_names = vec![
-            "sda",
-            "sdb1",
-            "vda",
-            "vdb",
-            "xvda",
-            "nvme0n1",
-            "mmcblk0",
-        ];
+        let valid_names = vec!["sda", "sdb1", "vda", "vdb", "xvda", "nvme0n1", "mmcblk0"];
 
         let invalid_names = vec![
             "loop0",
