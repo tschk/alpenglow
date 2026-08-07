@@ -361,7 +361,15 @@ mod tests {
 
     #[test]
     fn test_is_install_disk_name() {
-        let valid_names = vec!["sda", "sdb1", "vda", "vdb", "xvda", "nvme0n1", "mmcblk0"];
+        let valid_names = vec![
+            "sda",
+            "sdb1",
+            "vda",
+            "vdb",
+            "xvda",
+            "nvme0n1",
+            "mmcblk0",
+        ];
 
         let invalid_names = vec![
             "loop0",

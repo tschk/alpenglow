@@ -78,9 +78,17 @@ pub fn run_installer<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
+    run_installer_with_draw(args, tui::draw_installer_tui)
+}
+
+pub fn run_installer_with_draw<I, F>(args: I, draw: F) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
     let (tui, source, target) = parse_installer_args(args);
     if tui {
-        if let Err(err) = tui::draw_installer_tui(&source, target.as_deref()) {
+        if let Err(err) = draw(&source, target.as_deref()) {
             eprintln!("installer ui failed: {err}");
             return 1;
         }
@@ -338,8 +346,11 @@ mod tests {
 
     #[test]
     fn test_run_installer_tui_no_target() {
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
         let args: Vec<OsString> = vec![OsString::from("--tui")];
-        assert_eq!(run_installer(args), 2);
+        assert_eq!(run_installer_with_draw(args, fake_draw), 2);
     }
 
     #[test]
