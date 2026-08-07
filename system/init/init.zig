@@ -44,8 +44,7 @@ fn exec_dinit() noreturn {
     };
     const envp = [_:null]?[*:0]const u8{null};
     _ = std.os.linux.syscall3(.execve, @intFromPtr(argv[0].?), @intFromPtr(&argv), @intFromPtr(&envp));
-    // If exec fails, panic/hang.
-    while (true) {}
+    std.process.exit(1);
 }
 
 pub fn main() void {

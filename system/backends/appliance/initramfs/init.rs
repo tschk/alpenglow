@@ -37,7 +37,7 @@ fn main() {
         .env_clear()
         .exec();
     eprintln!("init: dinit exec failed: {}", err);
-    let _ = Command::new("/usr/bin/sh").env_clear().exec();
+    std::process::exit(1);
 }
 fn run(prog: &str, args: &[&str]) {
     if let Err(e) = Command::new(prog).args(args).env_clear().status() {
