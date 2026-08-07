@@ -372,6 +372,45 @@ mod tests {
     }
 
     #[test]
+    fn test_untar_entry_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        header.set_size(10);
+        header.set_cksum();
+        tar_builder
+            .append_data(&mut header, "test.txt", b"0123456789".as_ref())?;
+        let mut tar_data = tar_builder.into_inner()?;
+
+        // Corrupt the header checksum to trigger an entry parsing error
+        tar_data[148..156].copy_from_slice(b"invalid\0");
+
+        let result = untar(&tar_data, dir.path());
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_untar_entry_path_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let mut tar_builder = tar::Builder::new(Vec::new());
+
+        // Create a GNU Long name extension where the long name data is too short
+        // This triggers an error when `entry.path()` attempts to read the long name
+        let mut ext_header = tar::Header::new_gnu();
+        ext_header.set_size(100);
+        ext_header.set_entry_type(tar::EntryType::GNULongName);
+        ext_header.set_cksum();
+        tar_builder.append_data(&mut ext_header, "././@LongLink", b"short".as_ref())?;
+
+        let tar_data = tar_builder.into_inner()?;
+
+        let result = untar(&tar_data, dir.path());
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
     fn test_split_gzip_streams_no_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let data = b"dummy string without gzip magic bytes";
         let result = split_gzip_streams(data, 3);
