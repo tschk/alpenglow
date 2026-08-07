@@ -10,14 +10,31 @@ fn main() {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
         }
+        if let Err(e) = std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o755)) {
+            eprintln!("init: failed to set permissions for directory {}: {}", d, e);
+        }
     }
     run("mount", &["-t", "tmpfs", "tmpfs", "/run"]);
-    run("mount", &["-t", "tmpfs", "-o", "mode=1777,size=256m", "tmpfs", "/dev/shm"]);
-    run("mount", &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"]);
+    run(
+        "mount",
+        &[
+            "-t",
+            "tmpfs",
+            "-o",
+            "mode=1777,size=256m",
+            "tmpfs",
+            "/dev/shm",
+        ],
+    );
+    run(
+        "mount",
+        &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"],
+    );
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
     }
-    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700)) {
+    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700))
+    {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
@@ -31,7 +48,9 @@ fn main() {
             _ => {}
         }
     }
-    println!(); println!("Alpenglow boot (rust-init)"); println!();
+    println!();
+    println!("Alpenglow boot (rust-init)");
+    println!();
     let err = Command::new("/usr/sbin/dinit")
         .args(["-d", "/etc/dinit.d", "-s", "-t", "shell-ttyS0"])
         .env_clear()
