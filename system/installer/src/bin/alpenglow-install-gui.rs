@@ -272,6 +272,7 @@ fn main() {
     }
 
     fn discover_disks() -> Vec<DiskChoice> {
+        let mut buf = String::with_capacity(128);
         let mut disks = fs::read_dir("/sys/block")
             .ok()
             .into_iter()
@@ -285,15 +286,29 @@ fn main() {
                 if !path.exists() {
                     return None;
                 }
-                let size = fs::read_to_string(entry.path().join("size")).ok();
-                let model = fs::read_to_string(entry.path().join("device/model"))
-                    .ok()
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty());
-                let detail = match (
-                    model,
-                    size.and_then(|value| value.trim().parse::<u64>().ok()),
-                ) {
+                use std::io::Read;
+                let size = {
+                    buf.clear();
+                    if let Ok(mut f) = fs::File::open(entry.path().join("size")) {
+                        f.read_to_string(&mut buf)
+                            .ok()
+                            .and_then(|_| buf.trim().parse::<u64>().ok())
+                    } else {
+                        None
+                    }
+                };
+                let model = {
+                    buf.clear();
+                    if let Ok(mut f) = fs::File::open(entry.path().join("device/model")) {
+                        f.read_to_string(&mut buf)
+                            .ok()
+                            .map(|_| buf.trim().to_string())
+                            .filter(|value| !value.is_empty())
+                    } else {
+                        None
+                    }
+                };
+                let detail = match (model, size) {
                     (Some(model), Some(sectors)) => {
                         format!("{model} - {}", format_disk_size(sectors))
                     }
@@ -361,15 +376,7 @@ mod tests {
 
     #[test]
     fn test_is_install_disk_name() {
-        let valid_names = vec![
-            "sda",
-            "sdb1",
-            "vda",
-            "vdb",
-            "xvda",
-            "nvme0n1",
-            "mmcblk0",
-        ];
+        let valid_names = vec!["sda", "sdb1", "vda", "vdb", "xvda", "nvme0n1", "mmcblk0"];
 
         let invalid_names = vec![
             "loop0",

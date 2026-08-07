@@ -220,7 +220,7 @@ mod tests {
         assert_eq!(target, Some(PathBuf::from("/dev/nvme0n1")));
     }
 
-        #[test]
+    #[test]
     fn test_validate_target_new_file_allowed() {
         let dir = tempdir().unwrap();
         let target = dir.path().join("new_file.img");
