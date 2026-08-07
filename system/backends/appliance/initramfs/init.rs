@@ -17,6 +17,9 @@ fn main() {
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
     }
+    if let Err(e) = std::os::unix::fs::chown("/run/user/0", Some(0), Some(0)) {
+        eprintln!("init: failed to chown /run/user/0: {}", e);
+    }
     if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700)) {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
