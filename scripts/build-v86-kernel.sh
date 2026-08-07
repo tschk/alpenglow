@@ -41,6 +41,7 @@ build_in_tree() {
 fetch_kernel() {
 if [ ! -d "${BUILD_DIR}/${KERNEL_TAR}" ]; then
     curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/${KERNEL_TAR}.tar.xz" -o "${BUILD_DIR}/${KERNEL_TAR}.tar.xz"
+    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" | grep " ${KERNEL_TAR}\.tar\.xz\$" | (cd "${BUILD_DIR}" && sha256sum -c -)
     tar -xf "${BUILD_DIR}/${KERNEL_TAR}.tar.xz" -C "${BUILD_DIR}"
   fi
 }
@@ -76,6 +77,8 @@ docker run --rm --platform linux/amd64 \
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
       wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O '"${KERNEL_TAR}"'.tar.xz
+      wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" -O sha256sums.asc
+      grep " '"${KERNEL_TAR}"'\.tar\.xz\$" sha256sums.asc | sha256sum -c -
       tar -xf '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
