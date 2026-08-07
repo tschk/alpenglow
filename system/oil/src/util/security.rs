@@ -127,10 +127,20 @@ mod tests {
 
     #[test]
     fn resolve_install_dest_without_prefix() {
-        assert_eq!(
-            resolve_install_dest(None, Path::new("/usr/local/bin")).unwrap(),
-            PathBuf::from("/usr/local/bin")
-        );
+        if std::env::var_os("OIL_SYSTEM_PREFIX").is_some() {
+            let exe = std::env::current_exe().expect("current test binary");
+            let status = std::process::Command::new(exe)
+                .args(["resolve_install_dest_without_prefix", "--exact", "--nocapture"])
+                .env_remove("OIL_SYSTEM_PREFIX")
+                .status()
+                .expect("spawn test subprocess");
+            assert!(status.success());
+        } else {
+            assert_eq!(
+                resolve_install_dest(None, Path::new("/usr/local/bin")).unwrap(),
+                PathBuf::from("/usr/local/bin")
+            );
+        }
     }
 
     #[test]
