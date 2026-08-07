@@ -257,9 +257,10 @@ chmod +x "${ROOTFS}/usr/local/bin/"*.sh
 chmod +x "${ROOTFS}/opt/alpenglow/session-init" 2>/dev/null || true
 chmod +x "${ROOTFS}/init" 2>/dev/null || true
 for f in "${ROOTFS}/etc/dinit.d"/*; do
-  if [ -f "$f" ]; then
-    chmod +x "$f" 2>/dev/null || true
-  fi
+  [ -e "$f" ] || continue
+  [ -h "$f" ] && continue
+  [ -f "$f" ] || continue
+  chmod +x "$f" 2>/dev/null || true
 done
 
 cat > "${ROOTFS}/usr/local/bin/apply-kernel-policy.sh" <<'KERNELPOLICY'
