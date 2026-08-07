@@ -335,9 +335,9 @@ test "MyArrayList.appendSlice" {
 test "fileExists" {
     const testing = std.testing;
 
-    // The test file itself should exist
-    try testing.expect(fileExists("system/zig-common.zig"));
+    // The test file itself should exist from the alpenglow-ctl build working directory
+    try testing.expect(fileExists("../zig-common.zig"));
 
     // A non-existent file should not exist
-    try testing.expect(!fileExists("system/nonexistent-file-for-test.zig"));
+    try testing.expect(!fileExists("../nonexistent-file-for-test.zig"));
 }
