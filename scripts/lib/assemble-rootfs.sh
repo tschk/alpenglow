@@ -119,6 +119,7 @@ exec </dev/ttyS0 >/dev/ttyS0 2>&1
 /bin/toybox mkdir -p /dev/shm 2>/dev/null
 /bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
 /bin/toybox mkdir -p /run/user/0
+/bin/toybox chown 0:0 /run/user/0
 /bin/toybox chmod 700 /run/user/0
 /bin/toybox mkdir -p /state
 # Try to mount state partition (if available)
