@@ -314,6 +314,16 @@ test "checkSyscall errors" {
     try testing.expectError(error.Unexpected, checkSyscall(eperm_rc));
 }
 
+test "sysOpen" {
+    const testing = std.testing;
+    const fd = try sysOpen("/dev/null", .{ .ACCMODE = .RDONLY }, 0);
+    try testing.expect(fd >= 0);
+    sysClose(fd);
+
+    // Test open a non-existent file
+    try testing.expectError(error.FileNotFound, sysOpen("/tmp/does_not_exist_ever_random_blabla", .{ .ACCMODE = .RDONLY }, 0));
+}
+
 test "MyArrayList.appendSlice" {
     const allocator = std.testing.allocator;
     var list = MyArrayList(u8).init(allocator);
