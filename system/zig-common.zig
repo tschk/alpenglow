@@ -315,13 +315,20 @@ test "checkSyscall errors" {
 }
 
 test "sysOpen" {
+    if (builtin.os.tag != .linux) return;
     const testing = std.testing;
     const fd = try sysOpen("/dev/null", .{ .ACCMODE = .RDONLY }, 0);
     try testing.expect(fd >= 0);
     sysClose(fd);
 
-    // Test open a non-existent file
-    try testing.expectError(error.FileNotFound, sysOpen("/tmp/does_not_exist_ever_random_blabla", .{ .ACCMODE = .RDONLY }, 0));
+    // Test open a non-existent file inside an isolated temp directory.
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const missing_path = try std.fs.path.join(testing.allocator, &[_][]const u8{ ".zig-cache", "tmp", &tmp.sub_path, "missing" });
+    defer testing.allocator.free(missing_path);
+    var buf: [4096]u8 = undefined;
+    const path_z = pathToZ(missing_path, &buf) orelse return error.NameTooLong;
+    try testing.expectError(error.FileNotFound, sysOpen(path_z, .{ .ACCMODE = .RDONLY }, 0));
 }
 
 test "MyArrayList.appendSlice" {
