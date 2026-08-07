@@ -31,7 +31,19 @@ require_cmd file
 require_cmd gzip
 require_cmd lz4
 require_cmd tar
-require_cmd sha256sum
+
+EXPECTED_SHA256="223b5ff5929371225d0bc62fb3b99a148692295fb6f85ad86bb924f689a55ea4"
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    echo "missing sha256sum or shasum" >&2
+    exit 1
+  fi
+}
 
 mkdir -p "${OUT_DIR}"
 if [ ! -s "${KERNEL}" ]; then
@@ -39,15 +51,23 @@ if [ ! -s "${KERNEL}" ]; then
   cp "${OUT_DIR}/vmlinuz" "${KERNEL}"
 fi
 
-if [ ! -x "${OUT_DIR}/toybox-aarch64" ]; then
-  curl -fsSL -o "${OUT_DIR}/toybox-aarch64" "https://landley.net/bin/toybox/latest/toybox-aarch64"
-  EXPECTED_SHA256="223b5ff5929371225d0bc62fb3b99a148692295fb6f85ad86bb924f689a55ea4"
-  if ! echo "${EXPECTED_SHA256}  ${OUT_DIR}/toybox-aarch64" | sha256sum -c - >/dev/null 2>&1; then
+TOYBOX_BIN="${OUT_DIR}/toybox-aarch64"
+
+if [ ! -x "${TOYBOX_BIN}" ]; then
+  curl -fsSL -o "${TOYBOX_BIN}" "https://landley.net/bin/toybox/latest/toybox-aarch64"
+  chmod 755 "${TOYBOX_BIN}"
+fi
+
+if [ "$(sha256_of "${TOYBOX_BIN}")" != "${EXPECTED_SHA256}" ]; then
+  echo "Checksum mismatch for toybox-aarch64; re-downloading..." >&2
+  rm -f "${TOYBOX_BIN}"
+  curl -fsSL -o "${TOYBOX_BIN}" "https://landley.net/bin/toybox/latest/toybox-aarch64"
+  chmod 755 "${TOYBOX_BIN}"
+  if [ "$(sha256_of "${TOYBOX_BIN}")" != "${EXPECTED_SHA256}" ]; then
     echo "ERROR: Checksum validation failed for toybox-aarch64" >&2
-    rm -f "${OUT_DIR}/toybox-aarch64"
+    rm -f "${TOYBOX_BIN}"
     exit 1
   fi
-  chmod 755 "${OUT_DIR}/toybox-aarch64"
 fi
 file "${OUT_DIR}/toybox-aarch64" | grep -q 'aarch64' || { echo "not aarch64: ${OUT_DIR}/toybox-aarch64" >&2; exit 1; }
 rm -rf "${ROOTFS}"
