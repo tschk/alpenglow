@@ -893,16 +893,3 @@ mod tests {
         );
     }
 }
-#[cfg(test)]
-mod test_tar_rust {
-    #[test]
-    fn test_tar() {
-        let mut tar_builder = tar::Builder::new(Vec::new());
-        let mut ext_header = tar::Header::new_gnu();
-        ext_header.set_size(100);
-        ext_header.set_entry_type(tar::EntryType::GNULongName);
-        ext_header.set_cksum();
-        let res = tar_builder.append_data(&mut ext_header, "././@LongLink", b"short".as_ref());
-        println!("append_data returned {:?}", res);
-    }
-}

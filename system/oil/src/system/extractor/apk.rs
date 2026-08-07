@@ -395,15 +395,24 @@ mod tests {
         let dir = tempdir()?;
         let mut tar_builder = tar::Builder::new(Vec::new());
 
-        // Create a GNU Long name extension where the long name data is too short
-        // This triggers an error when `entry.path()` attempts to read the long name
+        // Build a valid GNU long name entry with a short name.
+        let long_name = b"short";
         let mut ext_header = tar::Header::new_gnu();
-        ext_header.set_size(100);
+        ext_header.set_size(long_name.len() as u64);
         ext_header.set_entry_type(tar::EntryType::GNULongName);
         ext_header.set_cksum();
-        tar_builder.append_data(&mut ext_header, "././@LongLink", b"short".as_ref())?;
+        tar_builder.append_data(&mut ext_header, "././@LongLink", long_name.as_ref())?;
 
-        let tar_data = tar_builder.into_inner()?;
+        // Append a dummy file so the archive is initially valid.
+        let mut header = tar::Header::new_gnu();
+        header.set_size(0);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "file.txt", b"".as_ref())?;
+
+        let mut tar_data = tar_builder.into_inner()?;
+
+        // Truncate inside the long name data so the entry cannot be fully read.
+        tar_data.truncate(512 + 2);
 
         let result = untar(&tar_data, dir.path());
         assert!(result.is_err());
