@@ -261,6 +261,16 @@ pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
 
+test "fileExists" {
+    const testing = std.testing;
+
+    // Existing file
+    try testing.expect(fileExists("system/zig-common.zig") == true);
+
+    // Non-existing file
+    try testing.expect(fileExists("system/does-not-exist.txt") == false);
+}
+
 test "pathToZ" {
     const testing = std.testing;
     var buf: [16]u8 = undefined;
