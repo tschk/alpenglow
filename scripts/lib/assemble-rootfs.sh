@@ -117,7 +117,17 @@ SCRIPT
 exec </dev/ttyS0 >/dev/ttyS0 2>&1
 /bin/toybox mount -t tmpfs tmpfs /run
 /bin/toybox mkdir -p /dev/shm 2>/dev/null
-/bin/toybox mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
+SHM_SIZE="mode=1777,size=256m"
+if [ -r /proc/meminfo ]; then
+  mem_total_kb=""
+  while read -r key value _; do
+    [ "$key" = "MemTotal:" ] && { mem_total_kb="$value"; break; }
+  done < /proc/meminfo
+  if [ -n "$mem_total_kb" ]; then
+    SHM_SIZE="mode=1777,size=$((mem_total_kb / 2))k"
+  fi
+fi
+/bin/toybox mount -t tmpfs -o "$SHM_SIZE" tmpfs /dev/shm
 /bin/toybox mkdir -p /run/user/0
 /bin/toybox chmod 700 /run/user/0
 /bin/toybox mkdir -p /state
