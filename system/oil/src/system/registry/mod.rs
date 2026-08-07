@@ -54,10 +54,10 @@ impl PackageIndex {
 
     /// Resolve `roots` and their transitive dependencies into install order
     /// (dependencies before dependents). Skips names present in `skip`.
-    pub fn resolve_install_order<'a>(
+    pub fn resolve_install_order<'a, F: Fn(&str) -> bool + Copy>(
         &'a self,
         roots: &[String],
-        skip: &HashSet<String>,
+        skip: F,
     ) -> Result<Vec<&'a PackageMetadata>> {
         let mut order = Vec::new();
         let mut visiting = HashSet::new();
@@ -70,15 +70,15 @@ impl PackageIndex {
         Ok(order)
     }
 
-    fn visit_install_deps<'a>(
+    fn visit_install_deps<'a, F: Fn(&str) -> bool + Copy>(
         &'a self,
         name: &str,
-        skip: &HashSet<String>,
+        skip: F,
         visiting: &mut HashSet<String>,
         scheduled: &mut HashSet<String>,
         order: &mut Vec<&'a PackageMetadata>,
     ) -> Result<()> {
-        if skip.contains(name) {
+        if skip(name) {
             return Ok(());
         }
 
@@ -289,9 +289,9 @@ mod tests {
             sample_pkg("app", vec!["liba".to_string()]),
             sample_pkg("liba", vec![]),
         ]);
-        let skip = HashSet::new();
+        let skip: HashSet<String> = HashSet::new();
         let order = index
-            .resolve_install_order(&["app".to_string()], &skip)
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["liba", "app"]);
@@ -304,9 +304,9 @@ mod tests {
             sample_pkg("libb", vec!["liba".to_string()]),
             sample_pkg("liba", vec![]),
         ]);
-        let skip = HashSet::new();
+        let skip: HashSet<String> = HashSet::new();
         let order = index
-            .resolve_install_order(&["app".to_string()], &skip)
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["liba", "libb", "app"]);
@@ -320,7 +320,7 @@ mod tests {
         ]);
         let skip = HashSet::from(["liba".to_string()]);
         let order = index
-            .resolve_install_order(&["app".to_string()], &skip)
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["app"]);
@@ -332,8 +332,8 @@ mod tests {
             sample_pkg("a", vec!["b".to_string()]),
             sample_pkg("b", vec!["a".to_string()]),
         ]);
-        let skip = HashSet::new();
-        let result = index.resolve_install_order(&["a".to_string()], &skip);
+        let skip: HashSet<String> = HashSet::new();
+        let result = index.resolve_install_order(&["a".to_string()], |n| skip.contains(n));
         assert!(result.is_err());
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
