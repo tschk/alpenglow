@@ -3,11 +3,11 @@ mod install;
 mod recipe;
 mod signal;
 mod system;
-pub mod util;
 #[cfg(feature = "wax")]
 mod tap;
 #[cfg(test)]
 mod test_support;
+pub mod util;
 
 use clap::{Parser, Subcommand};
 use error::Result;
@@ -167,11 +167,6 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
     }
 }
 
-#[allow(dead_code)]
-fn run_command(cmd: Commands) -> Result<()> {
-    dispatch_command(cmd)
-}
-
 #[cfg(feature = "wax")]
 fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> PackageIndex {
     let taps = match tap::Taps::new() {
@@ -205,11 +200,7 @@ fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Packag
             };
             match result {
                 Ok(index) => {
-                    eprintln!(
-                        "Loaded {} packages from tap {}",
-                        index.packages.len(),
-                        name
-                    );
+                    eprintln!("Loaded {} packages from tap {}", index.packages.len(), name);
                     all.extend(index.packages);
                 }
                 Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
@@ -323,7 +314,12 @@ fn run_system(command: SystemCommands) -> Result<()> {
                     );
                 } else {
                     install_package(pkg, &dest)?;
-                    println!("Installed {} {} into {}", pkg.name, pkg.version, dest.display());
+                    println!(
+                        "Installed {} {} into {}",
+                        pkg.name,
+                        pkg.version,
+                        dest.display()
+                    );
                 }
             }
             Ok(())
@@ -747,10 +743,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
         let actual = format!("{:x}", hasher.finalize());
         let expected = expected.trim().to_ascii_lowercase();
         if actual != expected {
-            return Err(error::OilError::ChecksumMismatch {
-                expected,
-                actual,
-            });
+            return Err(error::OilError::ChecksumMismatch { expected, actual });
         }
     }
 
@@ -869,10 +862,7 @@ mod tests {
             let cmd = cli.command.expect("subcommand");
             assert_eq!(cmd, want, "argv: {argv:?}");
 
-            // Do not execute run_command in tests for commands that require network
-            // or modify the filesystem extensively (like tap add, upgrade, update, etc).
             // We just want to test CLI parsing aliases.
-            // run_command(cmd).expect("run_command");
         }
     }
 
