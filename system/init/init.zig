@@ -44,7 +44,14 @@ fn exec_dinit() noreturn {
     };
     const envp = [_:null]?[*:0]const u8{null};
     _ = std.os.linux.syscall3(.execve, @intFromPtr(argv[0].?), @intFromPtr(&argv), @intFromPtr(&envp));
-    // If exec fails, panic/hang.
+    // If exec fails, reboot instead of hanging.
+    _ = std.os.linux.syscall4(
+        .reboot,
+        0xfee1dead, // LINUX_REBOOT_MAGIC1
+        672274793,  // LINUX_REBOOT_MAGIC2
+        0x01234567, // LINUX_REBOOT_CMD_RESTART
+        0,
+    );
     while (true) {}
 }
 
