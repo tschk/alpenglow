@@ -98,4 +98,12 @@ describe("alpenglow site", () => {
       await server.stop(true);
     }
   });
+
+  test("renderResponse returns a valid Response object", async () => {
+    const req = new Request("http://localhost/");
+    const res = await renderResponse(req);
+    expect(res).toBeInstanceOf(Response);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+  });
 });
