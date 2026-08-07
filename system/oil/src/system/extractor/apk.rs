@@ -238,38 +238,66 @@ fn process_tar_entry<R: std::io::Read>(
 
     let kind = entry.header().entry_type();
     if kind.is_dir() {
-        if !created_dirs.contains(&dest) {
-            std::fs::create_dir_all(&dest)?;
-            created_dirs.insert(dest.clone());
-        }
-        dirs.push(dest);
+        process_dir(&dest, dirs, created_dirs)?;
     } else if kind.is_symlink() {
-        if let Some(link_target) = entry.link_name()? {
-            if !is_safe_symlink(link_target.as_ref(), &dest, dest_dir) {
-                return Err(OilError::Install(format!(
-                    "Unsafe symlink target {:?} for {:?}",
-                    link_target, dest
-                )));
-            }
-            let _ = std::fs::remove_file(&dest);
-            let _ = std::fs::remove_dir_all(&dest);
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(link_target.as_ref(), &dest)?;
-            files.push(dest);
-        }
+        process_symlink(&entry, &dest, dest_dir, files)?;
     } else if kind.is_hard_link() {
         return Err(OilError::Install(format!(
             "hard links are not allowed in APK payloads: {stripped}"
         )));
     } else if kind.is_file() {
-        entry.unpack(&dest)?;
-        files.push(dest);
+        process_file(&mut entry, &dest, files)?;
     } else {
         return Err(OilError::Install(format!(
             "unsupported tar entry type for {stripped}"
         )));
     }
 
+    Ok(())
+}
+
+fn process_dir(
+    dest: &Path,
+    dirs: &mut Vec<PathBuf>,
+    created_dirs: &mut std::collections::HashSet<PathBuf>,
+) -> Result<()> {
+    if !created_dirs.contains(dest) {
+        std::fs::create_dir_all(dest)?;
+        created_dirs.insert(dest.to_path_buf());
+    }
+    dirs.push(dest.to_path_buf());
+    Ok(())
+}
+
+fn process_symlink<R: std::io::Read>(
+    entry: &tar::Entry<'_, R>,
+    dest: &Path,
+    dest_dir: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<()> {
+    if let Some(link_target) = entry.link_name()? {
+        if !is_safe_symlink(link_target.as_ref(), dest, dest_dir) {
+            return Err(OilError::Install(format!(
+                "Unsafe symlink target {:?} for {:?}",
+                link_target, dest
+            )));
+        }
+        let _ = std::fs::remove_file(dest);
+        let _ = std::fs::remove_dir_all(dest);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(link_target.as_ref(), dest)?;
+        files.push(dest.to_path_buf());
+    }
+    Ok(())
+}
+
+fn process_file<R: std::io::Read>(
+    entry: &mut tar::Entry<'_, R>,
+    dest: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<()> {
+    entry.unpack(dest)?;
+    files.push(dest.to_path_buf());
     Ok(())
 }
 
@@ -372,17 +400,23 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_no_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_no_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let data = b"dummy string without gzip magic bytes";
         let result = split_gzip_streams(data, 3);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("APK has 0 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 0 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_fake_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_fake_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = create_gz_stream(b"stream 1")?;
 
         // Append raw magic bytes in between valid streams to test the function's boundary splitting logic
