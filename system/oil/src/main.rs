@@ -167,11 +167,6 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
     }
 }
 
-#[allow(dead_code)]
-fn run_command(cmd: Commands) -> Result<()> {
-    dispatch_command(cmd)
-}
-
 #[cfg(feature = "wax")]
 fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> PackageIndex {
     let taps = match tap::Taps::new() {
@@ -869,10 +864,7 @@ mod tests {
             let cmd = cli.command.expect("subcommand");
             assert_eq!(cmd, want, "argv: {argv:?}");
 
-            // Do not execute run_command in tests for commands that require network
-            // or modify the filesystem extensively (like tap add, upgrade, update, etc).
             // We just want to test CLI parsing aliases.
-            // run_command(cmd).expect("run_command");
         }
     }
 
