@@ -9,7 +9,9 @@ mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 
 mkdir -p /dev/shm /run /tmp /sysroot /mnt
+chmod 01777 /dev/shm /tmp
 mount -t tmpfs -o mode=1777,size=256m tmpfs /dev/shm
+mount -t tmpfs -o mode=1777 tmpfs /tmp
 mkdir -p /run/user/0 /tmp /mnt/root
 
 # Parse kernel cmdline

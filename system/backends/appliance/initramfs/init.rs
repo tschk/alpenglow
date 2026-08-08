@@ -10,6 +10,10 @@ fn main() {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
         }
+        let mode = if *d == "/dev/shm" || *d == "/tmp" { 0o1777 } else { 0o755 };
+        if let Err(e) = std::fs::set_permissions(d, std::fs::Permissions::from_mode(mode)) {
+            eprintln!("init: failed to set permissions for directory {}: {}", d, e);
+        }
     }
     run("mount", &["-t", "tmpfs", "tmpfs", "/run"]);
     run("mount", &["-t", "tmpfs", "-o", "mode=1777,size=256m", "tmpfs", "/dev/shm"]);
@@ -17,7 +21,8 @@ fn main() {
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
     }
-    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700)) {
+    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700))
+    {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
