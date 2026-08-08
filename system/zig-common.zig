@@ -358,3 +358,33 @@ test "fileExists" {
     // A non-existent file should not exist
     try testing.expect(!fileExists("../nonexistent-file-for-test.zig"));
 }
+
+test "sysRead" {
+    if (builtin.os.tag != .linux) return;
+    const testing = std.testing;
+    // Use an isolated temporary file for the test.
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const test_file_path = try std.fs.path.join(testing.allocator, &[_][]const u8{ ".zig-cache", "tmp", &tmp.sub_path, "testfile" });
+    defer testing.allocator.free(test_file_path);
+
+    // Write some data to a file
+    const test_data = "Hello sysRead test";
+    try writeFile(test_file_path, test_data, true);
+
+    // Open file to read using sysOpen
+    var buf_path: [4096]u8 = undefined;
+    const path_z = pathToZ(test_file_path, &buf_path) orelse return error.NameTooLong;
+    const fd = try sysOpen(path_z, .{ .CLOEXEC = true }, 0);
+    defer sysClose(fd);
+
+    // Read the data back
+    var read_buf: [32]u8 = undefined;
+    const bytes_read = try sysRead(fd, &read_buf);
+
+    try testing.expectEqual(test_data.len, bytes_read);
+    try testing.expectEqualStrings(test_data, read_buf[0..bytes_read]);
+
+    // Test reading from an invalid fd fails
+    try testing.expectError(error.Unexpected, sysRead(-1, &read_buf));
+}
