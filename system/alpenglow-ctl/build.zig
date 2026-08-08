@@ -83,6 +83,18 @@ pub fn build(b: *std.Build) void {
     kernel_tests.root_module.link_libc = true;
     const run_kernel_tests = b.addRunArtifact(kernel_tests);
 
+    const common_test_mod = b.createModule(.{
+        .root_source_file = b.path("../zig-common.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
+    });
+    const common_tests = b.addTest(.{
+        .root_module = common_test_mod,
+    });
+    common_tests.root_module.link_libc = true;
+    const run_common_tests = b.addRunArtifact(common_tests);
+
     const test_step = b.step("test", "Run alpenglow-ctl tests");
     test_step.dependOn(&run_kernel_tests.step);
+    test_step.dependOn(&run_common_tests.step);
 }
