@@ -331,3 +331,13 @@ test "MyArrayList.appendSlice" {
     try list.appendSlice(&[_]u8{ 4, 5 });
     try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 2, 3, 4, 5 }, list.items());
 }
+
+test "fileExists" {
+    const testing = std.testing;
+
+    // The test file itself should exist from the alpenglow-ctl build working directory
+    try testing.expect(fileExists("../zig-common.zig"));
+
+    // A non-existent file should not exist
+    try testing.expect(!fileExists("../nonexistent-file-for-test.zig"));
+}
