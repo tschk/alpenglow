@@ -8,6 +8,7 @@ KERNEL_OUT="${ROOT_DIR}/site/public/v86/alpenglow-v86-vmlinuz"
 BACKEND="${ROOT_DIR}/system/backends/appliance"
 KERNEL_VERSION="${KERNEL_VERSION:-$(grep -E '^KERNEL_VERSION="\$\{KERNEL_VERSION:-' "${ROOT_DIR}/scripts/boot-native.sh" | sed -n 's/.*KERNEL_VERSION:-\([0-9.]*\).*/\1/p')}"
 KERNEL_TAR="linux-${KERNEL_VERSION}"
+KERNEL_ORG_SIGN_KEY="B8868C80BA62A1FFFAF5FDA9632D3A06589DA6B1"
 STAMP="${BUILD_DIR}/.kernel-v86-i686-${KERNEL_VERSION}.ok"
 V86_KERNEL_JOBS="${V86_KERNEL_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)}"
 
@@ -39,8 +40,18 @@ build_in_tree() {
 }
 
 fetch_kernel() {
-if [ ! -d "${BUILD_DIR}/${KERNEL_TAR}" ]; then
+  if [ ! -d "${BUILD_DIR}/${KERNEL_TAR}" ]; then
     curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/${KERNEL_TAR}.tar.xz" -o "${BUILD_DIR}/${KERNEL_TAR}.tar.xz"
+    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" -o "${BUILD_DIR}/sha256sums.asc"
+
+    # Verify the signed checksum manifest against the kernel.org checksum autosigner key.
+    rm -f "${BUILD_DIR}/kernel-autosigner.gpg"
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${KERNEL_ORG_SIGN_KEY}" -o "${BUILD_DIR}/kernel-autosigner.asc"
+    gpg --no-default-keyring --keyring "${BUILD_DIR}/kernel-autosigner.gpg" --batch --yes --import "${BUILD_DIR}/kernel-autosigner.asc" >/dev/null 2>&1
+    gpg --no-default-keyring --keyring "${BUILD_DIR}/kernel-autosigner.gpg" --with-colons --list-keys 2>/dev/null | grep -q "^fpr.*:${KERNEL_ORG_SIGN_KEY}:"
+    gpgv --keyring "${BUILD_DIR}/kernel-autosigner.gpg" "${BUILD_DIR}/sha256sums.asc"
+
+    grep " ${KERNEL_TAR}\.tar\.xz\$" "${BUILD_DIR}/sha256sums.asc" | (cd "${BUILD_DIR}" && sha256sum -c -)
     tar -xf "${BUILD_DIR}/${KERNEL_TAR}.tar.xz" -C "${BUILD_DIR}"
   fi
 }
@@ -72,10 +83,19 @@ docker run --rm --platform linux/amd64 \
     apt-get update -qq
     apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
       libncurses-dev dwarves rsync kmod wget xz-utils zstd ca-certificates \
-      gcc-i686-linux-gnu >/dev/null
+      gcc-i686-linux-gnu gnupg >/dev/null
     cd /out
     if [ ! -d "'"${KERNEL_TAR}"'" ]; then
       wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/'"${KERNEL_TAR}"'.tar.xz" -O '"${KERNEL_TAR}"'.tar.xz
+      wget -q "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" -O sha256sums.asc
+
+      rm -f kernel-autosigner.gpg
+      wget -q "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x'"${KERNEL_ORG_SIGN_KEY}"'" -O kernel-autosigner.asc
+      gpg --no-default-keyring --keyring kernel-autosigner.gpg --batch --yes --import kernel-autosigner.asc >/dev/null 2>&1
+      gpg --no-default-keyring --keyring kernel-autosigner.gpg --with-colons --list-keys 2>/dev/null | grep -q "^fpr.*:'"${KERNEL_ORG_SIGN_KEY}"':"
+      gpgv --keyring kernel-autosigner.gpg sha256sums.asc
+
+      grep " '"${KERNEL_TAR}"'\.tar\.xz\$" sha256sums.asc | sha256sum -c -
       tar -xf '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
