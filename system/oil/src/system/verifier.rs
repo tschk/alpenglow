@@ -55,25 +55,7 @@ pub fn verify_apk_signature(data_tar: &[u8], sig_cms_der: &[u8], pubkey_pem: &st
         return Err(OilError::Install("unsupported CMS digest algorithm".into()));
     };
 
-    // Determine what the RSA signature authenticates — this depends on
-    // whether CMS signed attributes (signedAttrs) are present.
-    //
-    // With signedAttrs:  prehash = H(DER(signedAttrs))   where H comes from
-    //                                            the signatureAlgorithm.
-    //                   The attrs contain a messageDigest that must match
-    //                   our locally computed data_hash.
-    // Without signedAttrs:  prehash = data_hash  (the raw content hash).
-    let prehash = if let Some(attrs) = &signer.signed_attrs {
-        verify_message_digest(attrs, &data_hash)?;
-        let mut encoded = Vec::new();
-        attrs
-            .encode_to_vec(&mut encoded)
-            .map_err(|e| OilError::Install(format!("encode attrs: {e}")))?;
-        // ponytail: hash DER(attrs) according to signatureAlgorithm
-        hash_bytes(&encoded, sig_alg)?
-    } else {
-        data_hash
-    };
+    let prehash = calculate_prehash(signer, data_hash, sig_alg)?;
 
     // Load RSA public key
     let pubkey = RsaPublicKey::from_public_key_pem(pubkey_pem)
@@ -95,6 +77,32 @@ pub fn verify_apk_signature(data_tar: &[u8], sig_cms_der: &[u8], pubkey_pem: &st
         Err(OilError::Install(
             "unsupported RSA signature algorithm".into(),
         ))
+    }
+}
+
+/// Determine what the RSA signature authenticates — this depends on
+/// whether CMS signed attributes (signedAttrs) are present.
+///
+/// With signedAttrs:  prehash = H(DER(signedAttrs))   where H comes from
+///                                            the signatureAlgorithm.
+///                   The attrs contain a messageDigest that must match
+///                   our locally computed data_hash.
+/// Without signedAttrs:  prehash = data_hash  (the raw content hash).
+fn calculate_prehash(
+    signer: &cms::signed_data::SignerInfo,
+    data_hash: Vec<u8>,
+    sig_alg: const_oid::ObjectIdentifier,
+) -> Result<Vec<u8>> {
+    if let Some(attrs) = &signer.signed_attrs {
+        verify_message_digest(attrs, &data_hash)?;
+        let mut encoded = Vec::new();
+        attrs
+            .encode_to_vec(&mut encoded)
+            .map_err(|e| OilError::Install(format!("encode attrs: {e}")))?;
+        // ponytail: hash DER(attrs) according to signatureAlgorithm
+        hash_bytes(&encoded, sig_alg)
+    } else {
+        Ok(data_hash)
     }
 }
 
