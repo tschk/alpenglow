@@ -388,3 +388,40 @@ test "sysRead" {
     // Test reading from an invalid fd fails
     try testing.expectError(error.Unexpected, sysRead(-1, &read_buf));
 }
+
+test "sysWrite" {
+    if (builtin.os.tag != .linux) return;
+    const testing = std.testing;
+
+    var pipe_fds: [2]i32 = undefined;
+    const rc = linux.pipe(&pipe_fds);
+    try testing.expectEqual(@as(usize, 0), rc);
+
+    const read_fd = pipe_fds[0];
+    const write_fd = pipe_fds[1];
+
+    defer sysClose(read_fd);
+    defer sysClose(write_fd);
+
+    // Test writing an empty slice
+    try sysWrite(write_fd, "");
+
+    // Test writing some data
+    const data = "hello world";
+    try sysWrite(write_fd, data);
+
+    var buf: [16]u8 = undefined;
+    const n = try sysRead(read_fd, &buf);
+
+    try testing.expectEqualStrings(data, buf[0..n]);
+}
+
+test "sysWrite errors" {
+    if (builtin.os.tag != .linux) return;
+    const testing = std.testing;
+
+    // Write to an invalid file descriptor
+    const invalid_fd: i32 = -1;
+
+    try testing.expectError(error.Unexpected, sysWrite(invalid_fd, "test"));
+}
