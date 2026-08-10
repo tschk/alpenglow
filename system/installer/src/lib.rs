@@ -181,6 +181,14 @@ mod tests {
     use tempfile::{tempdir, NamedTempFile};
 
     #[test]
+    fn test_default_live_source() {
+        assert_eq!(
+            default_live_source(),
+            PathBuf::from("/run/alpenglow/alpenglow.img.zst")
+        );
+    }
+
+    #[test]
     fn test_parse_install_args_zero_args() {
         let args: Vec<&str> = vec![];
         let (source, target) = parse_install_args(args);
