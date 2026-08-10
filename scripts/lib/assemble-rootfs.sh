@@ -131,6 +131,7 @@ fi
 /bin/toybox mount -t tmpfs -o "$SHM_SIZE" tmpfs /dev/shm
 /bin/toybox mount -t tmpfs -o mode=1777 tmpfs /tmp
 /bin/toybox mkdir -p /run/user/0
+/bin/toybox chown 0:0 /run/user/0
 /bin/toybox chmod 700 /run/user/0
 /bin/toybox mkdir -p /state
 # Try to mount state partition (if available)
