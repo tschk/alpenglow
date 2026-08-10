@@ -75,7 +75,7 @@ mkdir -p "${ROOTFS}"
 
 CID="$(docker create --platform linux/arm64 alpine:3.21 sleep 600)"
 docker start "${CID}" >/dev/null
-docker exec "${CID}" sh -lc "apk add --no-cache ${PACKAGES} >/dev/null"
+docker exec "${CID}" sh -lc 'apk add --no-cache "$@" >/dev/null' -- ${PACKAGES}
 docker export "${CID}" | tar -C "${ROOTFS}" -xf -
 cp "${OUT_DIR}/toybox-aarch64" "${ROOTFS}/usr/bin/toybox"
 
