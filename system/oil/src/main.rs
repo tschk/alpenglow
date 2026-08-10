@@ -12,7 +12,6 @@ mod test_support;
 use clap::{Parser, Subcommand};
 use error::Result;
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use system::registry::PackageIndex;
@@ -430,8 +429,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     }
 
     let index = load_registry()?;
-    let skip: HashSet<String> = state.load()?.keys().cloned().collect();
-    let order = index.resolve_install_order(&pending, &skip)?;
+    let order = index.resolve_install_order(&pending, |name| state.get(name).is_some())?;
 
     for pkg in &order {
         if dry_run {
