@@ -128,10 +128,14 @@ mod tests {
         let cases = vec![
             // happy path
             ("libc6", "libc6"),
-            // with version
+            // with version and spaces
             ("libc6 (>= 2.17)", "libc6"),
             // with equals constraint
             ("rg=14.1.1-r0", "rg"),
+            // with less than constraint
+            ("rg<14.1.1-r0", "rg"),
+            // with greater than constraint
+            ("rg>14.1.1-r0", "rg"),
             // complex edge cases
             ("", ""),
             ("   ", ""),
@@ -140,6 +144,12 @@ mod tests {
             ("so:libssl.so.3", "so:libssl.so.3"),
             ("cmd:bash", "cmd:bash"),
             ("  pkg  ", "pkg"),
+            // spaces around constraints
+            ("pkg = 1.0", "pkg"),
+            ("pkg < 1.0", "pkg"),
+            ("pkg > 1.0", "pkg"),
+            // weird prefixes
+            ("!pkg", "!pkg"),
         ];
 
         for (input, expected) in cases {
