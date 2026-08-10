@@ -160,10 +160,11 @@ fn extract_signature_info(tar_data: &[u8]) -> Option<(String, Vec<u8>)> {
     let mut archive = Archive::new(tar_data);
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
-        let name = entry.path().ok()?;
-        let name_str = name.to_string_lossy();
-        if let Some(rest) = name_str.strip_prefix(".SIGN.RSA.") {
-            let keyname = rest.trim_end_matches('\0').to_string();
+        let bytes = entry.path_bytes();
+        if let Some(rest) = bytes.strip_prefix(b".SIGN.RSA.") {
+            let keyname = String::from_utf8_lossy(rest)
+                .trim_end_matches('\0')
+                .to_string();
             let mut sig = Vec::new();
             entry.read_to_end(&mut sig).ok()?;
             return Some((keyname, sig));
