@@ -242,6 +242,69 @@ fn tar_header_size(bytes: &[u8]) -> Result<usize> {
         .map_err(|e| OilError::Install(format!("invalid APKINDEX tar size: {e}")))
 }
 
+fn parse_apk_stanza(
+    stanza: &str,
+    mirror: &str,
+    branch: &str,
+    repo: &str,
+    arch: &str,
+) -> Option<PackageMetadata> {
+    let mut name = String::new();
+    let mut version = String::new();
+    let mut description = String::new();
+    let mut installed_size: u64 = 0;
+    let mut depends: Vec<String> = Vec::new();
+    let mut provides: Vec<String> = Vec::new();
+
+    for line in stanza.lines() {
+        if line.len() < 2 || line.as_bytes()[1] != b':' {
+            continue;
+        }
+        let key = &line[..1];
+        let val = line[2..].trim();
+
+        match key {
+            "P" => name = val.to_string(),
+            "V" => version = val.to_string(),
+            "T" => description = val.to_string(),
+            "I" => installed_size = val.parse().unwrap_or(0),
+            "D" => {
+                for dep in val.split_whitespace() {
+                    let dname = super::parse_dep_name(dep);
+                    if !dname.is_empty() && !dname.starts_with('!') {
+                        depends.push(dname.to_string());
+                    }
+                }
+            }
+            "p" => {
+                for prov in val.split_whitespace() {
+                    let pname = super::parse_dep_name(prov);
+                    if !pname.is_empty() {
+                        provides.push(pname.to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if name.is_empty() || version.is_empty() {
+        return None;
+    }
+
+    let url = format!("{mirror}/{branch}/{repo}/{arch}/{name}-{version}.apk");
+    Some(PackageMetadata {
+        name,
+        version,
+        description,
+        download_url: url,
+        sha256: None,
+        installed_size,
+        depends,
+        provides,
+    })
+}
+
 fn parse_apkindex(
     content: &str,
     mirror: &str,
@@ -257,60 +320,9 @@ fn parse_apkindex(
             continue;
         }
 
-        let mut name = String::new();
-        let mut version = String::new();
-        let mut description = String::new();
-        let mut installed_size: u64 = 0;
-        let mut depends: Vec<String> = Vec::new();
-        let mut provides: Vec<String> = Vec::new();
-
-        for line in stanza.lines() {
-            if line.len() < 2 || line.as_bytes()[1] != b':' {
-                continue;
-            }
-            let key = &line[..1];
-            let val = line[2..].trim();
-
-            match key {
-                "P" => name = val.to_string(),
-                "V" => version = val.to_string(),
-                "T" => description = val.to_string(),
-                "I" => installed_size = val.parse().unwrap_or(0),
-                "D" => {
-                    for dep in val.split_whitespace() {
-                        let dname = super::parse_dep_name(dep);
-                        if !dname.is_empty() && !dname.starts_with('!') {
-                            depends.push(dname.to_string());
-                        }
-                    }
-                }
-                "p" => {
-                    for prov in val.split_whitespace() {
-                        let pname = super::parse_dep_name(prov);
-                        if !pname.is_empty() {
-                            provides.push(pname.to_string());
-                        }
-                    }
-                }
-                _ => {}
-            }
+        if let Some(pkg) = parse_apk_stanza(stanza, mirror, branch, repo, arch) {
+            packages.push(pkg);
         }
-
-        if name.is_empty() || version.is_empty() {
-            continue;
-        }
-
-        let url = format!("{mirror}/{branch}/{repo}/{arch}/{name}-{version}.apk");
-        packages.push(PackageMetadata {
-            name,
-            version,
-            description,
-            download_url: url,
-            sha256: None,
-            installed_size,
-            depends,
-            provides,
-        });
     }
 
     packages
