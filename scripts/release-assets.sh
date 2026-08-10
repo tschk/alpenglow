@@ -43,12 +43,13 @@ export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_X86_64_UNKN
 if [ "${RUST_TARGET}" = "x86_64-unknown-linux-musl" ]; then
   export CC_x86_64_unknown_linux_musl="${ROOT_DIR}/scripts/x86_64-linux-musl-zigcc"
   export CXX_x86_64_unknown_linux_musl="${ROOT_DIR}/scripts/x86_64-linux-musl-zigcxx"
+elif [ "${RUST_TARGET}" = "aarch64-unknown-linux-musl" ]; then
+  export CC_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcc"
+  export CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx"
 fi
 
 if [ "${BUILD_PROFILE}" = "desktop" ] && [ "${RUST_TARGET}" = "aarch64-unknown-linux-musl" ]; then
   GUI_SYSROOT="$(ALPENGLOW_AARCH64_GUI_SYSROOT="${ALPENGLOW_AARCH64_GUI_SYSROOT:-}" sh "${ROOT_DIR}/scripts/build-aarch64-gui-sysroot.sh")"
-  export CC_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcc"
-  export CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx"
   export RUSTFLAGS="${RUSTFLAGS:-} -L native=${GUI_SYSROOT}/usr/lib -L native=${GUI_SYSROOT}/lib"
 fi
 

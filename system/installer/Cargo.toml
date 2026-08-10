@@ -24,6 +24,7 @@ gui = ["dep:crepuscularity-gpui", "dep:gpui"]
 crepuscularity-tui = "0.4.12"
 crepuscularity-gpui = { version = "0.5.0", optional = true, features = ["wayland"] }
 gpui = { version = "=0.2.2", default-features = false, optional = true, features = ["font-kit", "wayland"] }
+zstd = "0.13.3"
 
 [dev-dependencies]
 tempfile = "3"
