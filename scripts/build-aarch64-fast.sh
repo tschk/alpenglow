@@ -29,7 +29,7 @@ DINIT_BIN="${BUILD_OUT}/dinit-aarch64"
 LD_MUSL="${BUILD_OUT}/ld-musl-aarch64.so.1"
 if [ ! -f "${DINIT_BIN}" ] || [ ! -f "${LD_MUSL}" ]; then
   echo "→ Building dinit ${DINIT_VERSION} for aarch64..."
-  docker run --rm --platform linux/arm64 -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
+  docker run --rm --platform linux/arm64 -v "${BUILD_OUT}:/out" alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d sh -c "
     apk add --no-cache g++ make linux-headers git >/dev/null
     cd /tmp
     git clone --depth 1 --branch v${DINIT_VERSION} https://github.com/davmac314/dinit.git >/dev/null 2>&1
