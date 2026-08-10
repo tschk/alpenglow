@@ -92,6 +92,29 @@ pub fn resolve_install_dest(prefix: Option<&Path>, relative: &Path) -> Result<Pa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    #[test]
+    fn test_insecure_mode() {
+        let _lock = env_lock();
+
+        // Test when unset
+        std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+        assert!(!insecure_mode());
+
+        // Test when set
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+        assert!(insecure_mode());
+
+        // Clean up
+        std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+    }
 
     #[test]
     fn allows_alpine_cdn() {
