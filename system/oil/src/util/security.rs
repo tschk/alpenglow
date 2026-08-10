@@ -170,7 +170,8 @@ mod tests {
     fn resolve_install_dest_invalid_relative() {
         assert!(resolve_install_dest(Some(Path::new("/custom/prefix")), Path::new("/etc/bin")).is_err());
     }
-}
+
+    #[test]
     fn verify_sha256_valid() {
         let data = b"hello world";
         let expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
