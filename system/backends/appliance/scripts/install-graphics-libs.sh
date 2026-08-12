@@ -83,14 +83,14 @@ docker run --rm --platform linux/amd64 -e GRAPHICS_BACKEND="${GRAPHICS_BACKEND}"
     # Fix ICD json to use absolute path
     cp /usr/share/vulkan/icd.d/lvp_icd*.json /out/usr/share/vulkan/icd.d/lvp_icd.json 2>/dev/null || true
     if [ -f "/out/usr/share/vulkan/icd.d/lvp_icd.json" ]; then
-      sed -i "s#\"library_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" /out/usr/share/vulkan/icd.d/lvp_icd.json
+      sed -i -e "s#\"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*/\\([^/\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" -e "s#\"library_path\"[[:space:]]*:[[:space:]]*\"\\([^/\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" /out/usr/share/vulkan/icd.d/lvp_icd.json
     fi
   else
     cp /usr/share/vulkan/icd.d/*.json /out/usr/share/vulkan/icd.d/ 2>/dev/null || true
     rm -f /out/usr/share/vulkan/icd.d/lvp_icd*.json /out/usr/share/vulkan/icd.d/radeon_icd*.json
     for json in /out/usr/share/vulkan/icd.d/*.json; do
       [ -f "${json}" ] || continue
-      sed -i "s#\"library_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" "${json}"
+      sed -i -e "s#\"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*/\\([^/\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" -e "s#\"library_path\"[[:space:]]*:[[:space:]]*\"\\([^/\"]*\\)\"#\"library_path\": \"/lib/x86_64-linux-gnu/\\1\"#" "${json}"
     done
   fi
 
