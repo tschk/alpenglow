@@ -57,37 +57,18 @@ fn hotAddZram() !void {
 
 
 fn spawnAndWait(argv: []const []const u8) !void {
-    if (argv.len == 0 or argv.len > 16) return error.ChildProcessFailed;
-    var buf: [16][256]u8 = undefined;
-    var arg_ptrs: [17:null]?[*:0]u8 = undefined;
-    for (argv, 0..) |arg, i| {
-        if (arg.len >= 256) return error.ChildProcessFailed;
-        @memcpy(buf[i][0..arg.len], arg);
-        buf[i][arg.len] = 0;
-        arg_ptrs[i] = buf[i][0..arg.len :0];
-    }
-    arg_ptrs[argv.len] = null;
-    const env_array = &[_:null]?[*:0]const u8{null};
-    const env: [*:null]const ?[*:0]const u8 = env_array;
+    if (argv.len == 0) return error.ChildProcessFailed;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
-    const pid = linux.fork();
-    if (pid == 0) {
-        _ = linux.execve(arg_ptrs[0].?, &arg_ptrs, env);
-        std.process.exit(255);
-    } else if (getErrno(pid) != .SUCCESS) {
-        return error.ChildProcessFailed;
-    } else {
-        var status: u32 = undefined;
-        while (true) {
-            const rc = linux.waitpid(@intCast(pid), &status, 0);
-            if (getErrno(rc) != .SUCCESS) {
-                if (getErrno(rc) == .INTR) continue;
-                return error.ChildProcessFailed;
-            }
-            break;
-        }
-        const code = linux.W.EXITSTATUS(status);
-        if (code != 0 and code != 255) return error.ChildProcessFailed;
+    var child = std.process.Child.init(argv, allocator);
+    const term = child.spawnAndWait() catch return error.ChildProcessFailed;
+    switch (term) {
+        .Exited => |code| {
+            if (code != 0 and code != 255) return error.ChildProcessFailed;
+        },
+        else => return error.ChildProcessFailed,
     }
 }
 
