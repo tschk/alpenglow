@@ -103,7 +103,14 @@ impl ApkRegistry {
 
         // Deduplicate
         let mut seen = std::collections::HashSet::new();
-        all_packages.retain(|p| seen.insert(p.name.clone()));
+        all_packages.retain(|p| {
+            if seen.contains(&p.name) {
+                false
+            } else {
+                seen.insert(p.name.clone());
+                true
+            }
+        });
 
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent)?;
