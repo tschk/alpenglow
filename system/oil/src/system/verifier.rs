@@ -13,7 +13,6 @@ use rsa::pkcs8::DecodePublicKey;
 use rsa::RsaPublicKey;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
-use signature::hazmat::PrehashVerifier;
 
 use crate::error::{OilError, Result};
 
@@ -67,11 +66,11 @@ pub fn verify_apk_signature(data_tar: &[u8], sig_cms_der: &[u8], pubkey_pem: &st
 
     if sig_alg == OID_RSA_SHA256 {
         let vk = pkcs1v15::VerifyingKey::<Sha256>::new_unprefixed(pubkey);
-        vk.verify_prehash(&prehash, &sig)
+        signature::hazmat::PrehashVerifier::verify_prehash(&vk, &prehash, &sig)
             .map_err(verification_failed)
     } else if sig_alg == OID_RSA_SHA1 {
         let vk = pkcs1v15::VerifyingKey::<Sha1>::new_unprefixed(pubkey);
-        vk.verify_prehash(&prehash, &sig)
+        signature::hazmat::PrehashVerifier::verify_prehash(&vk, &prehash, &sig)
             .map_err(verification_failed)
     } else {
         Err(OilError::Install(
