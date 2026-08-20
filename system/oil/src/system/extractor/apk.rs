@@ -193,7 +193,10 @@ fn is_safe_symlink(link_target: &Path, dest: &Path, dest_dir: &Path) -> bool {
             std::path::Component::Normal(c) => {
                 resolved.push(c);
             }
-            _ => continue,
+            std::path::Component::Prefix(_) | std::path::Component::RootDir => {
+                return false;
+            }
+            std::path::Component::CurDir => continue,
         }
     }
 
@@ -332,6 +335,29 @@ mod tests {
     }
 
     #[test]
+    fn test_is_safe_symlink_path_traversal() {
+        let dest_dir = Path::new("/extract");
+        let dest = Path::new("/extract/file");
+
+        // Safe cases
+        assert!(is_safe_symlink(Path::new("a/b/c"), dest, dest_dir));
+        assert!(is_safe_symlink(
+            Path::new("../file2"),
+            Path::new("/extract/dir/file"),
+            dest_dir
+        ));
+
+        // Unsafe cases
+        assert!(!is_safe_symlink(Path::new("/etc/passwd"), dest, dest_dir));
+        assert!(!is_safe_symlink(
+            Path::new("../../../etc/passwd"),
+            dest,
+            dest_dir
+        ));
+
+    }
+
+    #[test]
     fn test_split_gzip_streams_happy_path() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let stream1 = create_gz_stream(b"stream 1 data")?;
         let stream2 = create_gz_stream(b"stream 2 data")?;
@@ -407,8 +433,7 @@ mod tests {
         let mut header = tar::Header::new_gnu();
         header.set_size(10);
         header.set_cksum();
-        tar_builder
-            .append_data(&mut header, "test.txt", b"0123456789".as_ref())?;
+        tar_builder.append_data(&mut header, "test.txt", b"0123456789".as_ref())?;
         let mut tar_data = tar_builder.into_inner()?;
 
         // Corrupt the header checksum to trigger an entry parsing error
@@ -449,17 +474,23 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_no_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_no_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let data = b"dummy string without gzip magic bytes";
         let result = split_gzip_streams(data, 3);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("APK has 0 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 0 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_fake_magic_bytes() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_fake_magic_bytes(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = create_gz_stream(b"stream 1")?;
 
         // Append raw magic bytes in between valid streams to test the function's boundary splitting logic
