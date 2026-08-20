@@ -99,6 +99,16 @@ describe("alpenglow site", () => {
     }
   });
 
+  test("prevents directory traversal attacks", async () => {
+    const server = createBunServer({ fetch: handler, port: 0, staticDir });
+    try {
+      const res = await fetch(`${server.url.origin}/..%2F..%2Fpackage.json`);
+      expect(res.status).toBe(404);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
   test("renderResponse returns a valid Response object", async () => {
     const req = new Request("http://localhost/");
     const res = await renderResponse(req);
