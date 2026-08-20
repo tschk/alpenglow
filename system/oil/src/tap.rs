@@ -111,6 +111,9 @@ impl TapRegistry {
     pub fn update(&self) -> Result<PackageIndex> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
+
+        crate::util::security::validate_download_url(&url)?;
+
         eprintln!("Fetching tap index: {url}");
         let resp = ureq::get(&url)
             .call()
