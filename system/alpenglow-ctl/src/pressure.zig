@@ -104,3 +104,26 @@ pub fn run() !void {
         sleepSeconds(60);
     }
 }
+
+test "renderJson formats basic pressure values" {
+    const testing = std.testing;
+    const gpa = testing.allocator;
+    const p = Pressure{
+        .avg10 = 1.2345,
+        .avg60 = 2.0,
+        .avg300 = 0.56789,
+        .total = 123456,
+    };
+    const json = try renderJson(gpa, p);
+    defer gpa.free(json);
+    try testing.expectEqualStrings("{\"memory_some_avg10\":1.2345,\"memory_some_avg60\":2.0000,\"memory_some_avg300\":0.5679,\"memory_some_total\":123456}\n", json);
+}
+
+test "renderJson formats missing pressure values with zeros" {
+    const testing = std.testing;
+    const gpa = testing.allocator;
+    const p = Pressure{};
+    const json = try renderJson(gpa, p);
+    defer gpa.free(json);
+    try testing.expectEqualStrings("{\"memory_some_avg10\":0.0000,\"memory_some_avg60\":0.0000,\"memory_some_avg300\":0.0000,\"memory_some_total\":0}\n", json);
+}

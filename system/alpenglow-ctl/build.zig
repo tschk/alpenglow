@@ -94,7 +94,21 @@ pub fn build(b: *std.Build) void {
     common_tests.root_module.link_libc = true;
     const run_common_tests = b.addRunArtifact(common_tests);
 
+    const pressure_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/pressure.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
+    });
+    pressure_test_mod.addImport("common", common);
+
+    const pressure_tests = b.addTest(.{
+        .root_module = pressure_test_mod,
+    });
+    pressure_tests.root_module.link_libc = true;
+    const run_pressure_tests = b.addRunArtifact(pressure_tests);
+
     const test_step = b.step("test", "Run alpenglow-ctl tests");
     test_step.dependOn(&run_kernel_tests.step);
     test_step.dependOn(&run_common_tests.step);
+    test_step.dependOn(&run_pressure_tests.step);
 }
