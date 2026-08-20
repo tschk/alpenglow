@@ -255,6 +255,22 @@ pub fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
     return getenv(key) orelse default;
 }
 
+test "envOrDefault" {
+    const testing = std.testing;
+    const default_val = "fallback";
+
+    // Test fallback behavior
+    const res1 = envOrDefault("ZIG_TEST_VAR_NOT_SET_123", default_val);
+    try testing.expectEqualStrings(default_val, res1);
+
+    // Test with an environment variable we know exists (e.g., PATH)
+    const path = getenv("PATH");
+    if (path) |p| {
+        const res2 = envOrDefault("PATH", default_val);
+        try testing.expectEqualStrings(p, res2);
+    }
+}
+
 // Shared Zig helpers for alpenglow-ctl and legacy *-zig build shims.
 
 pub fn writeStderr(msg: []const u8) void {
