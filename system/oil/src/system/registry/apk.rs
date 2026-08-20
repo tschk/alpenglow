@@ -333,6 +333,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn apk_registry_new_initializes_fields() {
+        let registry = ApkRegistry::new("https://example.com/alpine", "v3.20");
+        let arch = match std::env::consts::ARCH {
+            "x86_64" => "x86_64",
+            "x86" | "i686" | "i386" => "x86",
+            "aarch64" => "aarch64",
+            "arm" => "armv7",
+            other => other,
+        };
+
+        assert_eq!(registry.mirror, "https://example.com/alpine");
+        assert_eq!(registry.branch, "v3.20");
+        assert_eq!(registry.repos, vec!["main".to_string(), "community".to_string()]);
+        assert_eq!(registry.arch, arch);
+    }
+
+    #[test]
     fn test_branch_from_os_release_alpenglow_id() {
         let os_release = "ID=alpenglow\nVERSION_ID=0.1\n";
         assert_eq!(branch_from_os_release(os_release).as_deref(), Some("v3.20"));
