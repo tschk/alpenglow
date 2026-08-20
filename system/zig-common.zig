@@ -387,6 +387,14 @@ test "MyArrayList.appendSlice" {
     // Happy path: append again
     try list.appendSlice(&[_]u8{ 4, 5 });
     try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 2, 3, 4, 5 }, list.items());
+
+    // Large input test to check dynamic memory expansion
+    var large_input: [5000]u8 = undefined;
+    @memset(&large_input, 42);
+    try list.appendSlice(&large_input);
+    try std.testing.expectEqual(5005, list.items().len);
+    try std.testing.expectEqual(42, list.items()[5]);
+    try std.testing.expectEqual(42, list.items()[5004]);
 }
 
 test "fileExists" {
