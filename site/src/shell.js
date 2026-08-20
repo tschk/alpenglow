@@ -39,14 +39,15 @@ async function applyReleaseLink() {
 applyReleaseLink();
 
 let buildId = "dev";
-try {
-  const idRes = await fetch("/v86/initrd-build-id.txt", { cache: "no-store" });
-  if (idRes.ok) {
-    buildId = (await idRes.text()).trim() || buildId;
-  }
-} catch {
-  /* ignore */
-}
+const buildIdPromise = fetch("/v86/initrd-build-id.txt", { cache: "no-store" })
+  .then(async (idRes) => {
+    if (idRes.ok) {
+      buildId = (await idRes.text()).trim() || buildId;
+    }
+  })
+  .catch(() => {
+    /* ignore */
+  });
 
 const asset = (path) => `${path}?v=${encodeURIComponent(buildId)}`;
 const libv86Url = "/v86/libv86.mjs";
@@ -245,6 +246,7 @@ const { cols, rows } = terminalSize();
 const cmdline = `console=ttyS0 rdinit=/init quiet loglevel=2 alpenglow.cols=${cols} alpenglow.rows=${rows}`;
 
 try {
+  await buildIdPromise;
   const { V86 } = await import(libv86Url);
 
   emulator = new V86({
