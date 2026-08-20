@@ -391,4 +391,9 @@ test "parseKind handles valid and edge case inputs" {
     try testing.expectEqualStrings("ethernet", parseKind("1"));
     try testing.expectEqualStrings("loopback", parseKind("772"));
     try testing.expectEqualStrings("ethernet", parseKind("-1"));
+    try testing.expectEqualStrings("ethernet", parseKind(""));
+    try testing.expectEqualStrings("ethernet", parseKind("9999999999999999999999999"));
+    try testing.expectEqualStrings("ethernet", parseKind("-"));
+    try testing.expectEqualStrings("ethernet", parseKind("  "));
+    try testing.expectEqualStrings("ethernet", parseKind("\n"));
 }
