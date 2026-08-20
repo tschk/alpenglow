@@ -3,9 +3,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 fn main() {
-    run("mount", &["-t", "proc", "proc", "/proc"]);
-    run("mount", &["-t", "sysfs", "sysfs", "/sys"]);
-    run("mount", &["-t", "devtmpfs", "devtmpfs", "/dev"]);
+    run("/bin/mount", &["-t", "proc", "proc", "/proc"]);
+    run("/bin/mount", &["-t", "sysfs", "sysfs", "/sys"]);
+    run("/bin/mount", &["-t", "devtmpfs", "devtmpfs", "/dev"]);
     for d in &["/run", "/dev/shm", "/tmp", "/state", "/sysroot"] {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
@@ -19,7 +19,7 @@ fn main() {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
-    run("mount", &["-t", "tmpfs", "tmpfs", "/run"]);
+    run("/bin/mount", &["-t", "tmpfs", "tmpfs", "/run"]);
     let mut shm_size = String::from("mode=1777,size=256m");
     if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
         for line in meminfo.lines() {
@@ -34,11 +34,11 @@ fn main() {
         }
     }
     run(
-        "mount",
+        "/bin/mount",
         &["-t", "tmpfs", "-o", &shm_size, "tmpfs", "/dev/shm"],
     );
     run(
-        "mount",
+        "/bin/mount",
         &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"],
     );
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
