@@ -97,7 +97,10 @@ mod tests {
     static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 
     fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-        ENV_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
+        ENV_MUTEX
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
     }
 
     #[test]
@@ -143,7 +146,11 @@ mod tests {
     #[test]
     fn resolve_install_dest_with_custom_prefix() {
         assert_eq!(
-            resolve_install_dest(Some(Path::new("/custom/prefix")), Path::new("/usr/local/bin")).unwrap(),
+            resolve_install_dest(
+                Some(Path::new("/custom/prefix")),
+                Path::new("/usr/local/bin")
+            )
+            .unwrap(),
             PathBuf::from("/custom/prefix/usr/local/bin")
         );
     }
@@ -153,7 +160,11 @@ mod tests {
         if std::env::var_os("OIL_SYSTEM_PREFIX").is_some() {
             let exe = std::env::current_exe().expect("current test binary");
             let status = std::process::Command::new(exe)
-                .args(["resolve_install_dest_without_prefix", "--exact", "--nocapture"])
+                .args([
+                    "resolve_install_dest_without_prefix",
+                    "--exact",
+                    "--nocapture",
+                ])
                 .env_remove("OIL_SYSTEM_PREFIX")
                 .status()
                 .expect("spawn test subprocess");
@@ -168,7 +179,9 @@ mod tests {
 
     #[test]
     fn resolve_install_dest_invalid_relative() {
-        assert!(resolve_install_dest(Some(Path::new("/custom/prefix")), Path::new("/etc/bin")).is_err());
+        assert!(
+            resolve_install_dest(Some(Path::new("/custom/prefix")), Path::new("/etc/bin")).is_err()
+        );
     }
 
     #[test]

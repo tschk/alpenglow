@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Read;
 use std::path::PathBuf;
 
 use crate::error::{OilError, Result};
@@ -115,10 +114,9 @@ impl TapRegistry {
         let resp = ureq::get(&url)
             .call()
             .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
-        let mut body = Vec::new();
-        resp.into_body()
-            .into_reader()
-            .read_to_end(&mut body)
+        let body = resp
+            .into_body()
+            .read_to_vec()
             .map_err(|e| OilError::Install(format!("Failed to read tap index body: {e}")))?;
         let packages: Vec<PackageMetadata> = serde_json::from_slice(&body)
             .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
