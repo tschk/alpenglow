@@ -36,7 +36,7 @@ async function applyReleaseLink() {
   }
 }
 
-await applyReleaseLink();
+applyReleaseLink();
 
 let buildId = "dev";
 try {
