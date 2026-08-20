@@ -20,7 +20,7 @@ mkdir -p linux-kmod-ci
 cd linux-kmod-ci
 
 echo "Downloading Linux ${KERNEL_VER}..."
-curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${KERNEL_VER}.tar.xz" -o linux.tar.xz
+curl --http1.1 --retry 3 -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${KERNEL_VER}.tar.xz" -o linux.tar.xz
 tar -xf linux.tar.xz
 cd "linux-${KERNEL_VER}"
 
