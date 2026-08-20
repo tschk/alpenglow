@@ -1,5 +1,4 @@
 // Alpenglow Rust init — replaces the shell /init script
-use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 fn main() {
@@ -11,7 +10,7 @@ fn main() {
             eprintln!("init: failed to create directory {}: {}", d, e);
         }
         let mode = if *d == "/dev/shm" || *d == "/tmp" { 0o1777 } else { 0o755 };
-        if let Err(e) = std::fs::set_permissions(d, std::fs::Permissions::from_mode(mode)) {
+        if let Err(e) = std::fs::set_permissions(d, <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(mode)) {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
@@ -37,7 +36,7 @@ fn main() {
     if let Err(e) = std::os::unix::fs::chown("/run/user/0", Some(0), Some(0)) {
         eprintln!("init: failed to chown /run/user/0: {}", e);
     }
-    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700)) {
+    if let Err(e) = std::fs::set_permissions("/run/user/0", <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o700)) {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
