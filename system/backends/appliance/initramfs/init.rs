@@ -1,6 +1,5 @@
 // Alpenglow Rust init — replaces the shell /init script
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::process::CommandExt;
 use std::process::Command;
 fn main() {
     run("mount", &["-t", "proc", "proc", "/proc"]);
@@ -10,7 +9,11 @@ fn main() {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
         }
-        let mode = if *d == "/dev/shm" || *d == "/tmp" { 0o1777 } else { 0o755 };
+        let mode = if *d == "/dev/shm" || *d == "/tmp" {
+            0o1777
+        } else {
+            0o755
+        };
         if let Err(e) = std::fs::set_permissions(d, std::fs::Permissions::from_mode(mode)) {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
@@ -29,15 +32,22 @@ fn main() {
             }
         }
     }
-    run("mount", &["-t", "tmpfs", "-o", &shm_size, "tmpfs", "/dev/shm"]);
-    run("mount", &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"]);
+    run(
+        "mount",
+        &["-t", "tmpfs", "-o", &shm_size, "tmpfs", "/dev/shm"],
+    );
+    run(
+        "mount",
+        &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"],
+    );
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
     }
     if let Err(e) = std::os::unix::fs::chown("/run/user/0", Some(0), Some(0)) {
         eprintln!("init: failed to chown /run/user/0: {}", e);
     }
-    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700)) {
+    if let Err(e) = std::fs::set_permissions("/run/user/0", std::fs::Permissions::from_mode(0o700))
+    {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
@@ -51,11 +61,13 @@ fn main() {
             _ => {}
         }
     }
-    println!(); println!("Alpenglow boot (rust-init)"); println!();
-    let err = Command::new("/usr/sbin/dinit")
-        .args(["-d", "/etc/dinit.d", "-s", "-t", "shell-ttyS0"])
-        .env_clear()
-        .exec();
+    println!();
+    println!("Alpenglow boot (rust-init)");
+    println!();
+    let mut cmd = Command::new("/usr/sbin/dinit");
+    cmd.args(["-d", "/etc/dinit.d", "-s", "-t", "shell-ttyS0"])
+        .env_clear();
+    let err = std::os::unix::process::CommandExt::exec(&mut cmd);
     eprintln!("init: dinit exec failed: {}", err);
     std::process::exit(1);
 }
