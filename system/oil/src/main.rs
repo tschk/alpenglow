@@ -340,13 +340,19 @@ fn contains_ignore_ascii_case(haystack: &str, needle: &[u8]) -> bool {
     if needle.is_empty() {
         return true;
     }
-    if haystack.len() < needle.len() {
+    let haystack_bytes = haystack.as_bytes();
+    if haystack_bytes.len() < needle.len() {
         return false;
     }
-    haystack
-        .as_bytes()
-        .windows(needle.len())
-        .any(|w| w.eq_ignore_ascii_case(needle))
+
+    let first_lower = needle[0].to_ascii_lowercase();
+    let first_upper = needle[0].to_ascii_uppercase();
+    let needle_tail = &needle[1..];
+
+    haystack_bytes.windows(needle.len()).any(|w| {
+        let b = w[0];
+        (b == first_lower || b == first_upper) && w[1..].eq_ignore_ascii_case(needle_tail)
+    })
 }
 
 fn oil_secure_tmp_dir() -> Result<PathBuf> {
