@@ -43,6 +43,7 @@ fn validateCgroupPolicyPath(path: []const u8) InvalidCgroupPath!void {
     if (!mem.startsWith(u8, path, prefix)) return error.InvalidCgroupPath;
     const rest = path[prefix.len..];
     if (rest.len == 0) return error.InvalidCgroupPath;
+    if (std.mem.indexOfScalar(u8, rest, '/')) |_| return error.InvalidCgroupPath;
     for (rest) |ch| {
         switch (ch) {
             'a'...'z', '0'...'9', '.', '_', '-' => {},
