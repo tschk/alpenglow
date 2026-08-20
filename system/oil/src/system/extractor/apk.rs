@@ -353,6 +353,68 @@ mod tests {
     }
 
     #[test]
+    fn test_split_gzip_streams_apk_size_exceeds_maximum() {
+        // Allocate a 2GB+1 byte vector initialized to zero.
+        // On modern Linux systems, this uses a lazy virtual memory allocation (mmap)
+        // and doesn't consume physical memory since we don't write to it.
+        let fake_large_data = vec![0u8; 2 * 1024 * 1024 * 1024 + 1];
+        let result = split_gzip_streams(&fake_large_data, 3);
+        assert!(result.is_err());
+        let err_msg = result.expect_err("Expected an error").to_string();
+        assert!(
+            err_msg.contains("exceeds maximum"),
+            "Unexpected error: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_split_gzip_streams_magic_byte_at_eof() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut data = create_gz_stream(b"stream 1")?;
+        data.extend(create_gz_stream(b"stream 2")?);
+        data.push(0x1f);
+
+        let result = split_gzip_streams(&data, 3);
+        assert!(result.is_err());
+        let err_msg = result.expect_err("Expected an error").to_string();
+        assert!(err_msg.contains("APK has 2 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        Ok(())
+    }
+
+    #[test]
+    fn test_split_gzip_streams_only_magic_bytes() {
+        let mut data = vec![0x1f, 0x8b];
+        data.extend(vec![0x1f, 0x8b]);
+        data.extend(vec![0x1f, 0x8b]);
+
+        let result = split_gzip_streams(&data, 3);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_split_gzip_streams_extra_streams_ignored() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let stream1 = create_gz_stream(b"stream 1 data")?;
+        let stream2 = create_gz_stream(b"stream 2 data")?;
+        let stream3 = create_gz_stream(b"stream 3 data")?;
+        let stream4 = create_gz_stream(b"stream 4 data")?;
+
+        let mut combined = Vec::new();
+        combined.extend(&stream1);
+        combined.extend(&stream2);
+        combined.extend(&stream3);
+        combined.extend(&stream4);
+
+        let result = split_gzip_streams(&combined, 3);
+        assert!(result.is_ok());
+        let (out1, out2, out3) = result?;
+
+        assert_eq!(out1, b"stream 1 data");
+        assert_eq!(out2, b"stream 2 data");
+        assert_eq!(out3, b"stream 3 data");
+        Ok(())
+    }
+
+    #[test]
     fn test_split_gzip_streams_too_many_requested(
     ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let stream = create_gz_stream(b"data")?;
