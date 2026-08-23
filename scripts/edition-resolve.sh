@@ -2,8 +2,8 @@
 # Source after setting ALPENGLOW_EDITION or ALPENGLOW_ROLE (optional). Exports
 # BUILD_PROFILE, KERNEL_PROFILE, FAST, GRAPHICAL, BUILD_SERVICES,
 # ALPENGLOW_AUTOLOGIN, ALPENGLOW_DESKTOP_FULL, WORLD_FILE, SESSION,
-# ALPENGLOW_SESSION, ALPENGLOW_ROLE, ARTIFACT, LOCK_SESSION, SHELL_LOGIN,
-# FLEET_AGENT.
+# ALPENGLOW_ROLE, ARTIFACT, LOCK_SESSION, SHELL_LOGIN, FLEET_AGENT.
+# ALPENGLOW_SESSION=none|alpenglowed|sold|cage overrides the SKU session.
 set -eu
 
 if [ -z "${ROOT_DIR:-}" ]; then
@@ -40,13 +40,12 @@ if [ "${_want_list}" = "1" ]; then
   esac
 fi
 
-_caller_alpenglow_session="${ALPENGLOW_SESSION:-}"
-_caller_session="${SESSION:-}"
+_session_override="${ALPENGLOW_SESSION:-}"
 
-if [ -n "${ALPENGLOW_SKU:-}" ]; then
-  EDITION="${ALPENGLOW_SKU}"
-elif [ -n "${ALPENGLOW_EDITION:-}" ]; then
+if [ -n "${ALPENGLOW_EDITION:-}" ]; then
   EDITION="${ALPENGLOW_EDITION}"
+elif [ -n "${ALPENGLOW_SKU:-}" ]; then
+  EDITION="${ALPENGLOW_SKU}"
 elif [ -n "${ALPENGLOW_ROLE:-}" ]; then
   EDITION="${ALPENGLOW_ROLE}"
 else
@@ -133,14 +132,6 @@ done
 [ -n "${SHELL_LOGIN}" ] || SHELL_LOGIN="1"
 [ -n "${FLEET_AGENT}" ] || FLEET_AGENT="0"
 
-_session_override=""
-if [ -n "${_caller_alpenglow_session}" ]; then
-  _session_override="${_caller_alpenglow_session}"
-else
-  case "${_caller_session}" in
-    none|alpenglowed|sold|cage) _session_override="${_caller_session}" ;;
-  esac
-fi
 case "${_session_override}" in
   none|alpenglowed|sold|cage) SESSION="${_session_override}" ;;
 esac
@@ -150,7 +141,7 @@ export ALPENGLOW_SKU="${EDITION}"
 export ALPENGLOW_ROLE="${ROLE}"
 export BUILD_PROFILE KERNEL_PROFILE FAST GRAPHICAL BUILD_SERVICES
 export ALPENGLOW_AUTOLOGIN ALPENGLOW_DESKTOP_FULL WORLD_FILE
-export SESSION ALPENGLOW_SESSION="${SESSION}"
+export SESSION
 export ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT
 
 if [ "${_want_demo}" = "1" ]; then

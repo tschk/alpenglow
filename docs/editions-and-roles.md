@@ -12,7 +12,7 @@ sh scripts/edition-resolve.sh --list
 sh scripts/edition-resolve.sh --demo
 ```
 
-`ALPENGLOW_SKU`, `ALPENGLOW_EDITION`, and `ALPENGLOW_ROLE` select the same table. `ALPENGLOW_SESSION` (or a `SESSION` value of `none|alpenglowed|sold|cage`) overrides session without changing the image world.
+`ALPENGLOW_EDITION`, `ALPENGLOW_SKU`, and `ALPENGLOW_ROLE` select the same table (`ALPENGLOW_EDITION` wins). `ALPENGLOW_SESSION=none|alpenglowed|sold|cage` overrides session without changing the image world. `SESSION` is an output for `configure-rootfs.sh`.
 
 ## Matrix
 

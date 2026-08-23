@@ -13,6 +13,7 @@ assert_file() { [ -f "$1" ] || fail "missing: $1"; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT INT TERM
+unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
 
 list="$(sh scripts/edition-resolve.sh --list)"
 for sku in fast minimal standard desktop desktop-full embedded potatoes containers internet kiosk workstation; do
@@ -48,6 +49,8 @@ assert_eq "$(demo_field desktop WORLD_FILE)" "packages-desktop-lite.txt" "deskto
 assert_eq "$(demo_field desktop-full WORLD_FILE)" "packages-runtime.txt" "desktop-full world"
 assert_eq "$(demo_field potatoes KERNEL_PROFILE)" "fast" "potatoes kernel"
 
+assert_eq "$(ROOT_DIR="${REPO_ROOT}" ALPENGLOW_EDITION=embedded sh scripts/edition-resolve.sh --demo >/dev/null; ROOT_DIR="${REPO_ROOT}" ALPENGLOW_EDITION=internet sh scripts/edition-resolve.sh --demo | tr ' ' '\n' | sed -n 's/^SESSION=//p')" \
+  "sold" "later ALPENGLOW_EDITION wins over leftover SKU"
 assert_eq "$(ROOT_DIR="${REPO_ROOT}" ALPENGLOW_ROLE=kiosk sh scripts/edition-resolve.sh --demo | tr ' ' '\n' | sed -n 's/^ALPENGLOW_EDITION=//p')" \
   "kiosk" "ALPENGLOW_ROLE selects SKU"
 assert_eq "$(ROOT_DIR="${REPO_ROOT}" ALPENGLOW_EDITION=minimal ALPENGLOW_SESSION=sold sh scripts/edition-resolve.sh --demo | tr ' ' '\n' | sed -n 's/^SESSION=//p')" \
@@ -86,7 +89,7 @@ run_sku() {
   for dir in bin sbin etc dev proc sys tmp run; do
     mkdir -p "${root}/${dir}"
   done
-  unset SESSION ALPENGLOW_SESSION ALPENGLOW_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
+  unset SESSION ALPENGLOW_SESSION ALPENGLOW_ROLE ALPENGLOW_SKU ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
   ROOT_DIR="${REPO_ROOT}"
   ALPENGLOW_EDITION="${sku}"
   export ROOT_DIR ALPENGLOW_EDITION
@@ -152,6 +155,6 @@ sh scripts/export-container.sh "${tmp}/containers" "${tmp}/oci-out" >/dev/null
 assert_file "${tmp}/oci-out/alpenglow-dev-containers-$(uname -m).tar"
 assert_file "${tmp}/oci-out/oci/index.json"
 assert_file "${tmp}/oci-out/oci/oci-layout"
-assert_contains "${tmp}/oci-out/oci/index.json" 'application/vnd.oci.image.manifest.v1+json'
+assert_contains "${tmp}/oci-out/oci/index.json" 'application/vnd.oci.image.manifest.v1[+ ]json'
 
 printf 'ci-edition-roles: ok\n'
