@@ -113,7 +113,7 @@ Alpenglow is one OS. Editions are images (userspace profile + kernel profile). R
 | Desktop | `desktop` | `desktop` | alpenglowed | image | Light live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), SSH/NTP/DNS, foot |
 | Desktop Full | `desktop` | `desktop` | alpenglowed | image | Full live desktop with audio, WiFi, greeter, and the GUI installer on x86_64 |
 | Embedded | `minimal` | `fast` | none | image | Closed-device fast image; no firmware/SSH/NTP/DNS packages |
-| Potatoes | `minimal` | `fast` | none | image | Low-end appliance; skinny GUI packages present, started only with `ALPENGLOW_SESSION=cage` |
+| Potatoes | `minimal` | `fast` | alpenglowed | image | Low-end appliance; `alpenglowed-lite` on Cage, no PipeWire |
 | Internet | `minimal` | `minimal` | sold | image | Minimal + [Soliloquy](https://github.com/tschk/soliloquy) `sold` staging. Not desktop-lite |
 | Kiosk | `minimal` | `minimal` | cage | image | Minimal + Cage single-app lock; no Alpenglowed, no shell login |
 | Workstation | `desktop` | `desktop` | alpenglowed | image | Desktop-full plus a placeholder fleet-agent hook |

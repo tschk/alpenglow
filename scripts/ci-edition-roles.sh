@@ -13,7 +13,7 @@ assert_file() { [ -f "$1" ] || fail "missing: $1"; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT INT TERM
-unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
+unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ALPENGLOWED_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
 
 list="$(sh scripts/edition-resolve.sh --list)"
 for sku in fast minimal standard desktop desktop-full embedded potatoes containers internet kiosk workstation; do
@@ -46,8 +46,15 @@ assert_eq "$(demo_field kiosk SHELL_LOGIN)" "0" "kiosk shell"
 assert_eq "$(demo_field containers ARTIFACT)" "userspace" "containers artifact"
 assert_eq "$(demo_field workstation FLEET_AGENT)" "1" "workstation fleet"
 assert_eq "$(demo_field desktop WORLD_FILE)" "packages-desktop-lite.txt" "desktop world"
+assert_eq "$(demo_field desktop ALPENGLOWED_ROLE)" "potatoes" "desktop lite alpenglowed role"
 assert_eq "$(demo_field desktop-full WORLD_FILE)" "packages-runtime.txt" "desktop-full world"
+assert_eq "$(demo_field desktop-full ALPENGLOWED_ROLE)" "desktop" "desktop-full alpenglowed role"
 assert_eq "$(demo_field potatoes KERNEL_PROFILE)" "fast" "potatoes kernel"
+assert_eq "$(demo_field potatoes SESSION)" "alpenglowed" "potatoes session"
+assert_eq "$(demo_field potatoes ALPENGLOWED_ROLE)" "potatoes" "potatoes alpenglowed role"
+assert_eq "$(demo_field workstation ALPENGLOWED_ROLE)" "workstation" "workstation alpenglowed role"
+assert_eq "$(demo_field kiosk ALPENGLOWED_ROLE)" "kiosk" "kiosk alpenglowed role"
+assert_eq "$(demo_field internet ALPENGLOWED_ROLE)" "internet" "internet alpenglowed role"
 
 assert_eq "$(ROOT_DIR="${REPO_ROOT}" ALPENGLOW_EDITION=embedded sh scripts/edition-resolve.sh --demo >/dev/null; ROOT_DIR="${REPO_ROOT}" ALPENGLOW_EDITION=internet sh scripts/edition-resolve.sh --demo | tr ' ' '\n' | sed -n 's/^SESSION=//p')" \
   "sold" "later ALPENGLOW_EDITION wins over leftover SKU"
@@ -89,7 +96,7 @@ run_sku() {
   for dir in bin sbin etc dev proc sys tmp run; do
     mkdir -p "${root}/${dir}"
   done
-  unset SESSION ALPENGLOW_SESSION ALPENGLOW_ROLE ALPENGLOW_SKU ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
+  unset SESSION ALPENGLOW_SESSION ALPENGLOW_ROLE ALPENGLOW_SKU ALPENGLOWED_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE
   ROOT_DIR="${REPO_ROOT}"
   ALPENGLOW_EDITION="${sku}"
   export ROOT_DIR ALPENGLOW_EDITION
@@ -103,6 +110,7 @@ run_sku() {
     LOCK_SESSION="${LOCK_SESSION}" \
     SHELL_LOGIN="${SHELL_LOGIN}" \
     FLEET_AGENT="${FLEET_AGENT}" \
+    ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE}" \
     ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL}" \
     ALPENGLOW_EDITION="${ALPENGLOW_EDITION}" \
     system/backends/appliance/scripts/configure-rootfs.sh "${root}" >/dev/null
@@ -120,6 +128,8 @@ assert_contains "${tmp}/internet/etc/dinit.d/boot" 'depends-on = sold'
 assert_contains "${tmp}/internet/etc/dinit.d/boot" 'depends-on = dropbear'
 assert_contains "${tmp}/internet/etc/alpenglow/system.json" '"compositor":"sold"'
 assert_not_contains "${tmp}/internet/etc/alpenglow/world" '^alpenglowed$'
+assert_not_contains "${tmp}/internet/etc/dinit.d/boot" 'depends-on = alpenglowed'
+assert_contains "${tmp}/internet/etc/alpenglow/role" '^internet$'
 assert_file "${tmp}/internet/usr/local/bin/sold-session-start"
 assert_file "${tmp}/internet/usr/share/defaults/soliloquy/README"
 
@@ -129,11 +139,18 @@ assert_contains "${tmp}/kiosk/etc/alpenglow/system.json" '"compositor":"cage"'
 assert_file "${tmp}/kiosk/etc/alpenglow/session-lock.json"
 assert_file "${tmp}/kiosk/etc/alpenglow/kiosk-command"
 assert_not_contains "${tmp}/kiosk/etc/alpenglow/world" '^alpenglowed$'
+assert_not_contains "${tmp}/kiosk/etc/dinit.d/boot" 'depends-on = alpenglowed'
+assert_contains "${tmp}/kiosk/etc/alpenglow/role" '^kiosk$'
 assert_contains "${tmp}/kiosk/etc/alpenglow/world" '^dropbear$'
 
 run_sku potatoes
 assert_contains "${tmp}/potatoes/etc/alpenglow/world" '^cage$'
-assert_not_contains "${tmp}/potatoes/etc/dinit.d/boot" 'depends-on = cage'
+assert_contains "${tmp}/potatoes/etc/alpenglow/world" '^alpenglowed$'
+assert_not_contains "${tmp}/potatoes/etc/alpenglow/world" '^pipewire$'
+assert_contains "${tmp}/potatoes/etc/dinit.d/boot" 'depends-on = alpenglowed-lite'
+assert_not_contains "${tmp}/potatoes/etc/dinit.d/boot" 'depends-on = pipewire'
+assert_not_contains "${tmp}/potatoes/etc/dinit.d/boot" 'depends-on = alpenglowed$'
+assert_contains "${tmp}/potatoes/etc/alpenglow/role" '^potatoes$'
 assert_contains "${tmp}/potatoes/etc/alpenglow/world" '^dropbear$'
 
 run_sku containers
@@ -143,13 +160,20 @@ assert_contains "${tmp}/containers/etc/alpenglow/role.json" '"artifact": "usersp
 
 run_sku workstation
 assert_contains "${tmp}/workstation/etc/dinit.d/boot" 'depends-on = alpenglow-fleet-agent'
+assert_contains "${tmp}/workstation/etc/dinit.d/boot" 'depends-on = alpenglowed$'
 assert_contains "${tmp}/workstation/etc/alpenglow/world" '^alpenglowed$'
+assert_contains "${tmp}/workstation/etc/alpenglow/role" '^workstation$'
 assert_file "${tmp}/workstation/etc/alpenglow/fleet-agent.json"
 
 run_sku desktop
 assert_contains "${tmp}/desktop/etc/alpenglow/world" '^dropbear$'
 assert_contains "${tmp}/desktop/etc/dinit.d/boot" 'depends-on = dropbear'
+assert_contains "${tmp}/desktop/etc/dinit.d/boot" 'depends-on = alpenglowed-lite'
+assert_not_contains "${tmp}/desktop/etc/dinit.d/boot" 'depends-on = pipewire'
 assert_contains "${tmp}/desktop/etc/alpenglow/world" '^alpenglowed$'
+assert_contains "${tmp}/desktop/etc/alpenglow/role" '^potatoes$'
+assert_file "${tmp}/desktop/usr/local/bin/alpenglow-session-start"
+assert_file "${tmp}/desktop/usr/local/bin/alpenglow-role-publish"
 
 sh scripts/export-container.sh "${tmp}/containers" "${tmp}/oci-out" >/dev/null
 assert_file "${tmp}/oci-out/alpenglow-dev-containers-$(uname -m).tar"

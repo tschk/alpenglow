@@ -16,24 +16,24 @@ sh scripts/edition-resolve.sh --demo
 
 ## Matrix
 
-| SKU | Base image | `BUILD_PROFILE` | `KERNEL_PROFILE` | `SESSION` | Artifact | World |
-|-----|------------|-----------------|------------------|-----------|----------|-------|
-| `fast` | — | minimal | fast | none | image | `packages-minimal.txt` |
-| `minimal` | — | minimal | minimal | none | image | `packages-minimal.txt` |
-| `standard` | — | standard | minimal | none | image | `packages-standard.txt` |
-| `desktop` | — | desktop | desktop | alpenglowed | image | `packages-desktop-lite.txt` |
-| `desktop-full` | — | desktop | desktop | alpenglowed | image | `packages-runtime.txt` |
-| `embedded` | fast | minimal | fast | none | image | `packages-embedded.txt` |
-| `potatoes` | fast | minimal | fast | none | image | `packages-potatoes.txt` |
-| `internet` | minimal | minimal | minimal | sold | image | `packages-internet.txt` |
-| `kiosk` | minimal | minimal | minimal | cage | image | `packages-kiosk.txt` |
-| `workstation` | desktop-full | desktop | desktop | alpenglowed | image | `packages-runtime.txt` |
-| `containers` | userspace | minimal | unused | none | userspace | `packages-containers.txt` |
+| SKU | Base image | `BUILD_PROFILE` | `KERNEL_PROFILE` | `SESSION` | `ALPENGLOWED_ROLE` | Artifact | World |
+|-----|------------|-----------------|------------------|-----------|-------------------|----------|-------|
+| `fast` | — | minimal | fast | none | none | image | `packages-minimal.txt` |
+| `minimal` | — | minimal | minimal | none | none | image | `packages-minimal.txt` |
+| `standard` | — | standard | minimal | none | none | image | `packages-standard.txt` |
+| `desktop` | — | desktop | desktop | alpenglowed | potatoes | image | `packages-desktop-lite.txt` |
+| `desktop-full` | — | desktop | desktop | alpenglowed | desktop | image | `packages-runtime.txt` |
+| `embedded` | fast | minimal | fast | none | embedded | image | `packages-embedded.txt` |
+| `potatoes` | fast | minimal | fast | alpenglowed | potatoes | image | `packages-potatoes.txt` |
+| `internet` | minimal | minimal | minimal | sold | internet | image | `packages-internet.txt` |
+| `kiosk` | minimal | minimal | minimal | cage | kiosk | image | `packages-kiosk.txt` |
+| `workstation` | desktop-full | desktop | desktop | alpenglowed | workstation | image | `packages-runtime.txt` |
+| `containers` | userspace | minimal | unused | none | containers | userspace | `packages-containers.txt` |
 
 Roles:
 
 - **embedded** — closed device. Strips `linux-firmware`, dropbear, chrony, dnsmasq. Board overlays (RK3566, device trees) stay on `board/*` branches.
-- **potatoes** — low-end. Fast kernel, minimal net stack, no toolchain. Cage/foot/seatd are on disk; default session is `none`. `ALPENGLOW_SESSION=cage` starts the skinny GUI.
+- **potatoes** — low-end. Fast kernel, minimal net stack, no toolchain, no PipeWire. Starts `alpenglowed-lite` (seatd only). `ALPENGLOWED_ROLE=potatoes`.
 - **containers** — different artifact. `scripts/export-container.sh` writes a rootfs tarball and an OCI image layout. No kernel, firmware, eudev, initramfs, or Limine.
 - **internet** — minimal + Soliloquy `sold` staging. Not desktop-lite (desktop-lite is a graphical live image, not an appliance base).
 - **kiosk** — minimal + Cage, `lock_session=1`, `shell_login=0`. Dropbear stays for recovery. Serial getty is not a dinit unit in this tree.
@@ -45,11 +45,28 @@ Roles:
 | `SESSION` | What starts | Where the binary comes from |
 |-----------|-------------|-----------------------------|
 | `none` | no graphical session | — |
-| `alpenglowed` | `dinit/alpenglowed` | [tschk/alpenglowed](https://github.com/tschk/alpenglowed); desktop path currently links glibc for the compositor |
-| `sold` | `dinit/sold` → `/usr/local/bin/sold-session-start` | [tschk/soliloquy](https://github.com/tschk/soliloquy). Not a crate in this repo. Wrapper exits 0 if `sold` is missing |
-| `cage` | `dinit/cage` → `/usr/local/bin/kiosk-session-start` | Alpine `cage` (`system/backends/appliance/scripts/build-cage.sh`) |
+| `alpenglowed` | `dinit/alpenglowed` or `alpenglowed-lite` → `alpenglow-session-start` | [tschk/alpenglowed](https://github.com/tschk/alpenglowed) as a **Cage Wayland client**. `--compositor` is unfinished Smithay and is not the default |
+| `sold` | `dinit/sold` → `/usr/local/bin/sold-session-start` | [tschk/soliloquy](https://github.com/tschk/soliloquy). Not a crate in this repo. Wrapper exits 0 if `sold` is missing. Do not start Alpenglowed |
+| `cage` | `dinit/cage` → `/usr/local/bin/kiosk-session-start` | Alpine `cage` (`system/backends/appliance/scripts/build-cage.sh`). Do not start Alpenglowed |
 
-`GRAPHICAL=1` in `scripts/boot-native.sh` is the Alpenglowed/glibc stack. Kiosk and potatoes GUI use `SESSION=cage` and keep `GRAPHICAL=0` so they do not pull that path.
+`GRAPHICAL=1` in `scripts/boot-native.sh` is the glibc Alpenglowed **build** path, not “any GUI”. Potatoes keeps `GRAPHICAL=0` and still starts `alpenglowed-lite`.
+
+## Alpenglowed stitch ([alpenglowed#2](https://github.com/tschk/alpenglowed/pull/2))
+
+This PR and alpenglowed #2 need to land together.
+
+| SKU | `ALPENGLOWED_ROLE` | dinit unit | PipeWire |
+|-----|--------------------|------------|----------|
+| potatoes, desktop (lite world) | `potatoes` | `alpenglowed-lite` (seatd only) | no |
+| desktop-full | `desktop` | `alpenglowed` | yes |
+| workstation | `workstation` | `alpenglowed` | yes |
+| kiosk | `kiosk` | cage only | no |
+| internet | `internet` | sold only | no |
+| embedded, containers | foreign | none | no |
+
+Alpenglowed reads `/run/alpenglow/role` then `/etc/alpenglow/role`. `configure-rootfs.sh` writes `/etc/alpenglow/role` and `/etc/alpenglow/role.json`. `dinit/alpenglow-role` copies those into `/run/alpenglow` at boot. Foreign roles make `alpenglowed` exit 2.
+
+`alpenglowed-lite` is `cargo build --release --no-default-features` in the sibling repo. Session contract: `alpenglowed --session-contract` and `docs/alpenglow-session-contract.md` in tschk/alpenglowed. The `velox` dinit unit still runs `/usr/bin/cage`.
 
 ## SKU naming
 

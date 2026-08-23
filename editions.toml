@@ -19,6 +19,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "none"
 
 [editions.minimal]
 build_profile = "minimal"
@@ -35,6 +36,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "none"
 
 [editions.standard]
 build_profile = "standard"
@@ -51,6 +53,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "none"
 
 [editions.desktop]
 build_profile = "desktop"
@@ -67,6 +70,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "potatoes"
 
 [editions.desktop-full]
 build_profile = "desktop"
@@ -83,6 +87,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "desktop"
 
 [editions.embedded]
 build_profile = "minimal"
@@ -99,6 +104,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "embedded"
 
 [editions.potatoes]
 build_profile = "minimal"
@@ -109,12 +115,13 @@ build_services = 0
 alpenglow_autologin = 0
 alpenglow_desktop_full = 0
 world_file = "packages-potatoes.txt"
-session = "none"
+session = "alpenglowed"
 role = "potatoes"
 artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "potatoes"
 
 [editions.containers]
 build_profile = "minimal"
@@ -131,6 +138,7 @@ artifact = "userspace"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "containers"
 
 [editions.internet]
 build_profile = "minimal"
@@ -147,6 +155,7 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 0
+alpenglowed_role = "internet"
 
 [editions.kiosk]
 build_profile = "minimal"
@@ -163,6 +172,7 @@ artifact = "image"
 lock_session = 1
 shell_login = 0
 fleet_agent = 0
+alpenglowed_role = "kiosk"
 
 [editions.workstation]
 build_profile = "desktop"
@@ -179,3 +189,4 @@ artifact = "image"
 lock_session = 0
 shell_login = 1
 fleet_agent = 1
+alpenglowed_role = "workstation"

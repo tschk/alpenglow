@@ -79,6 +79,12 @@ assert_contains system/backends/appliance/backend.json '"libc": "musl"'
 assert_contains system/backends/appliance/backend.json '"init": "dinit"'
 assert_contains system/backends/appliance/backend.json '"package_manager": "oil"'
 assert_file system/backends/appliance/dinit/alpenglowed
+assert_file system/backends/appliance/dinit/alpenglowed-lite
+assert_contains system/backends/appliance/dinit/alpenglowed 'alpenglow-session-start'
+assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = seatd'
+assert_contains system/backends/appliance/dinit/alpenglowed-lite 'depends-on = seatd'
+assert_not_contains system/backends/appliance/dinit/alpenglowed-lite 'pipewire'
+assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'exec alpenglowed --compositor'
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'
@@ -115,7 +121,8 @@ done
 cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
 BUILD_PROFILE=desktop system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
-assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"alpenglowed"'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"cage"'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"shell":"alpenglowed"'
 scripts/ci-profile-matrix.sh
 scripts/ci-edition-roles.sh
 

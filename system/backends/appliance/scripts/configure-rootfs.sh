@@ -139,12 +139,41 @@ ARTIFACT="${ARTIFACT:-image}"
 LOCK_SESSION="${LOCK_SESSION:-0}"
 SHELL_LOGIN="${SHELL_LOGIN:-1}"
 FLEET_AGENT="${FLEET_AGENT:-0}"
+ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE:-}"
 if [ -z "${SESSION}" ]; then
   if [ "${BUILD_PROFILE}" = "desktop" ]; then
     SESSION="alpenglowed"
   else
     SESSION="none"
   fi
+fi
+if [ -z "${ALPENGLOWED_ROLE}" ]; then
+  case "${ALPENGLOW_ROLE}" in
+    potatoes) ALPENGLOWED_ROLE="potatoes" ;;
+    workstation) ALPENGLOWED_ROLE="workstation" ;;
+    kiosk) ALPENGLOWED_ROLE="kiosk" ;;
+    internet) ALPENGLOWED_ROLE="internet" ;;
+    embedded) ALPENGLOWED_ROLE="embedded" ;;
+    containers) ALPENGLOWED_ROLE="containers" ;;
+    desktop)
+      if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+        ALPENGLOWED_ROLE="desktop"
+      else
+        ALPENGLOWED_ROLE="potatoes"
+      fi
+      ;;
+    *)
+      if [ "${BUILD_PROFILE}" = "desktop" ]; then
+        if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+          ALPENGLOWED_ROLE="desktop"
+        else
+          ALPENGLOWED_ROLE="potatoes"
+        fi
+      else
+        ALPENGLOWED_ROLE="none"
+      fi
+      ;;
+  esac
 fi
 if [ -n "${WORLD_FILE:-}" ] && [ "${WORLD_FILE#/}" = "${WORLD_FILE}" ]; then
   WORLD_FILE="${BACKEND_DIR}/${WORLD_FILE}"
@@ -163,7 +192,7 @@ case "${BUILD_PROFILE}" in
       BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
       WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-runtime.txt}"
     else
-      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq alpenglowed foot"
+      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq alpenglowed-lite foot"
       WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-desktop-lite.txt}"
     fi
     ;;
@@ -197,7 +226,7 @@ boot_strip() {
 
 case "${ALPENGLOW_ROLE}" in
   embedded)
-    boot_strip dropbear chronyd dnsmasq crond iwd pipewire wireplumber greetd alpenglowed foot sold cage
+    boot_strip dropbear chronyd dnsmasq crond iwd pipewire wireplumber greetd alpenglowed alpenglowed-lite foot sold cage
     ;;
   containers)
     ARTIFACT="userspace"
@@ -205,29 +234,37 @@ case "${ALPENGLOW_ROLE}" in
 esac
 
 if [ "${ARTIFACT}" = "userspace" ]; then
-  boot_strip state-mount alpenglow-kernel-policy alpenglow-zram alpenglow-pressure alpenglow-power iwd seatd pipewire wireplumber greetd alpenglowed foot elogind sold cage
+  boot_strip state-mount alpenglow-kernel-policy alpenglow-zram alpenglow-pressure alpenglow-power iwd seatd pipewire wireplumber greetd alpenglowed alpenglowed-lite foot elogind sold cage
   [ -n "${BOOT_SERVICES}" ] || BOOT_SERVICES="syslogd"
 fi
 
 case "${SESSION}" in
   alpenglowed)
     boot_add seatd
-    boot_add alpenglowed
+    if [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
+      boot_strip alpenglowed pipewire wireplumber
+      boot_add alpenglowed-lite
+    else
+      boot_add alpenglowed
+    fi
     boot_add foot
     ;;
   sold)
     boot_add seatd
     boot_add sold
+    boot_strip alpenglowed alpenglowed-lite
     ;;
   cage)
     boot_add seatd
     boot_add cage
+    boot_strip alpenglowed alpenglowed-lite
     ;;
 esac
 
 if [ "${FLEET_AGENT}" = "1" ]; then
   boot_add alpenglow-fleet-agent
 fi
+boot_add alpenglow-role
 
 # Compiler track: LLVM remains the default C/C++ toolchain; Inauguration is
 # available as an alternative codegen track for .in / Rust-shaped sources.
@@ -244,12 +281,14 @@ cp "${BIN_SRC}/sold-session-start" "${ROOTFS}/usr/local/bin/"
 cp "${BIN_SRC}/kiosk-session-start" "${ROOTFS}/usr/local/bin/"
 cp "${BIN_SRC}/alpenglow-fleet-agent" "${ROOTFS}/usr/local/bin/"
 cp "${BIN_SRC}/alpenglow-generation-mark-good" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/alpenglow-role-publish" "${ROOTFS}/usr/local/bin/"
 chmod 755 \
   "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
   "${ROOTFS}/usr/local/bin/sold-session-start" \
   "${ROOTFS}/usr/local/bin/kiosk-session-start" \
   "${ROOTFS}/usr/local/bin/alpenglow-fleet-agent" \
-  "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good"
+  "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good" \
+  "${ROOTFS}/usr/local/bin/alpenglow-role-publish"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
@@ -416,17 +455,17 @@ esac
 case "${BUILD_PROFILE}" in
   desktop)
     if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
-      DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
       AUDIO_JSON='{"server":"pipewire","session_manager":"wireplumber","backend":"alsa"}'
       NETWORKING_JSON='{"dhcp":"sdhcp","wifi":"iwd"}'
       SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","iwd","syslogd","crond"]'
       SESSION_SERVICES='["pipewire","wireplumber","greetd","alpenglowed","foot"]'
     else
-      DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed-lite"}'
       AUDIO_JSON='null'
       NETWORKING_JSON='{"dhcp":"sdhcp"}'
       SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","syslogd","crond"]'
-      SESSION_SERVICES='["alpenglowed","foot"]'
+      SESSION_SERVICES='["alpenglowed-lite","foot"]'
     fi
     POWER_JSON='{"manager":"elogind","script":"/usr/local/bin/alpenglow-power.sh"}'
     KERNEL_TYPE="desktop-appliance"
@@ -464,6 +503,15 @@ case "${BUILD_PROFILE}" in
     ;;
 esac
 case "${SESSION}" in
+  alpenglowed)
+    if [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed-lite"}'
+      SESSION_SERVICES='["alpenglowed-lite"]'
+    else
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+    fi
+    USER_INIT='["alpenglow-session"]'
+    ;;
   sold)
     DISPLAY_JSON='{"server":"wayland","compositor":"sold","session_manager":"sold","terminal":"foot","infrastructure":"seatd","shell":"sold"}'
     SESSION_SERVICES='["sold"]'
@@ -487,6 +535,7 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
   "backend": "alpenglow-native",
   "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
   "role": "${ALPENGLOW_ROLE:-appliance}",
+  "alpenglowed_role": "${ALPENGLOWED_ROLE}",
   "session": "${SESSION}",
   "artifact": "${ARTIFACT}",
   "lock_session": ${LOCK_SESSION},
@@ -551,6 +600,7 @@ cat > "${ROOTFS}/etc/alpenglow/role.json" <<EOF
 {
   "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
   "role": "${ALPENGLOW_ROLE:-appliance}",
+  "alpenglowed_role": "${ALPENGLOWED_ROLE}",
   "session": "${SESSION}",
   "artifact": "${ARTIFACT}",
   "lock_session": ${LOCK_SESSION},
@@ -559,6 +609,8 @@ cat > "${ROOTFS}/etc/alpenglow/role.json" <<EOF
   "world": "/etc/alpenglow/world"
 }
 EOF
+printf '%s\n' "${ALPENGLOWED_ROLE}" > "${ROOTFS}/etc/alpenglow/role"
+printf '%s\n' "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}" > "${ROOTFS}/etc/alpenglow/edition"
 
 {
   printf '{\n  "manager": "dinit",\n  "boot": [\n'

@@ -2,5 +2,3 @@ type = process
 command = /usr/local/bin/alpenglow-session-start
 restart = yes
 depends-on = seatd
-depends-on = pipewire
-depends-on = wireplumber
