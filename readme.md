@@ -72,13 +72,13 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Layer | Choice | Notes |
 |-------|--------|-------|
 | Init | dinit | Parallel dependency graph, both modes |
-| Userland | toybox (838KB), oksh | Static musl, no glibc |
+| Userland | toybox (838KB), oksh | Static musl. Desktop Alpenglowed currently uses an isolated glibc graphics path |
 | Package mgr | Oil | APK-compatible, standalone binary |
 | Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
-| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Alpenglowed is the desktop environment |
+| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Default graphical session. [Soliloquy](https://github.com/tschk/soliloquy) `sold` is an optional session for the internet role |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y |
@@ -101,19 +101,34 @@ docs/                   Architecture, build, install docs
 
 Kernel configs live at `system/backends/appliance/kernel/`.
 
-## Editions
+## Editions And Roles
 
-Release editions combine a userspace profile with a kernel profile:
+Alpenglow is one OS. Editions are images (userspace profile + kernel profile). Roles are session + policy + artifact on top of an edition. `SESSION` is `none|alpenglowed|sold|cage`. `GRAPHICAL=1` in `boot-native.sh` means the Alpenglowed/glibc graphics path, not every GUI.
 
-| Edition | Userspace | Kernel | Scope |
-|---------|-----------|--------|-------|
-| Fast | `minimal` | `fast` | Smallest headless diskless boot path |
-| Minimal | `minimal` | `minimal` | Headless appliance with networking, SSH, time, logs, DNS, and OOM guard |
-| Standard | `standard` | `minimal` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
-| Desktop | `desktop` | `desktop` | Light live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), direct session startup, foot, and the TUI installer |
-| Desktop Full | `desktop` | `desktop` | Full live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, foot, greeter services, and the GUI installer on x86_64 |
+| SKU | Userspace | Kernel | Session | Artifact | Scope |
+|-----|-----------|--------|---------|----------|-------|
+| Fast | `minimal` | `fast` | none | image | Smallest headless diskless boot path |
+| Minimal | `minimal` | `minimal` | none | image | Headless appliance with networking, SSH, time, logs, DNS, and OOM guard |
+| Standard | `standard` | `minimal` | none | image | Minimal plus compiler/tooling and system utilities |
+| Desktop | `desktop` | `desktop` | alpenglowed | image | Light live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), SSH/NTP/DNS, foot |
+| Desktop Full | `desktop` | `desktop` | alpenglowed | image | Full live desktop with audio, WiFi, greeter, and the GUI installer on x86_64 |
+| Embedded | `minimal` | `fast` | none | image | Closed-device fast image; no firmware/SSH/NTP/DNS packages |
+| Potatoes | `minimal` | `fast` | none | image | Low-end appliance; skinny GUI packages present, started only with `ALPENGLOW_SESSION=cage` |
+| Internet | `minimal` | `minimal` | sold | image | Minimal + [Soliloquy](https://github.com/tschk/soliloquy) `sold` staging. Not desktop-lite |
+| Kiosk | `minimal` | `minimal` | cage | image | Minimal + Cage single-app lock; no Alpenglowed, no shell login |
+| Workstation | `desktop` | `desktop` | alpenglowed | image | Desktop-full plus a placeholder fleet-agent hook |
+| Containers | `minimal` | unused | none | userspace | OCI/rootfs tarball. No kernel, firmware, eudev, initramfs, Limine |
 
-Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|standard|desktop|desktop-full`.
+```sh
+ALPENGLOW_EDITION=internet           # or ALPENGLOW_ROLE=kiosk
+ALPENGLOW_EDITION=minimal ALPENGLOW_SESSION=sold
+sh scripts/edition-resolve.sh --list
+sh scripts/export-container.sh       # userspace tarball + OCI layout
+```
+
+Release GHA still publishes the five image editions (`fast`, `minimal`, `standard`, `desktop`, `desktop-full`). Role SKUs are resolver-selectable locally. Full matrix: [docs/editions-and-roles.md](docs/editions-and-roles.md).
+
+Asset names: `alpenglow-VERSION-SKU-ARCH.{iso,img.zst}` and `alpenglow-VERSION-containers-ARCH.tar`.
 
 ## Performance
 

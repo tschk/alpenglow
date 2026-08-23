@@ -1,6 +1,9 @@
 #!/bin/sh
-# Source after setting ALPENGLOW_EDITION (optional). Exports BUILD_PROFILE, KERNEL_PROFILE,
-# FAST, GRAPHICAL, BUILD_SERVICES, ALPENGLOW_AUTOLOGIN, ALPENGLOW_DESKTOP_FULL, WORLD_FILE.
+# Source after setting ALPENGLOW_EDITION or ALPENGLOW_ROLE (optional). Exports
+# BUILD_PROFILE, KERNEL_PROFILE, FAST, GRAPHICAL, BUILD_SERVICES,
+# ALPENGLOW_AUTOLOGIN, ALPENGLOW_DESKTOP_FULL, WORLD_FILE, SESSION,
+# ALPENGLOW_SESSION, ALPENGLOW_ROLE, ARTIFACT, LOCK_SESSION, SHELL_LOGIN,
+# FLEET_AGENT.
 set -eu
 
 if [ -z "${ROOT_DIR:-}" ]; then
@@ -15,7 +18,40 @@ if [ -z "${ROOT_DIR:-}" ]; then
   esac
 fi
 _EDITION_TOML="${ROOT_DIR}/editions.toml"
-EDITION="${ALPENGLOW_EDITION:-standard}"
+
+_want_demo=0
+_want_list=0
+for _arg in "$@"; do
+  case "${_arg}" in
+    --demo) _want_demo=1 ;;
+    --list) _want_list=1 ;;
+  esac
+done
+
+if [ "${_want_list}" = "1" ]; then
+  awk '/^\[editions\./ {
+    line = $0
+    sub(/^\[editions\./, "", line)
+    sub(/\]$/, "", line)
+    print line
+  }' "${_EDITION_TOML}"
+  case "$0" in
+    */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
+  esac
+fi
+
+_caller_alpenglow_session="${ALPENGLOW_SESSION:-}"
+_caller_session="${SESSION:-}"
+
+if [ -n "${ALPENGLOW_SKU:-}" ]; then
+  EDITION="${ALPENGLOW_SKU}"
+elif [ -n "${ALPENGLOW_EDITION:-}" ]; then
+  EDITION="${ALPENGLOW_EDITION}"
+elif [ -n "${ALPENGLOW_ROLE:-}" ]; then
+  EDITION="${ALPENGLOW_ROLE}"
+else
+  EDITION="standard"
+fi
 
 _edition_kv() {
   awk -v want="${EDITION}" '
@@ -41,8 +77,8 @@ _edition_kv() {
 }
 
 _lines="$(_edition_kv)" || {
-  echo "unknown edition: ${EDITION}. Use fast, minimal, standard, desktop, or desktop-full." >&2
-  echo "see ${_EDITION_TOML}" >&2
+  echo "unknown edition or role: ${EDITION}." >&2
+  echo "see ${_EDITION_TOML} (scripts/edition-resolve.sh --list)" >&2
   exit 1
 }
 
@@ -54,6 +90,12 @@ BUILD_SERVICES=""
 ALPENGLOW_AUTOLOGIN=""
 ALPENGLOW_DESKTOP_FULL=""
 WORLD_FILE=""
+SESSION=""
+ROLE=""
+ARTIFACT=""
+LOCK_SESSION=""
+SHELL_LOGIN=""
+FLEET_AGENT=""
 
 IFS='
 '
@@ -75,15 +117,45 @@ while [ "$#" -gt 0 ]; do
     alpenglow_autologin) ALPENGLOW_AUTOLOGIN="${val}" ;;
     alpenglow_desktop_full) ALPENGLOW_DESKTOP_FULL="${val}" ;;
     world_file) WORLD_FILE="${val}" ;;
+    session) SESSION="${val}" ;;
+    role) ROLE="${val}" ;;
+    artifact) ARTIFACT="${val}" ;;
+    lock_session) LOCK_SESSION="${val}" ;;
+    shell_login) SHELL_LOGIN="${val}" ;;
+    fleet_agent) FLEET_AGENT="${val}" ;;
   esac
 done
 
+[ -n "${SESSION}" ] || SESSION="none"
+[ -n "${ROLE}" ] || ROLE="appliance"
+[ -n "${ARTIFACT}" ] || ARTIFACT="image"
+[ -n "${LOCK_SESSION}" ] || LOCK_SESSION="0"
+[ -n "${SHELL_LOGIN}" ] || SHELL_LOGIN="1"
+[ -n "${FLEET_AGENT}" ] || FLEET_AGENT="0"
+
+_session_override=""
+if [ -n "${_caller_alpenglow_session}" ]; then
+  _session_override="${_caller_alpenglow_session}"
+else
+  case "${_caller_session}" in
+    none|alpenglowed|sold|cage) _session_override="${_caller_session}" ;;
+  esac
+fi
+case "${_session_override}" in
+  none|alpenglowed|sold|cage) SESSION="${_session_override}" ;;
+esac
+
 export ALPENGLOW_EDITION="${EDITION}"
+export ALPENGLOW_SKU="${EDITION}"
+export ALPENGLOW_ROLE="${ROLE}"
 export BUILD_PROFILE KERNEL_PROFILE FAST GRAPHICAL BUILD_SERVICES
 export ALPENGLOW_AUTOLOGIN ALPENGLOW_DESKTOP_FULL WORLD_FILE
+export SESSION ALPENGLOW_SESSION="${SESSION}"
+export ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT
 
-if [ "${1:-}" = "--demo" ]; then
-  printf 'ALPENGLOW_EDITION=%s BUILD_PROFILE=%s KERNEL_PROFILE=%s FAST=%s GRAPHICAL=%s BUILD_SERVICES=%s ALPENGLOW_AUTOLOGIN=%s ALPENGLOW_DESKTOP_FULL=%s WORLD_FILE=%s\n' \
-    "${ALPENGLOW_EDITION}" "${BUILD_PROFILE}" "${KERNEL_PROFILE}" "${FAST}" "${GRAPHICAL}" \
-    "${BUILD_SERVICES}" "${ALPENGLOW_AUTOLOGIN}" "${ALPENGLOW_DESKTOP_FULL}" "${WORLD_FILE}"
+if [ "${_want_demo}" = "1" ]; then
+  printf 'ALPENGLOW_EDITION=%s ALPENGLOW_ROLE=%s BUILD_PROFILE=%s KERNEL_PROFILE=%s FAST=%s GRAPHICAL=%s BUILD_SERVICES=%s ALPENGLOW_AUTOLOGIN=%s ALPENGLOW_DESKTOP_FULL=%s WORLD_FILE=%s SESSION=%s ARTIFACT=%s LOCK_SESSION=%s SHELL_LOGIN=%s FLEET_AGENT=%s\n' \
+    "${ALPENGLOW_EDITION}" "${ALPENGLOW_ROLE}" "${BUILD_PROFILE}" "${KERNEL_PROFILE}" "${FAST}" "${GRAPHICAL}" \
+    "${BUILD_SERVICES}" "${ALPENGLOW_AUTOLOGIN}" "${ALPENGLOW_DESKTOP_FULL}" "${WORLD_FILE}" \
+    "${SESSION}" "${ARTIFACT}" "${LOCK_SESSION}" "${SHELL_LOGIN}" "${FLEET_AGENT}"
 fi

@@ -133,6 +133,19 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 # Enable dinit boot services (profile-aware)
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}"
+SESSION="${SESSION:-}"
+ALPENGLOW_ROLE="${ALPENGLOW_ROLE:-}"
+ARTIFACT="${ARTIFACT:-image}"
+LOCK_SESSION="${LOCK_SESSION:-0}"
+SHELL_LOGIN="${SHELL_LOGIN:-1}"
+FLEET_AGENT="${FLEET_AGENT:-0}"
+if [ -z "${SESSION}" ]; then
+  if [ "${BUILD_PROFILE}" = "desktop" ]; then
+    SESSION="alpenglowed"
+  else
+    SESSION="none"
+  fi
+fi
 if [ -n "${WORLD_FILE:-}" ] && [ "${WORLD_FILE#/}" = "${WORLD_FILE}" ]; then
   WORLD_FILE="${BACKEND_DIR}/${WORLD_FILE}"
 fi
@@ -150,7 +163,7 @@ case "${BUILD_PROFILE}" in
       BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
       WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-runtime.txt}"
     else
-      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom syslogd crond alpenglowed foot"
+      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq alpenglowed foot"
       WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-desktop-lite.txt}"
     fi
     ;;
@@ -159,6 +172,62 @@ case "${BUILD_PROFILE}" in
     exit 1
     ;;
 esac
+
+boot_has() {
+  _want="$1"
+  for _svc in ${BOOT_SERVICES}; do
+    [ "${_svc}" = "${_want}" ] && return 0
+  done
+  return 1
+}
+boot_add() {
+  boot_has "$1" || BOOT_SERVICES="${BOOT_SERVICES} $1"
+}
+boot_strip() {
+  _keep=""
+  for _svc in ${BOOT_SERVICES}; do
+    _drop=0
+    for _gone in "$@"; do
+      [ "${_svc}" = "${_gone}" ] && _drop=1
+    done
+    [ "${_drop}" = "1" ] || _keep="${_keep} ${_svc}"
+  done
+  BOOT_SERVICES="${_keep# }"
+}
+
+case "${ALPENGLOW_ROLE}" in
+  embedded)
+    boot_strip dropbear chronyd dnsmasq crond iwd pipewire wireplumber greetd alpenglowed foot sold cage
+    ;;
+  containers)
+    ARTIFACT="userspace"
+    ;;
+esac
+
+if [ "${ARTIFACT}" = "userspace" ]; then
+  boot_strip state-mount alpenglow-kernel-policy alpenglow-zram alpenglow-pressure alpenglow-power iwd seatd pipewire wireplumber greetd alpenglowed foot elogind sold cage
+  [ -n "${BOOT_SERVICES}" ] || BOOT_SERVICES="syslogd"
+fi
+
+case "${SESSION}" in
+  alpenglowed)
+    boot_add seatd
+    boot_add alpenglowed
+    boot_add foot
+    ;;
+  sold)
+    boot_add seatd
+    boot_add sold
+    ;;
+  cage)
+    boot_add seatd
+    boot_add cage
+    ;;
+esac
+
+if [ "${FLEET_AGENT}" = "1" ]; then
+  boot_add alpenglow-fleet-agent
+fi
 
 # Compiler track: LLVM remains the default C/C++ toolchain; Inauguration is
 # available as an alternative codegen track for .in / Rust-shaped sources.
@@ -171,9 +240,21 @@ esac
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/sold-session-start" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/kiosk-session-start" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/alpenglow-fleet-agent" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/alpenglow-generation-mark-good" "${ROOTFS}/usr/local/bin/"
+chmod 755 \
+  "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
+  "${ROOTFS}/usr/local/bin/sold-session-start" \
+  "${ROOTFS}/usr/local/bin/kiosk-session-start" \
+  "${ROOTFS}/usr/local/bin/alpenglow-fleet-agent" \
+  "${ROOTFS}/usr/local/bin/alpenglow-generation-mark-good"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
+cp "${FILESYSTEM_MANIFEST_DIR}/update-policy.json" "${ROOTFS}/etc/alpenglow/update-policy.json"
+cp "${FILESYSTEM_MANIFEST_DIR}/fleet-agent.json" "${ROOTFS}/etc/alpenglow/fleet-agent.json"
 cp "${BACKEND_DIR}/backend.json" "${ROOTFS}/etc/alpenglow/backend.json"
 cp "${WORLD_FILE}" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
@@ -382,9 +463,34 @@ case "${BUILD_PROFILE}" in
     USER_INIT='[]'
     ;;
 esac
+case "${SESSION}" in
+  sold)
+    DISPLAY_JSON='{"server":"wayland","compositor":"sold","session_manager":"sold","terminal":"foot","infrastructure":"seatd","shell":"sold"}'
+    SESSION_SERVICES='["sold"]'
+    USER_INIT='["sold"]'
+    ;;
+  cage)
+    DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"kiosk"}'
+    SESSION_SERVICES='["cage"]'
+    USER_INIT='["cage"]'
+    ;;
+  none)
+    if [ "${BUILD_PROFILE}" != "desktop" ]; then
+      DISPLAY_JSON='null'
+      SESSION_SERVICES='[]'
+      USER_INIT='[]'
+    fi
+    ;;
+esac
 cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
 {
   "backend": "alpenglow-native",
+  "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
+  "role": "${ALPENGLOW_ROLE:-appliance}",
+  "session": "${SESSION}",
+  "artifact": "${ARTIFACT}",
+  "lock_session": ${LOCK_SESSION},
+  "shell_login": ${SHELL_LOGIN},
   "profile": "${BUILD_PROFILE}",
   "composition_model": "oasis-static",
   "boot_model": "diskless",
@@ -440,6 +546,44 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
   }
 }
 EOF
+
+cat > "${ROOTFS}/etc/alpenglow/role.json" <<EOF
+{
+  "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
+  "role": "${ALPENGLOW_ROLE:-appliance}",
+  "session": "${SESSION}",
+  "artifact": "${ARTIFACT}",
+  "lock_session": ${LOCK_SESSION},
+  "shell_login": ${SHELL_LOGIN},
+  "fleet_agent": ${FLEET_AGENT},
+  "world": "/etc/alpenglow/world"
+}
+EOF
+
+{
+  printf '{\n  "manager": "dinit",\n  "boot": [\n'
+  _first=1
+  for service in ${BOOT_SERVICES}; do
+    if [ "${_first}" = "1" ]; then
+      printf '    "%s"' "${service}"
+      _first=0
+    else
+      printf ',\n    "%s"' "${service}"
+    fi
+  done
+  printf '\n  ]\n}\n'
+} > "${ROOTFS}/etc/alpenglow/services.json"
+
+if [ "${LOCK_SESSION}" = "1" ]; then
+  printf '{"locked":true,"session":"%s","shell_login":false}\n' "${SESSION}" \
+    > "${ROOTFS}/etc/alpenglow/session-lock.json"
+  printf '%s\n' "/usr/bin/foot" > "${ROOTFS}/etc/alpenglow/kiosk-command"
+fi
+
+if [ "${SHELL_LOGIN}" = "0" ]; then
+  mkdir -p "${ROOTFS}/etc/dinit.d"
+  printf '%s\n' "nologin" > "${ROOTFS}/etc/alpenglow/shell-login"
+fi
 
 # ── Early boot setup: /etc/hosts + /etc/resolv.conf ───────────────
 cat > "${ROOTFS}/etc/hosts" <<'HOSTS'

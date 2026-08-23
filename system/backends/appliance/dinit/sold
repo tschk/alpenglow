@@ -1,0 +1,5 @@
+# sold — Soliloquy session (optional; binary from tschk/soliloquy)
+type = scripted
+command = /usr/local/bin/sold-session-start
+restart = no
+depends-on = seatd

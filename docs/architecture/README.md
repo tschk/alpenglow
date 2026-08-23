@@ -1,5 +1,6 @@
 # Architecture Docs
 
+- [Editions and roles](../editions-and-roles.md)
 - [Appliance System](./appliance-system.md)
 - [Browser-Centric OS Optimization](./browser-centric-os.md)
 - [Alpenglow OS Optimization Plan](./os-optimization-plan.md)

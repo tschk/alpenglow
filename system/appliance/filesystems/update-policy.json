@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "strategy": "atomic-generations",
+  "status": "scaffold",
+  "enabled": false,
+  "rollback": true,
+  "rollback_generations": 2,
+  "generation_root": "/sysroot/alpenglow",
+  "active_generation_link": "/sysroot/alpenglow/current",
+  "state_path": "/var/lib/alpenglow/system/update-state.json",
+  "mark_good_hook": "/usr/local/bin/alpenglow-generation-mark-good",
+  "note": "Policy file only. Oil is expected to manage generations; no in-tree updater implements this yet."
+}

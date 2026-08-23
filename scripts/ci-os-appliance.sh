@@ -28,6 +28,12 @@ for path in \
   system/backends/appliance/backend.json \
   system/backends/appliance/packages-standard.txt \
   system/backends/appliance/packages-runtime.txt \
+  system/backends/appliance/packages-desktop-lite.txt \
+  system/backends/appliance/packages-embedded.txt \
+  system/backends/appliance/packages-internet.txt \
+  system/backends/appliance/packages-kiosk.txt \
+  system/backends/appliance/packages-potatoes.txt \
+  system/backends/appliance/packages-containers.txt \
   system/backends/appliance/packages-dev.txt \
   system/backends/appliance/scripts/build-rootfs.sh \
   system/backends/appliance/scripts/configure-rootfs.sh \
@@ -79,6 +85,12 @@ assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'
 assert_not_contains system/backends/appliance/packages-runtime.txt '^clang$'
 assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
+assert_file system/backends/appliance/dinit/sold
+assert_file system/backends/appliance/dinit/cage
+assert_file system/appliance/filesystems/update-policy.json
+assert_file system/appliance/filesystems/fleet-agent.json
+assert_contains system/backends/appliance/backend.json '"editions"'
+assert_contains system/backends/appliance/packages-desktop-lite.txt '^dropbear$'
 assert_contains system/backends/appliance/dinit/alpenglow-kernel-policy 'command = /usr/local/bin/alpenglow-kernelctl'
 assert_contains system/backends/appliance/dinit/alpenglow-netd 'command = /usr/local/bin/alpenglow-netd'
 assert_not_contains system/backends/appliance/dinit/alpenglow-netd 'depends-on = networking'
@@ -105,6 +117,7 @@ BUILD_PROFILE=desktop system/backends/appliance/scripts/configure-rootfs.sh "${t
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
 assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"alpenglowed"'
 scripts/ci-profile-matrix.sh
+scripts/ci-edition-roles.sh
 
 assert_file scripts/lib/initramfs-codec-identity.sh
 assert_file scripts/test-initramfs-codec-identity.sh

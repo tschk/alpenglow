@@ -1,5 +1,8 @@
 # Release editions: userspace build_profile + kernel_profile + image options.
-# Resolved by scripts/edition-resolve.sh (ALPENGLOW_EDITION, default standard).
+# Roles are first-class SKUs on the same OS (session + policy + artifact).
+# Resolved by scripts/edition-resolve.sh (ALPENGLOW_EDITION or ALPENGLOW_ROLE, default standard).
+# Override session without changing the image: ALPENGLOW_SESSION=none|alpenglowed|sold|cage
+# GRAPHICAL=1 in boot-native.sh means the Alpenglowed/glibc graphics path, not "any GUI".
 
 [editions.fast]
 build_profile = "minimal"
@@ -10,6 +13,12 @@ build_services = 0
 alpenglow_autologin = 0
 alpenglow_desktop_full = 0
 world_file = "packages-minimal.txt"
+session = "none"
+role = "appliance"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
 
 [editions.minimal]
 build_profile = "minimal"
@@ -20,6 +29,12 @@ build_services = 0
 alpenglow_autologin = 0
 alpenglow_desktop_full = 0
 world_file = "packages-minimal.txt"
+session = "none"
+role = "appliance"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
 
 [editions.standard]
 build_profile = "standard"
@@ -30,6 +45,12 @@ build_services = 0
 alpenglow_autologin = 0
 alpenglow_desktop_full = 0
 world_file = "packages-standard.txt"
+session = "none"
+role = "appliance"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
 
 [editions.desktop]
 build_profile = "desktop"
@@ -40,6 +61,12 @@ build_services = 0
 alpenglow_autologin = 1
 alpenglow_desktop_full = 0
 world_file = "packages-desktop-lite.txt"
+session = "alpenglowed"
+role = "desktop"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
 
 [editions.desktop-full]
 build_profile = "desktop"
@@ -50,3 +77,105 @@ build_services = 1
 alpenglow_autologin = 1
 alpenglow_desktop_full = 1
 world_file = "packages-runtime.txt"
+session = "alpenglowed"
+role = "desktop"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
+
+[editions.embedded]
+build_profile = "minimal"
+kernel_profile = "fast"
+fast = 1
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-embedded.txt"
+session = "none"
+role = "embedded"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
+
+[editions.potatoes]
+build_profile = "minimal"
+kernel_profile = "fast"
+fast = 1
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-potatoes.txt"
+session = "none"
+role = "potatoes"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
+
+[editions.containers]
+build_profile = "minimal"
+kernel_profile = "fast"
+fast = 0
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-containers.txt"
+session = "none"
+role = "containers"
+artifact = "userspace"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
+
+[editions.internet]
+build_profile = "minimal"
+kernel_profile = "minimal"
+fast = 0
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-internet.txt"
+session = "sold"
+role = "internet"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
+
+[editions.kiosk]
+build_profile = "minimal"
+kernel_profile = "minimal"
+fast = 0
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-kiosk.txt"
+session = "cage"
+role = "kiosk"
+artifact = "image"
+lock_session = 1
+shell_login = 0
+fleet_agent = 0
+
+[editions.workstation]
+build_profile = "desktop"
+kernel_profile = "desktop"
+fast = 0
+graphical = 1
+build_services = 1
+alpenglow_autologin = 1
+alpenglow_desktop_full = 1
+world_file = "packages-runtime.txt"
+session = "alpenglowed"
+role = "workstation"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 1

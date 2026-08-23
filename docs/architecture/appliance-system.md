@@ -74,13 +74,13 @@ These changes are already reflected or scaffolded in the current appliance path:
 - Reduce the remaining root-only session path once the display stack can run under a dedicated account.
 - Implement plugin download/install state and signature verification.
 - Add a generic encrypted sync service and trust model if cross-device sync is enabled.
-- Replace ad hoc OpenRC service behavior with a more declarative service registry over time.
+- Init is dinit. There are no OpenRC units in this tree; keep expanding `/etc/alpenglow/services.json` rather than reintroducing OpenRC.
 
 ## Updates And Rollback
 
-- Update policy lives in `/etc/alpenglow/update-policy.json`.
+- Update policy lives in `/etc/alpenglow/update-policy.json` (seeded from `system/appliance/filesystems/update-policy.json`).
 - Writable update state lives in `/var/lib/alpenglow/system/update-state.json`.
-- The current strategy is `atomic-generations` with rollback enabled.
+- The declared strategy is `atomic-generations` with rollback enabled. The file is a scaffold (`status: scaffold`); no in-tree updater implements it yet.
 - This mirrors the direction borrowed from Solaris boot environments and modern image-based Linux systems.
 
 ## Package Management

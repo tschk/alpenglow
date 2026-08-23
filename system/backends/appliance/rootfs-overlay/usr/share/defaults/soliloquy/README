@@ -1,0 +1,11 @@
+Soliloquy (sold) is an optional Alpenglow session from https://github.com/tschk/soliloquy.
+
+This tree does not vendor Soliloquy. To use the internet role:
+
+  ALPENGLOW_EDITION=internet
+  stage sold into /usr/local/bin/sold (or /usr/bin/sold)
+
+dinit unit: /etc/dinit.d/sold
+wrapper: /usr/local/bin/sold-session-start
+
+Alpenglowed remains the default desktop session. sold does not replace it in this repo.

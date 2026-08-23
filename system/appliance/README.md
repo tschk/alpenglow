@@ -1,6 +1,6 @@
 # Alpenglow Appliance Backend Contract
 
-Alpenglow composes an immutable appliance from its native musl+dinit system, staged desktop artifacts, and a fixed runtime state contract.
+Alpenglow composes an immutable appliance from its native musl+dinit system, staged desktop artifacts, and a fixed runtime state contract. Edition and role SKUs are defined in `editions.toml`; see `docs/editions-and-roles.md`.
 
 The shared appliance contract owns:
 

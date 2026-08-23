@@ -1,0 +1,17 @@
+# embedded: fast kernel image, closed-device userspace.
+# No linux-firmware (board overlay), no SSH/NTP/DNS daemons.
+
+dinit
+musl
+toybox
+linux-hardened
+alpenglow-initramfs
+sdhcp
+ca-certificates
+kmod
+eudev
+tzdata
+oksh
+erofs-utils
+bearssl
+earlyoom

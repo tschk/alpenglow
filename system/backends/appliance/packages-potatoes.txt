@@ -1,0 +1,25 @@
+# potatoes: fast kernel + minimal appliance userspace.
+# Skinny GUI packages are present; SESSION=none leaves them stopped.
+# Enable with ALPENGLOW_SESSION=cage. No toolchain, no desktop-full.
+
+dinit
+musl
+toybox
+linux-hardened
+linux-firmware
+alpenglow-initramfs
+sdhcp
+dropbear
+ca-certificates
+kmod
+eudev
+tzdata
+oksh
+erofs-utils
+bearssl
+chrony
+dnsmasq
+earlyoom
+seatd
+cage
+foot
