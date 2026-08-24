@@ -3,14 +3,21 @@
 # GPUI uses dlopen() for Wayland/Vulkan libs, which requires dynamic linking.
 # Uses Docker rust:latest (glibc) with wayland/xkbcommon dev packages.
 #
-# Usage: build-alpenglowed-glibc.sh <out-dir> [path-to-alpenglowed-repo]
+# Usage: build-alpenglowed-glibc.sh <out-dir> [path-to-alpenglowed-repo] [potato|desktop|compositor]
 # Output: $OUT_DIR/alpenglowed-glibc/usr/bin/alpenglowed
+# potato writes alpenglowed-lite (--no-default-features). desktop is cargo --release (full, no compositor).
+# compositor is experimental only and is not the image path.
 set -eu
 
 OUT_DIR="${1:-/build/out}"
 [ -d "${OUT_DIR}" ] || mkdir -p "${OUT_DIR}"
 OUT_DIR="$(CDPATH='' cd -- "${OUT_DIR}" && pwd)"
 ALPENGLOWED_SRC="${2:-}"
+SKU="${3:-${ALPENGLOW_SKU:-desktop}}"
+case "${SKU}" in
+  potato|potatoes|desktop|compositor) ;;
+  *) SKU=desktop ;;
+esac
 
 # Auto-detect alpenglowed source
 if [ -z "${ALPENGLOWED_SRC}" ]; then
@@ -31,11 +38,11 @@ fi
 ALPENGLOWED_SRC="$(CDPATH='' cd -- "${ALPENGLOWED_SRC}" && pwd)"
 mkdir -p "${OUT_DIR}/alpenglowed-glibc"
 
-echo "→ Building alpenglowed (glibc, dynamic linking)..."
+echo "→ Building alpenglowed (glibc, dynamic linking, ${SKU})..."
 
 DOCKER_VOLUMES="-v ${ALPENGLOWED_SRC}:/build/alpenglowed"
 
-docker run --rm --platform linux/amd64 ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglowed-glibc:/out" rust:latest sh -c '
+docker run --rm --platform linux/amd64 -e ALPENGLOW_SKU="${SKU}" ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglowed-glibc:/out" rust:latest sh -c '
   set -e
   apt-get update -qq 2>/dev/null
   apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev pkg-config 2>/dev/null >/dev/null
@@ -45,11 +52,27 @@ docker run --rm --platform linux/amd64 ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglo
   sed -i "s#crepuscularity-gpui = { path = \"../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#g" Cargo.toml
   sed -i "s#crepuscularity-web = { path = \"../crepuscularity/crates/crepuscularity-web\" }#crepuscularity-web = \"0.4.11\"#" Cargo.toml
   sed -i "s#crepuscularity-gpui = { path = \"../../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#" alpenglow-greeter/Cargo.toml
-  cargo build --release --features compositor 2>&1 | tail -5
-
-  mkdir -p /out/usr/bin
-  cp target/release/alpenglowed /out/usr/bin/
-  chmod 755 /out/usr/bin/alpenglowed
+  case "${ALPENGLOW_SKU}" in
+    potato|potatoes)
+      cargo build --release --no-default-features 2>&1 | tail -5
+      mkdir -p /out/usr/bin
+      cp target/release/alpenglowed /out/usr/bin/alpenglowed-lite
+      cp target/release/alpenglowed /out/usr/bin/alpenglowed
+      chmod 755 /out/usr/bin/alpenglowed-lite /out/usr/bin/alpenglowed
+      ;;
+    compositor)
+      cargo build --release --features compositor 2>&1 | tail -5
+      mkdir -p /out/usr/bin
+      cp target/release/alpenglowed /out/usr/bin/
+      chmod 755 /out/usr/bin/alpenglowed
+      ;;
+    *)
+      cargo build --release 2>&1 | tail -5
+      mkdir -p /out/usr/bin
+      cp target/release/alpenglowed /out/usr/bin/
+      chmod 755 /out/usr/bin/alpenglowed
+      ;;
+  esac
 
   echo "  alpenglowed: $(file /out/usr/bin/alpenglowed | cut -d, -f1-2)"
 '

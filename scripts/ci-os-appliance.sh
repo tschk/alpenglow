@@ -7,8 +7,8 @@ cd "${REPO_ROOT}"
 fail() { printf 'ci-os-appliance: %s\n' "$1" >&2; exit 1; }
 assert_file() { [ -f "$1" ] || fail "missing: $1"; }
 assert_executable() { [ -x "$1" ] || fail "missing executable: $1"; }
-assert_contains() { grep -Eq "${2}" "$1" || fail "${1} missing pattern: ${2}"; }
-assert_not_contains() { ! grep -Eq "${2}" "$1" || fail "${1} unexpectedly matches ${2}"; }
+assert_contains() { grep -E -q -e "${2}" "$1" || fail "${1} missing pattern: ${2}"; }
+assert_not_contains() { ! grep -E -q -e "${2}" "$1" || fail "${1} unexpectedly matches ${2}"; }
 
 test -L CLAUDE.md || fail "CLAUDE.md must be a symlink"
 [ "$(readlink CLAUDE.md)" = "AGENTS.md" ] || fail "CLAUDE.md must point to AGENTS.md"
@@ -85,6 +85,12 @@ assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = seatd'
 assert_contains system/backends/appliance/dinit/alpenglowed-lite 'depends-on = seatd'
 assert_not_contains system/backends/appliance/dinit/alpenglowed-lite 'pipewire'
 assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'exec alpenglowed --compositor'
+assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'role=.*--compositor'
+assert_not_contains scripts/boot-native.sh 'alpenglowed-bin --compositor'
+assert_not_contains scripts/build-aarch64-desktop.sh 'alpenglowed --compositor'
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release --no-default-features'
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release '
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'compositor)'
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'

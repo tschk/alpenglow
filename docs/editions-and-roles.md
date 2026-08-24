@@ -72,7 +72,7 @@ This PR and alpenglowed #2 need to land together. They rename potatoes→potato 
 
 Alpenglowed reads `/run/alpenglow/role` then `/etc/alpenglow/role`. `configure-rootfs.sh` writes `/etc/alpenglow/role`, `/etc/alpenglow/sku`, and `/etc/alpenglow/role.json`. `dinit/alpenglow-role` copies those into `/run/alpenglow` at boot. Foreign roles (`internet`, sold, headless) make `alpenglowed` exit 2.
 
-`alpenglowed-lite` is `cargo build --release --no-default-features` in the sibling repo. Session contract: `alpenglowed --session-contract` and `docs/alpenglow-session-contract.md` in tschk/alpenglowed. The `velox` dinit unit still runs `/usr/bin/cage`.
+`alpenglowed-lite` is `cargo build --release --no-default-features`. Desktop is `cargo build --release` (default `full`; compositor is not enabled). `--features compositor` is experimental only and is not the image path. Session contract: `alpenglowed --session-contract` and `docs/alpenglow-session-contract.md` in tschk/alpenglowed. The `velox` dinit unit still runs `/usr/bin/cage`.
 
 ## SKU naming
 

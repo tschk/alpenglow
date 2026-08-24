@@ -107,10 +107,6 @@ if [ -n "${WAYLAND_DISPLAY:-}" ]; then
   exec "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}"
 fi
 
-if [ "${ALPENGLOWED_ROLE}" != "potato" ] && [ "${ALPENGLOWED_ROLE}" != "potatoes" ] && [ "${ALPENGLOWED_COMPOSITOR:-}" = "1" ]; then
-  exec "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}" --compositor
-fi
-
 if command -v velox >/dev/null 2>&1; then
   exec velox "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}"
 fi

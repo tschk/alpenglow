@@ -121,7 +121,7 @@ export XDG_RUNTIME_DIR=/run/user/0
 export LIBSEAT_BACKEND=seatd
 export WLR_RENDERER=pixman
 export WLR_NO_HARDWARE_CURSORS=1
-exec /usr/bin/alpenglowed --compositor
+exec /usr/bin/cage -- /usr/bin/alpenglowed --role=desktop
 EOF
 else
   cat > "${ROOTFS}/usr/local/bin/start-desktop" <<'EOF'

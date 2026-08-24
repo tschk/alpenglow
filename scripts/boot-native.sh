@@ -381,7 +381,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   # alpenglowed with glibc dynamic linking
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
   if [ ! -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
-    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
+    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed" "${ALPENGLOW_SKU:-desktop}"
   fi
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
@@ -464,6 +464,10 @@ if [ "${GRAPHICAL}" = "1" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/bin"
     cp "${ALPENGLOWED_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
+    if [ -f "${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed-lite" ]; then
+      cp "${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed-lite" "${ROOTFS_DIR}/usr/bin/alpenglowed-lite"
+      chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-lite"
+    fi
   fi
 
   GREETER_GLIBC_BIN=""
@@ -519,7 +523,10 @@ if [ -z "${ALPENGLOWED_INSTALLER_TARGET:-}" ]; then
     [ -b "$dev" ] && { export ALPENGLOWED_INSTALLER_TARGET="$dev"; break; }
   done
 fi
-exec /usr/bin/alpenglowed-bin --compositor "$@"
+if command -v cage >/dev/null 2>&1; then
+  exec cage -- /usr/bin/alpenglowed-bin --role=desktop "$@"
+fi
+exec /usr/bin/alpenglowed-bin --role=desktop "$@"
 ALPWRAP
     cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
 #!/bin/sh
@@ -542,7 +549,10 @@ if [ -z "${ALPENGLOWED_INSTALLER_TARGET:-}" ]; then
     [ -b "$dev" ] && { export ALPENGLOWED_INSTALLER_TARGET="$dev"; break; }
   done
 fi
-exec /usr/bin/alpenglowed-bin --compositor "$@"
+if command -v cage >/dev/null 2>&1; then
+  exec cage -- /usr/bin/alpenglowed-bin --role=desktop "$@"
+fi
+exec /usr/bin/alpenglowed-bin --role=desktop "$@"
 ALPWRAP
     cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
 #!/bin/sh
