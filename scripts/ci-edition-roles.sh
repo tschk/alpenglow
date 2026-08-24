@@ -1,5 +1,5 @@
 #!/bin/sh
-# CI: public SKUs fast|minimal|potato|desktop|internet
+# CI: public SKUs potato|desktop|internet
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -16,10 +16,10 @@ trap 'rm -rf "${tmp}"' EXIT INT TERM
 unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ALPENGLOWED_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE ALPENGLOW_FLEET ALPENGLOW_KIOSK ALPENGLOW_ARTIFACT
 
 list="$(sh scripts/edition-resolve.sh --list)"
-for sku in fast minimal potato desktop internet; do
+for sku in potato desktop internet; do
   printf '%s\n' "${list}" | grep -qx "${sku}" || fail "--list missing ${sku}"
 done
-for gone in standard embedded potatoes kiosk workstation desktop-full containers desktop-lite; do
+for gone in fast minimal standard embedded potatoes kiosk workstation desktop-full containers desktop-lite; do
   printf '%s\n' "${list}" | grep -qx "${gone}" && fail "--list leaked ${gone}"
 done
 
@@ -28,23 +28,21 @@ demo_field() {
     | tr ' ' '\n' | sed -n "s/^$2=//p"
 }
 
-assert_eq "$(demo_field fast ALPENGLOW_SKU)" "fast" "fast sku"
+assert_eq "$(demo_field potato ALPENGLOW_SKU)" "potato" "potato sku"
+assert_eq "$(demo_field potato SESSION)" "none" "potato session"
+assert_eq "$(demo_field potato KERNEL_PROFILE)" "fast" "potato kernel"
+assert_eq "$(demo_field potato WORLD_FILE)" "packages-potato.txt" "potato world"
+assert_eq "$(demo_field fast ALPENGLOW_SKU)" "potato" "fast→potato"
 assert_eq "$(demo_field fast SESSION)" "none" "fast session"
 assert_eq "$(demo_field fast KERNEL_PROFILE)" "fast" "fast kernel"
-assert_eq "$(demo_field fast WORLD_FILE)" "packages-minimal.txt" "fast world"
-assert_eq "$(demo_field fast ALPENGLOWED_ROLE)" "none" "fast alpenglowed role"
-assert_eq "$(demo_field minimal ALPENGLOW_SKU)" "minimal" "minimal sku"
+assert_eq "$(demo_field fast WORLD_FILE)" "packages-potato.txt" "fast world"
+assert_eq "$(demo_field minimal ALPENGLOW_SKU)" "potato" "minimal→potato"
 assert_eq "$(demo_field minimal SESSION)" "none" "minimal session"
-assert_eq "$(demo_field minimal KERNEL_PROFILE)" "minimal" "minimal kernel"
-assert_eq "$(demo_field minimal WORLD_FILE)" "packages-minimal.txt" "minimal world"
-assert_eq "$(demo_field potato ALPENGLOW_SKU)" "potato" "potato sku"
-assert_eq "$(demo_field potato SESSION)" "alpenglowed" "potato session"
-assert_eq "$(demo_field potato ALPENGLOWED_ROLE)" "potato" "potato role"
-assert_eq "$(demo_field potato WORLD_FILE)" "packages-potato.txt" "potato world"
+assert_eq "$(demo_field minimal WORLD_FILE)" "packages-potato.txt" "minimal world"
 assert_eq "$(demo_field desktop ALPENGLOW_SKU)" "desktop" "desktop sku"
 assert_eq "$(demo_field desktop WORLD_FILE)" "packages-runtime.txt" "desktop world"
 assert_eq "$(demo_field internet SESSION)" "sold" "internet session"
-assert_eq "$(demo_field standard ALPENGLOW_SKU)" "minimal" "standard→minimal"
+assert_eq "$(demo_field standard ALPENGLOW_SKU)" "potato" "standard→potato"
 assert_eq "$(demo_field standard BUILD_PROFILE)" "standard" "standard toolchain"
 assert_eq "$(demo_field standard WORLD_FILE)" "packages-standard.txt" "standard world"
 assert_eq "$(demo_field standard SESSION)" "none" "standard session"
@@ -59,9 +57,12 @@ assert_eq "$(
   printf '%s\n' "${ALPENGLOW_SKU}"
 )" "potato" "default SKU is potato"
 
-assert_file system/backends/appliance/packages-minimal.txt
 assert_file system/backends/appliance/packages-potato.txt
 assert_file system/backends/appliance/packages-internet.txt
+assert_contains system/backends/appliance/packages-potato.txt '^dropbear$'
+assert_contains system/backends/appliance/packages-potato.txt '^chrony$'
+assert_contains system/backends/appliance/packages-potato.txt '^dnsmasq$'
+assert_contains system/backends/appliance/packages-potato.txt '^earlyoom$'
 assert_not_contains system/backends/appliance/packages-internet.txt '^alpenglowed$'
 assert_file system/backends/appliance/dinit/sold
 assert_file system/backends/appliance/dinit/cage
@@ -86,26 +87,23 @@ run_sku() {
     system/backends/appliance/scripts/configure-rootfs.sh "${root}" >/dev/null
 }
 
+run_sku potato
+assert_contains "${tmp}/potato/etc/alpenglow/edition" '^potato$'
+assert_contains "${tmp}/potato/etc/alpenglow/system.json" '"sku": "potato"'
+assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = dropbear'
+assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = chronyd'
+assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = dnsmasq'
+assert_not_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = alpenglowed'
+assert_not_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = sold'
+
 run_sku fast
-assert_contains "${tmp}/fast/etc/alpenglow/edition" '^fast$'
-assert_contains "${tmp}/fast/etc/alpenglow/system.json" '"sku": "fast"'
-assert_contains "${tmp}/fast/etc/alpenglow/role" '^none$'
+assert_contains "${tmp}/fast/etc/alpenglow/system.json" '"sku": "potato"'
 assert_not_contains "${tmp}/fast/etc/dinit.d/boot" 'depends-on = alpenglowed'
-assert_not_contains "${tmp}/fast/etc/alpenglow/world" '^alpenglowed$'
 
 run_sku minimal
-assert_contains "${tmp}/minimal/etc/alpenglow/edition" '^minimal$'
-assert_contains "${tmp}/minimal/etc/alpenglow/system.json" '"sku": "minimal"'
-assert_contains "${tmp}/minimal/etc/alpenglow/role" '^none$'
+assert_contains "${tmp}/minimal/etc/alpenglow/system.json" '"sku": "potato"'
 assert_contains "${tmp}/minimal/etc/dinit.d/boot" 'depends-on = dropbear'
-assert_contains "${tmp}/minimal/etc/dinit.d/boot" 'depends-on = chronyd'
 assert_not_contains "${tmp}/minimal/etc/dinit.d/boot" 'depends-on = alpenglowed'
-assert_not_contains "${tmp}/minimal/etc/alpenglow/world" '^alpenglowed$'
-
-run_sku potato
-assert_contains "${tmp}/potato/etc/alpenglow/role" '^potato$'
-assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = alpenglowed-lite'
-assert_not_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = alpenglowed$'
 
 run_sku desktop
 assert_contains "${tmp}/desktop/etc/alpenglow/role" '^desktop$'
@@ -122,7 +120,7 @@ assert_contains "${tmp}/kiosk/etc/alpenglow/role" '^internet$'
 
 run_sku standard
 assert_contains "${tmp}/standard/etc/alpenglow/edition" '^standard$'
-assert_contains "${tmp}/standard/etc/alpenglow/system.json" '"sku": "minimal"'
+assert_contains "${tmp}/standard/etc/alpenglow/system.json" '"sku": "potato"'
 assert_contains "${tmp}/standard/etc/alpenglow/system.json" '"profile": "standard"'
 assert_not_contains "${tmp}/standard/etc/dinit.d/boot" 'depends-on = alpenglowed'
 

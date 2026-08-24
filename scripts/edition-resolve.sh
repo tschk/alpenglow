@@ -1,6 +1,6 @@
 #!/bin/sh
 # Source after ALPENGLOW_EDITION or ALPENGLOW_ROLE.
-# Public SKUs: fast, minimal, potato, desktop, internet.
+# Public SKUs: potato, desktop, internet.
 # ALPENGLOW_SESSION=none|alpenglowed|sold|cage overrides session only.
 set -eu
 
@@ -29,13 +29,13 @@ for _arg in "$@"; do
 done
 
 if [ "${_want_list}" = "1" ]; then
-  printf '%s\n' fast minimal potato desktop internet
+  printf '%s\n' potato desktop internet
   case "$0" in
     */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
   esac
 fi
 if [ "${_want_list_all}" = "1" ]; then
-  printf '%s\n' fast minimal potato desktop internet standard embedded potatoes desktop-lite containers desktop-full workstation kiosk
+  printf '%s\n' potato desktop internet fast minimal standard embedded potatoes desktop-lite containers desktop-full workstation kiosk
   case "$0" in
     */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
   esac
@@ -58,15 +58,12 @@ fi
 _REQUESTED="${EDITION}"
 
 case "${_REQUESTED}" in
-  fast) _PUBLIC_SKU=fast ;;
-  minimal) _PUBLIC_SKU=minimal ;;
-  potato|potatoes|desktop-lite|embedded|containers) _PUBLIC_SKU=potato ;;
+  potato|potatoes|desktop-lite|fast|minimal|standard|embedded|containers) _PUBLIC_SKU=potato ;;
   desktop|desktop-full|workstation) _PUBLIC_SKU=desktop ;;
   internet|kiosk) _PUBLIC_SKU=internet ;;
-  standard) _PUBLIC_SKU=minimal ;;
   *)
     echo "unknown edition or role: ${_REQUESTED}." >&2
-    echo "public SKUs: fast minimal potato desktop internet" >&2
+    echo "public SKUs: potato desktop internet" >&2
     exit 1
     ;;
 esac

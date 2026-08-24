@@ -1,5 +1,6 @@
-# Public product SKUs: fast, minimal, potato, desktop, internet.
-# Aliases (standard, embedded, potatoes, kiosk, …) are mapped by
+# Public product SKUs: potato, desktop, internet.
+# potato is the small OS (old fast + minimal cut, one world).
+# Aliases (fast, minimal, standard, embedded, potatoes, kiosk, …) are mapped by
 # scripts/edition-resolve.sh and are not product SKUs.
 # Board (RK3566, etc.) is a kernel/board fragment, not a SKU.
 # Container is ALPENGLOW_ARTIFACT=oci|tar on potato, not a SKU.
@@ -7,50 +8,16 @@
 # Override session without changing the image: ALPENGLOW_SESSION=none|alpenglowed|sold|cage
 # GRAPHICAL=1 in boot-native.sh means the Alpenglowed/glibc graphics path, not "any GUI".
 
-[editions.fast]
-build_profile = "minimal"
-kernel_profile = "fast"
-fast = 1
-graphical = 0
-build_services = 0
-alpenglow_autologin = 0
-alpenglow_desktop_full = 0
-world_file = "packages-minimal.txt"
-session = "none"
-role = "fast"
-artifact = "image"
-lock_session = 0
-shell_login = 1
-fleet_agent = 0
-alpenglowed_role = "none"
-
-[editions.minimal]
-build_profile = "minimal"
-kernel_profile = "minimal"
-fast = 0
-graphical = 0
-build_services = 0
-alpenglow_autologin = 0
-alpenglow_desktop_full = 0
-world_file = "packages-minimal.txt"
-session = "none"
-role = "minimal"
-artifact = "image"
-lock_session = 0
-shell_login = 1
-fleet_agent = 0
-alpenglowed_role = "none"
-
 [editions.potato]
 build_profile = "minimal"
 kernel_profile = "fast"
 fast = 1
 graphical = 0
 build_services = 0
-alpenglow_autologin = 1
+alpenglow_autologin = 0
 alpenglow_desktop_full = 0
 world_file = "packages-potato.txt"
-session = "alpenglowed"
+session = "none"
 role = "potato"
 artifact = "image"
 lock_session = 0
