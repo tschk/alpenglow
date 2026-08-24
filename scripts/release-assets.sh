@@ -4,7 +4,7 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
-export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-standard}}"
+export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-potato}}"
 . "${ROOT_DIR}/scripts/edition-resolve.sh"
 EDITION="${ALPENGLOW_SKU}"
 OUT_DIR="${ROOT_DIR}/build/release"

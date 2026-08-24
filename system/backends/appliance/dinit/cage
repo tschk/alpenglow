@@ -1,5 +1,5 @@
-# cage — Wayland kiosk compositor (single-app)
+# cage — Wayland compositor
 type = process
-command = /usr/local/bin/kiosk-session-start
+command = /usr/bin/cage
 restart = yes
 depends-on = seatd

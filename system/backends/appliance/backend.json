@@ -18,26 +18,13 @@
       "packages": "packages-standard.txt"
     },
     "desktop": {
-      "packages": "packages-runtime.txt",
-      "note": "BUILD_PROFILE=desktop defaults to ALPENGLOW_DESKTOP_FULL=1 (runtime world). Public desktop SKU uses the same world. Lite GUI is the potato SKU."
+      "packages": "packages-runtime.txt"
     }
   },
   "editions": {
     "potato": { "packages": "packages-potato.txt", "role": "potato", "session": "alpenglowed", "artifact": "image" },
     "desktop": { "packages": "packages-runtime.txt", "role": "desktop", "session": "alpenglowed", "artifact": "image" },
     "internet": { "packages": "packages-internet.txt", "role": "internet", "session": "sold", "artifact": "image" }
-  },
-  "edition_aliases": {
-    "fast": "potato",
-    "minimal": "potato",
-    "standard": "potato",
-    "embedded": "potato",
-    "potatoes": "potato",
-    "desktop-lite": "potato",
-    "containers": "potato",
-    "desktop-full": "desktop",
-    "workstation": "desktop",
-    "kiosk": "internet"
   },
   "sessions": ["none", "alpenglowed", "sold", "cage"],
   "paths": {

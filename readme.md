@@ -101,27 +101,9 @@ docs/                   Architecture, build, install docs
 
 Kernel configs live at `system/backends/appliance/kernel/`.
 
-## Editions And Roles
+## Editions
 
-Alpenglow is one OS. There are three public product SKUs. Roles are session + policy + artifact on top of a SKU. `SESSION` is `none|alpenglowed|sold|cage`. `GRAPHICAL=1` in `boot-native.sh` means the Alpenglowed/glibc graphics path, not every GUI.
-
-| SKU | Userspace | Kernel | Session | Artifact | Scope |
-|-----|-----------|--------|---------|----------|-------|
-| potato | `minimal` | `fast` | alpenglowed | image | Lightweight / embedded / old hardware. `alpenglowed-lite` on Cage, no PipeWire. Container export is `ALPENGLOW_ARTIFACT=oci` or `tar` |
-| desktop | `desktop` | `desktop` | alpenglowed | image | Normal GUI with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, greeter. Fleet is `ALPENGLOW_FLEET=1` |
-| internet | `minimal` | `minimal` | sold | image | [Soliloquy](https://github.com/tschk/soliloquy) `sold` session. Kiosk is `ALPENGLOW_KIOSK=1` or `SESSION=cage` |
-
-```sh
-ALPENGLOW_EDITION=potato
-ALPENGLOW_EDITION=desktop ALPENGLOW_FLEET=1
-ALPENGLOW_EDITION=internet ALPENGLOW_KIOSK=1
-sh scripts/edition-resolve.sh --list
-sh scripts/export-container.sh       # potato userspace tarball + OCI layout
-```
-
-Release GHA publishes `potato`, `desktop`, and `internet` for x86_64 and aarch64. Internal aliases (`fast`, `minimal`, `standard`, …) still resolve for CI. Details: [docs/editions-and-roles.md](docs/editions-and-roles.md).
-
-Asset names: `alpenglow-v0.1.COUNT-{potato|desktop|internet}-ARCH.{iso,img.zst}` and `alpenglow-v0.1.COUNT-potato-ARCH.tar`.
+Public SKUs: `potato`, `desktop`, `internet`. Default is `potato`. Matrix, aliases, and asset names: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
 ## Performance
 

@@ -68,9 +68,6 @@ case "${ALPENGLOWED_ROLE}" in
     if command -v sold >/dev/null 2>&1; then
       exec sold
     fi
-    if [ -x /usr/local/bin/sold-session-start ]; then
-      exec /usr/local/bin/sold-session-start
-    fi
     echo "alpenglowed: role 'internet' is out of scope; start sold" >&2
     exit 2
     ;;

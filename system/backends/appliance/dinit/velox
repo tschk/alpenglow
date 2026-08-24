@@ -1,5 +1,0 @@
-# cage — Wayland compositor (wlroots-based kiosk)
-type = process
-command = /usr/bin/cage
-restart = yes
-depends-on = seatd

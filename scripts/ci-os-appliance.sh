@@ -28,12 +28,8 @@ for path in \
   system/backends/appliance/backend.json \
   system/backends/appliance/packages-standard.txt \
   system/backends/appliance/packages-runtime.txt \
-  system/backends/appliance/packages-desktop-lite.txt \
-  system/backends/appliance/packages-embedded.txt \
   system/backends/appliance/packages-internet.txt \
-  system/backends/appliance/packages-kiosk.txt \
   system/backends/appliance/packages-potato.txt \
-  system/backends/appliance/packages-containers.txt \
   system/backends/appliance/packages-dev.txt \
   system/backends/appliance/scripts/build-rootfs.sh \
   system/backends/appliance/scripts/configure-rootfs.sh \
@@ -99,10 +95,7 @@ assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = ve
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
 assert_file system/backends/appliance/dinit/sold
 assert_file system/backends/appliance/dinit/cage
-assert_file system/appliance/filesystems/update-policy.json
-assert_file system/appliance/filesystems/fleet-agent.json
 assert_contains system/backends/appliance/backend.json '"editions"'
-assert_contains system/backends/appliance/packages-desktop-lite.txt '^dropbear$'
 assert_contains system/backends/appliance/dinit/alpenglow-kernel-policy 'command = /usr/local/bin/alpenglow-kernelctl'
 assert_contains system/backends/appliance/dinit/alpenglow-netd 'command = /usr/local/bin/alpenglow-netd'
 assert_not_contains system/backends/appliance/dinit/alpenglow-netd 'depends-on = networking'

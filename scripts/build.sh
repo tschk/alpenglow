@@ -1,11 +1,11 @@
 #!/bin/sh
 # Unified Alpenglow build entry.
-#   ./scripts/build.sh --edition standard --arch x86_64 [--boot]
+#   ./scripts/build.sh --edition potato --arch x86_64 [--boot]
 #   ./scripts/build.sh --edition desktop --arch aarch64
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
-EDITION="${ALPENGLOW_EDITION:-standard}"
+EDITION="${ALPENGLOW_EDITION:-potato}"
 ARCH="${KERNEL_ARCH:-x86_64}"
 BOOT=0
 BUILD_ONLY=0
