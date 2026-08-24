@@ -30,7 +30,7 @@ Early-stage; not production-hardened for arbitrary deployments.
 | Desktop | `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/tschk/alpenglowed) (Wayland/Smithay) |
 | Arch | x86_64 primary; branches for aarch64, riscv64, RK3566 |
 
-**Public SKUs** (`ALPENGLOW_EDITION`, default `potato`): `potato`, `desktop`, `internet`. See `docs/editions-and-roles.md`.
+**Public SKUs** (`ALPENGLOW_EDITION`, default `potato`): `fast`, `minimal`, `potato`, `desktop`, `internet`. See `docs/editions-and-roles.md`.
 
 **Build profiles** (`BUILD_PROFILE`): `minimal` (boot + SSH + time + logs), `standard` (+ tooling), `desktop` (+ graphics stack). Prefer `ALPENGLOW_EDITION` over hand-setting `BUILD_PROFILE` for release-shaped builds.
 

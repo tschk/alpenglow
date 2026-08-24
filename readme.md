@@ -103,7 +103,7 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Editions
 
-Public SKUs: `potato`, `desktop`, `internet`. Default is `potato`. Matrix, aliases, and asset names: [docs/editions-and-roles.md](docs/editions-and-roles.md).
+Public SKUs: `fast`, `minimal`, `potato`, `desktop`, `internet`. Default is `potato`. `standard` is an alias for `minimal` plus toolchain. Matrix, aliases, and asset names: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
 ## Performance
 
@@ -162,7 +162,7 @@ Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use the 
 
 Alpenglow has one root model:
 
-**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds.
+**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: fast, minimal, potato, desktop, and internet builds.
 
 **Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. Alpenglowed is a Wayland client on Cage. Smithay `--compositor` is experimental and is not built into the image.
 

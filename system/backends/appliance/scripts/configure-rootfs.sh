@@ -162,7 +162,7 @@ if [ -z "${ALPENGLOWED_ROLE}" ]; then
     workstation) ALPENGLOWED_ROLE="desktop" ;;
     kiosk) ALPENGLOWED_ROLE="internet" ;;
     internet) ALPENGLOWED_ROLE="internet" ;;
-    embedded|containers) ALPENGLOWED_ROLE="none" ;;
+    fast|minimal|standard|embedded|containers|appliance) ALPENGLOWED_ROLE="none" ;;
     desktop)
       ALPENGLOWED_ROLE="desktop"
       ;;
@@ -181,6 +181,7 @@ if [ -z "${ALPENGLOWED_ROLE}" ]; then
 fi
 if [ -z "${ALPENGLOW_SKU}" ]; then
   case "${ALPENGLOW_ROLE}" in
+    fast|minimal) ALPENGLOW_SKU="${ALPENGLOW_ROLE}" ;;
     potato|potatoes|embedded|containers) ALPENGLOW_SKU="potato" ;;
     desktop|workstation) ALPENGLOW_SKU="desktop" ;;
     internet|kiosk) ALPENGLOW_SKU="internet" ;;

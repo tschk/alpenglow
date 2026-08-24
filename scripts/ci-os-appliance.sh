@@ -26,6 +26,7 @@ done
 # Native appliance backend
 for path in \
   system/backends/appliance/backend.json \
+  system/backends/appliance/packages-minimal.txt \
   system/backends/appliance/packages-standard.txt \
   system/backends/appliance/packages-runtime.txt \
   system/backends/appliance/packages-internet.txt \

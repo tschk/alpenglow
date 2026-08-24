@@ -71,7 +71,7 @@ case "${ALPENGLOWED_ROLE}" in
     echo "alpenglowed: role 'internet' is out of scope; start sold" >&2
     exit 2
     ;;
-  embedded|containers|container|none|appliance)
+  embedded|containers|container|none|appliance|fast|minimal|standard)
     echo "alpenglowed: role '${ALPENGLOWED_ROLE}' is headless; not starting a desktop" >&2
     exit 2
     ;;

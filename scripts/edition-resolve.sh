@@ -1,5 +1,6 @@
 #!/bin/sh
-# Source after ALPENGLOW_EDITION or ALPENGLOW_ROLE. Public SKUs: potato, desktop, internet.
+# Source after ALPENGLOW_EDITION or ALPENGLOW_ROLE.
+# Public SKUs: fast, minimal, potato, desktop, internet.
 # ALPENGLOW_SESSION=none|alpenglowed|sold|cage overrides session only.
 set -eu
 
@@ -28,13 +29,13 @@ for _arg in "$@"; do
 done
 
 if [ "${_want_list}" = "1" ]; then
-  printf '%s\n' potato desktop internet
+  printf '%s\n' fast minimal potato desktop internet
   case "$0" in
     */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
   esac
 fi
 if [ "${_want_list_all}" = "1" ]; then
-  printf '%s\n' potato desktop internet fast minimal standard embedded potatoes desktop-lite containers desktop-full workstation kiosk
+  printf '%s\n' fast minimal potato desktop internet standard embedded potatoes desktop-lite containers desktop-full workstation kiosk
   case "$0" in
     */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
   esac
@@ -57,12 +58,15 @@ fi
 _REQUESTED="${EDITION}"
 
 case "${_REQUESTED}" in
-  potato|potatoes|desktop-lite|fast|minimal|standard|embedded|containers) _PUBLIC_SKU=potato ;;
+  fast) _PUBLIC_SKU=fast ;;
+  minimal) _PUBLIC_SKU=minimal ;;
+  potato|potatoes|desktop-lite|embedded|containers) _PUBLIC_SKU=potato ;;
   desktop|desktop-full|workstation) _PUBLIC_SKU=desktop ;;
   internet|kiosk) _PUBLIC_SKU=internet ;;
+  standard) _PUBLIC_SKU=minimal ;;
   *)
     echo "unknown edition or role: ${_REQUESTED}." >&2
-    echo "public SKUs: potato desktop internet" >&2
+    echo "public SKUs: fast minimal potato desktop internet" >&2
     exit 1
     ;;
 esac
@@ -132,11 +136,6 @@ ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE:-none}"
 ROLE="${_PUBLIC_SKU}"
 
 case "${_REQUESTED}" in
-  fast|minimal|embedded)
-    SESSION="none"
-    ALPENGLOW_AUTOLOGIN="0"
-    ALPENGLOWED_ROLE="none"
-    ;;
   standard)
     BUILD_PROFILE="standard"
     SESSION="none"
@@ -152,6 +151,11 @@ case "${_REQUESTED}" in
     ALPENGLOW_AUTOLOGIN="0"
     ALPENGLOWED_ROLE="none"
     ;;
+  embedded)
+    SESSION="none"
+    ALPENGLOW_AUTOLOGIN="0"
+    ALPENGLOWED_ROLE="none"
+    ;;
   workstation)
     FLEET_AGENT="1"
     ;;
@@ -160,16 +164,6 @@ case "${_REQUESTED}" in
     LOCK_SESSION="1"
     SHELL_LOGIN="0"
     _kiosk_override="1"
-    ;;
-esac
-case "${_REQUESTED}" in
-  minimal)
-    KERNEL_PROFILE="minimal"
-    FAST="0"
-    WORLD_FILE="packages-minimal.txt"
-    ;;
-  fast)
-    WORLD_FILE="packages-minimal.txt"
     ;;
 esac
 
