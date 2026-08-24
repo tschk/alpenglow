@@ -1,4 +1,4 @@
-# workstation fleet-agent hook — no vendor agent is shipped
+# desktop fleet-agent hook (ALPENGLOW_FLEET=1) — no vendor agent is shipped
 type = scripted
 command = /usr/local/bin/alpenglow-fleet-agent
 restart = no

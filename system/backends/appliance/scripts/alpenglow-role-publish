@@ -7,4 +7,7 @@ fi
 if [ -s /etc/alpenglow/edition ]; then
   cp /etc/alpenglow/edition /run/alpenglow/edition
 fi
+if [ -s /etc/alpenglow/sku ]; then
+  cp /etc/alpenglow/sku /run/alpenglow/sku
+fi
 exit 0

@@ -30,9 +30,9 @@ export KERNEL_ARCH="$ARCH"
 . "${ROOT_DIR}/scripts/edition-resolve.sh"
 
 if [ "$ARCH" = "aarch64" ]; then
-  case "$EDITION" in
-    desktop|desktop-full)
-      exec sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "$EDITION"
+  case "${ALPENGLOW_SKU}" in
+    desktop)
+      exec sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" desktop
       ;;
     *)
       exec sh "${ROOT_DIR}/scripts/build-aarch64-fast.sh"

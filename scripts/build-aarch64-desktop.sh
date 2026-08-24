@@ -10,9 +10,8 @@ KERNEL="${OUT_DIR}/vmlinuz-${EDITION}"
 CID=""
 
 case "${EDITION}" in
-  desktop) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland zstd" ;;
-  desktop-full) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland pipewire wireplumber alsa-lib alsa-utils iwd dropbear chrony dnsmasq curl ca-certificates zstd" ;;
-  *) echo "usage: $0 [desktop|desktop-full]" >&2; exit 1 ;;
+  desktop|desktop-full) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland pipewire wireplumber alsa-lib alsa-utils iwd dropbear chrony dnsmasq curl ca-certificates zstd" ;;
+  *) echo "usage: $0 [desktop]" >&2; exit 1 ;;
 esac
 
 require_cmd() {

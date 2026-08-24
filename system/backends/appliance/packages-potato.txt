@@ -1,4 +1,4 @@
-# potatoes: fast kernel + minimal appliance userspace.
+# potato: fast kernel + minimal appliance userspace.
 # Skinny GUI packages are present; SESSION=none leaves them stopped.
 # Enable with ALPENGLOW_SESSION=cage. No toolchain, no desktop-full.
 

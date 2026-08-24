@@ -1,6 +1,6 @@
 # Profiles
 
-Build profiles are the userspace axis. Release SKUs also set a role and `SESSION` — see [Editions and roles](../editions-and-roles.md).
+Build profiles are the userspace axis. Public SKUs are `potato`, `desktop`, and `internet` — see [Editions and roles](../editions-and-roles.md).
 
 | Build | Scope |
 |-------|-------|

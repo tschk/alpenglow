@@ -15,7 +15,8 @@ OUT_DIR="${2:-${ROOT_DIR}/build/containers}"
 ROOTFS="${1:-}"
 
 if [ -z "${ROOTFS}" ]; then
-  export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-containers}"
+  export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-potato}"
+  export ALPENGLOW_ARTIFACT="${ALPENGLOW_ARTIFACT:-tar}"
   # shellcheck source=scripts/edition-resolve.sh
   . "${ROOT_DIR}/scripts/edition-resolve.sh"
   ROOTFS="${OUT_DIR}/rootfs"
@@ -55,7 +56,7 @@ find "${STAGE}" \( \
   -name 'vmlinu*' -o -name 'initramfs*' -o -name 'initrd*' -o -name 'limine*' \
 \) -exec rm -rf {} + 2>/dev/null || true
 
-ASSET_BASE="alpenglow-${VERSION}-containers-${ARCH}"
+ASSET_BASE="alpenglow-${VERSION}-potato-${ARCH}"
 TARBALL="${OUT_DIR}/${ASSET_BASE}.tar"
 (
   CDPATH='' cd -- "${STAGE}"

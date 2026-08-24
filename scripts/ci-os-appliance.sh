@@ -32,7 +32,7 @@ for path in \
   system/backends/appliance/packages-embedded.txt \
   system/backends/appliance/packages-internet.txt \
   system/backends/appliance/packages-kiosk.txt \
-  system/backends/appliance/packages-potatoes.txt \
+  system/backends/appliance/packages-potato.txt \
   system/backends/appliance/packages-containers.txt \
   system/backends/appliance/packages-dev.txt \
   system/backends/appliance/scripts/build-rootfs.sh \

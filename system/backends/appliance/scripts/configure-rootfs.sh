@@ -147,32 +147,44 @@ if [ -z "${SESSION}" ]; then
     SESSION="none"
   fi
 fi
+ALPENGLOW_SKU="${ALPENGLOW_SKU:-}"
+ALPENGLOW_KIOSK="${ALPENGLOW_KIOSK:-0}"
+ALPENGLOW_FLEET="${ALPENGLOW_FLEET:-${FLEET_AGENT}}"
+if [ "${ALPENGLOW_FLEET}" = "1" ]; then
+  FLEET_AGENT="1"
+fi
+if [ "${LOCK_SESSION}" = "1" ]; then
+  ALPENGLOW_KIOSK="1"
+fi
 if [ -z "${ALPENGLOWED_ROLE}" ]; then
   case "${ALPENGLOW_ROLE}" in
-    potatoes) ALPENGLOWED_ROLE="potatoes" ;;
-    workstation) ALPENGLOWED_ROLE="workstation" ;;
-    kiosk) ALPENGLOWED_ROLE="kiosk" ;;
+    potato|potatoes) ALPENGLOWED_ROLE="potato" ;;
+    workstation) ALPENGLOWED_ROLE="desktop" ;;
+    kiosk) ALPENGLOWED_ROLE="internet" ;;
     internet) ALPENGLOWED_ROLE="internet" ;;
-    embedded) ALPENGLOWED_ROLE="embedded" ;;
-    containers) ALPENGLOWED_ROLE="containers" ;;
+    embedded|containers) ALPENGLOWED_ROLE="none" ;;
     desktop)
-      if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
-        ALPENGLOWED_ROLE="desktop"
-      else
-        ALPENGLOWED_ROLE="potatoes"
-      fi
+      ALPENGLOWED_ROLE="desktop"
       ;;
     *)
       if [ "${BUILD_PROFILE}" = "desktop" ]; then
         if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
           ALPENGLOWED_ROLE="desktop"
         else
-          ALPENGLOWED_ROLE="potatoes"
+          ALPENGLOWED_ROLE="potato"
         fi
       else
         ALPENGLOWED_ROLE="none"
       fi
       ;;
+  esac
+fi
+if [ -z "${ALPENGLOW_SKU}" ]; then
+  case "${ALPENGLOW_ROLE}" in
+    potato|potatoes|embedded|containers) ALPENGLOW_SKU="potato" ;;
+    desktop|workstation) ALPENGLOW_SKU="desktop" ;;
+    internet|kiosk) ALPENGLOW_SKU="internet" ;;
+    *) ALPENGLOW_SKU="${ALPENGLOW_ROLE:-${BUILD_PROFILE}}" ;;
   esac
 fi
 if [ -n "${WORLD_FILE:-}" ] && [ "${WORLD_FILE#/}" = "${WORLD_FILE}" ]; then
@@ -224,6 +236,14 @@ boot_strip() {
   BOOT_SERVICES="${_keep# }"
 }
 
+case "${WORLD_FILE##*/}" in
+  packages-embedded.txt)
+    boot_strip dropbear chronyd dnsmasq crond iwd pipewire wireplumber greetd alpenglowed alpenglowed-lite foot sold cage
+    ;;
+  packages-containers.txt)
+    ARTIFACT="userspace"
+    ;;
+esac
 case "${ALPENGLOW_ROLE}" in
   embedded)
     boot_strip dropbear chronyd dnsmasq crond iwd pipewire wireplumber greetd alpenglowed alpenglowed-lite foot sold cage
@@ -241,7 +261,7 @@ fi
 case "${SESSION}" in
   alpenglowed)
     boot_add seatd
-    if [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
+    if [ "${ALPENGLOWED_ROLE}" = "potato" ] || [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
       boot_strip alpenglowed pipewire wireplumber
       boot_add alpenglowed-lite
     else
@@ -504,7 +524,7 @@ case "${BUILD_PROFILE}" in
 esac
 case "${SESSION}" in
   alpenglowed)
-    if [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
+    if [ "${ALPENGLOWED_ROLE}" = "potato" ] || [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
       DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed-lite"}'
       SESSION_SERVICES='["alpenglowed-lite"]'
     else
@@ -533,6 +553,7 @@ esac
 cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
 {
   "backend": "alpenglow-native",
+  "sku": "${ALPENGLOW_SKU:-${ALPENGLOW_ROLE:-${BUILD_PROFILE}}}",
   "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
   "role": "${ALPENGLOW_ROLE:-appliance}",
   "alpenglowed_role": "${ALPENGLOWED_ROLE}",
@@ -598,6 +619,7 @@ EOF
 
 cat > "${ROOTFS}/etc/alpenglow/role.json" <<EOF
 {
+  "sku": "${ALPENGLOW_SKU:-${ALPENGLOW_ROLE:-${BUILD_PROFILE}}}",
   "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
   "role": "${ALPENGLOW_ROLE:-appliance}",
   "alpenglowed_role": "${ALPENGLOWED_ROLE}",
@@ -605,12 +627,14 @@ cat > "${ROOTFS}/etc/alpenglow/role.json" <<EOF
   "artifact": "${ARTIFACT}",
   "lock_session": ${LOCK_SESSION},
   "shell_login": ${SHELL_LOGIN},
+  "kiosk": ${ALPENGLOW_KIOSK},
   "fleet_agent": ${FLEET_AGENT},
   "world": "/etc/alpenglow/world"
 }
 EOF
 printf '%s\n' "${ALPENGLOWED_ROLE}" > "${ROOTFS}/etc/alpenglow/role"
 printf '%s\n' "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}" > "${ROOTFS}/etc/alpenglow/edition"
+printf '%s\n' "${ALPENGLOW_SKU:-${ALPENGLOW_ROLE:-${BUILD_PROFILE}}}" > "${ROOTFS}/etc/alpenglow/sku"
 
 {
   printf '{\n  "manager": "dinit",\n  "boot": [\n'

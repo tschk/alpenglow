@@ -41,25 +41,17 @@ if [ -z "${ALPENGLOWED_ROLE:-}" ]; then
     ALPENGLOWED_ROLE="$(tr -d '[:space:]' </etc/alpenglow/role)"
   elif [ -n "${ALPENGLOW_EDITION:-}" ]; then
     case "${ALPENGLOW_EDITION}" in
-      potatoes) ALPENGLOWED_ROLE=potatoes ;;
-      desktop) ALPENGLOWED_ROLE=potatoes ;;
-      desktop-full) ALPENGLOWED_ROLE=desktop ;;
-      workstation) ALPENGLOWED_ROLE=workstation ;;
-      kiosk) ALPENGLOWED_ROLE=kiosk ;;
-      internet) ALPENGLOWED_ROLE=internet ;;
-      embedded) ALPENGLOWED_ROLE=embedded ;;
-      containers) ALPENGLOWED_ROLE=containers ;;
+      potato|potatoes|desktop-lite) ALPENGLOWED_ROLE=potato ;;
+      desktop|desktop-full|workstation) ALPENGLOWED_ROLE=desktop ;;
+      kiosk|internet) ALPENGLOWED_ROLE=internet ;;
+      fast|minimal|standard|embedded|containers) ALPENGLOWED_ROLE=none ;;
     esac
   elif [ -s /etc/alpenglow/edition ]; then
     case "$(tr -d '[:space:]' </etc/alpenglow/edition)" in
-      potatoes) ALPENGLOWED_ROLE=potatoes ;;
-      desktop) ALPENGLOWED_ROLE=potatoes ;;
-      desktop-full) ALPENGLOWED_ROLE=desktop ;;
-      workstation) ALPENGLOWED_ROLE=workstation ;;
-      kiosk) ALPENGLOWED_ROLE=kiosk ;;
-      internet) ALPENGLOWED_ROLE=internet ;;
-      embedded) ALPENGLOWED_ROLE=embedded ;;
-      containers) ALPENGLOWED_ROLE=containers ;;
+      potato|potatoes|desktop-lite) ALPENGLOWED_ROLE=potato ;;
+      desktop|desktop-full|workstation) ALPENGLOWED_ROLE=desktop ;;
+      kiosk|internet) ALPENGLOWED_ROLE=internet ;;
+      fast|minimal|standard|embedded|containers) ALPENGLOWED_ROLE=none ;;
     esac
   fi
 fi
@@ -93,8 +85,10 @@ if [ -z "${ALPENGLOWED_INSTALLER_SOURCE:-}" ] && [ -f /run/alpenglow/alpenglow.i
 fi
 
 SHELL_BIN="/usr/bin/alpenglowed"
-if [ "${ALPENGLOWED_ROLE}" = "potatoes" ] && [ -x /usr/bin/alpenglowed-lite ]; then
-  SHELL_BIN="/usr/bin/alpenglowed-lite"
+if [ "${ALPENGLOWED_ROLE}" = "potato" ] || [ "${ALPENGLOWED_ROLE}" = "potatoes" ]; then
+  if [ -x /usr/bin/alpenglowed-lite ]; then
+    SHELL_BIN="/usr/bin/alpenglowed-lite"
+  fi
 elif [ ! -x "${SHELL_BIN}" ] && command -v alpenglowed >/dev/null 2>&1; then
   SHELL_BIN="$(command -v alpenglowed)"
 elif [ ! -x "${SHELL_BIN}" ] && [ -x /usr/bin/alpenglowed-bin ]; then
@@ -113,7 +107,7 @@ if [ -n "${WAYLAND_DISPLAY:-}" ]; then
   exec "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}"
 fi
 
-if [ "${ALPENGLOWED_ROLE}" != "potatoes" ] && [ "${ALPENGLOWED_COMPOSITOR:-}" = "1" ]; then
+if [ "${ALPENGLOWED_ROLE}" != "potato" ] && [ "${ALPENGLOWED_ROLE}" != "potatoes" ] && [ "${ALPENGLOWED_COMPOSITOR:-}" = "1" ]; then
   exec "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}" --compositor
 fi
 

@@ -30,7 +30,7 @@ Early-stage; not production-hardened for arbitrary deployments.
 | Desktop | `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/tschk/alpenglowed) (Wayland/Smithay) |
 | Arch | x86_64 primary; branches for aarch64, riscv64, RK3566 |
 
-**Editions / roles** (`ALPENGLOW_EDITION` or `ALPENGLOW_ROLE`, default `standard`): image SKUs `fast`, `minimal`, `standard`, `desktop`, `desktop-full` plus role SKUs `embedded`, `potatoes`, `containers`, `internet`, `kiosk`, `workstation`. Maps via root `editions.toml` and `scripts/edition-resolve.sh` to `BUILD_PROFILE`, `KERNEL_PROFILE`, `SESSION` (`none|alpenglowed|sold|cage`), and related flags. See `docs/editions-and-roles.md`.
+**Public SKUs** (`ALPENGLOW_EDITION` or `ALPENGLOW_ROLE`): `potato` (lightweight / embedded / old hardware), `desktop` (normal GUI), `internet` (Soliloquy `sold`). Default request is the internal alias `standard` → potato + toolchain. Maps via root `editions.toml` and `scripts/edition-resolve.sh` to `BUILD_PROFILE`, `KERNEL_PROFILE`, `SESSION` (`none|alpenglowed|sold|cage`), and `ALPENGLOW_SKU` (`potato|desktop|internet`). Fleet is `ALPENGLOW_FLEET=1` on desktop; kiosk is `ALPENGLOW_KIOSK=1` on internet; container is `ALPENGLOW_ARTIFACT=oci|tar` on potato. Board is not a SKU. See `docs/editions-and-roles.md`.
 
 **Build profiles** (`BUILD_PROFILE`): `minimal` (boot + SSH + time + logs), `standard` (+ tooling), `desktop` (+ graphics stack). Prefer `ALPENGLOW_EDITION` over hand-setting `BUILD_PROFILE` for release-shaped builds.
 

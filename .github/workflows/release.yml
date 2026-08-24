@@ -21,25 +21,17 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            edition: fast
-          - arch: x86_64
-            edition: minimal
-          - arch: x86_64
-            edition: standard
+            edition: potato
           - arch: x86_64
             edition: desktop
           - arch: x86_64
-            edition: desktop-full
+            edition: internet
           - arch: aarch64
-            edition: fast
-          - arch: aarch64
-            edition: minimal
-          - arch: aarch64
-            edition: standard
+            edition: potato
           - arch: aarch64
             edition: desktop
           - arch: aarch64
-            edition: desktop-full
+            edition: internet
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,7 +51,7 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Check out Alpenglowed
-        if: startsWith(matrix.edition, 'desktop')
+        if: matrix.edition == 'desktop' || matrix.edition == 'potato'
         run: git clone --depth 1 https://github.com/tschk/alpenglowed ../alpenglowed
 
       - uses: dtolnay/rust-toolchain@stable
@@ -203,14 +195,14 @@ jobs:
           perl -0pi -e 's/--platform linux\/arm64/--platform linux\/amd64/g' scripts/build-riscv64.sh
           sh scripts/build-riscv64.sh
           mkdir -p build/release/assets
-          asset="alpenglow-${{ steps.version.outputs.version }}-fast-riscv64.tar.zst"
+          asset="alpenglow-${{ steps.version.outputs.version }}-potato-riscv64.tar.zst"
           tar -cf - -C build/cross/riscv64 Image initramfs.cpio.gz zig-init alpenglow-kernelctl | zstd -19 -T0 > "build/release/assets/${asset}"
           sha256sum "build/release/assets/${asset}" > "build/release/assets/${asset}.sha256"
 
       - name: Upload RISC-V build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: alpenglow-fast-riscv64
+          name: alpenglow-potato-riscv64
           path: riscv64-src/build/release/assets/*
           if-no-files-found: error
 
@@ -254,6 +246,6 @@ jobs:
           if ! gh release view "${version}" >/dev/null 2>&1; then
             gh release create "${version}" \
               --title "Alpenglow ${version}" \
-              --notes "Testing-only, unstable images under active development. x86_64 and aarch64 desktop editions ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-\${version}-\${edition}-\${arch}.img.zst (+ .sha256, .iso when built), alpenglow-\${version}-standard-x86_64-wsl.tar, and alpenglow-\${version}-fast-riscv64.tar.zst."
+              --notes "Testing-only, unstable images under active development. Public SKUs are potato, desktop, and internet. x86_64 and aarch64 desktop images ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-\${version}-{potato|desktop|internet}-\${arch}.img.zst (+ .sha256, .iso when built), alpenglow-\${version}-potato-\${arch}.tar, and alpenglow-\${version}-potato-riscv64.tar.zst."
           fi
           gh release upload "${version}" upload/* --clobber

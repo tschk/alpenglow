@@ -55,7 +55,7 @@ alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX
 
 Desktop live ISOs boot Alpenglowed and open the graphical installer against the same bundled image at `/run/alpenglow/alpenglow.img.zst`.
 
-Aarch64 desktop and desktop-full assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They boot on generic ARM64 UEFI firmware, including UTM. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
+Aarch64 desktop assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They boot on generic ARM64 UEFI firmware, including UTM. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
 
 ## Quick Start
 
@@ -103,32 +103,25 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Editions And Roles
 
-Alpenglow is one OS. Editions are images (userspace profile + kernel profile). Roles are session + policy + artifact on top of an edition. `SESSION` is `none|alpenglowed|sold|cage`. `GRAPHICAL=1` in `boot-native.sh` means the Alpenglowed/glibc graphics path, not every GUI.
+Alpenglow is one OS. There are three public product SKUs. Roles are session + policy + artifact on top of a SKU. `SESSION` is `none|alpenglowed|sold|cage`. `GRAPHICAL=1` in `boot-native.sh` means the Alpenglowed/glibc graphics path, not every GUI.
 
 | SKU | Userspace | Kernel | Session | Artifact | Scope |
 |-----|-----------|--------|---------|----------|-------|
-| Fast | `minimal` | `fast` | none | image | Smallest headless diskless boot path |
-| Minimal | `minimal` | `minimal` | none | image | Headless appliance with networking, SSH, time, logs, DNS, and OOM guard |
-| Standard | `standard` | `minimal` | none | image | Minimal plus compiler/tooling and system utilities |
-| Desktop | `desktop` | `desktop` | alpenglowed | image | Light live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), SSH/NTP/DNS, foot |
-| Desktop Full | `desktop` | `desktop` | alpenglowed | image | Full live desktop with audio, WiFi, greeter, and the GUI installer on x86_64 |
-| Embedded | `minimal` | `fast` | none | image | Closed-device fast image; no firmware/SSH/NTP/DNS packages |
-| Potatoes | `minimal` | `fast` | alpenglowed | image | Low-end appliance; `alpenglowed-lite` on Cage, no PipeWire |
-| Internet | `minimal` | `minimal` | sold | image | Minimal + [Soliloquy](https://github.com/tschk/soliloquy) `sold` staging. Not desktop-lite |
-| Kiosk | `minimal` | `minimal` | cage | image | Minimal + Cage single-app lock; no Alpenglowed, no shell login |
-| Workstation | `desktop` | `desktop` | alpenglowed | image | Desktop-full plus a placeholder fleet-agent hook |
-| Containers | `minimal` | unused | none | userspace | OCI/rootfs tarball. No kernel, firmware, eudev, initramfs, Limine |
+| potato | `minimal` | `fast` | alpenglowed | image | Lightweight / embedded / old hardware. `alpenglowed-lite` on Cage, no PipeWire. Container export is `ALPENGLOW_ARTIFACT=oci` or `tar` |
+| desktop | `desktop` | `desktop` | alpenglowed | image | Normal GUI with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, greeter. Fleet is `ALPENGLOW_FLEET=1` |
+| internet | `minimal` | `minimal` | sold | image | [Soliloquy](https://github.com/tschk/soliloquy) `sold` session. Kiosk is `ALPENGLOW_KIOSK=1` or `SESSION=cage` |
 
 ```sh
-ALPENGLOW_EDITION=internet           # or ALPENGLOW_ROLE=kiosk
-ALPENGLOW_EDITION=minimal ALPENGLOW_SESSION=sold
+ALPENGLOW_EDITION=potato
+ALPENGLOW_EDITION=desktop ALPENGLOW_FLEET=1
+ALPENGLOW_EDITION=internet ALPENGLOW_KIOSK=1
 sh scripts/edition-resolve.sh --list
-sh scripts/export-container.sh       # userspace tarball + OCI layout
+sh scripts/export-container.sh       # potato userspace tarball + OCI layout
 ```
 
-Release GHA still publishes the five image editions (`fast`, `minimal`, `standard`, `desktop`, `desktop-full`). Role SKUs are resolver-selectable locally. Full matrix: [docs/editions-and-roles.md](docs/editions-and-roles.md).
+Release GHA publishes `potato`, `desktop`, and `internet` for x86_64 and aarch64. Internal aliases (`fast`, `minimal`, `standard`, …) still resolve for CI. Details: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
-Asset names: `alpenglow-VERSION-SKU-ARCH.{iso,img.zst}` and `alpenglow-VERSION-containers-ARCH.tar`.
+Asset names: `alpenglow-v0.1.COUNT-{potato|desktop|internet}-ARCH.{iso,img.zst}` and `alpenglow-v0.1.COUNT-potato-ARCH.tar`.
 
 ## Performance
 
@@ -187,7 +180,7 @@ Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use the 
 
 Alpenglow has one root model:
 
-**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
+**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds.
 
 **Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in Alpenglowed.
 
