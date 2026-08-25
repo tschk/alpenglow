@@ -1,12 +1,12 @@
 # Benchmarks
 
-Target: ~2s boot to login on headless minimal on real hardware.
+Targets, not measurements. Public SKU contract numbers (2026-08-25): [Editions and roles](../editions-and-roles.md).
 
 | Measurement | Target |
 |-------------|--------|
 | Boot to shell | ~2s |
 | Idle RAM | <64 MiB |
-| Kernel image | <8 MiB (fast profile) |
+| Kernel image | <8 MiB (`KERNEL_PROFILE=fast`) |
 | Static kernelctl | ~72 KB |
 | Oil binary | ~1 MB |
 
