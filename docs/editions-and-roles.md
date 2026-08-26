@@ -52,6 +52,22 @@ potato extra: n=3 TCG `pc` with explicit `-initrd` (not the embedded-only `bench
 
 desktop was not built: `GRAPHICAL=1` needs Docker for alpenglowed and Mesa. internet compose is the same toybox/dinit headless rootfs as potato; `sold` is not in-tree.
 
+## Measured 2026-08-26 FAST path (same guest)
+
+The 1017 ms potato boot already used Zig `/init`, not a toybox `/init` script. Evidence: `build/native/initramfs.cpio.lz4` (03:48, 3718491 B) extracted `/init` is 4912 B `ELF 64-bit LSB executable, x86-64, statically linked, stripped` — same bytes as `system/init/init.zig` → `build/native/alpenglow-init`. Zig `exec`s `/sbin/dinit -d /etc/dinit.d -s -t boot`. Login is dinit `shell-ttyS0` getty. Serial printed `Alpenglow boot` (Zig `write_console`).
+
+`ALPENGLOW_EDITION=fast` is a potato alias. This pass used the explicit FAST compose (`FAST=1` / `ZIG_INIT=1` / `KERNEL_FASTINIT` / SeaBIOS `EFI=0` / `BUILD_PROFILE=minimal` / no graphical) and dropped unused FAST copies that were not on the serial login path (`dinitctl`, four `alpenglow-ctl` binaries, unused chrony/dnsmasq/crond/networking units). Linux 7.1.3 FAST kernel was re-embedded with the new lz4 (same `CONFIG_INITRAMFS_SOURCE`, incremental `bzImage`).
+
+`scripts/bench-boot.sh` `ACCEL=tcg FAST=0` (`FAST=1` in that script forces `kvm`). Nested KVM serial was 0 bytes again (embedded and `-initrd`); discarded.
+
+| Path | Boot to login | Kernel | Initramfs | `/init` | EFI | QEMU |
+|------|---------------|--------|-----------|---------|-----|------|
+| potato TCG (earlier this day) | **1017 ms** pc (n=1 published; reproduced 1016 / 1017 / 1018), **1018 ms** q35 | 8610816 B | 3718491 B lz4, 124 files | Zig 4912 B, then dinit | off | TCG, `machine=pc`, smp=2, 2048 MiB, QEMU 8.2.2 |
+| FAST slim embedded | **1016 / 1017 / 1017 ms** pc; **1118 / 1017 / 1017 ms** q35 | 7222272 B | 2313448 B lz4, 108 files | Zig 4912 B, then dinit | off | same TCG; `MEMORY_MB=512` pc **1018 / 1017 / 1016 ms** (login still printed) |
+| FAST slim `-initrd` | **1119 / 1017 / 1018 ms** pc | 8610816 B (old embed, stamp moved aside) | 2313448 B lz4, 108 files | Zig 4912 B, then dinit | off | TCG, `machine=pc`, smp=2, 2048 MiB |
+
+What changed: initramfs 3718491 → 2313448 B (124 → 108 files); kernel 8610816 → 7222272 B; `FAST=1` always sets `ZIG_INIT=1`. What did not: ~1017 ms TCG login (`bench-boot.sh` polls every 0.1 s), Zig-then-dinit `/init`, SeaBIOS, 2 vCPU, no KVM login.
+
 ## Measured 2026-08-25 (contract only)
 
 `scripts/edition-resolve.sh --demo` plus `configure-rootfs.sh` (world package count, dinit `depends-on`). Overlay-only tarballs (~120 KiB) are not image sizes.

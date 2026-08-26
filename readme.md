@@ -112,10 +112,11 @@ Public SKUs measured 2026-08-26 on a Cloud Agent (Linux 6.12.94+ x86_64, QEMU 8.
 | SKU | Boot to login | Kernel | Initramfs |
 |-----|---------------|--------|-----------|
 | `potato` | **1017 ms** (`scripts/bench-boot.sh` `ACCEL=tcg MACHINE=pc`; q35 1018 ms) | 8610816 B | 3718491 B |
+| FAST slim (same guest, not a fourth SKU) | **1017 ms** median (`1016 / 1017 / 1017` pc embedded; q35 `1118 / 1017 / 1017`; `MEMORY_MB=512` `1018 / 1017 / 1016`) | 7222272 B | 2313448 B |
 | `desktop` | not booted (needs Docker for alpenglowed) | not built | not built |
 | `internet` | not booted (minimal kernel not rebuilt) | — | 3716444 B compose, no `sold` |
 
-RAM at login was not sampled. Historical 0.6s / 1.15s rows below are ultramarine **KVM** `FAST=1` / `BUILD_PROFILE` boots from 2026-07, not these SKU numbers.
+FAST slim is the potato/`FAST=1` compose with Zig `/init` (4912 B) and unused copies omitted. The 1017 ms potato boot already used that Zig `/init` (then dinit getty). Nested KVM serial was 0 bytes. RAM at login was not sampled. Historical 0.6s / 1.15s rows below are ultramarine **KVM** `FAST=1` / `BUILD_PROFILE` boots from 2026-07, not these SKU numbers.
 
 ### Oil and apk (aarch64 QEMU TCG)
 
