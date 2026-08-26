@@ -20,7 +20,22 @@ mkdir -p linux-kmod-ci
 cd linux-kmod-ci
 
 echo "Downloading Linux ${KERNEL_VER}..."
-curl -fsSL --http1.1 --retry 3 "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${KERNEL_VER}.tar.xz" -o linux.tar.xz
+_kver_tar="linux-${KERNEL_VER}.tar.xz"
+_kver_fetched=0
+for _kver_url in \
+  "https://cdn.kernel.org/pub/linux/kernel/v7.x/${_kver_tar}" \
+  "https://mirrors.edge.kernel.org/pub/linux/kernel/v7.x/${_kver_tar}" \
+  "https://mirrors.kernel.org/pub/linux/kernel/v7.x/${_kver_tar}"
+do
+  if curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 2 "${_kver_url}" -o linux.tar.xz; then
+    _kver_fetched=1
+    break
+  fi
+done
+[ "${_kver_fetched}" = "1" ] || {
+  echo "ci-rust-kernel-module: failed to download ${_kver_tar}" >&2
+  exit 1
+}
 tar -xf linux.tar.xz
 cd "linux-${KERNEL_VER}"
 

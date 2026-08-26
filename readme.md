@@ -55,7 +55,7 @@ alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX
 
 Desktop live ISOs boot Alpenglowed and open the graphical installer against the same bundled image at `/run/alpenglow/alpenglow.img.zst`.
 
-Aarch64 desktop and desktop-full assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They boot on generic ARM64 UEFI firmware, including UTM. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
+Aarch64 desktop assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They boot on generic ARM64 UEFI firmware, including UTM. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
 
 ## Quick Start
 
@@ -72,13 +72,13 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Layer | Choice | Notes |
 |-------|--------|-------|
 | Init | dinit | Parallel dependency graph, both modes |
-| Userland | toybox (838KB), oksh | Static musl, no glibc |
+| Userland | toybox (838KB), oksh | Static musl. Desktop Alpenglowed currently uses an isolated glibc graphics path |
 | Package mgr | Oil | APK-compatible, standalone binary |
 | Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
-| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Alpenglowed is the desktop environment |
+| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Default graphical session. [Soliloquy](https://github.com/tschk/soliloquy) `sold` is an optional session for the internet role |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y |
@@ -103,19 +103,20 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Editions
 
-Release editions combine a userspace profile with a kernel profile:
-
-| Edition | Userspace | Kernel | Scope |
-|---------|-----------|--------|-------|
-| Fast | `minimal` | `fast` | Smallest headless diskless boot path |
-| Minimal | `minimal` | `minimal` | Headless appliance with networking, SSH, time, logs, DNS, and OOM guard |
-| Standard | `standard` | `minimal` | Minimal plus compiler/tooling, network tools, filesystem tools, and system utilities |
-| Desktop | `desktop` | `desktop` | Light live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), direct session startup, foot, and the TUI installer |
-| Desktop Full | `desktop` | `desktop` | Full live graphical desktop with [Alpenglowed](https://github.com/tschk/alpenglowed), audio, WiFi, foot, greeter services, and the GUI installer on x86_64 |
-
-Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|standard|desktop|desktop-full`.
+Public SKUs: `potato` (small OS: old `fast` + `minimal`), `desktop`, `internet`. Default is `potato`. `fast` and `minimal` are aliases for `potato`. `standard` is `potato` plus toolchain. Matrix, aliases, and asset names: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
 ## Performance
+
+Public SKUs measured 2026-08-26 on a Cloud Agent (Linux 6.12.94+ x86_64, QEMU 8.2.2 **TCG**; nested KVM serial was empty and discarded). Full table: [docs/editions-and-roles.md](docs/editions-and-roles.md).
+
+| SKU | Boot to login | Kernel | Initramfs |
+|-----|---------------|--------|-----------|
+| `potato` | **1017 ms** (`scripts/bench-boot.sh` `ACCEL=tcg MACHINE=pc`; q35 1018 ms) | 8610816 B | 3718491 B |
+| FAST slim (same guest, not a fourth SKU) | **1017 ms** median (`1016 / 1017 / 1017` pc embedded; q35 `1118 / 1017 / 1017`; `MEMORY_MB=512` `1018 / 1017 / 1016`) | 7222272 B | 2313448 B |
+| `desktop` | not booted (needs Docker for alpenglowed) | not built | not built |
+| `internet` | not booted (minimal kernel not rebuilt) | — | 3716444 B compose, no `sold` |
+
+FAST slim is the potato/`FAST=1` compose with Zig `/init` (4912 B) and unused copies omitted. The 1017 ms potato boot already used that Zig `/init` (then dinit getty). Nested KVM serial was 0 bytes. RAM at login was not sampled. Historical 0.6s / 1.15s rows below are ultramarine **KVM** `FAST=1` / `BUILD_PROFILE` boots from 2026-07, not these SKU numbers.
 
 ### Oil and apk (aarch64 QEMU TCG)
 
@@ -126,55 +127,51 @@ Local release builds select the edition with `ALPENGLOW_EDITION=fast|minimal|sta
 | Binary size | 2.15 MiB | 67.6 KiB |
 | Index cache | 1.78 MiB | 2.46 MiB |
 
-Three cold runs before the cache-format change on an Alpine 3.21 aarch64 guest under QEMU TCG (not hardware or HVF). Oil's gzip cache is 5.5x smaller than its prior 9.90 MiB raw cache. Package installation was excluded because `hello` was unavailable to both commands in this guest.
+Three cold runs before the cache-format change on an Alpine 3.21 aarch64 guest under QEMU TCG (not hardware or HVF). Oil's gzip cache is 5.5x smaller than its prior 9.90 MiB raw cache. Package installation was excluded because `hello` was unavailable to both commands in this guest. Not re-run on 2026-08-25.
 
-### Boot target (QEMU KVM, quiet)
+### Historical boot (ultramarine QEMU KVM, 2026-07 — not public SKU names)
 
-| OS | Boot | Initramfs | Kernel | RAM at target |
+These rows are old `BUILD_PROFILE` / `FAST=1` image boots on ultramarine (KVM, x86_64). They are **not** potato / desktop / internet SKU boots from 2026-08-25. Kept as history only.
+
+| Image (historical name) | Boot | Initramfs | Kernel | RAM at target |
 |----|------|-----------|--------|----------|
-| **Alpenglow** min | **0.6s** | **1.4K** | **4.4MB** | **~17MB** |
-| **Alpenglow** std | **1.15s** | 22MB | 6.0MB | ~87MB |
-| **Alpenglowed Desktop with Alpenglowed** | **1.98s** | 66MB | 6.0MB | ~253MB |
+| Alpenglow `FAST=1` (Zig init) | 0.6s | 1.4K | 4.4MB | ~17MB |
+| Alpenglow `BUILD_PROFILE=standard` | 1.15s | 22MB | 6.0MB | ~87MB |
+| Alpenglow `BUILD_PROFILE=desktop` + Alpenglowed | 1.98s | 66MB | 6.0MB | ~253MB |
 | Alpine Linux virt | 1.3s | 8.7MB | 6.5MB | ~58MB |
 | Void Linux | 2.5s | 12MB | 7MB | ~80MB |
 | Ubuntu Server | 15s | 40MB | 12MB | ~200MB |
-| Fedora minimal GNOME | 7.44s | 34MB | 18MB | ~705MB |
-| Manjaro minimal XFCE | 7.44s | 24MB | 16MB | ~477MB |
-| Ubuntu minimal GNOME | 35.32s | 63MB | 15MB | ~198MB |
+| Fedora GNOME (installed root) | 7.44s | 34MB | 18MB | ~705MB |
+| Manjaro XFCE (installed root) | 7.44s | 24MB | 16MB | ~477MB |
+| Ubuntu GNOME (installed root) | 35.32s | 63MB | 15MB | ~198MB |
 
-Alpenglow minimal (Zig init, 4.8KB) boots in 0.6s on x86_64 KVM. The standard build (dinit + toybox + getty) is 1.15s as a five-run median. Alpine matches boot speed but has a larger initramfs and uses more RAM. Both modes use the same toolchain — the difference is just initramfs contents.
+Alpenglow historical rows were five-run medians on ultramarine with KVM, 4096MB RAM, 2 vCPU. Desktop used `BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none` (223MB rootfs, 66MB zstd initramfs, 6.0MB kernel). Fedora / Manjaro / Ubuntu desktop rows were installed package-manager roots, not live ISOs.
 
-Alpenglow standard and Alpenglowed Desktop rows are five-run medians on `ultramarine` with KVM, 4096MB RAM, 2 vCPU, and explicit initramfs boot. Alpenglowed Desktop (`BUILD_PROFILE=desktop KERNEL_PROFILE=desktop GRAPHICAL=1 GRAPHICS_BACKEND=software QEMU_DISPLAY=none`) reached serial login with Zig-backed kernel policy, netd, zram, and pressure services enabled. The measured desktop image had a 223MB rootfs, 66MB zstd initramfs, and 6.0MB kernel. This is down from the pre-trim desktop build at 689MB rootfs and 211MB initramfs. Xwayland, cage, wlroots, and the duplicate musl Mesa/LLVM stack are absent from the rootfs. This is not yet a graphical-session idle benchmark.
-
-Fedora, Manjaro, and Ubuntu desktop rows are five-run medians from installed package-manager roots, not live ISOs or netinstall timings. They were built on `ultramarine` as minimal desktop images, copied to ext4 disks, and booted with the same QEMU shape used for Alpenglow comparison (`q35`, KVM, 4096MB RAM, 2 vCPU, virtio GPU, serial console). Boot time stops at systemd `graphical.target`; RAM is the last serial `/proc/meminfo` sample before that target. Fedora used GNOME/GDM from `fedora:43` packages with a 2.2GB root and 2.4GB sparse image. Manjaro used XFCE/LightDM from `manjarolinux/base:latest` packages with a 2.0GB root and 2.2GB sparse image. Ubuntu used GNOME/GDM from `ubuntu:24.04` packages with a 2.0GB root and 2.2GB sparse image.
-
-| Desktop graphics payload | Size | Includes |
+| Desktop graphics payload (historical) | Size | Includes |
 |--------------------------|------|----------|
 | `GRAPHICS_BACKEND=software` | 175MB | lavapipe, LLVM, Z3 |
 | `GRAPHICS_BACKEND=hardware` | 69MB | Intel, virtio, nouveau, gfxstream ICDs; no lavapipe/LLVM/Z3 |
 
-Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use the standard profile for that. `COMPILER=inauguration` selects the `../inauguration` compiler track for compiler-capable images, but it does not remove lavapipe's Mesa LLVM dependency from the graphical runtime.
+Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use `BUILD_PROFILE=standard` (the `standard` alias) for that. `COMPILER=inauguration` selects the `../inauguration` compiler track for compiler-capable images, but it does not remove lavapipe's Mesa LLVM dependency from the graphical runtime.
 
-### Binary size (static musl, x86_64)
+### Binary size (static musl)
 
-| Tool | Lang | Size | vs alternative |
+| Tool | Lang | Size | Notes |
 |------|------|------|----------------|
-| kernelctl | Zig | 72KB | 501KB (Rust) |
-| netd | Zig | 40KB | Rust version still in tree |
-| zramctl | Zig | 16KB | shell wrapper replaced |
-| pressurectl | Zig | 48KB | shell wrapper replaced |
-| init | Zig | 4.8KB | 937KB (toybox+sh) |
-| dinit | C++ | 1.6MB | 20MB+ (systemd) |
-| toybox | C | 838KB | 10MB+ (coreutils) |
-| alpenglow_core.ko | Rust | 9.2K | kernel built-in |
+| alpenglow-ctl (multicall) | Zig | 163032 B | measured 2026-08-25, Zig 0.16.0 `-Drelease=true` x86_64-linux-musl (kernelctl/netd/zram/pressure are one binary) |
+| alpenglow-kernelctl | Zig | 161408 B | measured 2026-08-25, aarch64-linux-musl |
+| init | Zig | 4912 B | measured 2026-08-25, `-O ReleaseSmall` x86_64 and aarch64 |
+| dinit | C++ | 1.6MB | not re-measured 2026-08-25 |
+| toybox | C | 838KB | not re-measured 2026-08-25 |
+| alpenglow_core.ko | Rust | 9.2K | not re-measured 2026-08-25 |
 
 ## Root And Desktop Model
 
 Alpenglow has one root model:
 
-**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: appliance, workstation, edge, kiosk, and desktop builds.
+**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds.
 
-**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. The compositor model is Wayland + Smithay in Alpenglowed.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. Alpenglowed is a Wayland client on Cage. Smithay `--compositor` is experimental and is not built into the image.
 
 ## Services
 

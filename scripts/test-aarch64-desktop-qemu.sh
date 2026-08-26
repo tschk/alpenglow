@@ -14,7 +14,7 @@ SMP="${SMP:-4}"
 
 case "${EDITION}" in
   desktop|desktop-full) ;;
-  *) echo "usage: $0 [--kill-existing] [desktop|desktop-full]" >&2; exit 1 ;;
+  *) echo "usage: $0 [--kill-existing] [desktop]" >&2; exit 1 ;;
 esac
 
 command -v qemu-system-aarch64 >/dev/null 2>&1 || { echo "missing: qemu-system-aarch64" >&2; exit 1; }

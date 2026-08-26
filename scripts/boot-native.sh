@@ -57,6 +57,7 @@ if [ "${FAST}" = "1" ]; then
   BUILD_PROFILE=minimal
   GRAPHICAL=0
   BOOT_MODE=diskless
+  ZIG_INIT=1
 fi
 for arg in "$@"; do
   case "$arg" in
@@ -153,7 +154,7 @@ if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
     echo "  init: ${OUT_DIR}/alpenglow-init"
   fi
 fi
-if command -v "${ZIG}" >/dev/null 2>&1; then
+if [ "${FAST}" != "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   if [ ! -f "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" ]; then
     echo "→ Building alpenglow-ctl..."
     (cd "${ROOT_DIR}/system/alpenglow-ctl" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/alpenglow-ctl") 2>&1 | tail -5
@@ -381,7 +382,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
   # alpenglowed with glibc dynamic linking
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
   if [ ! -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
-    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed"
+    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed" "${ALPENGLOW_SKU:-desktop}"
   fi
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
@@ -415,7 +416,7 @@ ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/reboot"
 
 # Vro editor (replaces toybox vi)
 VRO_SRC="${ROOT_DIR}/system/backends/appliance/vro/vro"
-if [ -f "${VRO_SRC}" ]; then
+if [ "${FAST}" != "1" ] && [ -f "${VRO_SRC}" ]; then
   cp "${VRO_SRC}" "${ROOTFS_DIR}/usr/local/bin/vro"
   chmod 755 "${ROOTFS_DIR}/usr/local/bin/vro"
   ln -sf /usr/local/bin/vro "${ROOTFS_DIR}/usr/local/bin/vi" 2>/dev/null || true
@@ -427,7 +428,7 @@ if [ -f "${OUT_DIR}/dinit" ]; then
 elif [ -f "${OUT_DIR}/dinit/dinit" ]; then
   cp "${OUT_DIR}/dinit/dinit" "${ROOTFS_DIR}/sbin/dinit"
 fi
-if [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
+if [ "${FAST}" != "1" ] && [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
   cp "${OUT_DIR}/dinit-install/sbin/dinitctl" "${ROOTFS_DIR}/sbin/"
 fi
 
@@ -464,6 +465,10 @@ if [ "${GRAPHICAL}" = "1" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/bin"
     cp "${ALPENGLOWED_GLIBC_BIN}" "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
     chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-bin"
+    if [ -f "${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed-lite" ]; then
+      cp "${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed-lite" "${ROOTFS_DIR}/usr/bin/alpenglowed-lite"
+      chmod 755 "${ROOTFS_DIR}/usr/bin/alpenglowed-lite"
+    fi
   fi
 
   GREETER_GLIBC_BIN=""
@@ -519,7 +524,10 @@ if [ -z "${ALPENGLOWED_INSTALLER_TARGET:-}" ]; then
     [ -b "$dev" ] && { export ALPENGLOWED_INSTALLER_TARGET="$dev"; break; }
   done
 fi
-exec /usr/bin/alpenglowed-bin --compositor "$@"
+if command -v cage >/dev/null 2>&1; then
+  exec cage -- /usr/bin/alpenglowed-bin --role=desktop "$@"
+fi
+exec /usr/bin/alpenglowed-bin --role=desktop "$@"
 ALPWRAP
     cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
 #!/bin/sh
@@ -542,7 +550,10 @@ if [ -z "${ALPENGLOWED_INSTALLER_TARGET:-}" ]; then
     [ -b "$dev" ] && { export ALPENGLOWED_INSTALLER_TARGET="$dev"; break; }
   done
 fi
-exec /usr/bin/alpenglowed-bin --compositor "$@"
+if command -v cage >/dev/null 2>&1; then
+  exec cage -- /usr/bin/alpenglowed-bin --role=desktop "$@"
+fi
+exec /usr/bin/alpenglowed-bin --role=desktop "$@"
 ALPWRAP
     cat > "${ROOTFS_DIR}/usr/bin/alpenglow-greeter-run.sh" << 'GWRAP'
 #!/bin/sh
@@ -573,20 +584,22 @@ fi
 
 mkdir -p "${ROOTFS_DIR}/usr/local/bin"
 mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
-cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
-for pair in \
-  "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
-  "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \
-  "alpenglow-ctl/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
-  "alpenglow-ctl/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
-do
-  src="${pair%%:*}"
-  dst="${pair##*:}"
-  if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
-    cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
-    chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
-  fi
-done
+if [ "${FAST}" != "1" ]; then
+  cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
+  for pair in \
+    "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
+    "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \
+    "alpenglow-ctl/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
+    "alpenglow-ctl/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
+  do
+    src="${pair%%:*}"
+    dst="${pair##*:}"
+    if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
+      cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
+      chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
+    fi
+  done
+fi
 
 # shellcheck source=scripts/lib/assemble-rootfs.sh
 . "${ROOT_DIR}/scripts/lib/assemble-rootfs.sh"
@@ -634,7 +647,7 @@ echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
 # FAST kernel: tiny kernel with embedded initramfs
-if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ] && command -v docker >/dev/null 2>&1; then
   KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
 fi
 

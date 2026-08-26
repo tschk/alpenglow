@@ -1,4 +1,4 @@
-# cage — Wayland compositor (wlroots-based kiosk)
+# cage — Wayland compositor
 type = process
 command = /usr/bin/cage
 restart = yes

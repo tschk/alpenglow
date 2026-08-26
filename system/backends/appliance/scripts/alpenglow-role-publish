@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+mkdir -p /run/alpenglow
+if [ -s /etc/alpenglow/role ]; then
+  cp /etc/alpenglow/role /run/alpenglow/role
+fi
+if [ -s /etc/alpenglow/edition ]; then
+  cp /etc/alpenglow/edition /run/alpenglow/edition
+fi
+exit 0

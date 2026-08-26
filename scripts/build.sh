@@ -1,11 +1,11 @@
 #!/bin/sh
 # Unified Alpenglow build entry.
-#   ./scripts/build.sh --edition standard --arch x86_64 [--boot]
+#   ./scripts/build.sh --edition potato --arch x86_64 [--boot]
 #   ./scripts/build.sh --edition desktop --arch aarch64
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
-EDITION="${ALPENGLOW_EDITION:-standard}"
+EDITION="${ALPENGLOW_EDITION:-potato}"
 ARCH="${KERNEL_ARCH:-x86_64}"
 BOOT=0
 BUILD_ONLY=0
@@ -30,9 +30,9 @@ export KERNEL_ARCH="$ARCH"
 . "${ROOT_DIR}/scripts/edition-resolve.sh"
 
 if [ "$ARCH" = "aarch64" ]; then
-  case "$EDITION" in
-    desktop|desktop-full)
-      exec sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "$EDITION"
+  case "${ALPENGLOW_SKU}" in
+    desktop)
+      exec sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" desktop
       ;;
     *)
       exec sh "${ROOT_DIR}/scripts/build-aarch64-fast.sh"

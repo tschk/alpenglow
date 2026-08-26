@@ -21,6 +21,12 @@
       "packages": "packages-runtime.txt"
     }
   },
+  "editions": {
+    "potato": { "packages": "packages-potato.txt", "role": "potato", "session": "none", "artifact": "image" },
+    "desktop": { "packages": "packages-runtime.txt", "role": "desktop", "session": "alpenglowed", "artifact": "image" },
+    "internet": { "packages": "packages-internet.txt", "role": "internet", "session": "sold", "artifact": "image" }
+  },
+  "sessions": ["none", "alpenglowed", "sold", "cage"],
   "paths": {
     "packages": "packages-runtime.txt",
     "packages_dev": "packages-dev.txt",

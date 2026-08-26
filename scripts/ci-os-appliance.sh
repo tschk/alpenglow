@@ -7,8 +7,8 @@ cd "${REPO_ROOT}"
 fail() { printf 'ci-os-appliance: %s\n' "$1" >&2; exit 1; }
 assert_file() { [ -f "$1" ] || fail "missing: $1"; }
 assert_executable() { [ -x "$1" ] || fail "missing executable: $1"; }
-assert_contains() { grep -Eq "${2}" "$1" || fail "${1} missing pattern: ${2}"; }
-assert_not_contains() { ! grep -Eq "${2}" "$1" || fail "${1} unexpectedly matches ${2}"; }
+assert_contains() { grep -E -q -e "${2}" "$1" || fail "${1} missing pattern: ${2}"; }
+assert_not_contains() { ! grep -E -q -e "${2}" "$1" || fail "${1} unexpectedly matches ${2}"; }
 
 test -L CLAUDE.md || fail "CLAUDE.md must be a symlink"
 [ "$(readlink CLAUDE.md)" = "AGENTS.md" ] || fail "CLAUDE.md must point to AGENTS.md"
@@ -26,8 +26,11 @@ done
 # Native appliance backend
 for path in \
   system/backends/appliance/backend.json \
+  system/backends/appliance/packages-minimal.txt \
   system/backends/appliance/packages-standard.txt \
   system/backends/appliance/packages-runtime.txt \
+  system/backends/appliance/packages-internet.txt \
+  system/backends/appliance/packages-potato.txt \
   system/backends/appliance/packages-dev.txt \
   system/backends/appliance/scripts/build-rootfs.sh \
   system/backends/appliance/scripts/configure-rootfs.sh \
@@ -73,12 +76,27 @@ assert_contains system/backends/appliance/backend.json '"libc": "musl"'
 assert_contains system/backends/appliance/backend.json '"init": "dinit"'
 assert_contains system/backends/appliance/backend.json '"package_manager": "oil"'
 assert_file system/backends/appliance/dinit/alpenglowed
+assert_file system/backends/appliance/dinit/alpenglowed-lite
+assert_contains system/backends/appliance/dinit/alpenglowed 'alpenglow-session-start'
+assert_contains system/backends/appliance/dinit/alpenglowed 'depends-on = seatd'
+assert_contains system/backends/appliance/dinit/alpenglowed-lite 'depends-on = seatd'
+assert_not_contains system/backends/appliance/dinit/alpenglowed-lite 'pipewire'
+assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'exec alpenglowed --compositor'
+assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'role=.*--compositor'
+assert_not_contains scripts/boot-native.sh 'alpenglowed-bin --compositor'
+assert_not_contains scripts/build-aarch64-desktop.sh 'alpenglowed --compositor'
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release --no-default-features'
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release '
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'compositor)'
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-runtime.txt '^llvm$'
 assert_not_contains system/backends/appliance/packages-runtime.txt '^clang$'
 assert_not_contains system/backends/appliance/dinit/alpenglowed 'depends-on = velox'
 assert_not_contains system/backends/appliance/dinit/alpenglow-session 'depends-on = sold'
+assert_file system/backends/appliance/dinit/sold
+assert_file system/backends/appliance/dinit/cage
+assert_contains system/backends/appliance/backend.json '"editions"'
 assert_contains system/backends/appliance/dinit/alpenglow-kernel-policy 'command = /usr/local/bin/alpenglow-kernelctl'
 assert_contains system/backends/appliance/dinit/alpenglow-netd 'command = /usr/local/bin/alpenglow-netd'
 assert_not_contains system/backends/appliance/dinit/alpenglow-netd 'depends-on = networking'
@@ -103,8 +121,10 @@ done
 cp /bin/sh "${tmp_root}/bin/" 2>/dev/null || echo "no host sh"
 BUILD_PROFILE=desktop system/backends/appliance/scripts/configure-rootfs.sh "${tmp_root}" 2>/dev/null || echo "warning: configure-rootfs needs full env"
 assert_contains "${tmp_root}/etc/alpenglow/world" '^alpenglowed$'
-assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"alpenglowed"'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"compositor":"cage"'
+assert_contains "${tmp_root}/etc/alpenglow/system.json" '"shell":"alpenglowed"'
 scripts/ci-profile-matrix.sh
+scripts/ci-edition-roles.sh
 
 assert_file scripts/lib/initramfs-codec-identity.sh
 assert_file scripts/test-initramfs-codec-identity.sh

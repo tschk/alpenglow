@@ -1,0 +1,5 @@
+# sold — Soliloquy session (binary from tschk/soliloquy)
+type = process
+command = /usr/bin/sold
+restart = no
+depends-on = seatd

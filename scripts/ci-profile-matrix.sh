@@ -10,6 +10,7 @@ assert_not_contains() { ! grep -Eq "${2}" "$1" || fail "${1} unexpectedly matche
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT INT TERM
+unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ALPENGLOWED_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE ALPENGLOW_DESKTOP_FULL ALPENGLOW_FLEET ALPENGLOW_KIOSK ALPENGLOW_ARTIFACT
 
 run_profile() {
   profile="$1"

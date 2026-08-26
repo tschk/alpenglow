@@ -1,5 +1,6 @@
 #!/bin/sh
-# Logged-in graphical session (after greetd). Starts compositor + alpenglowed shell.
+# Adapted from tschk/alpenglowed contrib/session/alpenglow-session-start (PR #2).
+# Production path: Alpenglowed as a Wayland client on Cage. --compositor is unfinished.
 set -eu
 
 DEFAULTS_DIR="/usr/share/defaults/alpenglowed"
@@ -31,9 +32,85 @@ export FREEDESKTOP_MONITORS="${FREEDESKTOP_MONITORS:-/run/user/$(id -u)/monitors
 
 mkdir -p "${XDG_RUNTIME_DIR}"
 chmod 700 "${XDG_RUNTIME_DIR}"
+mkdir -p /run/alpenglow
 
-if command -v alpenglowed >/dev/null 2>&1; then
-	exec alpenglowed --compositor
+if [ -z "${ALPENGLOWED_ROLE:-}" ]; then
+  if [ -s /run/alpenglow/role ]; then
+    ALPENGLOWED_ROLE="$(tr -d '[:space:]' </run/alpenglow/role)"
+  elif [ -s /etc/alpenglow/role ]; then
+    ALPENGLOWED_ROLE="$(tr -d '[:space:]' </etc/alpenglow/role)"
+  elif [ -n "${ALPENGLOW_EDITION:-}" ]; then
+    case "${ALPENGLOW_EDITION}" in
+      potato|potatoes|desktop-lite) ALPENGLOWED_ROLE=potato ;;
+      desktop|desktop-full|workstation) ALPENGLOWED_ROLE=desktop ;;
+      kiosk|internet) ALPENGLOWED_ROLE=internet ;;
+      fast|minimal|standard|embedded|containers) ALPENGLOWED_ROLE=none ;;
+    esac
+  elif [ -s /etc/alpenglow/edition ]; then
+    case "$(tr -d '[:space:]' </etc/alpenglow/edition)" in
+      potato|potatoes|desktop-lite) ALPENGLOWED_ROLE=potato ;;
+      desktop|desktop-full|workstation) ALPENGLOWED_ROLE=desktop ;;
+      kiosk|internet) ALPENGLOWED_ROLE=internet ;;
+      fast|minimal|standard|embedded|containers) ALPENGLOWED_ROLE=none ;;
+    esac
+  fi
+fi
+ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE:-desktop}"
+export ALPENGLOWED_ROLE
+printf '%s\n' "${ALPENGLOWED_ROLE}" >/run/alpenglow/role
+
+case "${ALPENGLOWED_ROLE}" in
+  kiosk)
+    echo "alpenglowed: role 'kiosk' is out of scope; exec cage -- <app>" >&2
+    exit 2
+    ;;
+  internet|sold)
+    if command -v sold >/dev/null 2>&1; then
+      exec sold
+    fi
+    echo "alpenglowed: role 'internet' is out of scope; start sold" >&2
+    exit 2
+    ;;
+  embedded|containers|container|none|appliance|fast|minimal|standard)
+    echo "alpenglowed: role '${ALPENGLOWED_ROLE}' is headless; not starting a desktop" >&2
+    exit 2
+    ;;
+esac
+
+if [ -z "${ALPENGLOWED_INSTALLER_SOURCE:-}" ] && [ -f /run/alpenglow/alpenglow.img.zst ]; then
+  export ALPENGLOWED_INSTALLER_SOURCE=/run/alpenglow/alpenglow.img.zst
 fi
 
-exec alpenglowed-bin --compositor
+SHELL_BIN="/usr/bin/alpenglowed"
+if [ "${ALPENGLOWED_ROLE}" = "potato" ] || [ "${ALPENGLOWED_ROLE}" = "potatoes" ]; then
+  if [ -x /usr/bin/alpenglowed-lite ]; then
+    SHELL_BIN="/usr/bin/alpenglowed-lite"
+  fi
+elif [ ! -x "${SHELL_BIN}" ] && command -v alpenglowed >/dev/null 2>&1; then
+  SHELL_BIN="$(command -v alpenglowed)"
+elif [ ! -x "${SHELL_BIN}" ] && [ -x /usr/bin/alpenglowed-bin ]; then
+  SHELL_BIN="/usr/bin/alpenglowed-bin"
+fi
+
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  if [ -S "${XDG_RUNTIME_DIR}/wayland-0" ]; then
+    export WAYLAND_DISPLAY=wayland-0
+  elif [ -S "${XDG_RUNTIME_DIR}/wayland-1" ]; then
+    export WAYLAND_DISPLAY=wayland-1
+  fi
+fi
+
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  exec "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}"
+fi
+
+if command -v velox >/dev/null 2>&1; then
+  exec velox "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}"
+fi
+
+if command -v cage >/dev/null 2>&1; then
+  exec cage -- "${SHELL_BIN}" --role="${ALPENGLOWED_ROLE}"
+fi
+
+echo "alpenglowed: no WAYLAND_DISPLAY and no velox/cage; start seatd + a compositor first" >&2
+exit 1

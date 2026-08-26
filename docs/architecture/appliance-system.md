@@ -74,7 +74,7 @@ These changes are already reflected or scaffolded in the current appliance path:
 - Reduce the remaining root-only session path once the display stack can run under a dedicated account.
 - Implement plugin download/install state and signature verification.
 - Add a generic encrypted sync service and trust model if cross-device sync is enabled.
-- Replace ad hoc OpenRC service behavior with a more declarative service registry over time.
+- Init is dinit. There are no OpenRC units in this tree; keep expanding `/etc/alpenglow/services.json` rather than reintroducing OpenRC.
 
 ## Updates And Rollback
 

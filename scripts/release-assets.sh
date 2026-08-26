@@ -4,9 +4,9 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
-export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-standard}}"
+export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-potato}}"
 . "${ROOT_DIR}/scripts/edition-resolve.sh"
-EDITION="${ALPENGLOW_EDITION}"
+EDITION="${ALPENGLOW_SKU}"
 OUT_DIR="${ROOT_DIR}/build/release"
 ASSET_DIR="${OUT_DIR}/assets"
 IMAGE="${OUT_DIR}/alpenglow.img"
@@ -95,10 +95,10 @@ build_host_gui_installer() {
 
 ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
 build_installer --bin alpenglow-install
-if [ "${EDITION}" = "desktop-full" ] && [ "${ARCH}" = "x86_64" ]; then
+if [ "${EDITION}" = "desktop" ] && [ "${ARCH}" = "x86_64" ]; then
   build_host_gui_installer
 fi
-if [ "${EDITION}" = "standard" ] && [ "${ARCH}" = "x86_64" ]; then
+if [ "${ALPENGLOW_EDITION}" = "standard" ] && [ "${ARCH}" = "x86_64" ]; then
   ALPENGLOW_WSL_ROOTFS="${ROOT_DIR}/build/native/rootfs" sh "${ROOT_DIR}/scripts/build-wsl.sh" "${VERSION}"
 fi
 

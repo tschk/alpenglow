@@ -1,0 +1,22 @@
+# internet: minimal appliance + Soliloquy sold session staging.
+# sold is not an Oil package; the binary comes from tschk/soliloquy.
+
+dinit
+musl
+toybox
+linux-hardened
+linux-firmware
+alpenglow-initramfs
+sdhcp
+dropbear
+ca-certificates
+kmod
+eudev
+tzdata
+oksh
+erofs-utils
+bearssl
+chrony
+dnsmasq
+earlyoom
+seatd

@@ -133,6 +133,60 @@ chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS
 # Enable dinit boot services (profile-aware)
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
 ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}"
+SESSION="${SESSION:-}"
+ALPENGLOW_ROLE="${ALPENGLOW_ROLE:-}"
+ARTIFACT="${ARTIFACT:-image}"
+LOCK_SESSION="${LOCK_SESSION:-0}"
+SHELL_LOGIN="${SHELL_LOGIN:-1}"
+FLEET_AGENT="${FLEET_AGENT:-0}"
+ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE:-}"
+if [ -z "${SESSION}" ]; then
+  if [ "${BUILD_PROFILE}" = "desktop" ]; then
+    SESSION="alpenglowed"
+  else
+    SESSION="none"
+  fi
+fi
+ALPENGLOW_SKU="${ALPENGLOW_SKU:-}"
+ALPENGLOW_KIOSK="${ALPENGLOW_KIOSK:-0}"
+ALPENGLOW_FLEET="${ALPENGLOW_FLEET:-${FLEET_AGENT}}"
+if [ "${ALPENGLOW_FLEET}" = "1" ]; then
+  FLEET_AGENT="1"
+fi
+if [ "${LOCK_SESSION}" = "1" ]; then
+  ALPENGLOW_KIOSK="1"
+fi
+if [ -z "${ALPENGLOWED_ROLE}" ]; then
+  case "${ALPENGLOW_ROLE}" in
+    potato|potatoes) ALPENGLOWED_ROLE="potato" ;;
+    workstation) ALPENGLOWED_ROLE="desktop" ;;
+    kiosk) ALPENGLOWED_ROLE="internet" ;;
+    internet) ALPENGLOWED_ROLE="internet" ;;
+    fast|minimal|standard|embedded|containers|appliance) ALPENGLOWED_ROLE="none" ;;
+    desktop)
+      ALPENGLOWED_ROLE="desktop"
+      ;;
+    *)
+      if [ "${BUILD_PROFILE}" = "desktop" ]; then
+        if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
+          ALPENGLOWED_ROLE="desktop"
+        else
+          ALPENGLOWED_ROLE="potato"
+        fi
+      else
+        ALPENGLOWED_ROLE="none"
+      fi
+      ;;
+  esac
+fi
+if [ -z "${ALPENGLOW_SKU}" ]; then
+  case "${ALPENGLOW_ROLE}" in
+    fast|minimal|potato|potatoes|embedded|containers) ALPENGLOW_SKU="potato" ;;
+    desktop|workstation) ALPENGLOW_SKU="desktop" ;;
+    internet|kiosk) ALPENGLOW_SKU="internet" ;;
+    *) ALPENGLOW_SKU="${ALPENGLOW_ROLE:-${BUILD_PROFILE}}" ;;
+  esac
+fi
 if [ -n "${WORLD_FILE:-}" ] && [ "${WORLD_FILE#/}" = "${WORLD_FILE}" ]; then
   WORLD_FILE="${BACKEND_DIR}/${WORLD_FILE}"
 fi
@@ -150,8 +204,8 @@ case "${BUILD_PROFILE}" in
       BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom iwd dropbear chronyd syslogd crond dnsmasq pipewire wireplumber greetd alpenglowed foot"
       WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-runtime.txt}"
     else
-      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom syslogd crond alpenglowed foot"
-      WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-desktop-lite.txt}"
+      BOOT_SERVICES="state-mount seatd alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure alpenglow-power networking earlyoom dropbear chronyd syslogd crond dnsmasq alpenglowed-lite foot"
+      WORLD_FILE="${WORLD_FILE:-${BACKEND_DIR}/packages-potato.txt}"
     fi
     ;;
   *)
@@ -159,6 +213,58 @@ case "${BUILD_PROFILE}" in
     exit 1
     ;;
 esac
+
+boot_has() {
+  _want="$1"
+  for _svc in ${BOOT_SERVICES}; do
+    [ "${_svc}" = "${_want}" ] && return 0
+  done
+  return 1
+}
+boot_add() {
+  boot_has "$1" || BOOT_SERVICES="${BOOT_SERVICES} $1"
+}
+boot_strip() {
+  _keep=""
+  for _svc in ${BOOT_SERVICES}; do
+    _drop=0
+    for _gone in "$@"; do
+      [ "${_svc}" = "${_gone}" ] && _drop=1
+    done
+    [ "${_drop}" = "1" ] || _keep="${_keep} ${_svc}"
+  done
+  BOOT_SERVICES="${_keep# }"
+}
+
+if [ "${ARTIFACT}" = "userspace" ]; then
+  boot_strip state-mount alpenglow-kernel-policy alpenglow-zram alpenglow-pressure alpenglow-power iwd seatd pipewire wireplumber greetd alpenglowed alpenglowed-lite foot elogind sold cage
+  [ -n "${BOOT_SERVICES}" ] || BOOT_SERVICES="syslogd"
+fi
+
+case "${SESSION}" in
+  alpenglowed)
+    boot_add seatd
+    if [ "${ALPENGLOWED_ROLE}" = "potato" ] || [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
+      boot_strip alpenglowed pipewire wireplumber
+      boot_add alpenglowed-lite
+    else
+      boot_add alpenglowed
+    fi
+    boot_add foot
+    ;;
+  sold)
+    boot_add seatd
+    boot_add sold
+    boot_strip alpenglowed alpenglowed-lite
+    ;;
+  cage)
+    boot_add seatd
+    boot_add cage
+    boot_strip alpenglowed alpenglowed-lite
+    ;;
+esac
+
+boot_add alpenglow-role
 
 # Compiler track: LLVM remains the default C/C++ toolchain; Inauguration is
 # available as an alternative codegen track for .in / Rust-shaped sources.
@@ -171,6 +277,10 @@ esac
 # Copy overlay files and scripts
 cp -R "${OVERLAY_DIR}/." "${ROOTFS}/"
 cp "${BIN_SRC}/alpenglow-session-start" "${ROOTFS}/usr/local/bin/"
+cp "${BIN_SRC}/alpenglow-role-publish" "${ROOTFS}/usr/local/bin/"
+chmod 755 \
+  "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
+  "${ROOTFS}/usr/local/bin/alpenglow-role-publish"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
@@ -335,17 +445,17 @@ esac
 case "${BUILD_PROFILE}" in
   desktop)
     if [ "${ALPENGLOW_DESKTOP_FULL}" = "1" ]; then
-      DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
       AUDIO_JSON='{"server":"pipewire","session_manager":"wireplumber","backend":"alsa"}'
       NETWORKING_JSON='{"dhcp":"sdhcp","wifi":"iwd"}'
       SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","iwd","syslogd","crond"]'
       SESSION_SERVICES='["pipewire","wireplumber","greetd","alpenglowed","foot"]'
     else
-      DISPLAY_JSON='{"server":"wayland","compositor":"alpenglowed","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed-lite"}'
       AUDIO_JSON='null'
       NETWORKING_JSON='{"dhcp":"sdhcp"}'
       SYSTEM_SERVICES='["alpenglow-kernel-policy","alpenglow-zram","alpenglow-pressure","alpenglow-netd","alpenglow-power","syslogd","crond"]'
-      SESSION_SERVICES='["alpenglowed","foot"]'
+      SESSION_SERVICES='["alpenglowed-lite","foot"]'
     fi
     POWER_JSON='{"manager":"elogind","script":"/usr/local/bin/alpenglow-power.sh"}'
     KERNEL_TYPE="desktop-appliance"
@@ -382,9 +492,45 @@ case "${BUILD_PROFILE}" in
     USER_INIT='[]'
     ;;
 esac
+case "${SESSION}" in
+  alpenglowed)
+    if [ "${ALPENGLOWED_ROLE}" = "potato" ] || [ "${ALPENGLOWED_ROLE}" = "potatoes" ] || [ "${ALPENGLOW_DESKTOP_FULL}" != "1" ]; then
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed-lite"}'
+      SESSION_SERVICES='["alpenglowed-lite"]'
+    else
+      DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"greetd","terminal":"foot","infrastructure":"seatd","shell":"alpenglowed"}'
+    fi
+    USER_INIT='["alpenglow-session"]'
+    ;;
+  sold)
+    DISPLAY_JSON='{"server":"wayland","compositor":"sold","session_manager":"sold","terminal":"foot","infrastructure":"seatd","shell":"sold"}'
+    SESSION_SERVICES='["sold"]'
+    USER_INIT='["sold"]'
+    ;;
+  cage)
+    DISPLAY_JSON='{"server":"wayland","compositor":"cage","session_manager":"direct","terminal":"foot","infrastructure":"seatd","shell":"kiosk"}'
+    SESSION_SERVICES='["cage"]'
+    USER_INIT='["cage"]'
+    ;;
+  none)
+    if [ "${BUILD_PROFILE}" != "desktop" ]; then
+      DISPLAY_JSON='null'
+      SESSION_SERVICES='[]'
+      USER_INIT='[]'
+    fi
+    ;;
+esac
 cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
 {
   "backend": "alpenglow-native",
+  "sku": "${ALPENGLOW_SKU:-${ALPENGLOW_ROLE:-${BUILD_PROFILE}}}",
+  "edition": "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}",
+  "role": "${ALPENGLOW_ROLE:-appliance}",
+  "alpenglowed_role": "${ALPENGLOWED_ROLE}",
+  "session": "${SESSION}",
+  "artifact": "${ARTIFACT}",
+  "lock_session": ${LOCK_SESSION},
+  "shell_login": ${SHELL_LOGIN},
   "profile": "${BUILD_PROFILE}",
   "composition_model": "oasis-static",
   "boot_model": "diskless",
@@ -440,6 +586,33 @@ cat > "${ROOTFS}/etc/alpenglow/system.json" <<EOF
   }
 }
 EOF
+
+printf '%s\n' "${ALPENGLOWED_ROLE}" > "${ROOTFS}/etc/alpenglow/role"
+printf '%s\n' "${ALPENGLOW_EDITION:-${BUILD_PROFILE}}" > "${ROOTFS}/etc/alpenglow/edition"
+
+{
+  printf '{\n  "manager": "dinit",\n  "boot": [\n'
+  _first=1
+  for service in ${BOOT_SERVICES}; do
+    if [ "${_first}" = "1" ]; then
+      printf '    "%s"' "${service}"
+      _first=0
+    else
+      printf ',\n    "%s"' "${service}"
+    fi
+  done
+  printf '\n  ]\n}\n'
+} > "${ROOTFS}/etc/alpenglow/services.json"
+
+if [ "${LOCK_SESSION}" = "1" ]; then
+  printf '{"locked":true,"session":"%s","shell_login":false}\n' "${SESSION}" \
+    > "${ROOTFS}/etc/alpenglow/session-lock.json"
+fi
+
+if [ "${SHELL_LOGIN}" = "0" ]; then
+  mkdir -p "${ROOTFS}/etc/dinit.d"
+  printf '%s\n' "nologin" > "${ROOTFS}/etc/alpenglow/shell-login"
+fi
 
 # ── Early boot setup: /etc/hosts + /etc/resolv.conf ───────────────
 cat > "${ROOTFS}/etc/hosts" <<'HOSTS'

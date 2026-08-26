@@ -1,0 +1,3 @@
+type = scripted
+command = /usr/local/bin/alpenglow-role-publish
+restart = no

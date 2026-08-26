@@ -9,6 +9,7 @@ If you're reading this in vro, welcome! This is vro, my version of a terminal te
 - Immutable RAM root + bcachefs `/state`
 - dinit, toybox, oksh, Oil, kernelctl, netd-zig
 - Desktop: `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/tschk/alpenglowed)
+- Optional internet session: [Soliloquy](https://github.com/tschk/soliloquy) `sold` (not in the v86 demo)
 
 ## Shell
 

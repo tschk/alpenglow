@@ -6,7 +6,7 @@ QEMU: `qemu-system-x86_64 -machine q35,accel=kvm|hvf`
 Kernel: custom kernel.org latest stable + CONFIG_RUST=y, or Alpine pre-built virt  
 Boot: `scripts/boot-native.sh` (build + QEMU boot)  
 UEFI: OVMF (saves ~200ms vs SeaBIOS)  
-Init: dinit + toybox + getty → ~1.3s to login (standard), ~0.6s (minimal Zig init)
+Init: dinit + toybox + getty. Public SKUs and 2026-08-25 measurements: [editions-and-roles.md](editions-and-roles.md). Historical ultramarine KVM (2026-07, not SKU names): ~1.3s `BUILD_PROFILE=standard`, ~0.6s `FAST=1` Zig init.
 
 ## riscv64 — arch/riscv64 branch
 
