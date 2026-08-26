@@ -39,7 +39,18 @@ if [ ! -x "${BUSYBOX}" ] || [ "${FORCE_V86_BUSYBOX:-}" = 1 ]; then
      cd /out
      BB_VERSION="1.36.1"
      if [ ! -d "busybox-${BB_VERSION}" ]; then
-       curl -fsSL "https://busybox.net/downloads/busybox-${BB_VERSION}.tar.bz2" -o busybox.tar.bz2
+       _bb_ok=0
+       for _bb_url in \
+         "https://busybox.net/downloads/busybox-${BB_VERSION}.tar.bz2" \
+         "https://www.busybox.net/downloads/busybox-${BB_VERSION}.tar.bz2" \
+         "https://sources.buildroot.org/busybox/busybox-${BB_VERSION}.tar.bz2"
+       do
+         if curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "${_bb_url}" -o busybox.tar.bz2; then
+           _bb_ok=1
+           break
+         fi
+       done
+       [ "${_bb_ok}" = 1 ] || exit 1
        tar -xjf busybox.tar.bz2
      fi
      cd "busybox-${BB_VERSION}"
