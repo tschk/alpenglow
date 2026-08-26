@@ -107,7 +107,15 @@ Public SKUs: `potato` (small OS: old `fast` + `minimal`), `desktop`, `internet`.
 
 ## Performance
 
-Public SKU contract (measured 2026-08-25, Linux 6.12.94+ x86_64 Cloud Agent; QEMU binary missing, `/dev/kvm` not writable): [docs/editions-and-roles.md](docs/editions-and-roles.md). potato 22 world pkgs / 9 boot depends; desktop 53 / 21; internet 19 / 11. Boot-to-login, initramfs, image, and RAM were **not measured** — no kernel or initramfs in this environment (`boot-native.sh` needs Docker).
+Public SKUs measured 2026-08-26 on a Cloud Agent (Linux 6.12.94+ x86_64, QEMU 8.2.2 **TCG**; nested KVM serial was empty and discarded). Full table: [docs/editions-and-roles.md](docs/editions-and-roles.md).
+
+| SKU | Boot to login | Kernel | Initramfs |
+|-----|---------------|--------|-----------|
+| `potato` | **1017 ms** (`scripts/bench-boot.sh` `ACCEL=tcg MACHINE=pc`; q35 1018 ms) | 8610816 B | 3718491 B |
+| `desktop` | not booted (needs Docker for alpenglowed) | not built | not built |
+| `internet` | not booted (minimal kernel not rebuilt) | — | 3716444 B compose, no `sold` |
+
+RAM at login was not sampled. Historical 0.6s / 1.15s rows below are ultramarine **KVM** `FAST=1` / `BUILD_PROFILE` boots from 2026-07, not these SKU numbers.
 
 ### Oil and apk (aarch64 QEMU TCG)
 
