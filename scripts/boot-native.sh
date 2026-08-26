@@ -57,6 +57,7 @@ if [ "${FAST}" = "1" ]; then
   BUILD_PROFILE=minimal
   GRAPHICAL=0
   BOOT_MODE=diskless
+  ZIG_INIT=1
 fi
 for arg in "$@"; do
   case "$arg" in
@@ -153,7 +154,7 @@ if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
     echo "  init: ${OUT_DIR}/alpenglow-init"
   fi
 fi
-if command -v "${ZIG}" >/dev/null 2>&1; then
+if [ "${FAST}" != "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   if [ ! -f "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" ]; then
     echo "→ Building alpenglow-ctl..."
     (cd "${ROOT_DIR}/system/alpenglow-ctl" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/alpenglow-ctl") 2>&1 | tail -5
@@ -415,7 +416,7 @@ ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/reboot"
 
 # Vro editor (replaces toybox vi)
 VRO_SRC="${ROOT_DIR}/system/backends/appliance/vro/vro"
-if [ -f "${VRO_SRC}" ]; then
+if [ "${FAST}" != "1" ] && [ -f "${VRO_SRC}" ]; then
   cp "${VRO_SRC}" "${ROOTFS_DIR}/usr/local/bin/vro"
   chmod 755 "${ROOTFS_DIR}/usr/local/bin/vro"
   ln -sf /usr/local/bin/vro "${ROOTFS_DIR}/usr/local/bin/vi" 2>/dev/null || true
@@ -427,7 +428,7 @@ if [ -f "${OUT_DIR}/dinit" ]; then
 elif [ -f "${OUT_DIR}/dinit/dinit" ]; then
   cp "${OUT_DIR}/dinit/dinit" "${ROOTFS_DIR}/sbin/dinit"
 fi
-if [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
+if [ "${FAST}" != "1" ] && [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
   cp "${OUT_DIR}/dinit-install/sbin/dinitctl" "${ROOTFS_DIR}/sbin/"
 fi
 
@@ -583,20 +584,22 @@ fi
 
 mkdir -p "${ROOTFS_DIR}/usr/local/bin"
 mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
-cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
-for pair in \
-  "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
-  "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \
-  "alpenglow-ctl/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
-  "alpenglow-ctl/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
-do
-  src="${pair%%:*}"
-  dst="${pair##*:}"
-  if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
-    cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
-    chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
-  fi
-done
+if [ "${FAST}" != "1" ]; then
+  cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
+  for pair in \
+    "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
+    "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \
+    "alpenglow-ctl/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
+    "alpenglow-ctl/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
+  do
+    src="${pair%%:*}"
+    dst="${pair##*:}"
+    if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
+      cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
+      chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
+    fi
+  done
+fi
 
 # shellcheck source=scripts/lib/assemble-rootfs.sh
 . "${ROOT_DIR}/scripts/lib/assemble-rootfs.sh"
@@ -644,7 +647,7 @@ echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
 # FAST kernel: tiny kernel with embedded initramfs
-if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ] && command -v docker >/dev/null 2>&1; then
   KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
 fi
 

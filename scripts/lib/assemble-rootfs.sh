@@ -284,6 +284,13 @@ _assemble_qemu_serial_login() {
 
 _assemble_minimal_rootfs() {
   _assemble_qemu_mount_units
+  if [ "${FAST:-0}" = "1" ]; then
+    BOOT_SERVICES="shell-ttyS0 mount-filesystems"
+    _wire_boot_services
+    _assemble_boot_native_passwd
+    _assemble_common_rootfs_tail
+    return
+  fi
   _assemble_minimal_toybox_networking
   _assemble_minimal_toybox_syslogd
   _assemble_minimal_toybox_crond
