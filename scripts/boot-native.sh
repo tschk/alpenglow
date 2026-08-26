@@ -647,7 +647,7 @@ echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
 # FAST kernel: tiny kernel with embedded initramfs
-if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ] && command -v docker >/dev/null 2>&1; then
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
   KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
 fi
 

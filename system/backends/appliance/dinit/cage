@@ -1,5 +1,5 @@
 # cage — Wayland compositor
 type = process
-command = /usr/bin/cage
+command = /usr/bin/cage -d -- /usr/bin/foot
 restart = yes
 depends-on = seatd

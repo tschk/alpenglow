@@ -303,6 +303,16 @@ _assemble_minimal_rootfs() {
 _assemble_production_rootfs() {
   BUILD_PROFILE="${BUILD_PROFILE}" \
     ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}" \
+    SESSION="${SESSION:-}" \
+    WORLD_FILE="${WORLD_FILE:-}" \
+    ALPENGLOW_SKU="${ALPENGLOW_SKU:-}" \
+    ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-}" \
+    ALPENGLOW_ROLE="${ALPENGLOW_ROLE:-}" \
+    ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE:-}" \
+    LOCK_SESSION="${LOCK_SESSION:-0}" \
+    SHELL_LOGIN="${SHELL_LOGIN:-1}" \
+    ARTIFACT="${ARTIFACT:-image}" \
+    ALPENGLOW_KIOSK="${ALPENGLOW_KIOSK:-0}" \
     sh "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
 
   _assemble_qemu_serial_login
@@ -333,7 +343,9 @@ _assemble_production_rootfs() {
 }
 
 assemble_rootfs_config() {
-  if [ "${BUILD_PROFILE}" = "minimal" ] || [ "${FAST:-0}" = "1" ]; then
+  if [ -n "${SESSION:-}" ] && [ "${SESSION}" != "none" ]; then
+    _assemble_production_rootfs
+  elif [ "${BUILD_PROFILE}" = "minimal" ] || [ "${FAST:-0}" = "1" ]; then
     _assemble_minimal_rootfs
   else
     _assemble_production_rootfs
