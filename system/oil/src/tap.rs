@@ -4,7 +4,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use crate::error::{OilError, Result};
-use crate::system::registry::{PackageIndex, PackageMetadata};
+use crate::system::registry::PackageMetadata;
 use crate::util::cache::{cache_key, is_cache_fresh};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +108,7 @@ impl TapRegistry {
         Ok(dir.join(format!("tap-{}.json", cache_key(&self.name))))
     }
 
-    pub fn update(&self) -> Result<PackageIndex> {
+    pub fn update(&self) -> Result<Vec<PackageMetadata>> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
 
@@ -129,15 +129,15 @@ impl TapRegistry {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&cache_path, &body)?;
-        Ok(PackageIndex::new(packages))
+        Ok(packages)
     }
 
-    pub fn load(&self) -> Result<PackageIndex> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
             let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
-            return Ok(PackageIndex::new(packages));
+            return Ok(packages);
         }
         self.update()
     }
