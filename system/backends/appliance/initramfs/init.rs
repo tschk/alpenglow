@@ -39,7 +39,14 @@ fn main() {
     );
     run(
         "/bin/mount",
-        &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"],
+        &[
+            "-t",
+            "tmpfs",
+            "-o",
+            "mode=1777,noexec,nosuid,nodev",
+            "tmpfs",
+            "/tmp",
+        ],
     );
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
