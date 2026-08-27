@@ -148,6 +148,11 @@ mod tests {
             ("pkg = 1.0", "pkg"),
             ("pkg < 1.0", "pkg"),
             ("pkg > 1.0", "pkg"),
+            // multiple constraints
+            ("pkg=1.0-r0 <2.0", "pkg"),
+            // compound constraints
+            ("pkg>=1.0", "pkg"),
+            ("pkg<=1.0", "pkg"),
             // weird prefixes
             ("!pkg", "!pkg"),
         ];
