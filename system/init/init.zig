@@ -6,11 +6,11 @@ fn shm_mount_opts() [*:0]const u8 {
     const AT_FDCWD: i64 = -100;
     const O_RDONLY: u32 = 0;
     const fd = std.os.linux.syscall3(.openat, @as(u64, @bitCast(AT_FDCWD)), @intFromPtr("/proc/meminfo"), O_RDONLY);
-    if (syserr2errno(fd) != .SUCCESS) return "nosuid,nodev,mode=1777,size=256m";
+    if (syserr2errno(fd) != .SUCCESS) return "mode=1777,size=256m";
     var buf: [1024]u8 = undefined;
     const n = std.os.linux.syscall3(.read, @as(usize, @intCast(fd)), @intFromPtr(&buf), buf.len);
     _ = std.os.linux.syscall1(.close, @as(usize, @intCast(fd)));
-    if (syserr2errno(n) != .SUCCESS) return "nosuid,nodev,mode=1777,size=256m";
+    if (syserr2errno(n) != .SUCCESS) return "mode=1777,size=256m";
     var i: usize = 0;
     var total: u64 = 0;
     const prefix = "MemTotal:";
@@ -25,8 +25,8 @@ fn shm_mount_opts() [*:0]const u8 {
             break;
         }
     }
-    if (total == 0) return "nosuid,nodev,mode=1777,size=256m";
-    _ = std.fmt.bufPrintZ(&SHM_OPTS, "nosuid,nodev,mode=1777,size={}k", .{total / 2}) catch return "nosuid,nodev,mode=1777,size=256m";
+    if (total == 0) return "mode=1777,size=256m";
+    _ = std.fmt.bufPrintZ(&SHM_OPTS, "mode=1777,size={}k", .{total / 2}) catch return "mode=1777,size=256m";
     return &SHM_OPTS;
 }
 
@@ -97,17 +97,19 @@ pub fn main() void {
     mkdir("/dev", 0o755);
     mount("devtmpfs", "/dev", "devtmpfs", 0, null) catch {};
 
+    const tmpfs_flags: u64 = std.os.linux.MS.NOSUID | std.os.linux.MS.NODEV;
+
     mkdir("/run", 0o755);
-    mount("tmpfs", "/run", "tmpfs", 0, @ptrFromInt(@intFromPtr("nosuid,nodev,mode=0755"))) catch {};
+    mount("tmpfs", "/run", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr("mode=0755"))) catch {};
 
     mkdir("/dev/shm", 0o1777);
-    mount("tmpfs", "/dev/shm", "tmpfs", 0, @ptrFromInt(@intFromPtr(shm_mount_opts()))) catch {};
+    mount("tmpfs", "/dev/shm", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr(shm_mount_opts()))) catch {};
 
     mkdir("/run/user", 0o755);
     mkdir("/run/user/0", 0o700);
     mkdir("/state", 0o700);
     mkdir("/tmp", 0o1777);
-    mount("tmpfs", "/tmp", "tmpfs", 0, @ptrFromInt(@intFromPtr("nosuid,nodev,mode=1777"))) catch {};
+    mount("tmpfs", "/tmp", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr("mode=1777"))) catch {};
 
     write_console("\nAlpenglow boot\n\n");
 
