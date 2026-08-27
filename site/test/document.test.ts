@@ -1,5 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { renderDocument } from "../src/document";
+import { renderDocument, renderResponse } from "../src/document";
+
+describe("renderResponse", () => {
+  test("returns Response with expected headers and HTML", async () => {
+    const req = new Request("http://localhost/");
+    const res = await renderResponse(req);
+    expect(res).toBeInstanceOf(Response);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const html = await res.text();
+    expect(html).toContain("<!DOCTYPE html>");
+  });
+});
 
 describe("renderDocument", () => {
   test("renders HTML with expected tokens", async () => {
