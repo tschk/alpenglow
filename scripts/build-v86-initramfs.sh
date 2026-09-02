@@ -250,7 +250,7 @@ export COLORTERM=truecolor
   /bin/mknod /dev/ttyS0 c 4 64 2>/dev/null
   /bin/mknod /dev/null c 1 3 2>/dev/null
 }
-/bin/mount -t tmpfs tmpfs /run 2>/dev/null
+/bin/mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run 2>/dev/null
 /bin/hostname alpenglow 2>/dev/null
 [ -c "$CON" ] || CON=/dev/console
 cd /
