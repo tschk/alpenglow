@@ -86,7 +86,7 @@ mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 mount -t devpts devpts /dev/pts
 [ -e /dev/ptmx ] || ln -s pts/ptmx /dev/ptmx
-mount -t tmpfs tmpfs /run
+mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 printf 'Alpenglow aarch64 root ready\n' > /dev/console
 mkdir -p /state /home
 mount -L alpenglow-state /state 2>/dev/null || true
