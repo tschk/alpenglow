@@ -33,13 +33,15 @@ pub fn validate_download_url(url: &str) -> Result<()> {
     let host = parsed
         .host()
         .ok_or_else(|| OilError::Install(format!("invalid download URL: {url}")))?;
-    if host == "dl-cdn.alpinelinux.org"
-        || host.ends_with(".alpinelinux.org")
-        || host == "github.com"
-        || host == "raw.githubusercontent.com"
-        || host == "objects.githubusercontent.com"
-        || host.ends_with(".githubusercontent.com")
-    {
+    const ALLOWED_HOSTS: &[&str] = &[
+        "dl-cdn.alpinelinux.org",
+        "github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com",
+    ];
+    const ALLOWED_SUFFIXES: &[&str] = &[".alpinelinux.org", ".githubusercontent.com"];
+
+    if ALLOWED_HOSTS.contains(&host) || ALLOWED_SUFFIXES.iter().any(|s| host.ends_with(s)) {
         return Ok(());
     }
     Err(OilError::Install(format!(
