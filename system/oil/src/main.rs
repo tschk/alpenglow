@@ -167,12 +167,14 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
 }
 
 #[cfg(feature = "wax")]
-fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> PackageIndex {
+fn merge_tap_packages(
+    mut all: Vec<system::registry::PackageMetadata>,
+) -> Vec<system::registry::PackageMetadata> {
     let taps = match tap::Taps::new() {
         Ok(t) => t,
         Err(e) => {
             eprintln!("warning: failed to load taps: {e}");
-            return PackageIndex::new(all);
+            return all;
         }
     };
     let entries: Vec<_> = taps.list().into_iter().cloned().collect();
@@ -199,23 +201,25 @@ fn merge_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Packag
             };
             match result {
                 Ok(index) => {
-                    eprintln!("Loaded {} packages from tap {}", index.packages.len(), name);
-                    all.extend(index.packages);
+                    eprintln!("Loaded {} packages from tap {}", index.len(), name);
+                    all.extend(index);
                 }
                 Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
             }
         }
     });
-    PackageIndex::new(all)
+    all
 }
 
 #[cfg(feature = "wax")]
-fn refresh_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> PackageIndex {
+fn refresh_tap_packages(
+    mut all: Vec<system::registry::PackageMetadata>,
+) -> Vec<system::registry::PackageMetadata> {
     let taps = match tap::Taps::new() {
         Ok(t) => t,
         Err(e) => {
             eprintln!("warning: failed to load taps: {e}");
-            return PackageIndex::new(all);
+            return all;
         }
     };
     let entries: Vec<_> = taps.list().into_iter().cloned().collect();
@@ -241,39 +245,35 @@ fn refresh_tap_packages(mut all: Vec<system::registry::PackageMetadata>) -> Pack
             };
             match result {
                 Ok(index) => {
-                    eprintln!(
-                        "Refreshed {} packages from tap {}",
-                        index.packages.len(),
-                        name
-                    );
-                    all.extend(index.packages);
+                    eprintln!("Refreshed {} packages from tap {}", index.len(), name);
+                    all.extend(index);
                 }
                 Err(e) => eprintln!("warning: failed to refresh tap {name}: {e}"),
             }
         }
     });
-    PackageIndex::new(all)
+    all
 }
 
 #[cfg(feature = "wax")]
-fn load_registry() -> Result<PackageIndex> {
+fn load_registry() -> Result<Vec<system::registry::PackageMetadata>> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().load()?;
-    Ok(merge_tap_packages(apk.packages))
+    Ok(merge_tap_packages(apk))
 }
 
 #[cfg(not(feature = "wax"))]
-fn load_registry() -> Result<PackageIndex> {
+fn load_registry() -> Result<Vec<system::registry::PackageMetadata>> {
     system::registry::apk::ApkRegistry::alpine_default().load()
 }
 
 #[cfg(feature = "wax")]
-fn refresh_registry() -> Result<PackageIndex> {
+fn refresh_registry() -> Result<Vec<system::registry::PackageMetadata>> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().refresh()?;
-    Ok(refresh_tap_packages(apk.packages))
+    Ok(refresh_tap_packages(apk))
 }
 
 #[cfg(not(feature = "wax"))]
-fn refresh_registry() -> Result<PackageIndex> {
+fn refresh_registry() -> Result<Vec<system::registry::PackageMetadata>> {
     system::registry::apk::ApkRegistry::alpine_default().refresh()
 }
 
@@ -299,7 +299,8 @@ fn run_system(command: SystemCommands) -> Result<()> {
                 ));
             }
             let dest = install_dest(system_prefix(prefix).as_deref())?;
-            let index = load_registry()?;
+            let registry_packages = load_registry()?;
+            let index = PackageIndex::new(&registry_packages);
             for name in packages {
                 let pkg = index
                     .find(&name)
@@ -331,7 +332,8 @@ fn run_system(command: SystemCommands) -> Result<()> {
 }
 
 fn run_update() -> Result<()> {
-    let index = refresh_registry()?;
+    let registry_packages = refresh_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     println!("Updated package index: {} packages", index.packages.len());
     Ok(())
 }
@@ -382,7 +384,8 @@ fn oil_secure_tmp_dir() -> Result<PathBuf> {
 }
 
 fn run_search(query: String) -> Result<()> {
-    let index = load_registry()?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     let q = query.to_ascii_lowercase();
     let q_bytes = q.as_bytes();
     let mut results: Vec<_> = index
@@ -405,7 +408,8 @@ fn run_search(query: String) -> Result<()> {
 }
 
 fn run_info(formula: String) -> Result<()> {
-    let index = load_registry()?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     match index.find(&formula) {
         Some(pkg) => {
             println!("Name: {}", pkg.name);
@@ -435,7 +439,8 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let index = load_registry()?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     let order = index.resolve_install_order(&pending, |name| state.get(name).is_some())?;
 
     for pkg in &order {
@@ -500,7 +505,8 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     } else {
         packages
     };
-    let index = load_registry()?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
@@ -518,7 +524,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
 fn plan_upgrades<'a>(
     targets: Option<&'a [String]>,
     installed: &'a std::collections::HashMap<String, install::InstalledPackage>,
-    index: &'a PackageIndex,
+    index: &'a PackageIndex<'a>,
 ) -> Vec<(
     &'a String,
     &'a install::InstalledPackage,
@@ -562,7 +568,8 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
         println!("No packages installed");
         return Ok(());
     }
-    let index = load_registry()?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     let targets = if packages.is_empty() {
         None
     } else {
@@ -597,7 +604,8 @@ fn run_outdated() -> Result<()> {
         println!("No packages installed");
         return Ok(());
     }
-    let index = load_registry()?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
     let mut outdated = 0;
     for (name, pkg) in &installed {
         if let Some(latest) = index.find(name) {
@@ -637,7 +645,7 @@ fn handle_tap_update(taps: &mut tap::Taps, tap: Option<String>) -> Result<()> {
         if let Some(entry) = entry {
             let registry = tap::TapRegistry::new(&entry.name, &entry.url);
             let index = registry.update()?;
-            println!("Updated {} ({} packages)", name, index.packages.len());
+            println!("Updated {} ({} packages)", name, index.len());
         } else {
             return Err(error::OilError::Install(format!("tap not found: {}", name)));
         }
@@ -663,7 +671,7 @@ fn handle_tap_update(taps: &mut tap::Taps, tap: Option<String>) -> Result<()> {
                     }
                 };
                 match result {
-                    Ok(index) => println!("Updated {} ({} packages)", name, index.packages.len()),
+                    Ok(index) => println!("Updated {} ({} packages)", name, index.len()),
                     Err(e) => eprintln!("warning: failed to update tap {}: {}", name, e),
                 }
             }
