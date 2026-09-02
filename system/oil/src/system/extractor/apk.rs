@@ -369,7 +369,8 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_magic_byte_at_eof() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_magic_byte_at_eof(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = create_gz_stream(b"stream 1")?;
         data.extend(create_gz_stream(b"stream 2")?);
         data.push(0x1f);
@@ -377,7 +378,11 @@ mod tests {
         let result = split_gzip_streams(&data, 3);
         assert!(result.is_err());
         let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(err_msg.contains("APK has 2 gzip streams, expected 3"), "Unexpected error: {}", err_msg);
+        assert!(
+            err_msg.contains("APK has 2 gzip streams, expected 3"),
+            "Unexpected error: {}",
+            err_msg
+        );
         Ok(())
     }
 
@@ -392,7 +397,8 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_extra_streams_ignored() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_split_gzip_streams_extra_streams_ignored(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let stream1 = create_gz_stream(b"stream 1 data")?;
         let stream2 = create_gz_stream(b"stream 2 data")?;
         let stream3 = create_gz_stream(b"stream 3 data")?;

@@ -1,4 +1,4 @@
-use super::{PackageIndex, PackageMetadata};
+use super::PackageMetadata;
 use crate::error::{OilError, Result};
 use crate::util::cache::{cache_key, is_cache_fresh};
 use flate2::{read::MultiGzDecoder, write::GzEncoder, Compression};
@@ -48,7 +48,7 @@ impl ApkRegistry {
         )))
     }
 
-    pub fn refresh(&self) -> Result<PackageIndex> {
+    pub fn refresh(&self) -> Result<Vec<PackageMetadata>> {
         let cache_path = self.cache_path()?;
         if cache_path.exists() {
             std::fs::remove_file(&cache_path)?;
@@ -57,12 +57,12 @@ impl ApkRegistry {
         self.load()
     }
 
-    pub fn load(&self) -> Result<PackageIndex> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
         let cache_path = self.cache_path()?;
 
         if is_cache_fresh(&cache_path) {
             let packages = read_cache(&cache_path)?;
-            return Ok(PackageIndex::new(packages));
+            return Ok(packages);
         }
 
         let mut handles = Vec::with_capacity(self.repos.len());
@@ -118,7 +118,7 @@ impl ApkRegistry {
         write_cache(&cache_path, &all_packages)?;
         let _ = std::fs::remove_file(cache_path.with_extension(""));
 
-        Ok(PackageIndex::new(all_packages))
+        Ok(all_packages)
     }
 
     fn index_url(&self, repo: &str) -> String {
@@ -352,7 +352,10 @@ mod tests {
 
         assert_eq!(registry.mirror, "https://example.com/alpine");
         assert_eq!(registry.branch, "v3.20");
-        assert_eq!(registry.repos, vec!["main".to_string(), "community".to_string()]);
+        assert_eq!(
+            registry.repos,
+            vec!["main".to_string(), "community".to_string()]
+        );
         assert_eq!(registry.arch, arch);
     }
 

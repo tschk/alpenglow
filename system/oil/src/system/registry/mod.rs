@@ -17,22 +17,22 @@ pub struct PackageMetadata {
     pub provides: Vec<String>,
 }
 
-pub struct PackageIndex {
-    pub packages: Vec<PackageMetadata>,
-    name_index: HashMap<String, usize>,
-    provides_index: HashMap<String, usize>,
+pub struct PackageIndex<'a> {
+    pub packages: &'a [PackageMetadata],
+    name_index: HashMap<&'a str, usize>,
+    provides_index: HashMap<&'a str, usize>,
 }
 
-impl PackageIndex {
-    pub fn new(packages: Vec<PackageMetadata>) -> Self {
+impl<'a> PackageIndex<'a> {
+    pub fn new(packages: &'a [PackageMetadata]) -> Self {
         let mut name_index = HashMap::new();
         let mut provides_index = HashMap::new();
 
         for (i, pkg) in packages.iter().enumerate() {
             for prov in &pkg.provides {
-                provides_index.entry(prov.clone()).or_insert(i);
+                provides_index.entry(prov.as_str()).or_insert(i);
             }
-            name_index.entry(pkg.name.clone()).or_insert(i);
+            name_index.entry(pkg.name.as_str()).or_insert(i);
         }
 
         Self {
@@ -42,7 +42,7 @@ impl PackageIndex {
         }
     }
 
-    pub fn find(&self, name: &str) -> Option<&PackageMetadata> {
+    pub fn find(&self, name: &str) -> Option<&'a PackageMetadata> {
         if let Some(&i) = self.name_index.get(name) {
             return Some(&self.packages[i]);
         }
@@ -54,8 +54,8 @@ impl PackageIndex {
 
     /// Resolve `roots` and their transitive dependencies into install order
     /// (dependencies before dependents). Skips names present in `skip`.
-    pub fn resolve_install_order<'a, F: Fn(&str) -> bool + Copy>(
-        &'a self,
+    pub fn resolve_install_order<F: Fn(&str) -> bool + Copy>(
+        &self,
         roots: &[String],
         skip: F,
     ) -> Result<Vec<&'a PackageMetadata>> {
@@ -70,8 +70,8 @@ impl PackageIndex {
         Ok(order)
     }
 
-    fn visit_install_deps<'a, F: Fn(&str) -> bool + Copy>(
-        &'a self,
+    fn visit_install_deps<F: Fn(&str) -> bool + Copy>(
+        &self,
         name: &str,
         skip: F,
         visiting: &mut HashSet<String>,
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_package_index_find_by_name() {
-        let index = PackageIndex::new(vec![
+        let pkgs = vec![
             PackageMetadata {
                 name: "curl".to_string(),
                 version: "8.0.0".to_string(),
@@ -185,7 +185,8 @@ mod tests {
                 depends: vec![],
                 provides: vec!["libssl".to_string()],
             },
-        ]);
+        ];
+        let index = PackageIndex::new(&pkgs);
         assert!(index.find("curl").is_some());
         assert!(index.find("libssl3").is_some());
         assert!(index.find("libssl").is_some());
@@ -226,7 +227,7 @@ mod tests {
                 provides: vec![],
             },
         ];
-        let index = PackageIndex::new(packages);
+        let index = PackageIndex::new(&packages);
 
         assert_eq!(
             index
@@ -239,16 +240,16 @@ mod tests {
         assert_eq!(index.find("duplicate").unwrap().version, "first");
         assert_eq!(index.find("virtual").unwrap().version, "named");
         assert_eq!(index.find("shared").unwrap().version, "first");
-        assert!(PackageIndex::new(vec![]).find("").is_none());
+        assert!(PackageIndex::new(&[]).find("").is_none());
     }
 
     #[test]
     fn test_package_index_find_edge_cases() {
-        let empty_index = PackageIndex::new(vec![]);
+        let empty_index = PackageIndex::new(&[]);
         assert!(empty_index.find("anything").is_none());
         assert!(empty_index.find("").is_none());
 
-        let index = PackageIndex::new(vec![
+        let pkgs = vec![
             PackageMetadata {
                 name: "pkgA".to_string(),
                 version: "1.0.0".to_string(),
@@ -269,7 +270,8 @@ mod tests {
                 depends: vec![],
                 provides: vec!["shared".to_string()],
             },
-        ]);
+        ];
+        let index = PackageIndex::new(&pkgs);
 
         assert!(index.find("pkga").is_none());
 
@@ -295,10 +297,11 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_deps_before_dependents() {
-        let index = PackageIndex::new(vec![
+        let pkgs = vec![
             sample_pkg("app", vec!["liba".to_string()]),
             sample_pkg("liba", vec![]),
-        ]);
+        ];
+        let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
@@ -309,11 +312,12 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_transitive() {
-        let index = PackageIndex::new(vec![
+        let pkgs = vec![
             sample_pkg("app", vec!["libb".to_string()]),
             sample_pkg("libb", vec!["liba".to_string()]),
             sample_pkg("liba", vec![]),
-        ]);
+        ];
+        let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
@@ -324,10 +328,11 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_skips_installed() {
-        let index = PackageIndex::new(vec![
+        let pkgs = vec![
             sample_pkg("app", vec!["liba".to_string()]),
             sample_pkg("liba", vec![]),
-        ]);
+        ];
+        let index = PackageIndex::new(&pkgs);
         let skip = HashSet::from(["liba".to_string()]);
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
@@ -338,10 +343,11 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_circular_dependency() {
-        let index = PackageIndex::new(vec![
+        let pkgs = vec![
             sample_pkg("a", vec!["b".to_string()]),
             sample_pkg("b", vec!["a".to_string()]),
-        ]);
+        ];
+        let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let result = index.resolve_install_order(&["a".to_string()], |n| skip.contains(n));
         assert!(result.is_err());
