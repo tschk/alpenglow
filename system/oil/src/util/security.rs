@@ -176,7 +176,7 @@ mod tests {
                     "--exact",
                     "--nocapture",
                 ])
-                .env_remove("OIL_SYSTEM_PREFIX")
+                .env_clear()
                 .status()
                 .expect("spawn test subprocess");
             assert!(status.success());
