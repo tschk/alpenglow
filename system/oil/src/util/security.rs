@@ -24,9 +24,6 @@ pub fn validate_download_url(url: &str) -> Result<()> {
             "refusing insecure download URL: {url}"
         )));
     }
-    if std::env::var_os("OIL_ALLOW_ANY_DOWNLOAD_HOST").is_some() {
-        return Ok(());
-    }
     let parsed: ureq::http::Uri = url
         .parse()
         .map_err(|_| OilError::Install(format!("invalid download URL: {url}")))?;
@@ -45,7 +42,7 @@ pub fn validate_download_url(url: &str) -> Result<()> {
         return Ok(());
     }
     Err(OilError::Install(format!(
-        "download host not allowed: {host} (set OIL_ALLOW_ANY_DOWNLOAD_HOST=1 to override)"
+        "download host not allowed: {host}"
     )))
 }
 
