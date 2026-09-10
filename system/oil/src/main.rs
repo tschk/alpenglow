@@ -285,6 +285,39 @@ fn system_prefix(cli: Option<PathBuf>) -> Option<PathBuf> {
     cli.or_else(|| std::env::var_os("OIL_SYSTEM_PREFIX").map(PathBuf::from))
 }
 
+fn run_system_add(packages: Vec<String>, prefix: Option<PathBuf>, dry_run: bool) -> Result<()> {
+    if packages.is_empty() {
+        return Err(error::OilError::Install(
+            "system add requires at least one package".into(),
+        ));
+    }
+    let dest = install_dest(system_prefix(prefix).as_deref())?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
+    for name in packages {
+        let pkg = index
+            .find(&name)
+            .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
+        if dry_run {
+            println!(
+                "Would install {} {} into {}",
+                pkg.name,
+                pkg.version,
+                dest.display()
+            );
+        } else {
+            install_package(pkg, &dest)?;
+            println!(
+                "Installed {} {} into {}",
+                pkg.name,
+                pkg.version,
+                dest.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn run_system(command: SystemCommands) -> Result<()> {
     match command {
         SystemCommands::Add {
@@ -292,38 +325,7 @@ fn run_system(command: SystemCommands) -> Result<()> {
             prefix,
             no_script: _,
             dry_run,
-        } => {
-            if packages.is_empty() {
-                return Err(error::OilError::Install(
-                    "system add requires at least one package".into(),
-                ));
-            }
-            let dest = install_dest(system_prefix(prefix).as_deref())?;
-            let registry_packages = load_registry()?;
-            let index = PackageIndex::new(&registry_packages);
-            for name in packages {
-                let pkg = index
-                    .find(&name)
-                    .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
-                if dry_run {
-                    println!(
-                        "Would install {} {} into {}",
-                        pkg.name,
-                        pkg.version,
-                        dest.display()
-                    );
-                } else {
-                    install_package(pkg, &dest)?;
-                    println!(
-                        "Installed {} {} into {}",
-                        pkg.name,
-                        pkg.version,
-                        dest.display()
-                    );
-                }
-            }
-            Ok(())
-        }
+        } => run_system_add(packages, prefix, dry_run),
         SystemCommands::Sync { prefix: _ } => {
             println!("system sync: staged installs are applied immediately");
             Ok(())
