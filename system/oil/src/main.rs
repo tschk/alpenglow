@@ -443,11 +443,16 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let index = PackageIndex::new(&registry_packages);
     let order = index.resolve_install_order(&pending, |name| state.get(name).is_some())?;
 
+    let dest = if dry_run {
+        std::path::PathBuf::new() // Not used in dry_run, but needed for type matching
+    } else {
+        install_dest(None)?
+    };
+
     for pkg in &order {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = install_dest(None)?;
             install_package(pkg, &dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
@@ -507,10 +512,10 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     };
     let registry_packages = load_registry()?;
     let index = PackageIndex::new(&registry_packages);
+    let dest = install_dest(None)?;
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
-                let dest = install_dest(None)?;
                 install_package(latest, &dest)?;
                 state.mark_installed(name, Some(latest.version.as_str()));
                 println!("Reinstalled {name} {}", latest.version);
@@ -577,6 +582,12 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     };
     let upgrades = plan_upgrades(targets.as_deref(), &installed, &index);
 
+    let dest = if dry_run {
+        std::path::PathBuf::new() // Not used in dry_run, but needed for type matching
+    } else {
+        install_dest(None)?
+    };
+
     for (name, current, latest) in &upgrades {
         if dry_run {
             println!(
@@ -584,7 +595,6 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 current.version, latest.version
             );
         } else {
-            let dest = install_dest(None)?;
             install_package(latest, &dest)?;
             state.mark_installed(name, Some(latest.version.as_str()));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
