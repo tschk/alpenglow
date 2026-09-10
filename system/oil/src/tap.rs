@@ -137,6 +137,12 @@ impl TapRegistry {
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
             let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
+            for pkg in &packages {
+                if let Err(e) = crate::util::security::validate_download_url(&pkg.download_url) {
+                    eprintln!("Warning: tap cache contains invalid download URL: {}", e);
+                    return self.update();
+                }
+            }
             return Ok(packages);
         }
         self.update()
