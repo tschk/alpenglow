@@ -419,3 +419,13 @@ test "parseCarrier handles valid and edge case inputs" {
     try testing.expectEqual(null, parseCarrier(""));
     try testing.expectEqual(null, parseCarrier("abc"));
 }
+
+test "parseU32 handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqual(@as(?u32, 123), parseU32("123"));
+    try testing.expectEqual(@as(?u32, 0), parseU32("0"));
+    try testing.expectEqual(@as(?u32, 4294967295), parseU32("4294967295"));
+    try testing.expectEqual(@as(?u32, null), parseU32("abc"));
+    try testing.expectEqual(@as(?u32, null), parseU32("-1"));
+    try testing.expectEqual(@as(?u32, null), parseU32(""));
+}
