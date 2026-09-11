@@ -19,7 +19,7 @@ fn main() {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
-    run("/bin/mount", &["-t", "tmpfs", "tmpfs", "/run"]);
+    run("/bin/mount", &["-t", "tmpfs", "-o", "nosuid,nodev,mode=0755", "tmpfs", "/run"]);
     let mut shm_size = String::from("mode=1777,size=256m");
     if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
         for line in meminfo.lines() {
@@ -35,11 +35,11 @@ fn main() {
     }
     run(
         "/bin/mount",
-        &["-t", "tmpfs", "-o", &shm_size, "tmpfs", "/dev/shm"],
+        &["-t", "tmpfs", "-o", &format!("nosuid,nodev,{}", shm_size), "tmpfs", "/dev/shm"],
     );
     run(
         "/bin/mount",
-        &["-t", "tmpfs", "-o", "mode=1777", "tmpfs", "/tmp"],
+        &["-t", "tmpfs", "-o", "nosuid,nodev,mode=1777", "tmpfs", "/tmp"],
     );
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);

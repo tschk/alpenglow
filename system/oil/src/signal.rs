@@ -13,8 +13,8 @@ pub fn install_handler() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::Command;
     use std::env;
+    use std::process::Command;
 
     #[test]
     fn test_signal_handler() {

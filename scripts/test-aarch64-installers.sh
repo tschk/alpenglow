@@ -71,7 +71,7 @@ mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 exec >/dev/ttyAMA0 2>&1
-mount -t tmpfs tmpfs /run
+mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 echo "Alpenglow standard aarch64 installer smoke"
 TERM=xterm /bin/alpenglow-install --tui || true
 echo "Alpenglow standard installer smoke OK"
@@ -109,8 +109,8 @@ mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 exec >/dev/ttyAMA0 2>&1
-mount -t tmpfs tmpfs /run
-mount -t tmpfs tmpfs /tmp
+mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
+mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /tmp
 mkdir -p /run/seatd /run/user/0
 export XDG_RUNTIME_DIR=/run/user/0
 export LIBSEAT_BACKEND=seatd
