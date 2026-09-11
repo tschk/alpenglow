@@ -21,8 +21,8 @@ if [ -r /proc/meminfo ]; then
     SHM_SIZE="mode=1777,size=$((mem_total_kb / 2))k"
   fi
 fi
-mount -t tmpfs -o "$SHM_SIZE" tmpfs /dev/shm
-mount -t tmpfs -o mode=1777 tmpfs /tmp
+mount -t tmpfs -o nosuid,nodev,"$SHM_SIZE" tmpfs /dev/shm
+mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /tmp
 mkdir -p /run/user/0 /tmp /mnt/root
 chown 0:0 /run/user/0 2>/dev/null || true
 chmod 700 /run/user/0 2>/dev/null || true

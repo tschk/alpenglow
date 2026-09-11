@@ -15,7 +15,7 @@ SHELL
 
   cat > "${ROOTFS_DIR}/etc/dinit.d/mount-filesystems" << 'MOUNT'
 type = scripted
-command = /bin/toybox sh -c "/bin/toybox mount -t proc proc /proc; /bin/toybox mount -t sysfs sysfs /sys; /bin/toybox mount -t devtmpfs devtmpfs /dev; /bin/toybox mount -t tmpfs tmpfs /run"
+command = /bin/toybox sh -c "/bin/toybox mount -t proc proc /proc; /bin/toybox mount -t sysfs sysfs /sys; /bin/toybox mount -t devtmpfs devtmpfs /dev; /bin/toybox mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run"
 restart = no
 MOUNT
 }
@@ -115,7 +115,7 @@ SCRIPT
 /bin/toybox mount -t sysfs sysfs /sys
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 exec </dev/ttyS0 >/dev/ttyS0 2>&1
-/bin/toybox mount -t tmpfs tmpfs /run
+/bin/toybox mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 /bin/toybox mkdir -p /dev/shm /tmp 2>/dev/null
 /bin/toybox chmod 01777 /dev/shm /tmp
 SHM_SIZE="mode=1777,size=256m"
@@ -128,8 +128,8 @@ if [ -r /proc/meminfo ]; then
     SHM_SIZE="mode=1777,size=$((mem_total_kb / 2))k"
   fi
 fi
-/bin/toybox mount -t tmpfs -o "$SHM_SIZE" tmpfs /dev/shm
-/bin/toybox mount -t tmpfs -o mode=1777 tmpfs /tmp
+/bin/toybox mount -t tmpfs -o nosuid,nodev,"$SHM_SIZE" tmpfs /dev/shm
+/bin/toybox mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /tmp
 /bin/toybox mkdir -p /run/user/0
 /bin/toybox chown 0:0 /run/user/0
 /bin/toybox chmod 700 /run/user/0

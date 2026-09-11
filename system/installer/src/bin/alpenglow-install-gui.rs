@@ -309,7 +309,7 @@ fn main() {
             }
             handles
                 .into_iter()
-                .map(|h| h.join().unwrap())
+                .filter_map(|h| h.join().ok())
                 .collect::<Vec<_>>()
         });
 

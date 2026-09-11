@@ -29,6 +29,8 @@ mod tests {
         assert_eq!(cache_key("a1b2_c3!d4"), "a1b2-c3-d4");
         assert_eq!(cache_key("!@#$%^&*()"), "----------");
         assert_eq!(cache_key(""), "");
+        assert_eq!(cache_key("../../etc/passwd"), "------etc-passwd");
+        assert_eq!(cache_key("foo/bar\\baz"), "foo-bar-baz");
     }
 
     #[test]

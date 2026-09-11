@@ -27,17 +27,21 @@ pub fn validate_download_url(url: &str) -> Result<()> {
     if std::env::var_os("OIL_ALLOW_ANY_DOWNLOAD_HOST").is_some() {
         return Ok(());
     }
-    let host = url
-        .split('/')
-        .nth(2)
+    let parsed: ureq::http::Uri = url
+        .parse()
+        .map_err(|_| OilError::Install(format!("invalid download URL: {url}")))?;
+    let host = parsed
+        .host()
         .ok_or_else(|| OilError::Install(format!("invalid download URL: {url}")))?;
-    if host == "dl-cdn.alpinelinux.org"
-        || host.ends_with(".alpinelinux.org")
-        || host == "github.com"
-        || host == "raw.githubusercontent.com"
-        || host == "objects.githubusercontent.com"
-        || host.ends_with(".githubusercontent.com")
-    {
+    const ALLOWED_HOSTS: &[&str] = &[
+        "dl-cdn.alpinelinux.org",
+        "github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com",
+    ];
+    const ALLOWED_SUFFIXES: &[&str] = &[".alpinelinux.org", ".githubusercontent.com"];
+
+    if ALLOWED_HOSTS.contains(&host) || ALLOWED_SUFFIXES.iter().any(|s| host.ends_with(s)) {
         return Ok(());
     }
     Err(OilError::Install(format!(
@@ -128,6 +132,13 @@ mod tests {
     #[test]
     fn rejects_http() {
         assert!(validate_download_url("http://dl-cdn.alpinelinux.org/x.apk").is_err());
+    }
+
+    #[test]
+    fn rejects_bypassed_host() {
+        assert!(validate_download_url("https://attacker.com?.githubusercontent.com/").is_err());
+        assert!(validate_download_url("https://attacker.com#.githubusercontent.com/").is_err());
+        assert!(validate_download_url("https://github.com@attacker.com/").is_err());
     }
 
     #[test]

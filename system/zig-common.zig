@@ -255,6 +255,26 @@ pub fn envOrDefault(key: []const u8, default: []const u8) []const u8 {
     return getenv(key) orelse default;
 }
 
+extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
+extern "c" fn unsetenv(name: [*:0]const u8) c_int;
+
+test "getenv" {
+    const testing = std.testing;
+
+    // Set an environment variable
+    _ = setenv("ZIG_TEST_GETENV_VAR", "hello_world", 1);
+    defer _ = unsetenv("ZIG_TEST_GETENV_VAR");
+
+    // Test retrieving the set environment variable
+    const res1 = getenv("ZIG_TEST_GETENV_VAR");
+    try testing.expect(res1 != null);
+    try testing.expectEqualStrings("hello_world", res1.?);
+
+    // Test retrieving a non-existent environment variable
+    const res2 = getenv("ZIG_TEST_GETENV_NONEXISTENT_VAR");
+    try testing.expect(res2 == null);
+}
+
 test "envOrDefault" {
     const testing = std.testing;
     const default_val = "fallback";
