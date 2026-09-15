@@ -28,7 +28,12 @@ impl InstallState {
         let path = state_path()?;
         let packages = if path.exists() {
             let raw = std::fs::read_to_string(&path)?;
-            serde_json::from_str(&raw).unwrap_or_default()
+            serde_json::from_str(&raw).map_err(|e| {
+                crate::error::OilError::Install(format!(
+                    "corrupt install state {}: {e}",
+                    path.display()
+                ))
+            })?
         } else {
             HashMap::new()
         };
@@ -152,6 +157,28 @@ mod tests {
             state.packages.is_empty(),
             "New state should have empty packages"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_install_state_rejects_corrupt_json() -> Result<()> {
+        let _guard = EnvGuard::new();
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        std::env::set_var("HOME", temp_dir.path());
+        let oil_dir = temp_dir.path().join(".oil");
+        std::fs::create_dir_all(&oil_dir).expect("create .oil");
+        std::fs::write(oil_dir.join("installed.json"), "{not-json").expect("write corrupt state");
+
+        match InstallState::new() {
+            Err(crate::error::OilError::Install(msg)) => {
+                assert!(
+                    msg.contains("corrupt install state"),
+                    "unexpected error: {msg}"
+                );
+            }
+            Ok(_) => panic!("corrupt state must not load as empty"),
+            Err(other) => panic!("Expected OilError::Install, got {other:?}"),
+        }
         Ok(())
     }
 
