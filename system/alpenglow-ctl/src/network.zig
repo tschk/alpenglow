@@ -384,6 +384,15 @@ pub fn run() !void {
     };
 }
 
+test "parseOperstate handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqualStrings("down", parseOperstate(null));
+    try testing.expectEqualStrings("up", parseOperstate("up"));
+    try testing.expectEqualStrings("down", parseOperstate("down"));
+    try testing.expectEqualStrings("down", parseOperstate("unknown"));
+    try testing.expectEqualStrings("down", parseOperstate(""));
+}
+
 test "parseKind handles valid and edge case inputs" {
     const testing = std.testing;
     try testing.expectEqualStrings("ethernet", parseKind(null));
