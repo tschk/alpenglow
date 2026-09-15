@@ -49,6 +49,18 @@ pub fn validate_download_url(url: &str) -> Result<()> {
     )))
 }
 
+/// GET `url` after host allowlist, then re-check the final URI so HTTP
+/// redirects cannot land on a host outside the allowlist.
+pub fn get_validated(url: &str) -> Result<ureq::http::Response<ureq::Body>> {
+    validate_download_url(url)?;
+    let resp = ureq::get(url)
+        .call()
+        .map_err(|e| OilError::Install(format!("download failed: {e}")))?;
+    use ureq::ResponseExt;
+    validate_download_url(&resp.get_uri().to_string())?;
+    Ok(resp)
+}
+
 pub fn validate_install_dest(dest: &Path) -> Result<PathBuf> {
     let mut normalized = PathBuf::new();
     for component in dest.components() {
@@ -139,6 +151,16 @@ mod tests {
         assert!(validate_download_url("https://attacker.com?.githubusercontent.com/").is_err());
         assert!(validate_download_url("https://attacker.com#.githubusercontent.com/").is_err());
         assert!(validate_download_url("https://github.com@attacker.com/").is_err());
+    }
+
+    #[test]
+    fn get_validated_rejects_disallowed_host_before_fetch() {
+        let err = get_validated("https://attacker.example/payload").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]

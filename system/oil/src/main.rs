@@ -714,13 +714,12 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
 
 fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
     let dest = util::security::validate_install_dest(dest)?;
-    util::security::validate_download_url(&pkg.download_url)?;
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
 
-    let resp = ureq::get(url)
-        .call()
-        .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
+    let resp = util::security::get_validated(url).map_err(|e| {
+        error::OilError::Install(format!("download failed for {}: {e}", pkg.name))
+    })?;
 
     let tmp_dir = oil_secure_tmp_dir()?;
     let mut tmp = tempfile::Builder::new()
