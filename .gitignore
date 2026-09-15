@@ -81,8 +81,13 @@ third_party/ghostty/zig-out/
 Module.symvers
 *.symvers
 modules.order
-.agents/
+.agents/*
+!.agents/setup
+!.agents/resume
 system/backends/appliance/vro/vro
+
+# Amp orb portals (local)
+.amp/portals/
 
 # Local/tooling directories
 .poolside/

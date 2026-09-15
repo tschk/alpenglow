@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Idempotent orb setup: rustc/cargo, bun lockfile install, host packages for CI scripts.
+set -euo pipefail
+
+repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${repo_root}"
+
+step() {
+  local label="$1"
+  shift
+  local start
+  start="$(date +%s)"
+  echo "[setup] ${label}"
+  "$@"
+  echo "[setup] ${label}: $(($(date +%s) - start))s"
+}
+
+need_apt=()
+for pkg in build-essential ca-certificates curl git jq pkg-config; do
+  if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q 'install ok installed'; then
+    need_apt+=("${pkg}")
+  fi
+done
+if [ "${#need_apt[@]}" -gt 0 ]; then
+  step "apt-get install ${need_apt[*]}" sudo apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${need_apt[@]}"
+fi
+
+if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
+  if [ ! -x "${HOME}/.cargo/bin/rustc" ]; then
+    step "install rustup (stable, minimal)" \
+      bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal'
+  fi
+fi
+
+# Persist cargo for later non-interactive login shells (Amp + services).
+profile_marker="# alpenglow cargo env"
+if [ ! -f "${HOME}/.bash_profile" ] || ! grep -Fqx "${profile_marker}" "${HOME}/.bash_profile" 2>/dev/null; then
+  cat >> "${HOME}/.bash_profile" <<'EOF'
+
+# alpenglow cargo env
+if [ -f "${HOME}/.cargo/env" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.cargo/env"
+fi
+EOF
+fi
+
+# shellcheck disable=SC1091
+[ -f "${HOME}/.cargo/env" ] && . "${HOME}/.cargo/env"
+export PATH="${HOME}/.cargo/bin:${PATH}"
+
+command -v rustc >/dev/null 2>&1 || { echo "[setup] rustc missing after install" >&2; exit 1; }
+command -v cargo >/dev/null 2>&1 || { echo "[setup] cargo missing after install" >&2; exit 1; }
+
+step "cargo fetch" cargo fetch
+
+if [ -f bun.lock ]; then
+  step "bun install --frozen-lockfile" bun install --frozen-lockfile
+fi
+
+echo "[setup] rustc=$(rustc --version)"
+echo "[setup] cargo=$(cargo --version)"
+echo "[setup] bun=$(bun --version)"
+echo "[setup] ok"
