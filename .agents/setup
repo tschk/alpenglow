@@ -26,6 +26,9 @@ if [ "${#need_apt[@]}" -gt 0 ]; then
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${need_apt[@]}"
 fi
 
+# Prefer an already-installed rustup even when this shell has a minimal PATH.
+export PATH="${HOME}/.cargo/bin:${PATH}"
+
 if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
   if [ ! -x "${HOME}/.cargo/bin/rustc" ]; then
     step "install rustup (stable, minimal)" \
@@ -55,8 +58,13 @@ command -v cargo >/dev/null 2>&1 || { echo "[setup] cargo missing after install"
 
 step "cargo fetch" cargo fetch
 
+command -v bun >/dev/null 2>&1 || { echo "[setup] bun missing (orb image should provide it)" >&2; exit 1; }
+
 if [ -f bun.lock ]; then
   step "bun install --frozen-lockfile" bun install --frozen-lockfile
+fi
+if [ -f site/bun.lock ]; then
+  step "bun install --frozen-lockfile (site)" bun install --frozen-lockfile --cwd site
 fi
 
 echo "[setup] rustc=$(rustc --version)"
