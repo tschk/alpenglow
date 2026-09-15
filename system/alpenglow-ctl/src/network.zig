@@ -84,6 +84,7 @@ fn parseOperstate(value: ?[]const u8) []const u8 {
 
 fn parseCarrier(value: ?[]const u8) ?bool {
     const v = value orelse return null;
+    if (v.len == 0) return null;
     return switch (v[0]) {
         '0' => false,
         '1' => true,
@@ -396,4 +397,16 @@ test "parseKind handles valid and edge case inputs" {
     try testing.expectEqualStrings("ethernet", parseKind("-"));
     try testing.expectEqualStrings("ethernet", parseKind("  "));
     try testing.expectEqualStrings("ethernet", parseKind("\n"));
+}
+
+test "parseCarrier handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqual(null, parseCarrier(null));
+    try testing.expectEqual(false, parseCarrier("0"));
+    try testing.expectEqual(true, parseCarrier("1"));
+    try testing.expectEqual(false, parseCarrier("0\n"));
+    try testing.expectEqual(true, parseCarrier("1\n"));
+    try testing.expectEqual(null, parseCarrier("2"));
+    try testing.expectEqual(null, parseCarrier(""));
+    try testing.expectEqual(null, parseCarrier("abc"));
 }
