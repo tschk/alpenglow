@@ -15,8 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        # Needed so later `git push` / `gh pr create` can use GITHUB_TOKEN.
         with:
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
