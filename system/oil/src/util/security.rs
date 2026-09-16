@@ -24,9 +24,6 @@ pub fn validate_download_url(url: &str) -> Result<()> {
             "refusing insecure download URL: {url}"
         )));
     }
-    if std::env::var_os("OIL_ALLOW_ANY_DOWNLOAD_HOST").is_some() {
-        return Ok(());
-    }
     let parsed: ureq::http::Uri = url
         .parse()
         .map_err(|_| OilError::Install(format!("invalid download URL: {url}")))?;
@@ -45,7 +42,7 @@ pub fn validate_download_url(url: &str) -> Result<()> {
         return Ok(());
     }
     Err(OilError::Install(format!(
-        "download host not allowed: {host} (set OIL_ALLOW_ANY_DOWNLOAD_HOST=1 to override)"
+        "download host not allowed: {host}"
     )))
 }
 
@@ -156,6 +153,19 @@ mod tests {
     #[test]
     fn get_validated_rejects_disallowed_host_before_fetch() {
         let err = get_validated("https://attacker.example/payload").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn allow_any_download_host_env_does_not_bypass_allowlist() {
+        let _lock = env_lock();
+        std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
+        let err = validate_download_url("https://attacker.example/payload").unwrap_err();
+        std::env::remove_var("OIL_ALLOW_ANY_DOWNLOAD_HOST");
         let msg = err.to_string();
         assert!(
             msg.contains("download host not allowed"),
