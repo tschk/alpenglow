@@ -7,7 +7,7 @@ initramfs_detect_codec() {
   case "${magic}" in
     1f8b*) printf '%s\n' gzip ;;
     28b52ffd) printf '%s\n' zstd ;;
-    04224d18) printf '%s\n' lz4 ;;
+    04224d18 | 02214c18) printf '%s\n' lz4 ;;
     *) printf '%s\n' unknown ;;
   esac
 }

@@ -59,7 +59,7 @@ INITRAMFS="${ARM_DIR}/initramfs-${EDITION}.cpio.gz"
 ROOTFS="${ARM_DIR}/rootfs-${EDITION}"
 test -s "${KERNEL}"
 test -s "${INITRAMFS}"
-test -d "${ROOTFS}"
+# build-aarch64-desktop.sh deletes ROOTFS after packing the initramfs.
 
 # Rootfs can be hundreds of MB; drop it before allocating the GPT image.
 rm -f "${ARM_DIR}/linux-"*.tar.xz "${ARM_DIR}/initramfs-proper.cpio.lz4"
