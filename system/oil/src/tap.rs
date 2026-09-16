@@ -135,7 +135,12 @@ impl TapRegistry {
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
             let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
-            return Ok(packages);
+            if packages
+                .iter()
+                .all(|p| crate::util::security::validate_download_url(&p.download_url).is_ok())
+            {
+                return Ok(packages);
+            }
         }
         self.update()
     }
@@ -283,6 +288,36 @@ mod tests {
                 None => std::env::remove_var("HOME"),
             }
         }
+    }
+
+    #[test]
+    fn load_refetches_when_cache_has_disallowed_download_url() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("poison", "https://attacker.example/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+        let poisoned = [PackageMetadata {
+            name: "evil".into(),
+            version: "1".into(),
+            description: String::new(),
+            download_url: "https://attacker.example/evil.apk".into(),
+            sha256: None,
+            installed_size: 0,
+            depends: Vec::new(),
+            provides: Vec::new(),
+        }];
+        std::fs::write(
+            &cache_path,
+            serde_json::to_vec(&poisoned).expect("serialize"),
+        )
+        .expect("write poisoned tap cache");
+        let err = registry
+            .load()
+            .expect_err("poisoned tap cache must not be used");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed") || msg.contains("Failed to fetch tap index"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]
