@@ -16,7 +16,20 @@ fn find_apk_key(keyname: &str) -> Option<String> {
     find_apk_key_in_root(Path::new("/"), keyname)
 }
 
+fn is_safe_apk_keyname(keyname: &str) -> bool {
+    !keyname.is_empty()
+        && !keyname.contains('/')
+        && !keyname.contains('\\')
+        && !keyname.contains('\0')
+        && Path::new(keyname)
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+}
+
 fn find_apk_key_in_root(root: &Path, keyname: &str) -> Option<String> {
+    if !is_safe_apk_keyname(keyname) {
+        return None;
+    }
     let candidates = [
         format!("etc/apk/keys/{keyname}.pub"),
         format!("usr/share/apk/keys/{keyname}.pub"),
@@ -669,6 +682,23 @@ mod tests {
         // Empty directory
         let result = find_apk_key_in_root(dir.path(), "testkey4");
         assert!(result.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_apk_key_in_root_rejects_path_keyname(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let keys_dir = dir.path().join("etc/apk/keys");
+        std::fs::create_dir_all(&keys_dir)?;
+        std::fs::write(
+            keys_dir.join("legit.pub"),
+            "-----BEGIN PUBLIC KEY-----\ndata",
+        )?;
+        assert!(find_apk_key_in_root(dir.path(), "../etc/passwd").is_none());
+        assert!(find_apk_key_in_root(dir.path(), "a/b").is_none());
+        assert!(find_apk_key_in_root(dir.path(), "").is_none());
+        assert!(find_apk_key_in_root(dir.path(), "legit").is_some());
         Ok(())
     }
 

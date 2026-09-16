@@ -112,12 +112,10 @@ impl TapRegistry {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
 
-        crate::util::security::validate_download_url(&url)?;
-
         eprintln!("Fetching tap index: {url}");
-        let resp = ureq::get(&url)
-            .call()
-            .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
+        let resp = crate::util::security::get_validated(&url).map_err(|e| {
+            OilError::Install(format!("Failed to fetch tap index from {url}: {e}"))
+        })?;
         let mut body = Vec::new();
         resp.into_body()
             .into_reader()
