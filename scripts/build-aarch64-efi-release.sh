@@ -61,22 +61,17 @@ test -s "${KERNEL}"
 test -s "${INITRAMFS}"
 # build-aarch64-desktop.sh deletes ROOTFS after packing the initramfs.
 
-# Rootfs can be hundreds of MB; drop it before allocating the GPT image.
+# Kernel docker builds leave a root-owned linux-* tree plus debian/alpine images.
+# Reclaim them before truncate(1G) — that is what OOMs GHA aarch64 desktop.
 rm -f "${ARM_DIR}/linux-"*.tar.xz "${ARM_DIR}/initramfs-proper.cpio.lz4"
-if [ -d "${ROOTFS}" ]; then
-  rm -rf "${ROOTFS}" 2>/dev/null || \
-    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
-      rm -rf "/out/rootfs-${EDITION}" 2>/dev/null || true
-fi
-for _k in "${ARM_DIR}"/linux-*; do
-  [ -e "${_k}" ] || continue
-  rm -rf "${_k}" 2>/dev/null || \
-    docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
-      sh -c 'rm -rf /out/linux-*' 2>/dev/null || true
-  break
-done
-docker image prune -f >/dev/null 2>&1 || true
-docker system prune -f >/dev/null 2>&1 || true
+docker run --rm --platform linux/amd64 -v "${ARM_DIR}:/out" alpine:3.21 \
+  sh -c 'rm -rf /out/linux-* /out/rootfs-* /out/*.tar.xz' >/dev/null 2>&1 || true
+rm -rf "${ROOTFS}" "${ARM_DIR}"/linux-* 2>/dev/null || true
+rm -rf "${ROOT_DIR}/target" "${ROOT_DIR}/build/sysroots" "${ROOT_DIR}/.zig-cache" 2>/dev/null || true
+docker rmi debian:bookworm-slim >/dev/null 2>&1 || true
+docker image prune -af >/dev/null 2>&1 || true
+docker builder prune -af >/dev/null 2>&1 || true
+df -h "${ARM_DIR}" "${OUT_DIR}" / 2>/dev/null || df -h /
 
 mkdir -p "${OUT_DIR}" "${ASSET_DIR}" "${MNT_ESP}"
 if [ ! -f "${LIMINE_DIR}/BOOTAA64.EFI" ]; then
