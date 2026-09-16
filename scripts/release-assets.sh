@@ -73,7 +73,12 @@ require_cmd zstd
 if [ "${ARCH}" = "aarch64" ] && [ "${BUILD_PROFILE}" = "desktop" ]; then
   cargo build --release --target "${RUST_TARGET}" --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
     --target-dir "${ROOT_DIR}/target" --bin alpenglow-install
-  sh "${ROOT_DIR}/scripts/build-aarch64-efi-release.sh" "${EDITION}" "${VERSION}" "${INSTALLER_DIR}/alpenglow-install"
+  mkdir -p "${OUT_DIR}"
+  INSTALLER_BIN="${OUT_DIR}/alpenglow-install"
+  cp "${INSTALLER_DIR}/alpenglow-install" "${INSTALLER_BIN}"
+  # Drop Cargo/sysroot trees before the kernel+image step; GHA aarch64 desktop OOMs disk otherwise.
+  rm -rf "${ROOT_DIR}/target" "${ROOT_DIR}/build/sysroots" "${ROOT_DIR}/.zig-cache"
+  sh "${ROOT_DIR}/scripts/build-aarch64-efi-release.sh" "${EDITION}" "${VERSION}" "${INSTALLER_BIN}"
   exit 0
 fi
 

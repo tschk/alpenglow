@@ -131,5 +131,9 @@ assert_file scripts/test-initramfs-codec-identity.sh
 sh -n scripts/lib/initramfs-codec-identity.sh
 sh -n scripts/test-initramfs-codec-identity.sh
 sh scripts/test-initramfs-codec-identity.sh
+sh -n scripts/build-aarch64-efi-release.sh
+sh -n scripts/release-assets.sh
+assert_contains scripts/release-assets.sh 'build/sysroots'
+assert_contains scripts/build-aarch64-efi-release.sh 'docker image prune -af'
 
 printf 'ci-os-appliance: ok\n'
