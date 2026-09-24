@@ -114,3 +114,32 @@ pub fn main() !void {
         },
     }
 }
+
+test "modeFromSubcommand returns correct modes" {
+    const testing = std.testing;
+
+    // kernel
+    try testing.expectEqual(Mode.kernel, modeFromSubcommand("kernel"));
+    try testing.expectEqual(Mode.kernel, modeFromSubcommand("kernelctl"));
+
+    // network
+    try testing.expectEqual(Mode.network, modeFromSubcommand("net"));
+    try testing.expectEqual(Mode.network, modeFromSubcommand("netd"));
+
+    // pressure
+    try testing.expectEqual(Mode.pressure, modeFromSubcommand("pressure"));
+    try testing.expectEqual(Mode.pressure, modeFromSubcommand("pressurectl"));
+
+    // zram
+    try testing.expectEqual(Mode.zram, modeFromSubcommand("zram"));
+    try testing.expectEqual(Mode.zram, modeFromSubcommand("zramctl"));
+
+    // help
+    try testing.expectEqual(Mode.help, modeFromSubcommand("help"));
+    try testing.expectEqual(Mode.help, modeFromSubcommand("--help"));
+    try testing.expectEqual(Mode.help, modeFromSubcommand("-h"));
+
+    // null / invalid
+    try testing.expectEqual(@as(?Mode, null), modeFromSubcommand("unknown"));
+    try testing.expectEqual(@as(?Mode, null), modeFromSubcommand(""));
+}
