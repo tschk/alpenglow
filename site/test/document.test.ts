@@ -1,5 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { renderDocument, renderResponse } from "../src/document";
+import { renderDocument, renderResponse, route } from "../src/document";
+
+describe("route", () => {
+  test("exports expected RouteArtifact configuration", () => {
+    expect(route.id).toBe("home");
+    expect(route.path).toBe("/");
+    expect(route.mode).toBe("static");
+    expect(route.runtime).toBe("bun");
+    expect(route.decision).toBe("server");
+    expect(route.clientEntries).toEqual(["/shell.js"]);
+    expect(route.file).toMatch(/App\.tsx$/);
+  });
+});
 
 describe("renderResponse", () => {
   test("returns Response with expected headers and HTML", async () => {
