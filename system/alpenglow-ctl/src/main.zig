@@ -178,3 +178,25 @@ test "modeFromSubcommand returns correct modes" {
     try testing.expectEqual(@as(?Mode, null), modeFromSubcommand("unknown"));
     try testing.expectEqual(@as(?Mode, null), modeFromSubcommand(""));
 }
+
+
+test "modeFromArgv0" {
+    const testing = std.testing;
+
+    try testing.expectEqual(Mode.kernel, modeFromArgv0("alpenglow-kernelctl"));
+    try testing.expectEqual(Mode.kernel, modeFromArgv0("kernelctl"));
+    try testing.expectEqual(Mode.kernel, modeFromArgv0("/usr/bin/kernelctl"));
+
+    try testing.expectEqual(Mode.network, modeFromArgv0("alpenglow-netd-zig"));
+    try testing.expectEqual(Mode.network, modeFromArgv0("alpenglow-netd"));
+    try testing.expectEqual(Mode.network, modeFromArgv0("netd"));
+
+    try testing.expectEqual(Mode.pressure, modeFromArgv0("alpenglow-pressurectl-zig"));
+    try testing.expectEqual(Mode.pressure, modeFromArgv0("pressurectl"));
+
+    try testing.expectEqual(Mode.zram, modeFromArgv0("alpenglow-zramctl-zig"));
+    try testing.expectEqual(Mode.zram, modeFromArgv0("zramctl"));
+
+    try testing.expectEqual(@as(?Mode, null), modeFromArgv0("alpenglow-ctl"));
+    try testing.expectEqual(@as(?Mode, null), modeFromArgv0("unknownctl"));
+}
