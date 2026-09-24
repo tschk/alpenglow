@@ -122,6 +122,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_default_install_path() {
+        assert_eq!(default_install_path(), "/usr/local");
+    }
+
+    #[test]
     fn parses_minimal_recipe() {
         let yaml = r#"
 name: toybox
