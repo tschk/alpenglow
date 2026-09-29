@@ -36,13 +36,17 @@ Measured 2026-09-29 on an Apple M5 Pro, QEMU 11.0.2 TCG (no HVF in this qemu-sys
 | pc + `-cpu 486` | refused: kernel wants an i686 |
 | pc + `-cpu pentium` | refused: kernel wants an i686 |
 | pc + `-cpu pentium2`, 96 MiB | banner at 22s |
+| pc + `-cpu pentium2`, 64 MiB | banner at 2s (warm host) |
+| pc + `-cpu pentium2`, 32 MiB | panics: initrd unpacks over the RAM disk |
 | pc + `-cpu pentium3`, 128 MiB | banner at 18s |
-| ppc `g3beige` | no powerpc kernel |
-| arm `collie` (SA-1110, nearest iPAQ machine) | no armv5 kernel |
+| ppc `g3beige` | kernel not built here; `scripts/build-legacy-kernels.sh ppc` |
+| arm `versatilepb` (armv5 stand-in for the iPAQ) | kernel not built here; `scripts/build-legacy-kernels.sh armv5` |
 
-## armv5 (iPAQ-class) — not a target
+The Zig init now builds for 32-bit targets. `build/legacy/init-powerpc` (8.5K, PowerPC) and `build/legacy/init-armv5` (8.6K, ARM EABI) are static musl binaries, packed as `initramfs-powerpc.cpio.gz` and `initramfs-armv5.cpio.gz`. They need the kernels above to boot. Building those kernels needs the linux-7.1.3 tarball and Docker; the kernel.org download did not finish on this link.
 
-The Compaq iPAQ H3600 is a StrongARM SA-1110 board. QEMU has no H3600 machine; the nearest is `collie` (Sharp Zaurus SL-5500, same SA-1110). Alpenglow's kernel and userland are built for x86_64, aarch64, and riscv64, none of which that CPU can run. Porting it means a new kernel config, an armv5 soft-float musl userspace, and a board boot chain. None of that exists.
+## armv5 (iPAQ-class)
+
+The Compaq iPAQ H3600 is a StrongARM SA-1110 board, and QEMU has no H3600 machine. `collie` is the SA-1110 machine, but mainline Linux no longer boots on it. `versatilepb` is the armv5 machine a current kernel can boot, so `system/backends/legacy/armv5.fragment` targets that. It is a stand-in for measuring an armv5 boot, not an iPAQ port.
 
 ## Rockchip RK3566 — main
 

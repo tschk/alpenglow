@@ -1,0 +1,23 @@
+# Alpenglow legacy: ARM926 (armv5) for QEMU versatilepb.
+# The Compaq iPAQ H3600 is an SA-1110, which QEMU does not emulate. versatilepb
+# is the armv5 machine QEMU can boot a mainline kernel on, so this is the
+# closest measurable stand-in, not an iPAQ port.
+CONFIG_ARCH_VERSATILE=y
+CONFIG_AEABI=y
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_RD_GZIP=y
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+CONFIG_TMPFS=y
+CONFIG_SERIAL_AMBA_PL011=y
+CONFIG_SERIAL_AMBA_PL011_CONSOLE=y
+CONFIG_MODULES=n
+CONFIG_NET=n
+CONFIG_DRM=n
+CONFIG_SOUND=n
+CONFIG_USB_SUPPORT=n
+CONFIG_FB=n
+CONFIG_KALLSYMS=n
+CONFIG_DEBUG_KERNEL=n
+CONFIG_FTRACE=n
+CONFIG_PRINTK_TIME=n

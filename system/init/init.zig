@@ -2,10 +2,15 @@ const std = @import("std");
 
 var SHM_OPTS: [64:0]u8 = undefined;
 
+fn at_fdcwd() usize {
+    // AT_FDCWD is -100. Cast through isize so this is the right width on
+    // 32-bit targets; a bare u64 does not fit in a 32-bit syscall argument.
+    return @bitCast(@as(isize, -100));
+}
+
 fn shm_mount_opts() [*:0]const u8 {
-    const AT_FDCWD: i64 = -100;
     const O_RDONLY: u32 = 0;
-    const fd = std.os.linux.syscall3(.openat, @as(u64, @bitCast(AT_FDCWD)), @intFromPtr("/proc/meminfo"), O_RDONLY);
+    const fd = std.os.linux.syscall3(.openat, at_fdcwd(), @intFromPtr("/proc/meminfo"), O_RDONLY);
     if (syserr2errno(fd) != .SUCCESS) return "mode=1777,size=256m";
     var buf: [1024]u8 = undefined;
     const n = std.os.linux.syscall3(.read, @as(usize, @intCast(fd)), @intFromPtr(&buf), buf.len);
@@ -36,7 +41,7 @@ fn syserr2errno(ret: u64) std.os.linux.E {
     return @enumFromInt(-signed);
 }
 
-fn mount(src: [*:0]const u8, target: [*:0]const u8, fstype: [*:0]const u8, flags: u64, data: ?*anyopaque) !void {
+fn mount(src: [*:0]const u8, target: [*:0]const u8, fstype: [*:0]const u8, flags: usize, data: ?*anyopaque) !void {
     const ret = std.os.linux.syscall5(
         .mount,
         @intFromPtr(src),
@@ -51,11 +56,11 @@ fn mount(src: [*:0]const u8, target: [*:0]const u8, fstype: [*:0]const u8, flags
 }
 
 fn mkdir(path: [*:0]const u8, mode: u32) void {
-    _ = std.os.linux.syscall3(.mkdirat, @as(u64, @bitCast(@as(i64, -100))), @intFromPtr(path), mode);
+    _ = std.os.linux.syscall3(.mkdirat, at_fdcwd(), @intFromPtr(path), mode);
 }
 
 fn write_console(msg: []const u8) void {
-    const fd = std.os.linux.syscall3(.openat, @as(u64, @bitCast(@as(i64, -100))), @intFromPtr("/dev/console"), 0x101);
+    const fd = std.os.linux.syscall3(.openat, at_fdcwd(), @intFromPtr("/dev/console"), 0x101);
     if (fd >= 0) {
         _ = std.os.linux.syscall3(.write, @as(usize, @intCast(fd)), @intFromPtr(msg.ptr), msg.len);
         _ = std.os.linux.syscall1(.close, @as(usize, @intCast(fd)));
@@ -97,7 +102,7 @@ pub fn main() void {
     mkdir("/dev", 0o755);
     mount("devtmpfs", "/dev", "devtmpfs", 0, null) catch {};
 
-    const tmpfs_flags: u64 = std.os.linux.MS.NOSUID | std.os.linux.MS.NODEV | std.os.linux.MS.NOEXEC;
+    const tmpfs_flags: usize = std.os.linux.MS.NOSUID | std.os.linux.MS.NODEV | std.os.linux.MS.NOEXEC;
 
     mkdir("/run", 0o755);
     mount("tmpfs", "/run", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr("mode=0755"))) catch {};
