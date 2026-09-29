@@ -97,7 +97,7 @@ pub fn main() void {
     mkdir("/dev", 0o755);
     mount("devtmpfs", "/dev", "devtmpfs", 0, null) catch {};
 
-    const tmpfs_flags: u64 = std.os.linux.MS.NOSUID | std.os.linux.MS.NODEV;
+    const tmpfs_flags: u64 = std.os.linux.MS.NOSUID | std.os.linux.MS.NODEV | std.os.linux.MS.NOEXEC;
 
     mkdir("/run", 0o755);
     mount("tmpfs", "/run", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr("mode=0755"))) catch {};
