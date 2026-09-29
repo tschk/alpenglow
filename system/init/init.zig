@@ -103,11 +103,13 @@ pub fn main() void {
     mount("tmpfs", "/run", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr("mode=0755"))) catch {};
 
     mkdir("/dev/shm", 0o1777);
+    mount("tmpfs", "/dev/shm", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr(shm_mount_opts()))) catch {};
 
     mkdir("/run/user", 0o755);
     mkdir("/run/user/0", 0o700);
     mkdir("/state", 0o700);
     mkdir("/tmp", 0o1777);
+    mount("tmpfs", "/tmp", "tmpfs", tmpfs_flags, @ptrFromInt(@intFromPtr("mode=1777"))) catch {};
 
     write_console("\nAlpenglow boot\n\n");
 
