@@ -148,7 +148,7 @@ fn mainInner() !void {
             try validateCgroupAttachGroup(group);
             const cg = try std.fmt.allocPrint(allocator, "/sys/fs/cgroup/alpenglow/{s}", .{group});
             defer allocator.free(cg);
-            makePathRecursive(cg) catch {};
+            try makePathRecursive(cg);
             const buf = try std.fmt.allocPrint(allocator, "{d}\n", .{pid});
             defer allocator.free(buf);
             try writeKernelFile(cg, "cgroup.procs", buf);
@@ -253,7 +253,7 @@ fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) KernelFil
 }
 
 fn writeEnv(path: []const u8, key: []const u8, value: []const u8) !void {
-    if (std.fs.path.dirname(path)) |parent| makePathRecursive(parent) catch {};
+    if (std.fs.path.dirname(path)) |parent| try makePathRecursive(parent);
     const line = try std.fmt.allocPrint(std.heap.page_allocator, "{s}={s}\n", .{ key, value });
     defer std.heap.page_allocator.free(line);
     try writeFile(path, line, true);
