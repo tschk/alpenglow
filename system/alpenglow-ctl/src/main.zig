@@ -73,8 +73,7 @@ fn modeFromSubcommand(word: []const u8) ?Mode {
     return null;
 }
 
-fn detectMode(allocator: std.mem.Allocator) !Mode {
-    const args = try readCmdline(allocator);
+fn detectModeFromArgs(args: []const []const u8) Mode {
     if (args.len == 0) return .help;
 
     const exe = std.fs.path.basename(args[0]);
@@ -85,6 +84,42 @@ fn detectMode(allocator: std.mem.Allocator) !Mode {
     }
 
     return .help;
+}
+
+fn detectMode(allocator: std.mem.Allocator) !Mode {
+    const args = try readCmdline(allocator);
+    return detectModeFromArgs(args);
+}
+
+test "detectModeFromArgs argv0 matching" {
+    try std.testing.expectEqual(Mode.kernel, detectModeFromArgs(&[_][]const u8{"alpenglow-kernelctl"}));
+    try std.testing.expectEqual(Mode.kernel, detectModeFromArgs(&[_][]const u8{"/usr/bin/kernelctl"}));
+    try std.testing.expectEqual(Mode.network, detectModeFromArgs(&[_][]const u8{"alpenglow-netd-zig"}));
+    try std.testing.expectEqual(Mode.network, detectModeFromArgs(&[_][]const u8{"alpenglow-netd"}));
+    try std.testing.expectEqual(Mode.network, detectModeFromArgs(&[_][]const u8{"netd"}));
+    try std.testing.expectEqual(Mode.pressure, detectModeFromArgs(&[_][]const u8{"/sbin/pressurectl"}));
+    try std.testing.expectEqual(Mode.zram, detectModeFromArgs(&[_][]const u8{"zramctl"}));
+}
+
+test "detectModeFromArgs subcommand matching" {
+    try std.testing.expectEqual(Mode.kernel, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "kernel"}));
+    try std.testing.expectEqual(Mode.kernel, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "kernelctl"}));
+    try std.testing.expectEqual(Mode.network, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "net"}));
+    try std.testing.expectEqual(Mode.network, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "netd"}));
+    try std.testing.expectEqual(Mode.pressure, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "pressure"}));
+    try std.testing.expectEqual(Mode.pressure, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "pressurectl"}));
+    try std.testing.expectEqual(Mode.zram, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "zram"}));
+    try std.testing.expectEqual(Mode.zram, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "zramctl"}));
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "help"}));
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "--help"}));
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "-h"}));
+}
+
+test "detectModeFromArgs fallbacks and invalid inputs" {
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{}));
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl"}));
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{"unknown-program"}));
+    try std.testing.expectEqual(Mode.help, detectModeFromArgs(&[_][]const u8{"alpenglow-ctl", "invalid"}));
 }
 
 fn printHelp() void {
