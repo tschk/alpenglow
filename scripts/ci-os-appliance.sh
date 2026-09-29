@@ -57,15 +57,15 @@ assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.co
 
 # Build scripts
 assert_file scripts/boot-native.sh
-sh -n scripts/boot-native.sh 2>/dev/null || true
+sh -n scripts/boot-native.sh || fail "syntax: scripts/boot-native.sh"
 for lib_script in scripts/lib/*.sh; do
   [ -f "${lib_script}" ] || continue
-  sh -n "${lib_script}" 2>/dev/null || true
+  sh -n "${lib_script}" || fail "syntax: ${lib_script}"
 done
 assert_file scripts/build.sh
-sh -n scripts/build.sh 2>/dev/null || true
+sh -n scripts/build.sh || fail "syntax: scripts/build.sh"
 assert_file scripts/build-release.sh
-sh -n scripts/build-release.sh 2>/dev/null || true
+sh -n scripts/build-release.sh || fail "syntax: scripts/build-release.sh"
 
 # Rust crates compile
 cargo check 2>/dev/null || echo "warning: cargo check failed (expected outside Linux)"

@@ -45,7 +45,7 @@ jobs:
           toolchain: 1.93.0
           components: rust-src
       - name: Install bindgen
-        run: cargo install bindgen-cli --locked 2>/dev/null
+        run: cargo install bindgen-cli --locked
       - name: Build Rust kernel module
         run: scripts/ci-rust-kernel-module.sh
 
@@ -58,7 +58,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked 2>/dev/null
+        run: cargo install cargo-audit --locked
       - name: Run cargo audit
         run: cargo audit --deny warnings 2>&1 || echo "cargo audit found issues (non-blocking)"
 
