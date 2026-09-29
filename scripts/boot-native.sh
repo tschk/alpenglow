@@ -14,6 +14,7 @@ ROOTFS_DIR="${OUT_DIR}/rootfs"
 KERNEL_IMAGE="${OUT_DIR}/vmlinuz"
 TOYBOX_VERSION="0.8.11"
 DINIT_VERSION="0.19.2"
+DINIT_SHA256="ce05089ce3590ee54bce5352fa10b3748dd3e2fb5fb164c024b863a5a7d12590"
 KERNEL_VERSION="${KERNEL_VERSION:-7.1.3}"
 KERNEL_7="${KERNEL_7:-1}"
 KERNEL_CONFIG="${KERNEL_CONFIG:-alpenglow-qemu-minimal}"
@@ -122,6 +123,7 @@ build_dinit() {
   docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache g++ make curl tar xz musl-dev bash >/dev/null
     curl -fsSL https://github.com/davmac314/dinit/releases/download/v'"${DINIT_VERSION}"'/dinit-'"${DINIT_VERSION}"'.tar.xz -o /tmp/dinit.tar.xz
+    echo "'"${DINIT_SHA256}"'  /tmp/dinit.tar.xz" | sha256sum -c - || exit 1
     tar -xf /tmp/dinit.tar.xz -C /tmp
     cd /tmp/dinit-'"${DINIT_VERSION}"'
     ./configure --static >/dev/null 2>&1
