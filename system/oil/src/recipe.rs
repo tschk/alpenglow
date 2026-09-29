@@ -226,4 +226,17 @@ source:
         let recipe = Recipe::load(&path).expect("recipe should load");
         assert_eq!(recipe.name, "pkg");
     }
+
+    #[test]
+    fn install_dest_returns_pathbuf() {
+        let yaml = r#"
+name: custom-dest
+version: "1.0"
+source:
+  url: https://example.com/custom.apk
+install: /opt/custom
+"#;
+        let recipe = Recipe::parse(yaml).expect("recipe should parse");
+        assert_eq!(recipe.install_dest(), std::path::PathBuf::from("/opt/custom"));
+    }
 }
