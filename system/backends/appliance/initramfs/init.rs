@@ -19,7 +19,17 @@ fn main() {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
-    run("/bin/mount", &["-t", "tmpfs", "-o", "nosuid,nodev,mode=0755", "tmpfs", "/run"]);
+    run(
+        "/bin/mount",
+        &[
+            "-t",
+            "tmpfs",
+            "-o",
+            "nosuid,nodev,mode=0755",
+            "tmpfs",
+            "/run",
+        ],
+    );
     let mut shm_size = String::from("mode=1777,size=256m");
     if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
         for line in meminfo.lines() {
@@ -35,11 +45,25 @@ fn main() {
     }
     run(
         "/bin/mount",
-        &["-t", "tmpfs", "-o", &format!("nosuid,nodev,{}", shm_size), "tmpfs", "/dev/shm"],
+        &[
+            "-t",
+            "tmpfs",
+            "-o",
+            &format!("nosuid,nodev,{}", shm_size),
+            "tmpfs",
+            "/dev/shm",
+        ],
     );
     run(
         "/bin/mount",
-        &["-t", "tmpfs", "-o", "nosuid,nodev,mode=1777", "tmpfs", "/tmp"],
+        &[
+            "-t",
+            "tmpfs",
+            "-o",
+            "nosuid,nodev,mode=1777",
+            "tmpfs",
+            "/tmp",
+        ],
     );
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
@@ -52,6 +76,15 @@ fn main() {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
+        if m.is_empty()
+            || m.starts_with('-')
+            || !m
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            eprintln!("init: invalid module name: {}", m);
+            continue;
+        }
         match Command::new("/sbin/modprobe").arg(m).env_clear().status() {
             Ok(status) if !status.success() => {
                 eprintln!("init: modprobe {} failed with status: {}", m, status);
