@@ -256,14 +256,26 @@ fn refresh_tap_packages(
 }
 
 #[cfg(feature = "wax")]
-fn load_registry() -> Result<Vec<system::registry::PackageMetadata>> {
+fn load_registry_internal() -> Result<Vec<system::registry::PackageMetadata>> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().load()?;
     Ok(merge_tap_packages(apk))
 }
 
 #[cfg(not(feature = "wax"))]
-fn load_registry() -> Result<Vec<system::registry::PackageMetadata>> {
+fn load_registry_internal() -> Result<Vec<system::registry::PackageMetadata>> {
     system::registry::apk::ApkRegistry::alpine_default().load()
+}
+
+fn load_registry() -> Result<&'static [system::registry::PackageMetadata]> {
+    static REGISTRY: std::sync::OnceLock<Vec<system::registry::PackageMetadata>> = std::sync::OnceLock::new();
+
+    if let Some(pkgs) = REGISTRY.get() {
+        return Ok(pkgs.as_slice());
+    }
+
+    let pkgs = load_registry_internal()?;
+    let final_pkgs = REGISTRY.get_or_init(|| pkgs);
+    Ok(final_pkgs.as_slice())
 }
 
 #[cfg(feature = "wax")]
@@ -293,7 +305,7 @@ fn run_system_add(packages: Vec<String>, prefix: Option<PathBuf>, dry_run: bool)
     }
     let dest = install_dest(system_prefix(prefix).as_deref())?;
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     for name in packages {
         let pkg = index
             .find(&name)
@@ -387,7 +399,7 @@ fn oil_secure_tmp_dir() -> Result<PathBuf> {
 
 fn run_search(query: String) -> Result<()> {
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     let q = query.to_ascii_lowercase();
     let q_bytes = q.as_bytes();
     let mut results: Vec<_> = index
@@ -411,7 +423,7 @@ fn run_search(query: String) -> Result<()> {
 
 fn run_info(formula: String) -> Result<()> {
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     match index.find(&formula) {
         Some(pkg) => {
             println!("Name: {}", pkg.name);
@@ -442,7 +454,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     }
 
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     let order = index.resolve_install_order(&pending, |name| state.get(name).is_some())?;
 
     let dest = if !dry_run {
@@ -514,7 +526,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
         packages
     };
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     let dest = install_dest(None)?;
     for name in &names {
         if let Some(_pkg) = state.get(name) {
@@ -577,7 +589,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     let targets = if packages.is_empty() {
         None
     } else {
@@ -619,7 +631,7 @@ fn run_outdated() -> Result<()> {
         return Ok(());
     }
     let registry_packages = load_registry()?;
-    let index = PackageIndex::new(&registry_packages);
+    let index = PackageIndex::new(registry_packages);
     let mut outdated = 0;
     for (name, pkg) in &installed {
         if let Some(latest) = index.find(name) {
