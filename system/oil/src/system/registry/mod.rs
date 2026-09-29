@@ -155,6 +155,23 @@ mod tests {
             ("pkg<=1.0", "pkg"),
             // weird prefixes
             ("!pkg", "!pkg"),
+            // missing edge cases
+            ("=1.0.0", ""),
+            ("<1.0.0", ""),
+            (">1.0.0", ""),
+            (" = 1.0", ""),
+            (" < 1.0", ""),
+            ("📦=1.0", "📦"),
+            ("name-with-🦀>1.0", "name-with-🦀"),
+            ("pkg\t=\n1.0", "pkg"),
+            ("pkg\r\n>1.0", "pkg"),
+            ("=", ""),
+            ("<", ""),
+            (">", ""),
+            ("<=>", ""),
+            ("=pkg", ""),
+            ("<pkg", ""),
+            (">pkg", ""),
         ];
 
         for (input, expected) in cases {
