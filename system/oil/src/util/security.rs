@@ -187,6 +187,27 @@ mod tests {
     }
 
     #[test]
+    fn validate_install_dest_edge_cases() {
+        assert_eq!(
+            validate_install_dest(Path::new("/opt/foo/bar")).unwrap(),
+            PathBuf::from("/opt/foo/bar")
+        );
+        assert_eq!(
+            validate_install_dest(Path::new("/usr/local/bin")).unwrap(),
+            PathBuf::from("/usr/local/bin")
+        );
+        assert_eq!(
+            validate_install_dest(Path::new("/opt/./foo")).unwrap(),
+            PathBuf::from("/opt/foo")
+        );
+        assert!(validate_install_dest(Path::new("/usr/bin")).is_err());
+        assert!(validate_install_dest(Path::new("usr/local")).is_err());
+        assert!(validate_install_dest(Path::new("/usr/local/../bin")).is_err());
+        assert!(validate_install_dest(Path::new("/opt2")).is_err());
+        assert!(validate_install_dest(Path::new("/usr/local_bin")).is_err());
+    }
+
+    #[test]
     fn resolve_install_dest_with_custom_prefix() {
         assert_eq!(
             resolve_install_dest(
