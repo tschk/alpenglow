@@ -1,3 +1,212 @@
 #!/bin/sh
-# ponytail: cross-build is already done, stub for Cupboard build pipeline
-exit 0
+# Cross-build Alpenglow components for aarch64 and riscv64
+# Uses Zig as primary cross-compiler for C/Zig, Rust target for Rust crates.
+set -eu
+
+REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+TARGET="${1:-aarch64-linux-musl}"
+BUILD_OUT="${REPO_ROOT}/build/cross/${TARGET}"
+NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+KERNEL_VERSION="${ALPENGLOW_KERNEL_VERSION:-7.0.14}"
+KERNEL_URL="${ALPENGLOW_KERNEL_URL:-https://www.kernel.org/pub/linux/kernel/v$(printf '%s' "${KERNEL_VERSION}" | cut -d. -f1).x/linux-${KERNEL_VERSION}.tar.xz}"
+KERNEL_DIR="linux-${KERNEL_VERSION}"
+
+case "${TARGET}" in
+  aarch64-linux-musl) ARCH=arm64 KARCH=aarch64 KERNEL_TARGET=Image;;
+  riscv64-linux-musl) ARCH=riscv KARCH=riscv64 KERNEL_TARGET=Image;;
+  *) echo "Usage: $0 {aarch64-linux-musl|riscv64-linux-musl}"; exit 1;;
+esac
+
+require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
+
+toolchain_docker_args() {
+  if [ -d "/opt/${KARCH}-linux-musl-cross" ]; then
+    printf '%s\n' "-v"
+    printf '%s\n' "/opt/${KARCH}-linux-musl-cross:/host-musl-cross:ro"
+  fi
+}
+
+echo "=== Cross-build: ${TARGET} ==="
+mkdir -p "${BUILD_OUT}"
+
+# 1. Kernel (minimal config, built in Docker with musl.cc toolchain)
+build_kernel() {
+  local KD="${BUILD_OUT}/kernel-src"
+  if [ ! -d "${KD}" ]; then
+    case "${KERNEL_URL}" in
+      *.tar.gz) curl -fsSL "${KERNEL_URL}" | tar -xz -C "${BUILD_OUT}" ;;
+      *.tar.xz) curl -fsSL "${KERNEL_URL}" | tar -xJ -C "${BUILD_OUT}" ;;
+      *) echo "unsupported kernel archive: ${KERNEL_URL}"; exit 1 ;;
+    esac
+    mv "${BUILD_OUT}/${KERNEL_DIR}" "${KD}"
+  fi
+
+  echo "→ Building kernel in Docker..."
+  require_cmd docker
+
+  docker run --rm --platform linux/amd64 \
+    -e ARCH="${ARCH}" \
+    -e KARCH="${KARCH}" \
+    -e KERNEL_TARGET="${KERNEL_TARGET}" \
+    $(toolchain_docker_args) \
+    -v "${BUILD_OUT}:/out" \
+    -v "${REPO_ROOT}:/repo:ro" \
+    alpine:3.21 sh -c '
+      set -eu
+      apk add --no-cache bash bc bison curl elfutils-dev findutils flex gawk gcc make musl-dev openssl-dev perl tar xz >/dev/null
+      if [ -d /host-musl-cross ]; then
+        ln -s /host-musl-cross "/opt/${KARCH}-linux-musl-cross"
+      else
+        curl -fsSL "https://musl.cc/${KARCH}-linux-musl-cross.tgz" | tar -xz -C /opt
+      fi
+      export PATH="/opt/${KARCH}-linux-musl-cross/bin:${PATH}"
+      KD=/out/kernel-src
+      cd "${KD}"
+      # Rebuild host tools inside the container (the previous host build may
+      # have produced glibc-linked binaries that cannot run on Alpine musl).
+      make clean >/dev/null 2>&1 || true
+      make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" defconfig
+      make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" rust.config 2>/dev/null || true
+
+      scripts/config \
+        --enable BLK_DEV_INITRD --enable RD_GZIP --enable RD_ZSTD \
+        --disable MODULE_SIG_FORMAT --disable MODULE_SIG --disable MODULE_SIG_ALL \
+        --disable MODULE_COMPRESS --disable MODULE_COMPRESS_GZIP --disable MODULE_COMPRESS_ALL \
+        --disable DEBUG_FS --disable DEBUG_KERNEL --disable DEBUG_INFO --disable FTRACE \
+        --disable STACKTRACE --disable SCHED_DEBUG --disable MAGIC_SYSRQ
+
+      if [ "${ARCH}" = "arm64" ] && [ -f /repo/system/backends/rk3566/kernel-rockchip-rk3566.config ]; then
+        cat /repo/system/backends/rk3566/kernel-rockchip-rk3566.config >> .config
+      fi
+
+      make ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" olddefconfig 2>/dev/null
+      make -j"$(nproc)" ARCH="${ARCH}" CROSS_COMPILE="${KARCH}-linux-musl-" "${KERNEL_TARGET}" dtbs 2>&1 | tail -5
+      cp "arch/${ARCH}/boot/${KERNEL_TARGET}" /out/vmlinuz
+    ' 2>&1 | tail -10
+
+  if [ "${ARCH}" = "arm64" ]; then
+    for dtb in "${BUILD_OUT}/kernel-src/arch/arm64/boot/dts/rockchip/rk3566-orangepi-3b"*.dtb; do
+      [ -f "${dtb}" ] && cp "${dtb}" "${BUILD_OUT}/" && echo "  dtb: $(basename "${dtb}")"
+    done
+  fi
+
+  echo "  kernel: ${BUILD_OUT}/vmlinuz"
+}
+
+# 2. Zig components (kernelctl, glowfsctl, init)
+build_zig() {
+  echo "→ Building Zig components..."
+  require_cmd zig
+
+  # kernelctl-zig is a shim over alpenglow-ctl. glowfsctl-zig was removed.
+  for dir in system/alpenglow-ctl system/init; do
+    name="$(basename "${dir}")"
+    echo "  ${name}..."
+    cd "${REPO_ROOT}/${dir}"
+    zig build -Dtarget="${TARGET}" -Doptimize=ReleaseSmall -Drelease=true 2>/dev/null || \
+      zig build-exe -target "${TARGET}" -O ReleaseSmall -fstrip src/main.zig 2>/dev/null || {
+        echo "  skipping ${name} (zig build not configured, trying direct)"
+        zig build-exe -target "${TARGET}" -O ReleaseSmall -fstrip src/main.zig -o "${BUILD_OUT}/${name}" 2>/dev/null && \
+          echo "  ${name}: ${BUILD_OUT}/${name}" || echo "  ${name}: build failed"
+      }
+  done
+}
+
+# 3. Toybox
+build_toybox() {
+  echo "→ Building toybox..."
+  require_cmd docker
+  TOYBOX_VER="0.8.11"
+
+  docker run --rm $(toolchain_docker_args) -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
+    set -eu
+    apk add --no-cache make gcc musl-dev curl tar xz bash >/dev/null
+    if [ -d /host-musl-cross ]; then
+      ln -s /host-musl-cross /opt/${KARCH}-linux-musl-cross
+    else
+      curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    fi
+    export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
+    curl -fsSL https://github.com/landley/toybox/archive/refs/tags/${TOYBOX_VER}.tar.gz -o /tmp/tb.tar.gz
+    tar -xzf /tmp/tb.tar.gz -C /tmp
+    cd /tmp/toybox-${TOYBOX_VER}
+    make defconfig >/dev/null 2>&1
+    sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
+    sed -i 's/# CONFIG_SH is not set/CONFIG_SH=y/' .config
+    sed -i 's/# CONFIG_GETTY is not set/CONFIG_GETTY=y/' .config
+    sed -i 's/# CONFIG_UDHCPC is not set/CONFIG_UDHCPC=y/' .config
+    sed -i 's/# CONFIG_IFCONFIG is not set/CONFIG_IFCONFIG=y/' .config
+    sed -i 's/# CONFIG_ROUTE is not set/CONFIG_ROUTE=y/' .config
+    sed -i 's/CONFIG_VI=y/# CONFIG_VI is not set/' .config 2>/dev/null || true
+    make -j\$(nproc) CROSS_COMPILE=${KARCH}-linux-musl- LDFLAGS='-static' >/dev/null 2>&1
+    cp toybox /out/toybox
+  " 2>&1 | tail -1
+  echo "  toybox: ${BUILD_OUT}/toybox"
+}
+
+# 4. Dinit
+build_dinit() {
+  echo "→ Building dinit..."
+  require_cmd docker
+  DINIT_VER="0.19.2"
+
+  docker run --rm $(toolchain_docker_args) -v "${BUILD_OUT}:/out" alpine:3.21 sh -c "
+    set -eu
+    apk add --no-cache make g++ musl-dev m4 curl tar xz bash >/dev/null
+    if [ -d /host-musl-cross ]; then
+      ln -s /host-musl-cross /opt/${KARCH}-linux-musl-cross
+    else
+      curl -fsSL https://musl.cc/${KARCH}-linux-musl-cross.tgz | tar -xz -C /opt
+    fi
+    export PATH=/opt/${KARCH}-linux-musl-cross/bin:\$PATH
+    curl -fsSL https://github.com/davmac314/dinit/releases/download/v${DINIT_VER}/dinit-${DINIT_VER}.tar.xz -o /tmp/dinit.tar.xz
+    tar -xf /tmp/dinit.tar.xz -C /tmp
+    cd /tmp/dinit-${DINIT_VER}
+    ./configure --host=${KARCH}-linux-musl --static >/dev/null 2>&1
+    make -j\$(nproc) CXX=${KARCH}-linux-musl-g++ CXXFLAGS='-static -O2' LDFLAGS='-static' 2>&1 | tail -3
+    make install DESTDIR=/out/dinit-install STRIP=true 2>&1 | tail -3 || true
+    cp src/dinit /out/dinit 2>/dev/null || cp /out/dinit-install/sbin/dinit /out/dinit
+    cp src/dinitctl /out/dinit-install/sbin/dinitctl 2>/dev/null || true
+  " 2>&1 | tail -3
+  echo "  dinit: ${BUILD_OUT}/dinit"
+}
+
+# 5. Oil (Rust native package manager)
+build_oil() {
+  echo "→ Building Oil..."
+  require_cmd rustup
+  require_cmd cargo
+
+  rustup target add "${TARGET}" 2>/dev/null || true
+
+  cd "${REPO_ROOT}/system/oil"
+  RUSTFLAGS="-C target-feature=+crt-static" \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${KARCH}-linux-musl-gcc" \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_AR="${KARCH}-linux-musl-ar" \
+    cargo build --release --target "${TARGET}" 2>&1 | tail -3 || \
+    echo "  Oil: cross-build failed (try with musl-cross)"
+  cp "target/${TARGET}/release/oil" "${BUILD_OUT}/oil" 2>/dev/null || true
+  echo "  oil: ${BUILD_OUT}/oil"
+}
+
+case "${TARGET}" in
+  aarch64-linux-musl)
+    build_kernel
+    if command -v zig >/dev/null 2>&1; then build_zig; fi
+    if command -v docker >/dev/null 2>&1; then
+      build_toybox
+      build_dinit
+    fi
+    if command -v cargo >/dev/null 2>&1; then build_oil; fi
+    ;;
+  riscv64-linux-musl)
+    build_kernel
+    if command -v zig >/dev/null 2>&1; then build_zig; fi
+    echo "  Note: toybox/dinit RISC-V cross-build requires musl-cross"
+    echo "  Try: https://github.com/richfelker/musl-cross-make"
+    ;;
+esac
+
+echo ""
+echo "=== Cross-build complete ==="
+ls -lh "${BUILD_OUT}/" 2>/dev/null

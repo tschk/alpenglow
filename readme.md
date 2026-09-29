@@ -18,9 +18,10 @@ system/backends/appliance/scripts/qemu.sh   # boot existing build
 
 Platform support:
 - x86_64 — `main` branch (primary target)
-- aarch64 — `arch/aarch64` branch — generic UEFI disk and installer ISO for UTM, ARM servers, and UEFI-capable boards
-- riscv64 — `arch/riscv64` branch — QEMU virt, OpenSBI
-- Rockchip RK3566 — `board/rk3566` branch — PINE64 Quartz64
+- aarch64 — `scripts/build-aarch64.sh` + `scripts/qemu-boot-aarch64.sh` (userspace cross-build; kernel staged separately)
+- riscv64 — `scripts/build-riscv64.sh` + `scripts/qemu-boot-riscv64.sh` (userspace cross-build; kernel staged separately)
+- Rockchip RK3566 — `scripts/build-uboot-rk3566.sh`, `scripts/cross-build.sh`, `scripts/flash-rk3566.sh`
+- legacy (i686) — `scripts/build-legacy-initramfs.sh` + `scripts/bench-legacy.sh`; busybox ash, boots a Pentium II and newer. No powerpc or armv5 kernel exists.
 
 ## Downloads
 
