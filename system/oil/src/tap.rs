@@ -350,4 +350,21 @@ mod tests {
             assert!(matches!(e, OilError::Io(_)));
         }
     }
+
+    #[test]
+    fn load_returns_error_on_corrupt_cache() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("corrupt", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"{not valid json}",
+        )
+        .expect("write corrupt tap cache");
+
+        let err = registry.load().expect_err("corrupt tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("expected"), "unexpected error: {msg}");
+    }
 }
