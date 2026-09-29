@@ -37,12 +37,14 @@ Measured 2026-09-29 on an Apple M5 Pro, QEMU 11.0.2 TCG (no HVF in this qemu-sys
 | pc + `-cpu pentium` | refused: kernel wants an i686 |
 | pc + `-cpu pentium2`, 96 MiB | banner at 22s |
 | pc + `-cpu pentium2`, 64 MiB | banner at 2s (warm host) |
-| pc + `-cpu pentium2`, 32 MiB | panics: initrd unpacks over the RAM disk |
+| pc + `-cpu pentium2`, 32 MiB, slim initramfs | banner at 10s, 4.8 MiB used of 18 MiB |
 | pc + `-cpu pentium3`, 128 MiB | banner at 18s |
-| ppc `g3beige` | kernel not built here; `scripts/build-legacy-kernels.sh ppc` |
+| ppc `g3beige` | 32-bit kernel builds (4.1 MiB) and OpenBIOS loads it; hangs before any console output |
 | arm `versatilepb` (armv5 stand-in for the iPAQ) | kernel not built here; `scripts/build-legacy-kernels.sh armv5` |
 
-The Zig init now builds for 32-bit targets. `build/legacy/init-powerpc` (8.5K, PowerPC) and `build/legacy/init-armv5` (8.6K, ARM EABI) are static musl binaries, packed as `initramfs-powerpc.cpio.gz` and `initramfs-armv5.cpio.gz`. They need the kernels above to boot. Building those kernels needs the linux-7.1.3 tarball and Docker; the kernel.org download did not finish on this link.
+The 32 MiB image is `build/legacy/initramfs-32m.cpio.gz` (749K, busybox only). The full legacy image panics at 32 MiB because its initrd unpacks over the RAM disk.
+
+`scripts/build-legacy-kernels.sh ppc` builds a 32-bit PowerPC kernel from `pmac32_defconfig`. The generic PowerPC defconfig is 64-bit, and `CONFIG_PPC32` is derived from `!CONFIG_PPC64`, so it has to start from the 32-bit defconfig. The pmac boot wrapper links at `0x400000` with `make_space=n`, which puts QEMU's initrd inside the kernel image; the build patches the wrapper to link at `0x800000` and reserve space. OpenBIOS loads that kernel and jumps to it. It produces no console output on `g3beige` or `mac99`, on `ttyS0`, `ttyPZ0`, or `ttyPZ1`. The kernel is not reaching `printk`.
 
 ## armv5 (iPAQ-class)
 

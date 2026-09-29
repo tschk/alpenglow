@@ -1,10 +1,12 @@
 # Alpenglow legacy: 32-bit PowerPC for QEMU g3beige (Heathrow PowerMac).
 # Serial console only. No modules, no graphics, no network.
-CONFIG_PPC32=y
+# PPC32 is derived from !PPC64, so the switch has to disable PPC64.
+CONFIG_PPC64=n
 CONFIG_PPC_BOOK3S_32=y
 CONFIG_PPC_PMAC=y
 CONFIG_BLK_DEV_INITRD=y
 CONFIG_RD_GZIP=y
+CONFIG_INITRAMFS_COMPRESSION_GZIP=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 CONFIG_TMPFS=y
