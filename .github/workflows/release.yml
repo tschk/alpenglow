@@ -93,8 +93,11 @@ jobs:
           timeout 90 qemu-system-aarch64 -M virt -cpu cortex-a72 -m 2048 -smp 2 -bios "${firmware}" -cdrom "${iso}" -nographic > aarch64-uefi.log 2>&1
           status=$?
           set -e
-          test "${status}" -eq 124
-          grep -q 'Alpenglow aarch64 root ready' aarch64-uefi.log
+          if [ "${status}" -ne 124 ] || ! grep -q 'Alpenglow aarch64 root ready' aarch64-uefi.log; then
+            echo "aarch64 UEFI boot check failed (QEMU exit status: ${status})" >&2
+            tail -n 200 aarch64-uefi.log >&2
+            exit 1
+          fi
 
   image:
     if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
@@ -195,8 +198,11 @@ jobs:
           timeout 90 qemu-system-aarch64 -M virt -cpu cortex-a72 -m 2048 -smp 2 -bios "${firmware}" -cdrom "${iso}" -nographic > aarch64-uefi.log 2>&1
           status=$?
           set -e
-          test "${status}" -eq 124
-          grep -q 'Alpenglow aarch64 root ready' aarch64-uefi.log
+          if [ "${status}" -ne 124 ] || ! grep -q 'Alpenglow aarch64 root ready' aarch64-uefi.log; then
+            echo "aarch64 UEFI boot check failed (QEMU exit status: ${status})" >&2
+            tail -n 200 aarch64-uefi.log >&2
+            exit 1
+          fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
