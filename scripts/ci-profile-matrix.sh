@@ -39,6 +39,9 @@ run_profile() {
       assert_contains "${root}/etc/alpenglow/world" '^pipewire$'
       assert_contains "${root}/etc/alpenglow/world" '^iwd$'
       assert_contains "${root}/etc/alpenglow/world" '^greetd$'
+      assert_contains "${root}/etc/dinit.d/greetd" '^depends-on = state-mount$'
+      assert_contains "${root}/etc/dinit.d/alpenglowed" '^depends-on = state-mount$'
+      assert_contains "${root}/etc/dinit.d/alpenglow-session" '^depends-on = state-mount$'
       ;;
   esac
 }
@@ -46,5 +49,25 @@ run_profile() {
 run_profile minimal
 run_profile standard
 run_profile desktop
+
+lite="${tmp_root}/desktop-lite"
+for dir in bin sbin etc dev proc sys tmp run; do
+  mkdir -p "${lite}/${dir}"
+done
+ALPENGLOW_DESKTOP_FULL=0 BUILD_PROFILE=desktop \
+  system/backends/appliance/scripts/configure-rootfs.sh "${lite}" >/dev/null
+assert_contains "${lite}/etc/dinit.d/alpenglowed-lite" '^depends-on = state-mount$'
+
+userspace="${tmp_root}/desktop-userspace"
+for dir in bin sbin etc dev proc sys tmp run; do
+  mkdir -p "${userspace}/${dir}"
+done
+ARTIFACT=userspace BUILD_PROFILE=desktop SESSION=alpenglowed \
+  system/backends/appliance/scripts/configure-rootfs.sh "${userspace}" >/dev/null
+assert_contains "${userspace}/etc/dinit.d/boot" '^depends-on = alpenglowed$'
+assert_not_contains "${userspace}/etc/dinit.d/boot" '^depends-on = state-mount$'
+assert_not_contains "${userspace}/etc/dinit.d/greetd" '^depends-on = state-mount$'
+assert_not_contains "${userspace}/etc/dinit.d/alpenglowed" '^depends-on = state-mount$'
+assert_not_contains "${userspace}/etc/dinit.d/alpenglow-session" '^depends-on = state-mount$'
 
 printf 'ci-profile-matrix: ok\n'

@@ -288,6 +288,14 @@ cp "${WORLD_FILE}" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
 rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
+# Direct desktop sessions must wait for persistent state when it is mounted.
+# Userspace artifacts omit state-mount and retain their standalone sessions.
+if boot_has state-mount; then
+  for service in greetd alpenglowed alpenglowed-lite alpenglow-session sold cage; do
+    printf '%s\n' 'depends-on = state-mount' >> "${ROOTFS}/etc/dinit.d/${service}"
+  done
+fi
+
 mkdir -p "${ROOTFS}/etc/dinit.d/boot.d"
 for service in ${BOOT_SERVICES}; do
   ln -sf "/etc/dinit.d/${service}" "${ROOTFS}/etc/dinit.d/boot.d/${service}" 2>/dev/null || true
