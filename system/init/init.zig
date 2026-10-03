@@ -115,3 +115,20 @@ pub fn main() void {
 
     exec_dinit();
 }
+
+test "syserr2errno handles success and error values" {
+    const testing = std.testing;
+
+    // Success values (>= 0)
+    try testing.expectEqual(.SUCCESS, syserr2errno(0));
+    try testing.expectEqual(.SUCCESS, syserr2errno(1));
+    try testing.expectEqual(.SUCCESS, syserr2errno(9999));
+
+    // Error values (< 0)
+    // EPERM is 1, so -1 represents -EPERM
+    try testing.expectEqual(.PERM, syserr2errno(@as(u64, @bitCast(@as(i64, -1)))));
+    // ENOENT is 2, so -2 represents -ENOENT
+    try testing.expectEqual(.NOENT, syserr2errno(@as(u64, @bitCast(@as(i64, -2)))));
+    // EACCES is 13, so -13 represents -EACCES
+    try testing.expectEqual(.ACCES, syserr2errno(@as(u64, @bitCast(@as(i64, -13)))));
+}
