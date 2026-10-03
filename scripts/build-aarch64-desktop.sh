@@ -52,15 +52,21 @@ fi
 
 TOYBOX_BIN="${OUT_DIR}/toybox-aarch64"
 
+download_toybox() {
+  curl -fsSL --retry 2 --retry-connrefused --retry-max-time 150 \
+    --connect-timeout 15 --max-time 120 -o "${TOYBOX_BIN}" \
+    "https://landley.net/bin/toybox/0.8.14/toybox-aarch64"
+}
+
 if [ ! -x "${TOYBOX_BIN}" ]; then
-  curl -fsSL -o "${TOYBOX_BIN}" "https://landley.net/bin/toybox/0.8.14/toybox-aarch64"
+  download_toybox
   chmod 755 "${TOYBOX_BIN}"
 fi
 
 if [ "$(sha256_of "${TOYBOX_BIN}")" != "${EXPECTED_SHA256}" ]; then
   echo "Checksum mismatch for toybox-aarch64; re-downloading..." >&2
   rm -f "${TOYBOX_BIN}"
-  curl -fsSL -o "${TOYBOX_BIN}" "https://landley.net/bin/toybox/0.8.14/toybox-aarch64"
+  download_toybox
   chmod 755 "${TOYBOX_BIN}"
   if [ "$(sha256_of "${TOYBOX_BIN}")" != "${EXPECTED_SHA256}" ]; then
     echo "ERROR: Checksum validation failed for toybox-aarch64" >&2
