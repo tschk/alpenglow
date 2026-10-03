@@ -8,3 +8,15 @@ public/v86/** linguist-vendored linguist-detectable=false
 public/v86/* linguist-language=Ignore
 system/backends/appliance/initramfs/init linguist-language=Ignore
 system/backends/appliance/scripts/alpenglow-session-start linguist-language=Ignore
+
+# Exclude Shell from GitHub language statistics.
+*.sh linguist-detectable=false
+/.agents/resume linguist-detectable=false
+/.agents/setup linguist-detectable=false
+/scripts/aarch64-linux-musl-zigcc linguist-detectable=false
+/scripts/aarch64-linux-musl-zigcxx linguist-detectable=false
+/scripts/x86_64-linux-musl-zigcc linguist-detectable=false
+/scripts/x86_64-linux-musl-zigcxx linguist-detectable=false
+/system/backends/appliance/initramfs/init linguist-detectable=false
+/system/backends/appliance/scripts/alpenglow-role-publish linguist-detectable=false
+/system/backends/appliance/scripts/alpenglow-session-start linguist-detectable=false
