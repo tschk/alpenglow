@@ -10,7 +10,6 @@ ARM_DIR="${ROOT_DIR}/build/cross/aarch64"
 ASSET_DIR="${OUT_DIR}/assets"
 ASSET_BASE="alpenglow-${VERSION}-${EDITION}-aarch64"
 IMAGE="${OUT_DIR}/alpenglow-aarch64.img"
-ESP_IMAGE="${OUT_DIR}/alpenglow-aarch64-esp.img"
 ISO="${ASSET_DIR}/${ASSET_BASE}.iso"
 COMPRESSED_IMAGE="${ASSET_DIR}/${ASSET_BASE}.img.zst"
 LIVE_INITRAMFS="${ARM_DIR}/initramfs-${EDITION}-live.cpio.gz"
@@ -47,7 +46,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for cmd in cpio curl gzip losetup mcopy mmd mkfs.bcachefs mkfs.vfat sgdisk sudo tar xorriso zstd; do
+for cmd in cpio curl gzip losetup mkfs.bcachefs mkfs.vfat sgdisk sudo tar xorriso zstd; do
   require_cmd "${cmd}"
 done
 
@@ -74,7 +73,7 @@ docker builder prune -af >/dev/null 2>&1 || true
 df -h "${ARM_DIR}" "${OUT_DIR}" / 2>/dev/null || df -h /
 
 mkdir -p "${OUT_DIR}" "${ASSET_DIR}" "${MNT_ESP}"
-if [ ! -f "${LIMINE_DIR}/BOOTAA64.EFI" ]; then
+if [ ! -s "${LIMINE_DIR}/BOOTAA64.EFI" ] || [ ! -s "${LIMINE_DIR}/limine-uefi-cd.bin" ]; then
   mkdir -p "${LIMINE_DIR}"
   curl -fsSL "https://github.com/limine-bootloader/limine/releases/download/v12.4.0/limine-binary.tar.xz" -o "${OUT_DIR}/limine-aarch64.tar.xz"
   tar -xJf "${OUT_DIR}/limine-aarch64.tar.xz" -C "${LIMINE_DIR}" --strip-components=1
@@ -114,11 +113,14 @@ rm -f "${IMAGE}"
 sha256_file "${COMPRESSED_IMAGE}"
 
 LIVE_ROOT="$(mktemp -d)"
+echo "==> Packing live installer initramfs"
 ( cd "${LIVE_ROOT}" && gzip -dc "${INITRAMFS}" | cpio -idm 2>/dev/null )
 mkdir -p "${LIVE_ROOT}/run/alpenglow" "${LIVE_ROOT}/usr/bin"
 cp "${INSTALLER}" "${LIVE_ROOT}/usr/bin/alpenglow-install"
 cp "${COMPRESSED_IMAGE}" "${LIVE_ROOT}/run/alpenglow/alpenglow.img.zst"
 ( cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${LIVE_INITRAMFS}" )
+rm -rf "${LIVE_ROOT}"
+LIVE_ROOT=""
 
 cat > "${LIVE_CONFIG}" <<'EOF'
 timeout: 3
@@ -131,18 +133,21 @@ verbose: no
   module_path: boot():/EFI/Alpenglow/initramfs.cpio.gz
 EOF
 
-rm -rf "${ISO_ROOT}" "${ESP_IMAGE}" "${ISO}"
-mkdir -p "${ISO_ROOT}/EFI/BOOT" "${ISO_ROOT}/EFI/Alpenglow"
-truncate -s 64M "${ESP_IMAGE}"
-mkfs.vfat -F 32 -n ALP_ISO "${ESP_IMAGE}" >/dev/null
-MTOOLS_SKIP_CHECK=1 mmd -i "${ESP_IMAGE}" ::/EFI ::/EFI/BOOT ::/EFI/Alpenglow
-MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIMINE_DIR}/BOOTAA64.EFI" ::/EFI/BOOT/BOOTAA64.EFI
-MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIVE_CONFIG}" ::/limine.conf
-MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${KERNEL}" ::/EFI/Alpenglow/vmlinuz
-MTOOLS_SKIP_CHECK=1 mcopy -i "${ESP_IMAGE}" "${LIVE_INITRAMFS}" ::/EFI/Alpenglow/initramfs.cpio.gz
-cp "${ESP_IMAGE}" "${ISO_ROOT}/efi.img"
-xorriso -as mkisofs -o "${ISO}" -V ALPENGLOW -r -J \
-  -eltorito-alt-boot -e efi.img -no-emul-boot -isohybrid-gpt-basdat "${ISO_ROOT}" >/dev/null
+test -s "${LIMINE_DIR}/limine-uefi-cd.bin"
+echo "==> Populating live ISO using Limine's UEFI CD boot image"
+rm -rf "${ISO_ROOT}" "${ISO}"
+mkdir -p "${ISO_ROOT}/boot" "${ISO_ROOT}/EFI/BOOT" "${ISO_ROOT}/EFI/Alpenglow"
+cp "${LIMINE_DIR}/limine-uefi-cd.bin" "${ISO_ROOT}/boot/limine-uefi-cd.bin"
+cp "${LIMINE_DIR}/BOOTAA64.EFI" "${ISO_ROOT}/EFI/BOOT/BOOTAA64.EFI"
+cp "${LIVE_CONFIG}" "${ISO_ROOT}/limine.conf"
+echo "==> Copying live ISO kernel"
+cp "${KERNEL}" "${ISO_ROOT}/EFI/Alpenglow/vmlinuz"
+echo "==> Copying live ISO initramfs"
+cp "${LIVE_INITRAMFS}" "${ISO_ROOT}/EFI/Alpenglow/initramfs.cpio.gz"
+echo "==> Assembling live ISO"
+xorriso -as mkisofs -o "${ISO}" -V ALPENGLOW -R -r -J \
+  --efi-boot boot/limine-uefi-cd.bin -efi-boot-part --efi-boot-image \
+  --protective-msdos-label "${ISO_ROOT}" >/dev/null
 sha256_file "${ISO}"
 
 printf '%s\n%s\n' "${COMPRESSED_IMAGE}" "${ISO}"

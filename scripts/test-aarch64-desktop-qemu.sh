@@ -2,6 +2,8 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/arm64-kernel-image.sh
+. "${ROOT_DIR}/scripts/lib/arm64-kernel-image.sh"
 KILL_EXISTING=0
 if [ "${1:-}" = --kill-existing ]; then
   KILL_EXISTING=1
@@ -46,13 +48,13 @@ OUT_DIR="${ROOT_DIR}/build/cross/aarch64"
 KERNEL="${OUT_DIR}/vmlinuz-${EDITION}"
 INITRAMFS="${OUT_DIR}/initramfs-${EDITION}.cpio.gz"
 
-if [ ! -s "${KERNEL}" ] || [ ! -s "${INITRAMFS}" ]; then
+if ! arm64_kernel_image_has_magic "${KERNEL}" || [ ! -s "${INITRAMFS}" ]; then
   sh "${ROOT_DIR}/scripts/build-aarch64-desktop.sh" "${EDITION}"
 fi
 
 test -s "${KERNEL}"
 test -s "${INITRAMFS}"
-file "${KERNEL}" | grep -q aarch64
+file "${KERNEL}" | grep -Eiq 'aarch64|arm64'
 
 exec qemu-system-aarch64 \
   -M virt -accel "${ACCEL}" -cpu "${CPU}" -m "${MEMORY_MB}" -smp "${SMP}" \

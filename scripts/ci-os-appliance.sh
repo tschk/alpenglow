@@ -134,6 +134,9 @@ sh scripts/test-initramfs-codec-identity.sh
 assert_file scripts/test-bench-boot.sh
 sh -n scripts/test-bench-boot.sh
 sh scripts/test-bench-boot.sh
+assert_file scripts/test-arm64-kernel-image.sh
+sh -n scripts/test-arm64-kernel-image.sh
+sh scripts/test-arm64-kernel-image.sh
 sh -n scripts/build-aarch64-efi-release.sh
 sh -n scripts/release-assets.sh
 assert_contains scripts/release-assets.sh 'build/sysroots'
