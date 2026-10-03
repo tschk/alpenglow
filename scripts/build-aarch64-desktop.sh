@@ -2,6 +2,8 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/arm64-kernel-image.sh
+. "${ROOT_DIR}/scripts/lib/arm64-kernel-image.sh"
 OUT_DIR="${ROOT_DIR}/build/cross/aarch64"
 EDITION="${1:-${ALPENGLOW_EDITION:-desktop}}"
 ROOTFS="${OUT_DIR}/rootfs-${EDITION}"
@@ -45,9 +47,15 @@ sha256_of() {
 }
 
 mkdir -p "${OUT_DIR}"
-if [ ! -s "${KERNEL}" ]; then
-  KERNEL_PROFILE=desktop sh "${ROOT_DIR}/system/backends/appliance/scripts/build-kernel-aarch64.sh" "${OUT_DIR}" "${ROOT_DIR}"
-  cp "${OUT_DIR}/vmlinuz" "${KERNEL}"
+if ! arm64_kernel_image_has_magic "${KERNEL}"; then
+  if [ -s "${KERNEL}" ] && gzip -t "${KERNEL}" 2>/dev/null; then
+    arm64_kernel_image_unpack_gzip "${KERNEL}" "${KERNEL}"
+  else
+    # The shared vmlinuz may belong to another profile despite a desktop stamp.
+    rm -f "${OUT_DIR}/.kernel-aarch64-desktop.ok"
+    KERNEL_PROFILE=desktop sh "${ROOT_DIR}/system/backends/appliance/scripts/build-kernel-aarch64.sh" "${OUT_DIR}" "${ROOT_DIR}"
+    arm64_kernel_image_unpack_gzip "${OUT_DIR}/vmlinuz" "${KERNEL}"
+  fi
 fi
 
 TOYBOX_BIN="${OUT_DIR}/toybox-aarch64"
