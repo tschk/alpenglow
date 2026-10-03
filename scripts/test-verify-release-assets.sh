@@ -70,12 +70,7 @@ case "$1 $2" in
   'release view')
     case "$5" in
       isDraft) echo true ;;
-      assets)
-        for asset in "${FAKE_RELEASE_DIR}"/*; do
-          test -f "${asset}" || continue
-          basename "${asset}"
-        done
-        ;;
+      databaseId) echo 42 ;;
       *) exit 1 ;;
     esac
     ;;
@@ -87,12 +82,38 @@ case "$1 $2" in
     test -f "${FAKE_RELEASE_DIR}/$5"
     cp "${FAKE_RELEASE_DIR}/$5" "$7/"
     ;;
+  'api --paginate')
+    asset_id=0
+    for asset in "${FAKE_RELEASE_DIR}"/*; do
+      test -f "${asset}" || continue
+      asset_id=$((asset_id + 1))
+      name="${asset##*/}"
+      state=uploaded
+      test ! -f "${FAKE_RELEASE_DIR}/.starter-${name}" || state=starter
+      printf '%s\t%s\t%s\n' "${asset_id}" "${name}" "${state}"
+    done
+    ;;
+  'api -X')
+    test "$3" = DELETE
+    asset_id=0
+    for asset in "${FAKE_RELEASE_DIR}"/*; do
+      test -f "${asset}" || continue
+      asset_id=$((asset_id + 1))
+      if test "${asset_id}" = "${4##*/}"; then
+        rm "${asset}" "${FAKE_RELEASE_DIR}/.starter-${asset##*/}"
+        printf 'delete %s\n' "${asset##*/}" >> "${FAKE_GH_LOG}"
+        exit 0
+      fi
+    done
+    exit 1
+    ;;
   *) exit 1 ;;
 esac
 EOF
 chmod +x fake-bin/gh
 export FAKE_RELEASE_DIR="${FIXTURE}/remote-assets"
 export FAKE_GH_LOG="${FIXTURE}/gh.log"
+export GITHUB_REPOSITORY=tschk/alpenglow
 PATH="${FIXTURE}/fake-bin:${PATH}"
 export PATH
 
@@ -112,5 +133,10 @@ if upload >/dev/null 2>&1; then
   echo 'different existing release asset passed verification' >&2
   exit 1
 fi
+touch remote-assets/.starter-alpenglow-v0.1.700-potato-x86_64.iso
+upload >/dev/null
+test ! -e remote-assets/.starter-alpenglow-v0.1.700-potato-x86_64.iso
+test "$(grep -c '^delete ' "${FAKE_GH_LOG}")" -eq 1
+test "$(grep -c '^upload ' "${FAKE_GH_LOG}")" -eq 6
 
 echo 'Release asset fixture checks passed.'
