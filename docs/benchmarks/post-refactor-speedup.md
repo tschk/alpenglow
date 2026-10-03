@@ -3,9 +3,17 @@
 Measured after the Zig common-module refactor and the boot-test fixes
 (headless `.zst` initramfs, direct kernel boot, time-to-login measurement).
 
+These are project-reported results for selected QEMU configurations, not a
+ranking of usable OS editions. In particular, **0.53 s is the reported median
+of five KVM runs** of the listed x86_64 FAST configuration; it is not a new
+measurement or a claim about physical hardware or desktop readiness. Current
+benchmark scripts measure the host interval from VM launch to the serial
+`login:` marker, polled every 100 ms. The historical results below were
+collected with earlier script revisions and are retained as reported.
+
 ## Boot time
 
-| Target | Host | Accel | RAM | vCPUs | Power-on → login | Notes |
+| Target | Host | Accel | RAM | vCPUs | Reported boot to login | Notes |
 |--------|------|-------|-----|-------|------------------|-------|
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **0.53 s** (n=5 median) | FAST config: `MACHINE=pc`, `-cpu host`, Zig init, embedded lz4 initramfs, aggressive kernel disables |
 | x86_64 | ultramarine (WSL2) | kvm | 2 GB | 2 | **0.73 s** (n=5 median) | FAST config: embedded initramfs, no aggressive kernel disables |
@@ -16,7 +24,7 @@ Measured after the Zig common-module refactor and the boot-test fixes
 | aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.68 s** (n=5 median) | Custom 7.0.12 kernel + embedded LZ4 initramfs + Zig init |
 | aarch64 | macOS arm64 (M-series) | hvf | 512 MB | 2 | **0.78 s** (n=5 median) | Alpine virt kernel + LZ4 initramfs + Zig init |
 
-Latest x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`, aggressive disables): **0.53 s**, kernel+initramfs **6.2 MB**. Latest aarch64 run (custom 7.0.12 kernel, `MACHINE=virt`, `-cpu max`, aggressive disables): **0.56 s** best / **0.68 s** median, kernel+initramfs **7.9 MB**. Previous aarch64 with Alpine virt kernel: **0.78 s**. Phase timing removed from the benchmark script because line-number-based deltas were misleading; only the wall-clock power-on-to-login time is reported now.
+Reported x86_64 run (FAST config, `MACHINE=pc`, `-cpu host`, aggressive disables): **0.53 s**, kernel+initramfs **6.2 MB**. Reported aarch64 run (custom 7.0.12 kernel, `MACHINE=virt`, `-cpu max`, aggressive disables): **0.56 s** best / **0.68 s** median, kernel+initramfs **7.9 MB**. Previous aarch64 with Alpine virt kernel: **0.78 s**. Phase timing was removed from the benchmark script because line-number-based deltas were misleading; the script now reports only VM-launch-to-login host time.
 
 ## Kernel profiles
 
@@ -68,7 +76,7 @@ FAST=1 ./scripts/bench-boot.sh
 - For headless boot, the e1000 iPXE ROM is disabled and boot order is set
 to skip network boot, saving ~0.9 s on `q35`.
 
-For the fastest QEMU path, also set `MACHINE=pc` (i440fx chipset):
+For the reported `pc` QEMU configuration (i440fx chipset), set `MACHINE=pc`:
 
 ```sh
 FAST=1 MACHINE=pc ./scripts/bench-boot.sh
@@ -110,7 +118,7 @@ These are now opt-in via env vars or the `FAST=1` shortcut:
 
 Measured on ultramarine:
 
-| Firmware | Machine | CPU | Kernel | Initramfs | Power-on → login |
+| Firmware | Machine | CPU | Kernel | Initramfs | Reported boot to login |
 |----------|---------|-----|------|-----------|------------------|
 | SeaBIOS | pc | host | 4.9 MB (no EFI/Rust) | 1.7 MB | **0.73 s** |
 | SeaBIOS | q35 | host | 4.9 MB (no EFI/Rust) | 1.7 MB | **1.05 s** |
@@ -170,7 +178,7 @@ source-code maintainability and a single place for bug fixes.
 
 x86_64 boot (on ultramarine):
 ```sh
-# Fastest path (SeaBIOS, pc machine, minimal initramfs)
+# Reported pc configuration (SeaBIOS, pc machine, minimal initramfs)
 git pull
 FAST=1 QEMU_MACHINE=pc ./scripts/boot-native.sh
 FAST=1 MACHINE=pc ./scripts/bench-boot.sh
