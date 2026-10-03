@@ -5,6 +5,9 @@ use flate2::{read::MultiGzDecoder, write::GzEncoder, Compression};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
+const MAX_COMPRESSED_INDEX_SIZE: usize = 64 * 1024 * 1024;
+const MAX_DECOMPRESSED_INDEX_SIZE: usize = 256 * 1024 * 1024;
+
 pub struct ApkRegistry {
     mirror: String,
     branch: String,
@@ -84,13 +87,11 @@ impl ApkRegistry {
                     let resp = crate::util::security::get_validated(&url).map_err(|e| {
                         OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
                     })?;
-                    let mut body = Vec::new();
-                    resp.into_body()
-                        .into_reader()
-                        .read_to_end(&mut body)
-                        .map_err(|e| {
-                            OilError::Install(format!("Failed to read APK index body: {e}"))
-                        })?;
+                    let body = read_limited(
+                        resp.into_body().into_reader(),
+                        MAX_COMPRESSED_INDEX_SIZE,
+                        "APK index body",
+                    )?;
                     let packages = parse_apkindex_archive(&body, &mirror, &branch, &repo, &arch)?;
                     eprintln!("Parsed {} packages from {branch}/{repo}", packages.len());
                     Ok(packages)
@@ -137,7 +138,19 @@ impl ApkRegistry {
 
 fn read_cache(path: &std::path::Path) -> Result<Vec<PackageMetadata>> {
     let decoder = MultiGzDecoder::new(std::fs::File::open(path)?);
-    Ok(serde_json::from_reader(decoder)?)
+    let body = read_limited(decoder, MAX_DECOMPRESSED_INDEX_SIZE, "APK index cache")?;
+    Ok(serde_json::from_slice(&body)?)
+}
+
+fn read_limited<R: Read>(reader: R, limit: usize, name: &str) -> Result<Vec<u8>> {
+    let mut body = Vec::new();
+    reader.take(limit as u64 + 1).read_to_end(&mut body)?;
+    if body.len() > limit {
+        return Err(OilError::Install(format!(
+            "{name} exceeds maximum {limit} bytes"
+        )));
+    }
+    Ok(body)
 }
 
 fn write_cache(path: &std::path::Path, packages: &[PackageMetadata]) -> Result<()> {
@@ -198,11 +211,8 @@ fn parse_apkindex_archive(
     repo: &str,
     arch: &str,
 ) -> Result<Vec<PackageMetadata>> {
-    let mut decoder = MultiGzDecoder::new(bytes);
-    let mut tar = Vec::new();
-    decoder
-        .read_to_end(&mut tar)
-        .map_err(|e| OilError::Install(format!("Failed to decompress APKINDEX: {e}")))?;
+    let decoder = MultiGzDecoder::new(bytes);
+    let tar = read_limited(decoder, MAX_DECOMPRESSED_INDEX_SIZE, "APKINDEX archive")?;
 
     let mut offset = 0usize;
     while offset + 512 <= tar.len() {
@@ -512,6 +522,24 @@ mod tests {
         .expect("failed to parse APKINDEX archive");
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].name, "ripgrep");
+    }
+
+    #[test]
+    fn read_limited_rejects_oversized_input() {
+        let err = read_limited(&b"0123456789"[..], 5, "APK index body")
+            .expect_err("large compressed index must be rejected");
+        assert!(err.to_string().contains("exceeds maximum 5 bytes"));
+    }
+
+    #[test]
+    fn read_limited_rejects_gzip_expansion() {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&vec![b'a'; 2048]).expect("write fixture");
+        let compressed = encoder.finish().expect("finish fixture");
+        let decoder = MultiGzDecoder::new(&compressed[..]);
+        let err = read_limited(decoder, 1024, "APKINDEX archive")
+            .expect_err("large decompressed index must be rejected");
+        assert!(err.to_string().contains("exceeds maximum 1024 bytes"));
     }
 
     #[test]

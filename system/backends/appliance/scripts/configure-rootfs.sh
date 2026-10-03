@@ -18,8 +18,6 @@ FILESYSTEM_MANIFEST_DIR="${ROOT_DIR}/system/appliance/filesystems"
 BIN_SRC="${BACKEND_DIR}/scripts"
 ALPENGLOW_UID="770"
 ALPENGLOW_GID="770"
-SOLD_UID="771"
-SOLD_GID="771"
 SEATD_UID="772"
 SEATD_GID="772"
 IWD_UID="773"
@@ -128,7 +126,7 @@ chmod 700 "${ROOTFS}/var/lib/alpenglow/browser/profiles" \
   "${ROOTFS}/var/cache/alpenglow" \
   "${ROOTFS}/var/log/alpenglow"
 chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/lib/alpenglow/browser" 2>/dev/null || true
-chown -R "${SOLD_UID}:${SOLD_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS}/var/lib/alpenglow/system" 2>/dev/null || true
+chown -R "${ALPENGLOW_UID}:${ALPENGLOW_GID}" "${ROOTFS}/var/lib/alpenglow/files" "${ROOTFS}/var/lib/alpenglow/system" 2>/dev/null || true
 
 # Enable dinit boot services (profile-aware)
 BUILD_PROFILE="${BUILD_PROFILE:-standard}"
@@ -282,6 +280,7 @@ chmod 755 \
   "${ROOTFS}/usr/local/bin/alpenglow-session-start" \
   "${ROOTFS}/usr/local/bin/alpenglow-role-publish"
 cp "${SCRIPT_DIR}/mount-state.sh" "${ROOTFS}/usr/local/bin/"
+cp "${SCRIPT_DIR}/mount-state-paths.sh" "${ROOTFS}/usr/local/bin/"
 cp "${FILESYSTEM_MANIFEST_DIR}/rootfs-layout.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/filesystems/"
 cp "${BACKEND_DIR}/backend.json" "${ROOTFS}/etc/alpenglow/backend.json"
