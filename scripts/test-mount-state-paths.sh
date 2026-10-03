@@ -21,7 +21,15 @@ cat >"${tmp}/bin/mount" <<'EOF'
 printf '%s\n' "$*" >>"${STATE_TEST_MOUNT_LOG}"
 [ "${STATE_TEST_FAIL_BIND:-}" != "$3" ]
 EOF
-chmod +x "${tmp}/bin/chown" "${tmp}/bin/mount"
+cat >"${tmp}/bin/find" <<'EOF'
+#!/bin/sh
+if [ "${STATE_TEST_LEGACY_DIR:-}" = "$1" ]; then
+  printf '%s\n' "$1"
+else
+  exec /usr/bin/find "$@"
+fi
+EOF
+chmod +x "${tmp}/bin/chown" "${tmp}/bin/mount" "${tmp}/bin/find"
 export PATH="${tmp}/bin:${PATH}"
 export STATE_TEST_CHOWN_LOG="${tmp}/chown.log"
 export STATE_TEST_MOUNT_LOG="${tmp}/mount.log"
@@ -34,13 +42,24 @@ setup_state_paths "${tmp}/state" "${tmp}/target"
 grep -Fq "770:770 ${tmp}/state/var/lib/alpenglow/browser/profiles" "${STATE_TEST_CHOWN_LOG}"
 [ "$(stat -c %a "${tmp}/state/var/lib/alpenglow/browser/profiles" 2>/dev/null || stat -f %Lp "${tmp}/state/var/lib/alpenglow/browser/profiles")" = 700 ]
 
-# Existing directories and their permissions must not be reset on a later boot.
+# Custom existing directories and their permissions must not be reset.
 stage="existing paths"
 chmod 755 "${tmp}/state/var/lib/alpenglow/browser/profiles"
 : >"${STATE_TEST_CHOWN_LOG}"
 setup_state_paths "${tmp}/state" "${tmp}/target"
 [ ! -s "${STATE_TEST_CHOWN_LOG}" ]
 [ "$(stat -c %a "${tmp}/state/var/lib/alpenglow/browser/profiles" 2>/dev/null || stat -f %Lp "${tmp}/state/var/lib/alpenglow/browser/profiles")" = 755 ]
+
+# Only the old root-owned default layout is migrated; contents are retained.
+stage="legacy state upgrade"
+legacy="${tmp}/state/var/lib/alpenglow/browser/profiles"
+echo preserved >"${legacy}/user-data"
+export STATE_TEST_LEGACY_DIR="${legacy}"
+setup_state_paths "${tmp}/state" "${tmp}/target"
+grep -Fq "770:770 ${legacy}" "${STATE_TEST_CHOWN_LOG}"
+[ "$(stat -c %a "${legacy}" 2>/dev/null || stat -f %Lp "${legacy}")" = 700 ]
+grep -Fq preserved "${legacy}/user-data"
+unset STATE_TEST_LEGACY_DIR
 
 stage="failed bind"
 STATE_TEST_FAIL_BIND="${tmp}/target/var/cache/alpenglow"

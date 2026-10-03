@@ -1,5 +1,5 @@
 #!/bin/sh
-# Create only missing state paths; leave existing user data and permissions alone.
+# Create missing state paths and migrate the old root-owned default layout.
 
 ensure_state_dir() {
   dir="$1"
@@ -10,6 +10,20 @@ ensure_state_dir() {
     return 1
   fi
   if [ -d "${dir}" ]; then
+    # The previous mount script created these private paths as root:root 0755.
+    # Update only that known layout; keep all other existing settings and data.
+    if [ "${owner}" = 770:770 ]; then
+      if ! legacy_dir="$(find "${dir}" -prune -user 0 -group 0 -perm 0755 -print)"; then
+        echo "state directory inspection failed: ${dir}" >&2
+        return 1
+      fi
+      if [ "${legacy_dir}" = "${dir}" ]; then
+        if ! chown "${owner}" "${dir}" || ! chmod "${mode}" "${dir}"; then
+          echo "legacy state directory migration failed: ${dir}" >&2
+          return 1
+        fi
+      fi
+    fi
     return 0
   fi
   if ! mkdir -p "${dir}"; then
