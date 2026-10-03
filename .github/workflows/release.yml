@@ -9,12 +9,95 @@ on:
       version:
         description: "Release version override (e.g. v0.1.392)"
         required: false
+      validate_aarch64_desktop_uefi_only:
+        description: "Build and boot only the aarch64 desktop ISO; do not upload or publish"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  validate_aarch64_desktop_uefi:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_aarch64_desktop_uefi_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Record exact validation source
+        id: source
+        run: |
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "source=${GITHUB_SHA}"
+          echo "version=v0.1.$(git rev-list --count HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out Alpenglowed
+        run: git clone --depth 1 https://github.com/tschk/alpenglowed ../alpenglowed
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: mlugg/setup-zig@v2
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # main 2024-09-12
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Setup QEMU binfmt (arm64)
+        run: |
+          set -eu
+          for attempt in 1 2 3; do
+            if docker run --privileged --rm tonistiigi/binfmt --install arm64; then
+              docker run --rm --platform linux/arm64 alpine:3.21 uname -m
+              exit 0
+            fi
+            echo "binfmt install attempt ${attempt} failed, retrying..."
+            sleep $((attempt * 20))
+          done
+          echo "failed to install arm64 binfmt after 3 attempts" >&2
+          exit 1
+
+      - name: Install Rust targets
+        run: rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+
+      - name: Install release tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev mtools pkg-config qemu-efi-aarch64 qemu-system-arm qemu-utils xorriso zstd
+
+      - name: Build aarch64 desktop assets
+        env:
+          ALPENGLOW_ARCH: aarch64
+          ALPENGLOW_EDITION: desktop
+          AARCH64_KERNEL_JOBS: '2'
+        run: sh scripts/release-assets.sh "${{ steps.source.outputs.version }}"
+
+      - name: Boot aarch64 desktop ISO with UEFI
+        run: |
+          iso="build/release/assets/alpenglow-${{ steps.source.outputs.version }}-desktop-aarch64.iso"
+          firmware="$(find /usr/share -type f \( -name AAVMF_CODE.fd -o -name QEMU_EFI.fd \) -print -quit)"
+          test -s "${iso}"
+          test -n "${firmware}"
+          set +e
+          timeout 90 qemu-system-aarch64 -M virt -cpu cortex-a72 -m 2048 -smp 2 -bios "${firmware}" -cdrom "${iso}" -nographic > aarch64-uefi.log 2>&1
+          status=$?
+          set -e
+          test "${status}" -eq 124
+          grep -q 'Alpenglow aarch64 root ready' aarch64-uefi.log
+
   image:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -123,6 +206,7 @@ jobs:
           if-no-files-found: error
 
   riscv64:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -207,6 +291,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
     needs:
       - image
       - riscv64
