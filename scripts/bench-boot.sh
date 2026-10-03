@@ -92,6 +92,10 @@ while :; do
   sleep 0.1
   MAX_ITER=$((MAX_ITER - 1))
 done
+# QEMU can print the marker and exit between the last poll and kill -0.
+if [ "${LOGIN_FOUND}" -eq 0 ] && grep -q "login:" "${OUTFILE}" 2>/dev/null; then
+  LOGIN_FOUND=1
+fi
 
 END="$(date +%s%N)"
 KILL_SENT=0

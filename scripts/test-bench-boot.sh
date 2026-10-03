@@ -18,6 +18,7 @@ cat > "${TMP_DIR}/bin/fake-qemu" <<'EOF'
 printf '%s\n' "$@" > "${FAKE_QEMU_ARGS}"
 case "${FAKE_QEMU_MODE}" in
   success) printf 'Alpenglow boot\nlogin:\n'; exec sleep 10 ;;
+  login-exit) printf 'login:\n'; exit 0 ;;
   timeout) printf 'Alpenglow boot\n'; exec sleep 10 ;;
   no-marker) printf 'Alpenglow boot\n'; exit 0 ;;
   error) printf 'QEMU launch failed\n' >&2; exit 42 ;;
@@ -34,9 +35,13 @@ run() {
   script="$1"
   mode="$2"
   accel="$3"
+  case "${mode}" in
+    timeout) max_polls=2 ;;
+    *) max_polls=20 ;;
+  esac
   : > "${TMP_DIR}/args"
   env PATH="${TMP_DIR}/bin:${PATH}" FAKE_QEMU_ARGS="${TMP_DIR}/args" \
-    FAKE_QEMU_MODE="${mode}" BENCH_MAX_POLLS=2 ACCEL="${accel}" \
+    FAKE_QEMU_MODE="${mode}" BENCH_MAX_POLLS="${max_polls}" ACCEL="${accel}" \
     sh "${TMP_DIR}/scripts/${script}" > "${TMP_DIR}/output" 2>&1
 }
 expect_ok() {
@@ -56,6 +61,7 @@ expect_fail() {
 
 for script in bench-boot.sh bench-boot-aarch64.sh; do
   expect_ok "${script}" success tcg
+  expect_ok "${script}" login-exit tcg
   expect_fail "${script}" timeout tcg 'timed out waiting for login marker'
   expect_fail "${script}" no-marker tcg 'login marker not found'
   expect_fail "${script}" error tcg 'QEMU exited with an error'
