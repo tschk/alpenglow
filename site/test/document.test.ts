@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderDocument, renderResponse, route } from "../src/document";
+import { clientEntry, renderDocument, renderResponse, route } from "../src/document";
 
 describe("route", () => {
   test("exports expected RouteArtifact configuration", () => {
@@ -10,6 +10,12 @@ describe("route", () => {
     expect(route.decision).toBe("server");
     expect(route.clientEntries).toEqual(["/shell.js"]);
     expect(route.file).toMatch(/App\.tsx$/);
+  });
+});
+
+describe("clientEntry", () => {
+  test("exports expected clientEntry", () => {
+    expect(clientEntry).toBe("/shell.js");
   });
 });
 
