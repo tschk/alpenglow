@@ -111,10 +111,12 @@ assert_contains "${tmp}/desktop/etc/dinit.d/boot" 'depends-on = alpenglowed$'
 
 run_sku internet
 assert_contains "${tmp}/internet/etc/dinit.d/boot" 'depends-on = sold'
+assert_contains "${tmp}/internet/etc/dinit.d/sold" '^depends-on = state-mount$'
 assert_not_contains "${tmp}/internet/etc/alpenglow/world" '^alpenglowed$'
 
 run_sku kiosk
 assert_contains "${tmp}/kiosk/etc/dinit.d/boot" 'depends-on = cage'
+assert_contains "${tmp}/kiosk/etc/dinit.d/cage" '^depends-on = state-mount$'
 assert_file "${tmp}/kiosk/etc/alpenglow/session-lock.json"
 assert_contains "${tmp}/kiosk/etc/alpenglow/role" '^internet$'
 

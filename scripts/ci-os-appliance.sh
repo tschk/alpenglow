@@ -111,6 +111,7 @@ assert_contains system/appliance/filesystems/rootfs-layout.json '"default_mode":
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home"'
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
 assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
+sh scripts/test-mount-state-paths.sh
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
