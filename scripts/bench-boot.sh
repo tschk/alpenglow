@@ -23,14 +23,17 @@ fi
 fail() { echo "bench: $1" >&2; exit 1; }
 [ -f "${KERNEL}" ] || fail "kernel not found at ${KERNEL}"
 [ -f "${INITRAMFS}" ] || fail "initramfs not found at ${INITRAMFS}"
+MAX_ITER="${BENCH_MAX_POLLS:-600}"
+case "${MAX_ITER}" in
+  ''|*[!0-9]*) fail "BENCH_MAX_POLLS must be a positive integer" ;;
+esac
+[ "${MAX_ITER}" -gt 0 ] || fail "BENCH_MAX_POLLS must be a positive integer"
 
 echo "==> Booting Alpenglow in QEMU (${SMP} vCPU, ${MEMORY_MB}MB, ${ACCEL}) and timing boot phases..."
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT INT TERM
 OUTFILE="${TMP_DIR}/serial.log"
-
-START="$(date +%s%N)"
 
 QEMU_CPU=""
 if [ -z "${CPU}" ] && [ "${ACCEL}" = "kvm" ]; then
@@ -52,6 +55,8 @@ if [ -z "${EMBEDDED_INITRAMFS}" ]; then
   INITRD_ARG="-initrd ${INITRAMFS}"
 fi
 
+# Measure the host interval from VM launch to the serial login marker.
+START="$(date +%s%N)"
 stdbuf -oL -eL qemu-system-x86_64 \
   -machine "${MACHINE},accel=${ACCEL}" \
   ${QEMU_CPU} \
@@ -70,21 +75,41 @@ QEMU_PID=$!
 # Wait for the login prompt, then stop QEMU. The appliance does not
 # power off automatically, so the wall-clock time must be measured at
 # the login marker.
-MAX_ITER=600
 LOGIN_FOUND=0
-while kill -0 "${QEMU_PID}" 2>/dev/null; do
+TIMED_OUT=0
+while :; do
   if grep -q "login:" "${OUTFILE}" 2>/dev/null; then
     LOGIN_FOUND=1
     break
   fi
+  if ! kill -0 "${QEMU_PID}" 2>/dev/null; then
+    break
+  fi
+  if [ "${MAX_ITER}" -le 0 ]; then
+    TIMED_OUT=1
+    break
+  fi
   sleep 0.1
   MAX_ITER=$((MAX_ITER - 1))
-  [ "${MAX_ITER}" -le 0 ] && { kill "${QEMU_PID}" 2>/dev/null; break; }
 done
 
 END="$(date +%s%N)"
-kill "${QEMU_PID}" 2>/dev/null || true
-wait "${QEMU_PID}" 2>/dev/null || true
+KILL_SENT=0
+if kill -0 "${QEMU_PID}" 2>/dev/null; then
+  if kill "${QEMU_PID}" 2>/dev/null; then
+    KILL_SENT=1
+  fi
+fi
+if wait "${QEMU_PID}"; then
+  QEMU_STATUS=0
+else
+  QEMU_STATUS=$?
+fi
+if [ "${QEMU_STATUS}" -ne 0 ] && { [ "${KILL_SENT}" -ne 1 ] || [ "${QEMU_STATUS}" -ne 143 ]; }; then
+  fail "QEMU exited with an error (status ${QEMU_STATUS})"
+fi
+[ "${TIMED_OUT}" -eq 0 ] || fail "timed out waiting for login marker"
+[ "${LOGIN_FOUND}" -eq 1 ] || fail "login marker not found"
 
 TOTAL_MS=$(( (END - START) / 1000000 ))
 
@@ -94,7 +119,7 @@ has_marker() { grep -q "$1" "${OUTFILE}" 2>/dev/null; }
 echo ""
 echo "=== Boot Time Benchmarks ==="
 echo "  Wall clock: ${TOTAL_MS}ms"
-printf "  Total (power-on to login):     %5sms\n" "${TOTAL_MS}"
+printf "  Total (VM launch to login):    %5sms\n" "${TOTAL_MS}"
 has_marker 'Alpenglow boot' && echo "  marker: Alpenglow boot"
 has_marker 'mount-filesystems' && echo "  marker: mount-filesystems"
 has_marker 'shell-ttyS0' && echo "  marker: shell-ttyS0"
