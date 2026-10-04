@@ -26,6 +26,23 @@ verify() {
 }
 
 verify complete >/dev/null
+# Exercise the real producer helpers with their absolute-path arguments from
+# another working directory, without running image or kernel builds.
+mkdir -p producer-cwd
+for producer in release-assets.sh build-aarch64-efi-release.sh; do
+  helper="${FIXTURE}/checksum-helper.sh"
+  sed -n '/^sha256_file() {$/,/^}$/p' "${ROOT_DIR}/scripts/${producer}" > "${helper}"
+  test -s "${helper}"
+  ROOT_DIR="${FIXTURE}" sh -c '
+    . "$1"
+    cd "$2"
+    shift 2
+    for image do sha256_file "${image}"; done
+  ' checksum-fixture "${helper}" "${FIXTURE}/producer-cwd" \
+    "${FIXTURE}"/build/release/assets/*.img.zst "${FIXTURE}"/build/release/assets/*.iso
+  verify complete >/dev/null
+done
+rm "${helper}"
 mkdir -p scope/build/release/assets
 cp build/release/assets/alpenglow-v0.1.700-potato-x86_64.* scope/build/release/assets/
 (cd scope && verify potato-x86_64 >/dev/null)
