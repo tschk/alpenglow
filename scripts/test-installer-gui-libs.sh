@@ -26,6 +26,11 @@ for lib in ${needed}; do
   grep -qw -- "${lib}" "${BUNDLE_SCRIPT}" || fail "${lib} is needed by the GUI but not bundled by install-graphics-libs.sh"
 done
 
+# 1b. Static (musl) links must name the X11 archives libxkbcommon-x11 needs (see system/installer/build.rs).
+for lib in xcb-xkb xcb Xau Xdmcp; do
+  grep -qF "\"${lib}\"" "${ROOT_DIR}/system/installer/build.rs" || fail "build.rs does not link ${lib} for static musl GUI builds"
+done
+
 # 2. The Debian packages providing the X11 xkb libs must be installed in the bundle build.
 grep -qw libxkbcommon-x11-0 "${BUNDLE_SCRIPT}" || fail "libxkbcommon-x11-0 not installed by bundle script"
 grep -qw libxcb-xkb1 "${BUNDLE_SCRIPT}" || fail "libxcb-xkb1 not installed by bundle script"

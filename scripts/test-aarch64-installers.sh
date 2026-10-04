@@ -89,6 +89,7 @@ if [ "${MODE}" = "all" ] || [ "${MODE}" = "gui" ]; then
   CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx" \
   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
   RUSTFLAGS="${RUSTFLAGS:-} -L native=${GUI_SYSROOT}/usr/lib -L native=${GUI_SYSROOT}/lib" \
+  PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_SYSROOT_DIR="${GUI_SYSROOT}" PKG_CONFIG_LIBDIR="${GUI_SYSROOT}/usr/lib/pkgconfig" \
     cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
     --target-dir "${ROOT_DIR}/target" --features gui --bin alpenglow-install-gui
 
