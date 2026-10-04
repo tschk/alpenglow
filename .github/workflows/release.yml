@@ -17,7 +17,63 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}-${{ github.event.inputs.version || '' }}-${{ inputs.validate_aarch64_desktop_uefi_only || false }}
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and create draft release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          version="${INPUT_VERSION}"
+          if [ -z "${version}" ]; then
+            case "${REF_NAME}" in
+              v*) version="${REF_NAME}" ;;
+              *) version="v0.1.$(git rev-list --count HEAD)" ;;
+            esac
+          fi
+          case "${version}" in
+            v[0-9]*) ;;
+            *) echo "invalid release version: ${version}" >&2; exit 1 ;;
+          esac
+          case "${version}" in
+            *[!a-zA-Z0-9._-]*) echo "invalid release version: ${version}" >&2; exit 1 ;;
+          esac
+          if git rev-parse -q --verify "refs/tags/${version}^{commit}" >/dev/null; then
+            test "$(git rev-parse "refs/tags/${version}^{commit}")" = "${GITHUB_SHA}" || {
+              echo "release tag points to a different commit: ${version}" >&2
+              exit 1
+            }
+          fi
+          if gh release view "${version}" >/dev/null 2>&1; then
+            test "$(gh release view "${version}" --json isDraft --jq .isDraft)" = true
+            test "$(gh release view "${version}" --json targetCommitish --jq .targetCommitish)" = "${GITHUB_SHA}" || {
+              echo "existing draft targets a different commit: ${version}" >&2
+              exit 1
+            }
+          else
+            gh release create "${version}" --draft --target "${GITHUB_SHA}" \
+              --title "Alpenglow ${version}" \
+              --notes "Testing-only, unstable images under active development. Public SKUs are potato, desktop, and internet. x86_64 and aarch64 desktop images ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-${version}-{potato|desktop|internet}-{x86_64|aarch64}.img.zst and .iso (each with .sha256), and alpenglow-${version}-potato-riscv64.tar.zst with .sha256."
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
   validate_aarch64_desktop_uefi:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_aarch64_desktop_uefi_only }}
     runs-on: ubuntu-latest
@@ -101,6 +157,7 @@ jobs:
 
   image:
     if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -122,19 +179,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Resolve release version
-        id: version
-        run: |
-          version="${{ github.event.inputs.version || '' }}"
-          if [ -z "${version}" ]; then
-            ref="${{ github.ref_name }}"
-            case "${ref}" in
-              v*) version="${ref}" ;;
-              *) version="v0.1.$(git rev-list --count HEAD)" ;;
-            esac
-          fi
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Check out Alpenglowed
         if: matrix.edition == 'desktop' || matrix.edition == 'potato'
@@ -185,12 +229,12 @@ jobs:
           ALPENGLOW_EDITION: ${{ matrix.edition }}
           AARCH64_KERNEL_JOBS: ${{ matrix.arch == 'aarch64' && '2' || '' }}
         run: |
-          sh scripts/release-assets.sh "${{ steps.version.outputs.version }}"
+          sh scripts/release-assets.sh "${{ needs.prepare.outputs.version }}"
 
       - name: Boot aarch64 desktop ISO with UEFI
         if: matrix.arch == 'aarch64' && startsWith(matrix.edition, 'desktop')
         run: |
-          iso="build/release/assets/alpenglow-${{ steps.version.outputs.version }}-${{ matrix.edition }}-aarch64.iso"
+          iso="build/release/assets/alpenglow-${{ needs.prepare.outputs.version }}-${{ matrix.edition }}-aarch64.iso"
           firmware="$(find /usr/share -type f \( -name AAVMF_CODE.fd -o -name QEMU_EFI.fd \) -print -quit)"
           test -s "${iso}"
           test -n "${firmware}"
@@ -204,33 +248,23 @@ jobs:
             exit 1
           fi
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: alpenglow-${{ matrix.edition }}-${{ matrix.arch }}
-          path: build/release/assets/*
-          if-no-files-found: error
+      - name: Verify and upload draft release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          ASSET_SCOPE: ${{ matrix.edition }}-${{ matrix.arch }}
+        run: |
+          set -eu
+          sh scripts/upload-release-assets.sh "${VERSION}" "${ASSET_SCOPE}" build/release/assets .
 
   riscv64:
     if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Resolve release version
-        id: version
-        run: |
-          version="${{ github.event.inputs.version || '' }}"
-          if [ -z "${version}" ]; then
-            ref="${{ github.ref_name }}"
-            case "${ref}" in
-              v*) version="${ref}" ;;
-              *) version="v0.1.$(git rev-list --count HEAD)" ;;
-            esac
-          fi
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - uses: actions/checkout@v4
         with:
@@ -285,20 +319,23 @@ jobs:
           perl -0pi -e 's/--platform linux\/arm64/--platform linux\/amd64/g' scripts/build-riscv64.sh
           sh scripts/build-riscv64.sh
           mkdir -p build/release/assets
-          asset="alpenglow-${{ steps.version.outputs.version }}-potato-riscv64.tar.zst"
+          asset="alpenglow-${{ needs.prepare.outputs.version }}-potato-riscv64.tar.zst"
           tar -cf - -C build/cross/riscv64 Image initramfs.cpio.gz zig-init alpenglow-kernelctl | zstd -19 -T0 > "build/release/assets/${asset}"
           sha256sum "build/release/assets/${asset}" > "build/release/assets/${asset}.sha256"
 
-      - name: Upload RISC-V build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: alpenglow-potato-riscv64
-          path: riscv64-src/build/release/assets/*
-          if-no-files-found: error
+      - name: Verify and upload RISC-V draft release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -eu
+          sh scripts/upload-release-assets.sh "${VERSION}" potato-riscv64 \
+            riscv64-src/build/release/assets riscv64-src
 
   publish:
     if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
     needs:
+      - prepare
       - image
       - riscv64
     runs-on: ubuntu-latest
@@ -307,36 +344,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve release version
-        id: version
-        run: |
-          version="${{ github.event.inputs.version || '' }}"
-          if [ -z "${version}" ]; then
-            ref="${{ github.ref_name }}"
-            case "${ref}" in
-              v*) version="${ref}" ;;
-              *) version="v0.1.$(git rev-list --count HEAD)" ;;
-            esac
-          fi
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-
-      - name: Download all release artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Publish GitHub release
+      - name: Verify complete draft and publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          version="${{ steps.version.outputs.version }}"
-          mkdir -p upload
-          find artifacts -type f \( -name '*.zst' -o -name '*.iso' -o -name '*.tar' -o -name '*.sha256' \) -exec cp {} upload/ \;
-          ls -la upload/
-          if ! gh release view "${version}" >/dev/null 2>&1; then
-            gh release create "${version}" \
-              --title "Alpenglow ${version}" \
-              --notes "Testing-only, unstable images under active development. Public SKUs are potato, desktop, and internet. x86_64 and aarch64 desktop images ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-\${version}-{potato|desktop|internet}-\${arch}.img.zst (+ .sha256, .iso when built), alpenglow-\${version}-potato-\${arch}.tar, and alpenglow-\${version}-potato-riscv64.tar.zst."
-          fi
-          gh release upload "${version}" upload/* --clobber
+          set -eu
+          test "$(gh release view "${VERSION}" --json isDraft --jq .isDraft)" = true
+          mkdir -p build/release/assets
+          gh release download "${VERSION}" --dir build/release/assets
+          sh scripts/verify-release-assets.sh "${VERSION}" complete build/release/assets .
+          gh release edit "${VERSION}" --draft=false
