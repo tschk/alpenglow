@@ -43,6 +43,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build and test installer GUI
         run: cargo test --locked -p alpenglow-installer --features gui
+      - name: Check live-root library coverage
+        run: |
+          cargo build --locked -p alpenglow-installer --features gui --bin alpenglow-install-gui
+          sudo sh scripts/test-installer-gui-libs.sh target/debug/alpenglow-install-gui
 
   rust-kernel-module:
     name: Rust kernel module compile
