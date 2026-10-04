@@ -24,7 +24,7 @@ fn is_install_disk_name(name: &str) -> bool {
 fn main() {
     use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
     use crepuscularity_gpui::prelude::*;
-    use gpui::{bounds, point, size, App, Application, ClickEvent};
+    use gpui::{bounds, point, size, App, ClickEvent};
     use std::fs;
     use std::path::PathBuf;
 
@@ -318,7 +318,7 @@ fn main() {
     }
 
     let (source, target) = parse_install_args(std::env::args_os().skip(1));
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         let options = gpui_window_options(
             "alpenglow.installer",
             "Alpenglow Installer",
