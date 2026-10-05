@@ -81,9 +81,9 @@ jobs:
           echo "GUI_BIN=${bin}" >> "${GITHUB_ENV}"
       - name: Check the aarch64 GUI loads in an Alpine arm64 userland
         run: sh scripts/smoke-aarch64-gui.sh check "${GUI_BIN}"
-      # Emulated lavapipe start-up is slow and unproven in CI; keep it visible without gating.
-      - name: Smoke-run the aarch64 GUI under a headless compositor (informational)
-        continue-on-error: true
+      # Starts the GUI under headless cage with software Vulkan (lavapipe) in the emulated
+      # userland, then requires a rendered window and the GUI process still running.
+      - name: Smoke-run the aarch64 GUI under a headless compositor
         run: sh scripts/smoke-aarch64-gui.sh run "${GUI_BIN}"
 
   rust-kernel-module:
