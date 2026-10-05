@@ -15,6 +15,7 @@ fn is_install_disk_name(name: &str) -> bool {
 
 #[cfg(feature = "gui")]
 fn main() {
+    use alpenglow_installer::inuse::{disk_name, disks_in_use, InUse};
     use alpenglow_installer::wizard::{
         can_continue, check_image, human_size, is_root, page_count, page_range, Readiness, Step,
     };
@@ -51,6 +52,7 @@ fn main() {
         name: String,
         title: String,
         size: String,
+        in_use: Option<InUse>,
     }
 
     #[derive(Default)]
@@ -78,6 +80,8 @@ fn main() {
         title: String,
         detail: String,
         selected: bool,
+        blocked: bool,
+        reason: String,
     }
 
     impl InstallerView {
@@ -100,11 +104,16 @@ fn main() {
                 outcome: None,
             };
             view.disks = view.list_disks();
+            let target_busy = view.target_disk().is_some_and(|disk| disk.in_use.is_some());
+            if target_busy {
+                view.target = None;
+            }
             view
         }
 
         /// The disk named on the command line (if any) first, then what /sys/block reports.
         fn list_disks(&self) -> Vec<DiskChoice> {
+            let busy = disks_in_use(&self.source);
             let mut disks = discover_disks();
             if let Some(path) = &self.forced_target {
                 if !disks.iter().any(|disk| &disk.path == path) {
@@ -112,12 +121,16 @@ fn main() {
                         0,
                         DiskChoice {
                             path: path.clone(),
-                            name: path.display().to_string(),
+                            name: disk_name(path).unwrap_or_else(|| path.display().to_string()),
                             title: "Selected target".to_string(),
                             size: "given on the command line".to_string(),
+                            in_use: None,
                         },
                     );
                 }
+            }
+            for disk in &mut disks {
+                disk.in_use = busy.get(&disk.name).cloned();
             }
             disks
         }
@@ -213,6 +226,9 @@ fn main() {
                 cx.notify();
                 return;
             };
+            if disk.in_use.is_some() {
+                return;
+            }
             self.target = Some(disk.path.clone());
             self.status.clear();
             cx.notify();
@@ -234,6 +250,22 @@ fn main() {
                 cx.notify();
                 return;
             };
+            // The mounts may have changed since the disk was chosen; check again before erasing.
+            if let Some(reason) =
+                disk_name(&target).and_then(|name| disks_in_use(&self.source).remove(&name))
+            {
+                self.disks = self.list_disks();
+                self.target = None;
+                self.confirmed = false;
+                self.status = format!(
+                    "{} is {}. Choose another disk.",
+                    target.display(),
+                    reason.label().to_lowercase()
+                );
+                self.step = Step::Disk;
+                cx.notify();
+                return;
+            }
             self.run = Arc::new(Mutex::new(InstallRun::default()));
             self.progress = None;
             self.outcome = None;
@@ -368,6 +400,8 @@ fn main() {
                     title: disk.title.clone(),
                     detail: format!("{} · {}", disk.name, disk.size),
                     selected: self.target.as_ref() == Some(&disk.path),
+                    blocked: disk.in_use.is_some(),
+                    reason: disk.in_use.as_ref().map(InUse::label).unwrap_or_default(),
                 })
                 .collect();
             let has_pager = pages > 1;
@@ -528,17 +562,29 @@ fn main() {
                                     if {has_cards}
                                         div flex flex-col gap-3
                                             for card in {cards.into_iter()}
-                                                button bg-[#0c0c0c] rounded-xl border border-[#262626] shadow-sm px-4 py-3 flex flex-row items-center gap-4 when:{card.selected}="border-2 border-[#bd93f9]" @click={cx.listener(move |this, _: &ClickEvent, _, cx| this.select_disk(card.index, cx))}
-                                                    div bg-[#1c1c1f] rounded-lg w-12 h-9 flex items-center justify-center
-                                                        div bg-[#6a6a6a] rounded-full w-2 h-2
-                                                    div flex flex-col gap-1 flex-1
-                                                        div text-base font-semibold
-                                                            "{card.title}"
-                                                        div text-xs text-[#8a8a8a]
-                                                            "{card.detail}"
-                                                    if {card.selected}
-                                                        div bg-[#bd93f9] text-[#0b0b0b] rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold
-                                                            "✓"
+                                                if {card.blocked}
+                                                    div bg-[#080808] rounded-xl border border-[#1f1f1f] px-4 py-3 flex flex-row items-center gap-4
+                                                        div bg-[#141414] rounded-lg w-12 h-9 flex items-center justify-center
+                                                            div bg-[#3a3a3a] rounded-full w-2 h-2
+                                                        div flex flex-col gap-1 flex-1
+                                                            div text-base text-[#6a6a6a]
+                                                                "{card.title}"
+                                                            div text-xs text-[#555555]
+                                                                "{card.detail}"
+                                                        div border border-[#4a3a1a] bg-[#1b150b] text-[#ffb86c] rounded-md px-3 py-1 text-xs
+                                                            "{card.reason}"
+                                                else
+                                                    button bg-[#0c0c0c] rounded-xl border border-[#262626] shadow-sm px-4 py-3 flex flex-row items-center gap-4 when:{card.selected}="border-2 border-[#bd93f9]" @click={cx.listener(move |this, _: &ClickEvent, _, cx| this.select_disk(card.index, cx))}
+                                                        div bg-[#1c1c1f] rounded-lg w-12 h-9 flex items-center justify-center
+                                                            div bg-[#6a6a6a] rounded-full w-2 h-2
+                                                        div flex flex-col gap-1 flex-1
+                                                            div text-base font-semibold
+                                                                "{card.title}"
+                                                            div text-xs text-[#8a8a8a]
+                                                                "{card.detail}"
+                                                        if {card.selected}
+                                                            div bg-[#bd93f9] text-[#0b0b0b] rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold
+                                                                "✓"
                                             if {has_pager}
                                                 div flex flex-row items-center justify-between px-1
                                                     div text-xs text-[#8a8a8a]
@@ -690,6 +736,7 @@ fn main() {
                         size: size.unwrap_or_else(|| "unknown size".to_string()),
                         path,
                         name,
+                        in_use: None,
                     }
                 }));
             }
