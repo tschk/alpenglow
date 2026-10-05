@@ -84,14 +84,7 @@ EOF
 fi
 
 if [ "${MODE}" = "all" ] || [ "${MODE}" = "gui" ]; then
-  GUI_SYSROOT="$(ALPENGLOW_AARCH64_GUI_SYSROOT="${ALPENGLOW_AARCH64_GUI_SYSROOT:-}" sh "${ROOT_DIR}/scripts/build-aarch64-gui-sysroot.sh")"
-  CC_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcc" \
-  CXX_aarch64_unknown_linux_musl="${ROOT_DIR}/scripts/aarch64-linux-musl-zigcxx" \
-  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-rust-lld}" \
-  RUSTFLAGS="${RUSTFLAGS:-} -L native=${GUI_SYSROOT}/usr/lib -L native=${GUI_SYSROOT}/lib" \
-  PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_SYSROOT_DIR="${GUI_SYSROOT}" PKG_CONFIG_LIBDIR="${GUI_SYSROOT}/usr/lib/pkgconfig" \
-    cargo build --release --target aarch64-unknown-linux-musl --manifest-path "${ROOT_DIR}/system/installer/Cargo.toml" \
-    --target-dir "${ROOT_DIR}/target" --features gui --bin alpenglow-install-gui
+  GUI_BIN="$(sh "${ROOT_DIR}/scripts/build-aarch64-gui.sh")"
 
   mkdir -p "${TMP}/desktop"
   CID="$(docker create --platform linux/arm64 alpine:3.21 sleep 600)"
@@ -100,10 +93,10 @@ if [ "${MODE}" = "all" ] || [ "${MODE}" = "gui" ]; then
   }
   trap cleanup EXIT
   docker start "${CID}" >/dev/null
-  docker exec "${CID}" sh -lc 'apk add --no-cache cage seatd libxkbcommon-x11 fontconfig ttf-dejavu mesa-dri-gallium mesa-vulkan-swrast >/dev/null'
+  docker exec "${CID}" sh -lc 'apk add --no-cache cage seatd libxkbcommon-x11 wayland-libs-client vulkan-loader fontconfig ttf-dejavu mesa-dri-gallium mesa-vulkan-swrast >/dev/null'
   docker export "${CID}" | tar -C "${TMP}/desktop" -xf -
   mkdir -p "${TMP}/desktop/proc" "${TMP}/desktop/sys" "${TMP}/desktop/dev" "${TMP}/desktop/run" "${TMP}/desktop/tmp"
-  cp "${ROOT_DIR}/target/aarch64-unknown-linux-musl/release/alpenglow-install-gui" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
+  cp "${GUI_BIN}" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
   cat > "${TMP}/desktop/init" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc

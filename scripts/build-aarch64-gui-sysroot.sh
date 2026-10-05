@@ -38,5 +38,10 @@ for lib in libfontconfig.a libfreetype.a libxcb.a libxcb-xkb.a libXau.a libXdmcp
   test -f "${SYSROOT}/usr/lib/${lib}"
 done
 test -f "${SYSROOT}/lib/libc.musl-aarch64.so.1"
+# Dynamic musl links (-crt-static off) need musl's start file and the libgcc_s dev symlink,
+# which only the full gcc package ships; the runtime soname is enough to link against.
+test -f "${SYSROOT}/usr/lib/Scrt1.o"
+test -f "${SYSROOT}/usr/lib/libgcc_s.so.1"
+ln -sf libgcc_s.so.1 "${SYSROOT}/usr/lib/libgcc_s.so"
 
 printf '%s\n' "${SYSROOT}"
