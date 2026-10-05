@@ -1,3 +1,4 @@
+pub mod gpt;
 pub mod inuse;
 mod tui;
 pub mod wizard;

@@ -81,7 +81,7 @@ pub fn blocked_disks(
         source
             .split(':')
             .filter(|device| device.starts_with("/dev/"))
-            .flat_map(|device| resolve(device))
+            .flat_map(resolve)
             .collect()
     };
     for mount in mounts {

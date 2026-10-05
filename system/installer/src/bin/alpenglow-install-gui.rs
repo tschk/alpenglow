@@ -20,6 +20,7 @@ fn main() {
         can_continue, check_image, human_size, is_root, page_count, page_range, Readiness, Step,
     };
     use alpenglow_installer::{
+        gpt::{relocate_backup_gpt, GptOutcome},
         install_image_verified, parse_install_args, InstallPhase, InstallProgress,
     };
     use crepuscularity_gpui::prelude::*;
@@ -46,6 +47,7 @@ fn main() {
         progress: Option<InstallProgress>,
         started: Option<Instant>,
         outcome: Option<Result<u64, String>>,
+        gpt_note: Option<String>,
     }
 
     #[derive(Clone)]
@@ -61,6 +63,7 @@ fn main() {
     struct InstallRun {
         progress: Option<InstallProgress>,
         outcome: Option<Result<u64, String>>,
+        gpt_note: Option<String>,
     }
 
     struct SidebarItem {
@@ -104,6 +107,7 @@ fn main() {
                 progress: None,
                 started: None,
                 outcome: None,
+                gpt_note: None,
             };
             view.disks = view.list_disks();
             let target_busy = view.target_disk().is_some_and(|disk| disk.in_use.is_some());
@@ -271,6 +275,7 @@ fn main() {
             self.run = Arc::new(Mutex::new(InstallRun::default()));
             self.progress = None;
             self.outcome = None;
+            self.gpt_note = None;
             self.started = Some(Instant::now());
             self.status.clear();
             self.step = Step::Install;
@@ -284,7 +289,25 @@ fn main() {
                 };
                 let outcome = install_image_verified(&source, &target, false, report)
                     .map_err(|err| err.to_string());
+                // The image is installed and verified at this point; a backup partition table
+                // that cannot be moved is worth mentioning, not worth failing for.
+                let gpt_note = outcome.as_ref().ok().and_then(|bytes| {
+                    match relocate_backup_gpt(&target, *bytes) {
+                        Ok(GptOutcome::Moved { .. }) => Some(
+                            "The backup partition table was moved to the end of the disk."
+                                .to_string(),
+                        ),
+                        Ok(GptOutcome::Skipped(reason)) => Some(format!(
+                            "The backup partition table was left where it is ({reason})."
+                        )),
+                        Ok(GptOutcome::AlreadyAtEnd | GptOutcome::NotGpt) => None,
+                        Err(err) => Some(format!(
+                            "The backup partition table could not be updated: {err}."
+                        )),
+                    }
+                });
                 if let Ok(mut run) = run.lock() {
+                    run.gpt_note = gpt_note;
                     run.outcome = Some(outcome);
                 }
             });
@@ -303,11 +326,12 @@ fn main() {
 
         /// Copies progress from the writer thread; true once the install has finished.
         fn poll_install(&mut self, cx: &mut gpui::Context<Self>) -> bool {
-            let (progress, outcome) = match self.run.lock() {
-                Ok(run) => (run.progress, run.outcome.clone()),
+            let (progress, outcome, gpt_note) = match self.run.lock() {
+                Ok(run) => (run.progress, run.outcome.clone(), run.gpt_note.clone()),
                 Err(_) => (
                     None,
                     Some(Err("the installer thread stopped unexpectedly".to_string())),
+                    None,
                 ),
             };
             if progress.is_some() {
@@ -316,6 +340,7 @@ fn main() {
             let finished = outcome.is_some();
             if finished {
                 self.outcome = outcome;
+                self.gpt_note = gpt_note;
                 self.step = Step::Finish;
             }
             cx.notify();
@@ -471,14 +496,18 @@ fn main() {
                     true,
                     "Alpenglow is installed".to_string(),
                     format!(
-                        "Wrote {} to {target_path} and checked it. Remove the installation media, then restart to start Alpenglow.",
-                        human_size(*bytes)
+                        "Wrote {} to {target_path} and checked it.{} Remove the installation media, then restart to start Alpenglow.",
+                        human_size(*bytes),
+                        self.gpt_note
+                            .as_ref()
+                            .map(|note| format!(" {note}"))
+                            .unwrap_or_default()
                     ),
                 ),
                 Some(Err(err)) => (
                     false,
                     "The installation failed".to_string(),
-                    format!("{err}. Nothing more was changed. You can go back and try again."),
+                    format!("{err}. The disk may be partly written and will not start Alpenglow. You can go back and try again."),
                 ),
                 None => (false, String::new(), String::new()),
             };
@@ -507,7 +536,7 @@ fn main() {
 
             view! {r#"
                 div bg-[#000000] text-[#ededed] size-full flex flex-row font-[Geist]
-                    div bg-[#070707] border-r border-[#262626] w-[232px] flex flex-col px-4 py-6 gap-6
+                    div bg-[#070707] border-r border-[#262626] w-[232px] flex-none flex flex-col px-4 py-6 gap-6
                         div flex flex-row items-center gap-3 px-2
                             div bg-[#ff79c6] rounded-[10px] w-9 h-9 flex items-center justify-center text-[#0b0b0b] text-lg font-bold
                                 "▲"
@@ -683,7 +712,7 @@ fn main() {
                                             "✕"
                                     div text-3xl font-semibold
                                         "{finish_title}"
-                                    div text-base text-[#8a8a8a] text-center
+                                    div text-base text-[#8a8a8a] text-center max-w-[560px]
                                         "{finish_detail}"
                         div border-t border-[#262626] bg-[#050505] px-8 py-4 flex flex-row items-center justify-between gap-4
                             div flex flex-row items-center gap-4
