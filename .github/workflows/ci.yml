@@ -31,6 +31,63 @@ jobs:
       - name: Check Rust core
         run: scripts/ci-rust-core.sh
 
+  installer-gui:
+    name: Alpenglow installer GUI build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install GUI build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libfontconfig1-dev libfreetype6-dev libxcb1-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build and test installer GUI
+        run: cargo test --locked -p alpenglow-installer --features gui
+      - name: Check write verification against a real block device
+        run: sudo -E env "PATH=${PATH}" cargo test --locked -p alpenglow-installer --test loop_verify -- --nocapture
+      - name: Check live-root library coverage
+        run: |
+          cargo build --locked -p alpenglow-installer --features gui --bin alpenglow-install-gui
+          sudo sh scripts/test-installer-gui-libs.sh target/debug/alpenglow-install-gui
+
+  installer-gui-aarch64:
+    name: Alpenglow installer GUI aarch64 musl build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Setup QEMU binfmt (arm64)
+        run: |
+          set -eu
+          for attempt in 1 2 3; do
+            if docker run --privileged --rm tonistiigi/binfmt --install arm64; then
+              docker run --rm --platform linux/arm64 alpine:3.21 uname -m
+              exit 0
+            fi
+            echo "binfmt install attempt ${attempt} failed, retrying..."
+            sleep $((attempt * 20))
+          done
+          echo "failed to install arm64 binfmt after 3 attempts" >&2
+          exit 1
+      - name: Build aarch64 musl GUI against the Alpine sysroot
+        run: |
+          set -eu
+          bin="$(sh scripts/build-aarch64-gui.sh)"
+          echo "GUI_BIN=${bin}" >> "${GITHUB_ENV}"
+      - name: Check the aarch64 GUI loads in an Alpine arm64 userland
+        run: sh scripts/smoke-aarch64-gui.sh check "${GUI_BIN}"
+      # Starts the GUI under headless cage with software Vulkan (lavapipe) in the emulated
+      # userland, then requires a rendered window and the GUI process still running.
+      - name: Smoke-run the aarch64 GUI under a headless compositor
+        run: sh scripts/smoke-aarch64-gui.sh run "${GUI_BIN}"
+
   rust-kernel-module:
     name: Rust kernel module compile
     runs-on: ubuntu-latest

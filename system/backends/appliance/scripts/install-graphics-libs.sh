@@ -23,6 +23,7 @@ docker run --rm --platform linux/amd64 -e GRAPHICS_BACKEND="${GRAPHICS_BACKEND}"
     libegl1 libegl-mesa0 libgles2 libgl1 libgl1-mesa-dri \
     libgbm1 libdrm2 libvulkan1 mesa-vulkan-drivers \
     libwayland-client0 libxkbcommon0 libxkbcommon-dev \
+    libxkbcommon-x11-0 libxcb-xkb1 \
     libstdc++6 libgcc-s1 2>/dev/null >/dev/null
 
   # glibc shared libs → /lib/x86_64-linux-gnu/
@@ -36,7 +37,7 @@ docker run --rm --platform linux/amd64 -e GRAPHICS_BACKEND="${GRAPHICS_BACKEND}"
     libvulkan.so.1 \
     libGLdispatch.so.0 libGLX.so.0 \
     libwayland-client.so.0 \
-    libxkbcommon.so.0 \
+    libxkbcommon.so.0 libxkbcommon-x11.so.0 \
     libstdc++.so.6 \
     libgcc_s.so.1 \
     libc.so.6 libm.so.6 \
@@ -45,7 +46,7 @@ docker run --rm --platform linux/amd64 -e GRAPHICS_BACKEND="${GRAPHICS_BACKEND}"
     libxml2.so.2 \
     libmd.so.0 \
     libX11.so.6 libX11-xcb.so.1 libXau.so.6 libXdmcp.so.6 \
-    libxcb.so.1 libxcb-dri3.so.0 libxcb-present.so.0 libxcb-randr.so.0 \
+    libxcb.so.1 libxcb-xkb.so.1 libxcb-dri3.so.0 libxcb-present.so.0 libxcb-randr.so.0 \
     libxcb-shm.so.0 libxcb-sync.so.1 libxcb-xfixes.so.0 \
     libxshmfence.so.1; do
     src="/usr/lib/x86_64-linux-gnu/${lib}"

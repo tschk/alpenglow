@@ -1,0 +1,121 @@
+name: Installer GUI aarch64 QEMU boot
+
+# Boots the aarch64 installer GUI in a real QEMU guest: the repo's own aarch64 desktop kernel,
+# an Alpine arm64 userland with seatd + cage, and the dynamically linked musl GUI, rendering on
+# virtio-gpu. The userland-only smoke in ci.yml (installer-gui-aarch64) does not exercise the
+# kernel, DRM or seat handling. Heavy (kernel build under emulation), so path-filtered. Nothing
+# is uploaded or published.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - system/installer/**
+      - Cargo.lock
+      - scripts/build-aarch64-gui.sh
+      - scripts/build-aarch64-gui-sysroot.sh
+      - scripts/test-aarch64-installers.sh
+      - scripts/smoke-aarch64-gui.sh
+      - scripts/lib/arm64-kernel-image.sh
+      - system/backends/appliance/kernel/**
+      - system/backends/appliance/scripts/build-kernel-aarch64.sh
+      - .github/workflows/installer-gui-aarch64-qemu.yml
+  pull_request:
+    paths:
+      - system/installer/**
+      - Cargo.lock
+      - scripts/build-aarch64-gui.sh
+      - scripts/build-aarch64-gui-sysroot.sh
+      - scripts/test-aarch64-installers.sh
+      - scripts/smoke-aarch64-gui.sh
+      - scripts/lib/arm64-kernel-image.sh
+      - system/backends/appliance/kernel/**
+      - system/backends/appliance/scripts/build-kernel-aarch64.sh
+      - .github/workflows/installer-gui-aarch64-qemu.yml
+
+permissions:
+  contents: read
+
+jobs:
+  boot:
+    name: Alpenglow installer GUI aarch64 QEMU boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # main 2024-09-12
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: false
+          swap-storage: true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install QEMU
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-arm qemu-utils cpio
+
+      - name: Setup QEMU binfmt (arm64)
+        run: |
+          set -eu
+          for attempt in 1 2 3; do
+            if docker run --privileged --rm tonistiigi/binfmt --install arm64; then
+              docker run --rm --platform linux/arm64 alpine:3.21 uname -m
+              exit 0
+            fi
+            echo "binfmt install attempt ${attempt} failed, retrying..."
+            sleep $((attempt * 20))
+          done
+          echo "failed to install arm64 binfmt after 3 attempts" >&2
+          exit 1
+
+      - name: Restore aarch64 desktop kernel cache
+        id: kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/cross/aarch64/vmlinuz
+            build/cross/aarch64/.kernel-aarch64-desktop.ok
+          key: kernel-aarch64-desktop-${{ hashFiles('system/backends/appliance/kernel/**', 'system/backends/appliance/scripts/build-kernel-aarch64.sh', 'scripts/boot-native.sh') }}
+
+      - name: Build aarch64 desktop kernel
+        if: steps.kernel-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eu
+          mkdir -p build/cross/aarch64
+          KERNEL_PROFILE=desktop AARCH64_KERNEL_JOBS=3 \
+            sh system/backends/appliance/scripts/build-kernel-aarch64.sh build/cross/aarch64 .
+
+      - name: Unpack the kernel Image for QEMU
+        run: |
+          set -eu
+          . scripts/lib/arm64-kernel-image.sh
+          if arm64_kernel_image_has_magic build/cross/aarch64/vmlinuz; then
+            cp build/cross/aarch64/vmlinuz build/cross/aarch64/vmlinuz-virt
+          else
+            arm64_kernel_image_unpack_gzip build/cross/aarch64/vmlinuz build/cross/aarch64/vmlinuz-virt
+          fi
+          arm64_kernel_image_has_magic build/cross/aarch64/vmlinuz-virt
+          ls -l build/cross/aarch64/vmlinuz-virt
+
+      - name: Boot the installer GUI in an aarch64 guest
+        env:
+          TIMEOUT: "1500"
+          GUI_WAIT: "120"
+          QEMU_MEM: "3072"
+          QEMU_CPU: max,pauth-impdef=on
+        run: sh scripts/test-aarch64-installers.sh gui
