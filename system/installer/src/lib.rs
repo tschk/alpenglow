@@ -8,10 +8,13 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use sha2::{Digest, Sha256};
+
 #[derive(Debug)]
 pub enum InstallError {
     Io(io::Error),
     InvalidTarget(String),
+    Verify(String),
 }
 
 impl fmt::Display for InstallError {
@@ -19,6 +22,7 @@ impl fmt::Display for InstallError {
         match self {
             InstallError::Io(err) => write!(f, "{err}"),
             InstallError::InvalidTarget(msg) => write!(f, "{msg}"),
+            InstallError::Verify(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -127,10 +131,18 @@ pub fn validate_target(target: &Path, allow_regular_file: bool) -> Result<(), In
     )))
 }
 
-/// Bytes written so far and, when known, the expected total (plain image size, or the
-/// decompressed size recorded in a zstd frame header).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallPhase {
+    Writing,
+    Verifying,
+}
+
+/// Bytes handled so far in the current phase and, when known, the expected total (plain image
+/// size, or the decompressed size recorded in a zstd frame header). While verifying, the total
+/// is always known: it is what was written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstallProgress {
+    pub phase: InstallPhase,
     pub written: u64,
     pub total: Option<u64>,
 }
@@ -176,6 +188,7 @@ where
         target,
         allow_regular_file,
         is_zstd_path(source),
+        false,
         on_progress,
     )
 }
@@ -185,6 +198,7 @@ fn copy_image<F>(
     target: &Path,
     allow_regular_file: bool,
     compressed: bool,
+    verify: bool,
     mut on_progress: F,
 ) -> Result<u64, InstallError>
 where
@@ -208,27 +222,140 @@ where
         .truncate(allow_regular_file)
         .open(target)?;
     let mut writer = BufWriter::new(output);
+    let mut hasher = verify.then(Sha256::new);
 
+    let writing = |written, total| InstallProgress {
+        phase: InstallPhase::Writing,
+        written,
+        total,
+    };
     let mut buffer = vec![0u8; COPY_BUFFER];
     let mut written = 0u64;
     let mut reported = 0u64;
-    on_progress(InstallProgress { written, total });
+    on_progress(writing(written, total));
     loop {
         let read = input.read(&mut buffer)?;
         if read == 0 {
             break;
         }
         writer.write_all(&buffer[..read])?;
+        if let Some(hasher) = hasher.as_mut() {
+            hasher.update(&buffer[..read]);
+        }
         written += read as u64;
         if written - reported >= PROGRESS_STEP {
             reported = written;
-            on_progress(InstallProgress { written, total });
+            on_progress(writing(written, total));
         }
     }
     writer.flush()?;
     writer.get_ref().sync_all()?;
-    on_progress(InstallProgress { written, total });
+    on_progress(writing(written, total));
+    drop(writer);
+
+    if let Some(hasher) = hasher {
+        verify_written(target, written, &hasher.finalize(), &mut on_progress)?;
+    }
     Ok(written)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Asks the kernel to forget cached pages of `file`, so a read-back comes from the device and
+/// not from the data we just wrote. On a block device the buffer cache is flushed as well.
+#[cfg(unix)]
+fn drop_cached_pages(file: &File) {
+    use std::os::fd::AsRawFd;
+    const BLKFLSBUF: u32 = 0x1261;
+    let fd = file.as_raw_fd();
+    // Both calls are best effort: without the privilege the read-back is merely less strict.
+    unsafe {
+        libc::posix_fadvise(fd, 0, 0, libc::POSIX_FADV_DONTNEED);
+    }
+    if file
+        .metadata()
+        .map(|metadata| is_block_device(&metadata))
+        .unwrap_or(false)
+    {
+        unsafe {
+            libc::ioctl(fd, BLKFLSBUF as _, 0);
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn drop_cached_pages(_file: &File) {}
+
+/// Re-reads the first `len` bytes of `target` (after dropping cached pages) and checks their
+/// SHA-256 against `expected`.
+pub fn verify_written<F>(
+    target: &Path,
+    len: u64,
+    expected: &[u8],
+    mut on_progress: F,
+) -> Result<(), InstallError>
+where
+    F: FnMut(InstallProgress),
+{
+    let mut file = File::open(target)?;
+    drop_cached_pages(&file);
+    let verifying = |done| InstallProgress {
+        phase: InstallPhase::Verifying,
+        written: done,
+        total: Some(len),
+    };
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; COPY_BUFFER];
+    let mut done = 0u64;
+    let mut reported = 0u64;
+    on_progress(verifying(done));
+    while done < len {
+        let want = (len - done).min(buffer.len() as u64) as usize;
+        let read = file.read(&mut buffer[..want])?;
+        if read == 0 {
+            return Err(InstallError::Verify(format!(
+                "Verification failed: the disk ended after {done} of {len} bytes."
+            )));
+        }
+        hasher.update(&buffer[..read]);
+        done += read as u64;
+        if done - reported >= PROGRESS_STEP {
+            reported = done;
+            on_progress(verifying(done));
+        }
+    }
+    let actual = hasher.finalize();
+    on_progress(verifying(done));
+    if actual.as_slice() != expected {
+        return Err(InstallError::Verify(format!(
+            "Verification failed: the data on the disk differs from the image (expected {}, read {}). The disk may be faulty.",
+            &hex(expected)[..12],
+            &hex(&actual)[..12]
+        )));
+    }
+    Ok(())
+}
+
+/// Like [`install_image_with_progress`], then re-reads the disk and checks it against the image.
+pub fn install_image_verified<F>(
+    source: &Path,
+    target: &Path,
+    allow_regular_file: bool,
+    on_progress: F,
+) -> Result<u64, InstallError>
+where
+    F: FnMut(InstallProgress),
+{
+    copy_image(
+        source,
+        target,
+        allow_regular_file,
+        is_zstd_path(source),
+        true,
+        on_progress,
+    )
 }
 
 pub fn install_image(
@@ -236,7 +363,7 @@ pub fn install_image(
     target: &Path,
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
-    copy_image(source, target, allow_regular_file, false, |_| {})
+    copy_image(source, target, allow_regular_file, false, false, |_| {})
 }
 
 pub fn install_image_maybe_compressed(

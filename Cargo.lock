@@ -172,6 +172,8 @@ dependencies = [
  "crepuscularity-gpui",
  "crepuscularity-tui",
  "gpui-ce",
+ "libc",
+ "sha2 0.10.9",
  "tempfile",
  "zstd",
 ]

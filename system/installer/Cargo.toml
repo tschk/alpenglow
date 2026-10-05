@@ -26,6 +26,8 @@ crepuscularity-gpui = { version = "0.5.10", optional = true, features = ["font-k
 # crepuscularity's view! macro emits `gpui::` paths; gpui-ce is the maintained fork it targets.
 gpui = { package = "gpui-ce", version = "0.2.2", default-features = false, optional = true }
 zstd = "0.13.3"
+sha2 = "0.10"
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

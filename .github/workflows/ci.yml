@@ -43,6 +43,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build and test installer GUI
         run: cargo test --locked -p alpenglow-installer --features gui
+      - name: Check write verification against a real block device
+        run: sudo -E env "PATH=${PATH}" cargo test --locked -p alpenglow-installer --test loop_verify -- --nocapture
       - name: Check live-root library coverage
         run: |
           cargo build --locked -p alpenglow-installer --features gui --bin alpenglow-install-gui

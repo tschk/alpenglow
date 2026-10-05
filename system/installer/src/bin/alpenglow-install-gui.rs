@@ -19,7 +19,9 @@ fn main() {
     use alpenglow_installer::wizard::{
         can_continue, check_image, human_size, is_root, page_count, page_range, Readiness, Step,
     };
-    use alpenglow_installer::{install_image_with_progress, parse_install_args, InstallProgress};
+    use alpenglow_installer::{
+        install_image_verified, parse_install_args, InstallPhase, InstallProgress,
+    };
     use crepuscularity_gpui::prelude::*;
     use crepuscularity_gpui::{application, bounds, point, size, App, ClickEvent};
     use std::fs;
@@ -280,7 +282,7 @@ fn main() {
                         run.progress = Some(progress);
                     }
                 };
-                let outcome = install_image_with_progress(&source, &target, false, report)
+                let outcome = install_image_verified(&source, &target, false, report)
                     .map_err(|err| err.to_string());
                 if let Ok(mut run) = run.lock() {
                     run.outcome = Some(outcome);
@@ -434,18 +436,27 @@ fn main() {
             let percent = self.progress.and_then(|p| p.percent());
             let filled_segments = percent.map(usize::from).unwrap_or(0);
             let segments: Vec<bool> = (0..100).map(|index| index < filled_segments).collect();
-            let progress_title = match percent {
-                Some(percent) => format!("Writing Alpenglow… {percent}%"),
-                None => "Writing Alpenglow…".to_string(),
+            let verifying = self
+                .progress
+                .is_some_and(|p| p.phase == InstallPhase::Verifying);
+            let progress_title = match (verifying, percent) {
+                (false, Some(percent)) => format!("Writing Alpenglow… {percent}%"),
+                (false, None) => "Writing Alpenglow…".to_string(),
+                (true, Some(percent)) => format!("Verifying the disk… {percent}%"),
+                (true, None) => "Verifying the disk…".to_string(),
             };
             let progress_detail = {
-                let mut parts = vec![match self.progress.and_then(|p| p.total) {
-                    Some(total) => format!("{} of {}", human_size(written), human_size(total)),
-                    None => format!("{} written", human_size(written)),
+                let done = human_size(written);
+                let mut parts = vec![match (verifying, self.progress.and_then(|p| p.total)) {
+                    (true, Some(total)) => {
+                        format!("{done} of {} read back and checked", human_size(total))
+                    }
+                    (false, Some(total)) => format!("{done} of {}", human_size(total)),
+                    (_, None) => format!("{done} written"),
                 }];
                 if let Some(started) = self.started {
                     let seconds = started.elapsed().as_secs_f64();
-                    if seconds >= 2.0 && written > 0 {
+                    if seconds >= 2.0 && written > 0 && !verifying {
                         parts.push(format!(
                             "{}/s",
                             human_size((written as f64 / seconds) as u64)
@@ -460,7 +471,7 @@ fn main() {
                     true,
                     "Alpenglow is installed".to_string(),
                     format!(
-                        "Wrote {} to {target_path}. Remove the installation media, then restart to start Alpenglow.",
+                        "Wrote {} to {target_path} and checked it. Remove the installation media, then restart to start Alpenglow.",
                         human_size(*bytes)
                     ),
                 ),
@@ -633,7 +644,7 @@ fn main() {
                                             div text-sm text-[#8a8a8a]
                                                 "Action"
                                             div text-sm font-semibold
-                                                "Erase the disk and install Alpenglow"
+                                                "Erase the disk, install Alpenglow, check the result"
                                     div bg-[#1b150b] border border-[#4a3a1a] rounded-xl px-5 py-4 flex flex-row items-center gap-4
                                         div bg-[#ffb86c] text-[#0b0b0b] rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold
                                             "!"

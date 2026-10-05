@@ -195,11 +195,101 @@ fn plain_install_of_a_zst_named_file_stays_a_raw_copy() {
 
 #[test]
 fn percent_clamps_and_handles_zero_totals() {
-    use alpenglow_installer::InstallProgress;
-    let progress = |written, total| InstallProgress { written, total };
+    use alpenglow_installer::{InstallPhase, InstallProgress};
+    let progress = |written, total| InstallProgress {
+        phase: InstallPhase::Writing,
+        written,
+        total,
+    };
     assert_eq!(progress(0, Some(100)).percent(), Some(0));
     assert_eq!(progress(50, Some(100)).percent(), Some(50));
     assert_eq!(progress(500, Some(100)).percent(), Some(100));
     assert_eq!(progress(10, Some(0)).percent(), None);
     assert_eq!(progress(10, None).percent(), None);
+}
+
+#[test]
+fn verified_install_writes_then_verifies_and_reports_both_phases() {
+    use alpenglow_installer::{install_image_verified, InstallPhase, InstallProgress};
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let target = dir.path().join("target.img");
+    let data = pattern(6 * 1024 * 1024 + 7);
+    fs::write(&source, &data).unwrap();
+
+    let mut seen: Vec<InstallProgress> = Vec::new();
+    let written = install_image_verified(&source, &target, true, |p| seen.push(p)).unwrap();
+
+    assert_eq!(written, data.len() as u64);
+    assert_eq!(fs::read(&target).unwrap(), data);
+    let first_verify = seen
+        .iter()
+        .position(|p| p.phase == InstallPhase::Verifying)
+        .expect("a verifying phase");
+    assert!(seen[..first_verify]
+        .iter()
+        .all(|p| p.phase == InstallPhase::Writing));
+    assert!(seen[first_verify..]
+        .iter()
+        .all(|p| p.phase == InstallPhase::Verifying));
+    let last = seen.last().unwrap();
+    assert_eq!(last.written, data.len() as u64);
+    assert_eq!(last.total, Some(data.len() as u64));
+    assert_eq!(last.percent(), Some(100));
+}
+
+#[test]
+fn verified_install_of_zstd_checks_the_decompressed_bytes() {
+    use alpenglow_installer::install_image_verified;
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target.img");
+    let data = pattern(2 * 1024 * 1024);
+    fs::write(&source, zstd::encode_all(&data[..], 3).unwrap()).unwrap();
+    install_image_verified(&source, &target, true, |_| {}).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), data);
+}
+
+fn digest_of(data: &[u8]) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(data).to_vec()
+}
+
+#[test]
+fn verification_detects_a_flipped_byte() {
+    use alpenglow_installer::verify_written;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("disk.img");
+    let data = pattern(3 * 1024 * 1024);
+    fs::write(&target, &data).unwrap();
+    verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap();
+
+    let mut corrupted = data.clone();
+    corrupted[2_000_000] ^= 0x01;
+    fs::write(&target, &corrupted).unwrap();
+    let err = verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap_err();
+    assert!(err.to_string().contains("differs from the image"), "{err}");
+}
+
+#[test]
+fn verification_detects_a_disk_that_is_too_short() {
+    use alpenglow_installer::verify_written;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("disk.img");
+    let data = pattern(1024 * 1024);
+    fs::write(&target, &data[..data.len() - 100]).unwrap();
+    let err = verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap_err();
+    assert!(err.to_string().contains("ended after"), "{err}");
+}
+
+#[test]
+fn verification_ignores_whatever_follows_the_image_on_a_larger_disk() {
+    use alpenglow_installer::verify_written;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("disk.img");
+    let data = pattern(1024 * 1024);
+    let mut disk = data.clone();
+    disk.extend_from_slice(&[0xAA; 4096]);
+    fs::write(&target, &disk).unwrap();
+    verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap();
 }
