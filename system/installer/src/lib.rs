@@ -1,9 +1,10 @@
 mod tui;
+pub mod wizard;
 
 use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufReader, BufWriter};
+use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -125,21 +126,116 @@ pub fn validate_target(target: &Path, allow_regular_file: bool) -> Result<(), In
     )))
 }
 
-pub fn install_image(
+/// Bytes written so far and, when known, the expected total (plain image size, or the
+/// decompressed size recorded in a zstd frame header).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstallProgress {
+    pub written: u64,
+    pub total: Option<u64>,
+}
+
+impl InstallProgress {
+    /// Whole percent complete, clamped to 100; `None` when the total is unknown.
+    pub fn percent(&self) -> Option<u8> {
+        let total = self.total.filter(|total| *total > 0)?;
+        Some((self.written.min(total).saturating_mul(100) / total) as u8)
+    }
+}
+
+const COPY_BUFFER: usize = 1 << 20;
+const PROGRESS_STEP: u64 = 4 << 20;
+
+/// Decompressed size of a zstd file when its first frame header records it.
+fn zstd_content_size(file: &mut File) -> io::Result<Option<u64>> {
+    let mut header = [0u8; 18];
+    let read = file.read(&mut header)?;
+    file.seek(SeekFrom::Start(0))?;
+    Ok(zstd::zstd_safe::get_frame_content_size(&header[..read])
+        .ok()
+        .flatten())
+}
+
+fn is_zstd_path(source: &Path) -> bool {
+    source.extension().and_then(|ext| ext.to_str()) == Some("zst")
+}
+
+/// Copies `source` onto `target`, decompressing a `.zst` source, and reports progress. Flushes
+/// and syncs so a successful return means the data reached the device.
+pub fn install_image_with_progress<F>(
     source: &Path,
     target: &Path,
     allow_regular_file: bool,
-) -> Result<u64, InstallError> {
+    on_progress: F,
+) -> Result<u64, InstallError>
+where
+    F: FnMut(InstallProgress),
+{
+    copy_image(
+        source,
+        target,
+        allow_regular_file,
+        is_zstd_path(source),
+        on_progress,
+    )
+}
+
+fn copy_image<F>(
+    source: &Path,
+    target: &Path,
+    allow_regular_file: bool,
+    compressed: bool,
+    mut on_progress: F,
+) -> Result<u64, InstallError>
+where
+    F: FnMut(InstallProgress),
+{
     validate_target(target, allow_regular_file)?;
-    let input = File::open(source)?;
+    let mut input_file = File::open(source)?;
+    let total = if compressed {
+        zstd_content_size(&mut input_file)?
+    } else {
+        Some(input_file.metadata()?.len())
+    };
+    let mut input: Box<dyn Read> = if compressed {
+        Box::new(BufReader::new(zstd::stream::Decoder::new(input_file)?))
+    } else {
+        Box::new(BufReader::new(input_file))
+    };
     let output = OpenOptions::new()
         .write(true)
         .create(allow_regular_file)
         .truncate(allow_regular_file)
         .open(target)?;
-    let mut input = BufReader::new(input);
-    let mut output = BufWriter::new(output);
-    Ok(io::copy(&mut input, &mut output)?)
+    let mut writer = BufWriter::new(output);
+
+    let mut buffer = vec![0u8; COPY_BUFFER];
+    let mut written = 0u64;
+    let mut reported = 0u64;
+    on_progress(InstallProgress { written, total });
+    loop {
+        let read = input.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        writer.write_all(&buffer[..read])?;
+        written += read as u64;
+        if written - reported >= PROGRESS_STEP {
+            reported = written;
+            on_progress(InstallProgress { written, total });
+        }
+    }
+    writer.flush()?;
+    writer.get_ref().sync_all()?;
+    on_progress(InstallProgress { written, total });
+    Ok(written)
+}
+
+pub fn install_image(
+    source: &Path,
+    target: &Path,
+    allow_regular_file: bool,
+) -> Result<u64, InstallError> {
+    copy_image(source, target, allow_regular_file, false, |_| {})
 }
 
 pub fn install_image_maybe_compressed(
@@ -147,21 +243,7 @@ pub fn install_image_maybe_compressed(
     target: &Path,
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
-    if source.extension().and_then(|ext| ext.to_str()) != Some("zst") {
-        return install_image(source, target, allow_regular_file);
-    }
-    validate_target(target, allow_regular_file)?;
-    let input_file = File::open(source)?;
-    let decoder = zstd::stream::Decoder::new(input_file)?;
-    let output = OpenOptions::new()
-        .write(true)
-        .create(allow_regular_file)
-        .truncate(allow_regular_file)
-        .open(target)?;
-    let mut input = BufReader::new(decoder);
-    let mut output = BufWriter::new(output);
-    let bytes = io::copy(&mut input, &mut output)?;
-    Ok(bytes)
+    install_image_with_progress(source, target, allow_regular_file, |_| {})
 }
 
 #[cfg(unix)]
