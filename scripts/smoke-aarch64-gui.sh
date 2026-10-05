@@ -33,15 +33,17 @@ readelf -lW "${BIN}" | grep -q 'Requesting program interpreter: /lib/ld-musl-aar
   fail "no musl program interpreter (static or mislinked binary)"
 
 run_in_alpine() {
-  docker run --rm --platform linux/arm64 -v "${BIN}:/usr/bin/alpenglow-install-gui:ro" "$@"
+  docker run --rm -i --platform linux/arm64 -v "${BIN}:/usr/bin/alpenglow-install-gui:ro" \
+    -e RUNTIME_PKGS="${RUNTIME_PKGS}" -e RUN_SECONDS="${RUN_SECONDS}" "$@"
 }
 
 case "${MODE}" in
   check)
-    out="$(run_in_alpine "${IMAGE}" sh -eu -c "
-      apk add --no-cache ${RUNTIME_PKGS} >/dev/null
-      ldd /usr/bin/alpenglow-install-gui
-    " 2>&1)" || fail "loader check failed: ${out}"
+    out="$(run_in_alpine "${IMAGE}" sh -eu -s 2>&1 <<'EOS'
+apk add --no-cache ${RUNTIME_PKGS} >/dev/null
+ldd /usr/bin/alpenglow-install-gui
+EOS
+)" || fail "loader check failed: ${out}"
     printf '%s\n' "${out}"
     case "${out}" in
       *"not found"*|*"Error loading"*|*"symbol not found"*) fail "unresolved shared libraries" ;;
@@ -49,31 +51,39 @@ case "${MODE}" in
     printf 'smoke-aarch64-gui: check ok\n'
     ;;
   run)
-    out="$(run_in_alpine "${IMAGE}" sh -eu -c "
-      apk add --no-cache cage grim ${RUNTIME_PKGS} >/dev/null
-      export XDG_RUNTIME_DIR=/tmp/xdg
-      mkdir -m 700 \"\${XDG_RUNTIME_DIR}\"
-      export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 LIBSEAT_BACKEND=noop
-      cage -- /usr/bin/alpenglow-install-gui >/tmp/gui.log 2>&1 &
-      cage_pid=\$!
-      shot=
-      elapsed=0
-      while [ \"\${elapsed}\" -lt ${RUN_SECONDS} ]; do
-        sleep 10
-        elapsed=\$((elapsed + 10))
-        kill -0 \"\${cage_pid}\" 2>/dev/null || break
-        if WAYLAND_DISPLAY=wayland-0 grim /tmp/shot.png 2>/dev/null && [ \"\$(wc -c < /tmp/shot.png)\" -gt 20000 ]; then
-          shot=ok
-          break
-        fi
-      done
-      echo '--- gui log'
-      cat /tmp/gui.log
-      [ \"\${shot}\" = ok ] || { echo 'no rendered window captured'; exit 1; }
-      # The window must belong to the installer, still running, not just cage's empty output.
-      pgrep -f '^/usr/bin/alpenglow-install-gui' >/dev/null || { echo 'GUI process is not running'; exit 1; }
-      echo 'rendered window captured with the GUI process running'
-    " 2>&1)" || { printf '%s\n' "${out}"; fail "run smoke failed"; }
+    out="$(run_in_alpine "${IMAGE}" sh -eu -s 2>&1 <<'EOS'
+apk add --no-cache cage grim ${RUNTIME_PKGS} >/dev/null
+export XDG_RUNTIME_DIR=/tmp/xdg
+mkdir -m 700 "${XDG_RUNTIME_DIR}"
+export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 LIBSEAT_BACKEND=noop
+# Record the GUI's own PID: under arm64 emulation /proc/<pid>/cmdline names the qemu wrapper,
+# so matching the command line is unreliable. exec keeps the PID.
+cage -- sh -c 'echo $$ >/tmp/gui.pid; exec /usr/bin/alpenglow-install-gui' >/tmp/gui.log 2>&1 &
+cage_pid=$!
+shot=
+elapsed=0
+while [ "${elapsed}" -lt "${RUN_SECONDS}" ]; do
+  sleep 10
+  elapsed=$((elapsed + 10))
+  kill -0 "${cage_pid}" 2>/dev/null || break
+  if WAYLAND_DISPLAY=wayland-0 grim /tmp/shot.png 2>/dev/null && [ "$(wc -c < /tmp/shot.png)" -gt 20000 ]; then
+    shot=ok
+    break
+  fi
+done
+echo '--- gui log'
+cat /tmp/gui.log
+[ "${shot}" = ok ] || { echo 'no rendered window captured'; exit 1; }
+# The captured window must be the installer, still running, not just cage's empty output.
+gui_pid="$(cat /tmp/gui.pid 2>/dev/null || true)"
+if [ -z "${gui_pid}" ] || ! kill -0 "${gui_pid}" 2>/dev/null; then
+  echo "GUI process is not running (pid '${gui_pid}')"
+  ps || true
+  exit 1
+fi
+echo "rendered window captured with the GUI process (pid ${gui_pid}) running"
+EOS
+)" || { printf '%s\n' "${out}"; fail "run smoke failed"; }
     printf '%s\n' "${out}"
     case "${out}" in
       *"NoWaylandLib"*|*"panicked"*|*"Failed to open window"*) fail "GUI reported a start-up error" ;;
