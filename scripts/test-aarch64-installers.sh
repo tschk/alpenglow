@@ -124,12 +124,20 @@ export XDG_RUNTIME_DIR=/run/user/0
 export LIBSEAT_BACKEND=seatd
 export WLR_RENDERER=pixman
 export WLR_NO_HARDWARE_CURSORS=1
+# No udev in this initramfs, so libinput cannot enumerate the virtio input devices.
+export WLR_LIBINPUT_NO_DEVICES=1
 echo "Alpenglow desktop wayland aarch64 smoke"
 /usr/bin/seatd -g root -n 1 >/tmp/seatd.log 2>&1 &
 sleep 1
 /usr/bin/cage /usr/bin/alpenglow-install-gui >/tmp/gui.log 2>&1 &
 pid=$!
-sleep __GUI_WAIT__
+# Poll instead of one long sleep so a compositor/GUI that dies at once fails fast.
+waited=0
+while [ "$waited" -lt __GUI_WAIT__ ]; do
+  sleep 2
+  waited=$((waited + 2))
+  kill -0 "$pid" 2>/dev/null || break
+done
 if kill -0 "$pid" 2>/dev/null; then
   echo "Alpenglow desktop GUI running"
   kill "$pid" 2>/dev/null || true

@@ -115,7 +115,7 @@ jobs:
       - name: Boot the installer GUI in an aarch64 guest
         env:
           TIMEOUT: "1500"
-          GUI_WAIT: "240"
+          GUI_WAIT: "120"
           QEMU_MEM: "3072"
           QEMU_CPU: max,pauth-impdef=on
         run: sh scripts/test-aarch64-installers.sh gui
