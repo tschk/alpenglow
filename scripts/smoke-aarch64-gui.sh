@@ -70,7 +70,9 @@ case "${MODE}" in
       echo '--- gui log'
       cat /tmp/gui.log
       [ \"\${shot}\" = ok ] || { echo 'no rendered window captured'; exit 1; }
-      echo 'rendered window captured'
+      # The window must belong to the installer, still running, not just cage's empty output.
+      pgrep -f '^/usr/bin/alpenglow-install-gui' >/dev/null || { echo 'GUI process is not running'; exit 1; }
+      echo 'rendered window captured with the GUI process running'
     " 2>&1)" || { printf '%s\n' "${out}"; fail "run smoke failed"; }
     printf '%s\n' "${out}"
     case "${out}" in
