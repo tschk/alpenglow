@@ -6,6 +6,17 @@ OUT_DIR="${ROOT_DIR}/build/cross/aarch64"
 TMP="${TMPDIR:-/tmp}/alpenglow-aarch64-installers"
 TIMEOUT="${TIMEOUT:-45}"
 MODE="${1:-${MODE:-all}}"
+# Linux CI has no cocoa display; macOS dev machines keep it. GUI_WAIT is how long the guest
+# lets the GUI run before checking it is alive (TCG emulation needs far longer than 8s).
+KERNEL="${ALPENGLOW_AARCH64_KERNEL:-${OUT_DIR}/vmlinuz-virt}"
+QEMU_CPU="${QEMU_CPU:-max}"
+QEMU_MEM="${QEMU_MEM:-2048}"
+GUI_WAIT="${GUI_WAIT:-8}"
+if [ "$(uname -s)" = Darwin ]; then
+  QEMU_GUI_DISPLAY="${QEMU_GUI_DISPLAY:-cocoa}"
+else
+  QEMU_GUI_DISPLAY="${QEMU_GUI_DISPLAY:-none}"
+fi
 
 fail() {
   echo "FAIL: $1" >&2
@@ -21,10 +32,10 @@ run_qemu() {
   log="$2"
   shift 2
   timeout "${TIMEOUT}" qemu-system-aarch64 \
-    -M virt -accel tcg -cpu max -m 2048 -smp 2 \
+    -M virt -accel tcg -cpu "${QEMU_CPU}" -m "${QEMU_MEM}" -smp 2 \
     "$@" \
     -serial stdio -no-reboot \
-    -kernel "${OUT_DIR}/vmlinuz-virt" \
+    -kernel "${KERNEL}" \
     -initrd "${initrd}" \
     -append "console=ttyAMA0,115200 init=/init" \
     2>&1 | tee "${log}" || true
@@ -49,8 +60,11 @@ case "${MODE}" in
   *) fail "usage: $0 [all|tui|gui]" ;;
 esac
 
-test -f "${OUT_DIR}/vmlinuz-virt" || fail "missing ${OUT_DIR}/vmlinuz-virt"
-test -f "${OUT_DIR}/toybox-aarch64" || fail "missing ${OUT_DIR}/toybox-aarch64"
+test -f "${KERNEL}" || fail "missing ${KERNEL}"
+# Only the toybox-based TUI guest needs toybox.
+if [ "${MODE}" != "gui" ]; then
+  test -f "${OUT_DIR}/toybox-aarch64" || fail "missing ${OUT_DIR}/toybox-aarch64"
+fi
 
 rm -rf "${TMP}"
 mkdir -p "${TMP}"
@@ -115,7 +129,7 @@ echo "Alpenglow desktop wayland aarch64 smoke"
 sleep 1
 /usr/bin/cage /usr/bin/alpenglow-install-gui >/tmp/gui.log 2>&1 &
 pid=$!
-sleep 8
+sleep __GUI_WAIT__
 if kill -0 "$pid" 2>/dev/null; then
   echo "Alpenglow desktop GUI running"
   kill "$pid" 2>/dev/null || true
@@ -128,9 +142,11 @@ cat /tmp/gui.log 2>/dev/null || true
 echo "Alpenglow desktop wayland smoke OK"
 poweroff -f
 EOF
+  sed "s/__GUI_WAIT__/${GUI_WAIT}/" "${TMP}/desktop/init" > "${TMP}/desktop/init.new"
+  mv "${TMP}/desktop/init.new" "${TMP}/desktop/init"
   chmod +x "${TMP}/desktop/init" "${TMP}/desktop/usr/bin/alpenglow-install-gui"
   pack_root "${TMP}/desktop" "${TMP}/desktop.cpio.gz"
-  run_qemu "${TMP}/desktop.cpio.gz" "${TMP}/desktop.log" -display cocoa -device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci
+  run_qemu "${TMP}/desktop.cpio.gz" "${TMP}/desktop.log" -display "${QEMU_GUI_DISPLAY}" -device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-mouse-pci
   grep -q "Alpenglow desktop GUI running" "${TMP}/desktop.log" || fail "desktop GUI did not keep running"
   grep -q "Alpenglow desktop wayland smoke OK" "${TMP}/desktop.log" || fail "desktop wayland smoke failed"
 fi
