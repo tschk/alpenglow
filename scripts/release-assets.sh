@@ -2,6 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+. "${ROOT_DIR}/scripts/lib/initramfs-codec-identity.sh"
 VERSION="${1:-${ALPENGLOW_VERSION:-$(date +%Y%m%d)}}"
 ARCH="${ALPENGLOW_ARCH:-$(uname -m)}"
 export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-${BUILD_PROFILE:-potato}}"
@@ -11,7 +12,7 @@ OUT_DIR="${ROOT_DIR}/build/release"
 ASSET_DIR="${OUT_DIR}/assets"
 IMAGE="${OUT_DIR}/alpenglow.img"
 KERNEL="${OUT_DIR}/vmlinuz"
-INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
+INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
 LIMINE_DIR="${OUT_DIR}/limine"
 
 case "${ARCH}" in
@@ -126,6 +127,7 @@ if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
     cp "${GUI_INSTALLER}" "${LIVE_ROOT}/usr/bin/"
   fi
   (cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
+  initramfs_assert_codec_identity "${INITRAMFS}"
 fi
 
 if command -v xorriso >/dev/null 2>&1; then
@@ -141,7 +143,7 @@ if command -v xorriso >/dev/null 2>&1; then
   fi
   if [ -f "${KERNEL}" ] && [ -f "${INITRAMFS}" ]; then
     cp "${KERNEL}" "${ISO_ROOT}/boot/vmlinuz"
-    cp "${INITRAMFS}" "${ISO_ROOT}/boot/initramfs.cpio.gz"
+    cp "${INITRAMFS}" "${ISO_ROOT}/boot/initramfs.cpio.zst"
   fi
   cat > "${ISO_ROOT}/install-alpenglow.sh" <<EOF
 #!/bin/sh
@@ -164,7 +166,7 @@ verbose: no
   protocol: linux
   path: boot():/boot/vmlinuz
   cmdline: console=tty0 console=ttyS0 init=/init alpenglow.live=1
-  module_path: boot():/boot/initramfs.cpio.gz
+  module_path: boot():/boot/initramfs.cpio.zst
 EOF
     xorriso -as mkisofs -o "${ISO}" -V ALPENGLOW -r -J \
       -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table \

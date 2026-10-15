@@ -125,6 +125,11 @@ assert_contains "${tmp}/standard/etc/alpenglow/system.json" '"profile": "standar
 assert_not_contains "${tmp}/standard/etc/dinit.d/boot" 'depends-on = alpenglowed'
 
 sh scripts/export-container.sh "${tmp}/potato" "${tmp}/oci-out" >/dev/null
-assert_file "${tmp}/oci-out/alpenglow-dev-potato-$(uname -m).tar"
+host_arch="$(uname -m)"
+case "${host_arch}" in
+  amd64) host_arch=x86_64 ;;
+  arm64) host_arch=aarch64 ;;
+esac
+assert_file "${tmp}/oci-out/alpenglow-dev-potato-${host_arch}.tar"
 
 printf 'ci-edition-roles: ok\n'

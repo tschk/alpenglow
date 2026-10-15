@@ -43,9 +43,9 @@ assert_executable system/backends/appliance/scripts/alpenglow-session-start
 assert_file system/backends/appliance/rootfs-overlay/etc/greetd/config.toml
 assert_file system/backends/appliance/rootfs-overlay/etc/greetd/config-autologin.toml
 for dinit_svc in system/backends/appliance/dinit/*; do
-  sh -n "${dinit_svc}" 2>/dev/null || sh -c ". ${dinit_svc}" 2>/dev/null || true
+  [ -f "${dinit_svc}" ] || continue
+  assert_contains "${dinit_svc}" '^type = (process|scripted|internal)$'
 done
-
 
 # Kernel config
 assert_file system/backends/appliance/kernel/alpenglow-internet-appliance.config
@@ -55,20 +55,14 @@ assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.co
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECCOMP_FILTER=y$'
 assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.config '^CONFIG_SECURITY_LANDLOCK=y$'
 
-# Build scripts
+# Build and system scripts syntax validation
 assert_file scripts/boot-native.sh
-sh -n scripts/boot-native.sh || fail "syntax: scripts/boot-native.sh"
-for lib_script in scripts/lib/*.sh; do
-  [ -f "${lib_script}" ] || continue
-  sh -n "${lib_script}" || fail "syntax: ${lib_script}"
-done
 assert_file scripts/build.sh
-sh -n scripts/build.sh || fail "syntax: scripts/build.sh"
 assert_file scripts/build-release.sh
-sh -n scripts/build-release.sh || fail "syntax: scripts/build-release.sh"
-
-# Rust crates compile
-cargo check 2>/dev/null || echo "warning: cargo check failed (expected outside Linux)"
+for sh_script in scripts/*.sh scripts/lib/*.sh system/appliance/scripts/*.sh system/backends/appliance/scripts/*.sh; do
+  [ -f "${sh_script}" ] || continue
+  sh -n "${sh_script}" || fail "syntax: ${sh_script}"
+done
 
 # backend.json schema validation
 assert_contains system/backends/appliance/backend.json '"id": "alpenglow-native"'

@@ -1,3 +1,4 @@
+#!/bin/sh
 # Alpenglow mount-state script
 # Mounts persistent state partition by label or kernel arg.
 #

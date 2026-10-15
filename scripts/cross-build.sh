@@ -93,22 +93,15 @@ build_kernel() {
   echo "  kernel: ${BUILD_OUT}/vmlinuz"
 }
 
-# 2. Zig components (kernelctl, glowfsctl, init)
+# 2. Zig components (alpenglow-ctl, init)
 build_zig() {
   echo "→ Building Zig components..."
   require_cmd zig
 
-  # kernelctl-zig is a shim over alpenglow-ctl. glowfsctl-zig was removed.
   for dir in system/alpenglow-ctl system/init; do
     name="$(basename "${dir}")"
     echo "  ${name}..."
-    cd "${REPO_ROOT}/${dir}"
-    zig build -Dtarget="${TARGET}" -Doptimize=ReleaseSmall -Drelease=true 2>/dev/null || \
-      zig build-exe -target "${TARGET}" -O ReleaseSmall -fstrip src/main.zig 2>/dev/null || {
-        echo "  skipping ${name} (zig build not configured, trying direct)"
-        zig build-exe -target "${TARGET}" -O ReleaseSmall -fstrip src/main.zig -o "${BUILD_OUT}/${name}" 2>/dev/null && \
-          echo "  ${name}: ${BUILD_OUT}/${name}" || echo "  ${name}: build failed"
-      }
+    (cd "${REPO_ROOT}/${dir}" && zig build -Dtarget="${TARGET}" -Drelease=true --prefix "${BUILD_OUT}/${name}")
   done
 }
 

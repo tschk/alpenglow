@@ -90,11 +90,10 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 system/
   backends/
     appliance/          Primary profile (kernel configs, dinit services, scripts)
-  alpenglow-ctl/        Multicall kernel/net/pressure/zram daemons (Zig)
-  kernelctl-zig/        Deprecated build shim → alpenglow-ctl
-  netd-zig/             Deprecated build shim → alpenglow-ctl
+  alpenglow-ctl/        Multicall kernel/net/pressure/zram/role/power/state/logrotate daemon (Zig)
   oil/                  Package manager (Rust, APK-compatible)
-  kernel-modules/       Rust kernel modules (alpenglow_core, alpenglow_bootstat)
+  installer/            TUI and Wayland GUI disk installer (Rust)
+  kernel-modules/       Rust kernel modules (alpenglow_core)
   init/                 Zig init (4.8KB static, initramfs fallback)
 scripts/                Build, CI, benchmark scripts
 docs/                   Architecture, build, install docs

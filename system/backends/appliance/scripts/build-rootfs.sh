@@ -67,30 +67,31 @@ while IFS= read -r pkg || [ -n "${pkg}" ]; do
   "${OIL_CMD}" system add "${pkg}" --prefix "${ROOTFS_DIR}"
 done < "${PKG_LIST}"
 
-# ── Phase 1.5: Install full Wax (../oil) into rootfs (standard/desktop) ─
+# ── Phase 1.5: Install Oil/Wax binary into rootfs (standard/desktop) ─
 if [ "${BUILD_PROFILE}" != "minimal" ]; then
-  echo "→ Installing Wax (full Linuxbrew oil) package manager..."
-  WAX_REPO="${ROOT_DIR}/../oil"
+  echo "→ Installing Oil/Wax package manager into rootfs..."
+  OIL_SRC="${ROOT_DIR}/system/oil"
   WAX_BIN="${OUT_DIR}/wax"
   if [ -n "${ALPENGLOW_WAX_BIN:-}" ]; then
     WAX_BIN="${ALPENGLOW_WAX_BIN}"
-  elif [ -d "${WAX_REPO}" ]; then
+  elif [ -d "${OIL_SRC}" ]; then
     if [ ! -x "${WAX_BIN}" ]; then
       (
-        cd "${WAX_REPO}"
-        cargo build --release --no-default-features >/dev/null 2>&1
+        cd "${OIL_SRC}"
+        cargo build --release --no-default-features --features wax >/dev/null 2>&1
       )
-      cp "${WAX_REPO}/target/release/oil" "${WAX_BIN}"
+      cp "${ROOT_DIR}/target/release/oil" "${WAX_BIN}" 2>/dev/null || \
+        cp "${OIL_SRC}/target/release/oil" "${WAX_BIN}" 2>/dev/null || true
     fi
   else
-    echo "  ! ../oil not found; Wax will not be available in rootfs" >&2
+    echo "  ! system/oil not found; Oil/Wax will not be available in rootfs" >&2
   fi
   if [ -x "${WAX_BIN}" ]; then
     mkdir -p "${ROOTFS_DIR}/usr/local/bin"
     cp "${WAX_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
     chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
     ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
-    echo "  + wax from ${WAX_BIN}"
+    echo "  + oil/wax from ${WAX_BIN}"
   fi
 fi
 

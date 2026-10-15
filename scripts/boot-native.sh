@@ -146,9 +146,8 @@ if ! command -v "${ZIG}" >/dev/null 2>&1; then
 fi
 if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   echo "→ Building Zig init..."
-  "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
-    -target x86_64-linux-musl -O ReleaseSmall -fstrip \
-    -femit-bin="${OUT_DIR}/alpenglow-init" 2>&1 | tail -5
+    (cd "${ROOT_DIR}/system/init" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/init-out") 2>&1 | tail -5
+    cp "${OUT_DIR}/init-out/bin/alpenglow-init" "${OUT_DIR}/alpenglow-init" 2>/dev/null || true
   if [ -f "${OUT_DIR}/alpenglow-init" ]; then
     file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64"; exit 1; }
     echo "  init: ${OUT_DIR}/alpenglow-init"
@@ -160,6 +159,27 @@ if [ "${FAST}" != "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
     (cd "${ROOT_DIR}/system/alpenglow-ctl" && "${ZIG}" build -Drelease=true -Dtarget=x86_64-linux-musl --prefix "${OUT_DIR}/alpenglow-ctl") 2>&1 | tail -5
   fi
 fi
+
+apply_native_kernel_fragments() {
+  _kcfg="$1"
+  cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${_kcfg}" 2>/dev/null || true
+  cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${_kcfg}" 2>/dev/null || true
+  cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> "${_kcfg}" 2>/dev/null || true
+  if [ "${BUILD_PROFILE}" = "desktop" ]; then
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> "${_kcfg}" 2>/dev/null || true
+  else
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> "${_kcfg}" 2>/dev/null || true
+  fi
+  if [ "${EFI:-1}" = "1" ]; then
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> "${_kcfg}" 2>/dev/null || true
+  fi
+  if [ "${KERNEL_UNCOMPRESSED:-0}" = "1" ]; then
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/uncompressed.config" >> "${_kcfg}" 2>/dev/null || true
+  fi
+  if [ "${KERNEL_FASTINIT:-0}" = "1" ]; then
+    cat "${ROOT_DIR}/system/backends/appliance/kernel/fastinit.config" >> "${_kcfg}" 2>/dev/null || true
+  fi
+}
 
 # Kernel
 if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
@@ -193,23 +213,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
       scripts/config --disable EFI --disable EFI_STUB --disable RUST
     fi
     # Config overrides: LZ4 + virt drivers + minimal + EFI (for OVMF) + optional fast boot
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> .config 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> .config 2>/dev/null || true
-    if [ "${BUILD_PROFILE}" = "desktop" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> .config 2>/dev/null || true
-    else
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> .config 2>/dev/null || true
-    fi
-    if [ "${EFI:-1}" = "1" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> .config 2>/dev/null || true
-    fi
-    if [ "${KERNEL_UNCOMPRESSED:-0}" = "1" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/uncompressed.config" >> .config 2>/dev/null || true
-    fi
-    if [ "${KERNEL_FASTINIT:-0}" = "1" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/fastinit.config" >> .config 2>/dev/null || true
-    fi
+    apply_native_kernel_fragments .config
     ${MAKE_CMD} ARCH=x86_64 olddefconfig 2>/dev/null
     echo "→ compiling bzImage (this can take several minutes)..."
     ${MAKE_CMD} -j"${NPROC}" ARCH=x86_64 bzImage
@@ -236,23 +240,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
     }
     # Base stripped config (auto-adapted to whatever kernel version)
     cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/virt.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    cat "${ROOT_DIR}/system/backends/appliance/kernel/strip-down.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    if [ "${BUILD_PROFILE}" = "desktop" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/desktop.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    else
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/minimal.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    fi
-    if [ "${EFI:-1}" = "1" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/efi.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    fi
-    if [ "${KERNEL_UNCOMPRESSED:-0}" = "1" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/uncompressed.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    fi
-    if [ "${KERNEL_FASTINIT:-0}" = "1" ]; then
-      cat "${ROOT_DIR}/system/backends/appliance/kernel/fastinit.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
-    fi
+    apply_native_kernel_fragments "${KERNEL_SRC}/.config"
     ${MAKE_CMD} -C "${KERNEL_SRC}" ARCH=x86_64 olddefconfig >/dev/null 2>&1
     echo "→ compiling bzImage (this can take several minutes)..."
     ${MAKE_CMD} -j"${NPROC}" -C "${KERNEL_SRC}" ARCH=x86_64 bzImage
@@ -586,19 +574,25 @@ mkdir -p "${ROOTFS_DIR}/usr/local/bin"
 mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
 if [ "${FAST}" != "1" ]; then
   cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
-  for pair in \
-    "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
-    "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \
-    "alpenglow-ctl/alpenglow-zramctl-zig:alpenglow-zramctl-zig" \
-    "alpenglow-ctl/alpenglow-pressurectl-zig:alpenglow-pressurectl-zig"
-  do
-    src="${pair%%:*}"
-    dst="${pair##*:}"
-    if [ -f "${OUT_DIR}/${src%/*}/bin/${src#*/}" ]; then
-      cp "${OUT_DIR}/${src%/*}/bin/${src#*/}" "${ROOTFS_DIR}/usr/local/bin/${dst}"
-      chmod 755 "${ROOTFS_DIR}/usr/local/bin/${dst}"
-    fi
-  done
+  if [ -f "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" ]; then
+    cp "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" "${ROOTFS_DIR}/usr/local/bin/alpenglow-ctl"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/alpenglow-ctl"
+    for applet in \
+      alpenglow-kernelctl \
+      alpenglow-netd \
+      alpenglow-netd-zig \
+      alpenglow-zramctl \
+      alpenglow-zramctl-zig \
+      alpenglow-pressurectl \
+      alpenglow-pressurectl-zig \
+      alpenglow-role-publish \
+      alpenglow-powerctl \
+      alpenglow-state-mount \
+      alpenglow-logrotate
+    do
+      ln -sf alpenglow-ctl "${ROOTFS_DIR}/usr/local/bin/${applet}"
+    done
+  fi
 fi
 
 # shellcheck source=scripts/lib/assemble-rootfs.sh
@@ -618,6 +612,8 @@ OIL_BIN="${ROOT_DIR}/build/native/oil"
 OIL_SRC="${ROOT_DIR}/system/oil"
 if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
   cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+  ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
 elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   echo "→ Building Oil (native package manager)..."
   docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
@@ -629,6 +625,7 @@ elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   if [ -f "${OUT_DIR}/oil" ]; then
     cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
     chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+    ln -sf oil "${ROOTFS_DIR}/usr/local/bin/wax"
     echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
   fi
 fi

@@ -59,14 +59,8 @@ bundle/terminal/ghostty-vt.wasm
 third_party/ghostty/.zig-cache/
 system/alpenglow-ctl/.zig-cache/
 system/alpenglow-ctl/zig-out/
-system/kernelctl-zig/.zig-cache/
-system/kernelctl-zig/zig-out/
-system/netd-zig/.zig-cache/
-system/netd-zig/zig-out/
-system/zramctl-zig/.zig-cache/
-system/zramctl-zig/zig-out/
-system/pressurectl-zig/.zig-cache/
-system/pressurectl-zig/zig-out/
+system/init/.zig-cache/
+system/init/zig-out/
 third_party/ghostty/zig-out/
 
 # Kernel build artifacts
