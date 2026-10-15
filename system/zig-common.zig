@@ -297,6 +297,47 @@ pub fn writeStderr(msg: []const u8) void {
     _ = linux.write(2, msg.ptr, msg.len);
 }
 
+pub fn sleepSeconds(seconds: u64) void {
+    var req: linux.timespec = .{ .sec = @intCast(seconds), .nsec = 0 };
+    var rem: linux.timespec = undefined;
+    while (true) {
+        const rc = linux.nanosleep(&req, &rem);
+        if (getErrno(rc) == .SUCCESS) break;
+        if (rem.sec <= 0 and rem.nsec <= 0) break;
+        req = rem;
+    }
+}
+
+pub fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
+    var path_buf: [4096]u8 = undefined;
+    const path_z = pathToZ("/proc/self/cmdline", &path_buf) orelse return error.NameTooLong;
+    const fd = try sysOpen(path_z, .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+    defer sysClose(fd);
+    var raw = MyArrayList(u8).init(allocator);
+    errdefer raw.deinit();
+    while (true) {
+        var chunk: [4096]u8 = undefined;
+        const n = try sysRead(fd, &chunk);
+        if (n == 0) break;
+        try raw.appendSlice(chunk[0..n]);
+    }
+    const data = try raw.toOwnedSlice();
+    defer allocator.free(data);
+    var args = MyArrayList([]const u8).init(allocator);
+    errdefer args.deinit();
+    var start: usize = 0;
+    for (data, 0..) |byte, idx| {
+        if (byte == 0) {
+            try args.append(try allocator.dupe(u8, data[start..idx]));
+            start = idx + 1;
+        }
+    }
+    if (start < data.len) {
+        try args.append(try allocator.dupe(u8, data[start..data.len]));
+    }
+    return try args.toOwnedSlice();
+}
+
 
 test "pathToZ" {
     const testing = std.testing;

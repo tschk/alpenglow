@@ -77,16 +77,7 @@ fn update(gpa: std.mem.Allocator, pressure_path: []const u8, state_json: []const
     try writeFile(state_json, json, true);
 }
 
-fn sleepSeconds(seconds: u64) void {
-    var req: linux.timespec = .{ .sec = @intCast(seconds), .nsec = 0 };
-    var rem: linux.timespec = undefined;
-    while (true) {
-        const rc = linux.nanosleep(&req, &rem);
-        if (getErrno(rc) == .SUCCESS) break;
-        if (rem.sec <= 0 and rem.nsec <= 0) break;
-        req = rem;
-    }
-}
+const sleepSeconds = common.sleepSeconds;
 
 
 pub fn run() !void {

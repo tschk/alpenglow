@@ -304,14 +304,7 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
         // Fallback to sleep-based polling if netlink fails
         writeStderr("alpenglow-netd-zig: warning: failed to open netlink socket, falling back to polling\n");
         while (true) {
-            var req: linux.timespec = .{ .sec = 2, .nsec = 0 };
-            var rem: linux.timespec = undefined;
-            while (true) {
-                const rc = linux.nanosleep(&req, &rem);
-                if (getErrno(rc) == .SUCCESS) break;
-                if (rem.sec <= 0 and rem.nsec <= 0) break;
-                req = rem;
-            }
+            common.sleepSeconds(2);
             try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
         }
     };
@@ -327,14 +320,7 @@ fn watchLoop(gpa: std.mem.Allocator, sys_class_net: []const u8, state_json: []co
         // Fallback if we cannot bind (e.g. lack of permissions)
         writeStderr("alpenglow-netd-zig: warning: failed to bind netlink socket, falling back to polling\n");
         while (true) {
-            var req: linux.timespec = .{ .sec = 2, .nsec = 0 };
-            var rem: linux.timespec = undefined;
-            while (true) {
-                const rc = linux.nanosleep(&req, &rem);
-                if (getErrno(rc) == .SUCCESS) break;
-                if (rem.sec <= 0 and rem.nsec <= 0) break;
-                req = rem;
-            }
+            common.sleepSeconds(2);
             try updateSnapshotScoped(gpa, sys_class_net, state_json, runtime_env);
         }
     };

@@ -63,35 +63,7 @@ fn validateCgroupAttachGroup(group: []const u8) InvalidCgroupPath!void {
     }
 }
 
-fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
-    var path_buf: [4096]u8 = undefined;
-    const path_z = pathToZ("/proc/self/cmdline", &path_buf) orelse return error.NameTooLong;
-    const fd = try sysOpen(path_z, .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
-    defer sysClose(fd);
-    var raw = MyArrayList(u8).init(allocator);
-    errdefer raw.deinit();
-    while (true) {
-        var chunk: [4096]u8 = undefined;
-        const n = try sysRead(fd, &chunk);
-        if (n == 0) break;
-        try raw.appendSlice(chunk[0..n]);
-    }
-    const data = try raw.toOwnedSlice();
-    defer allocator.free(data);
-    var args = MyArrayList([]const u8).init(allocator);
-    errdefer args.deinit();
-    var start: usize = 0;
-    for (data, 0..) |byte, idx| {
-        if (byte == 0) {
-            try args.append(try allocator.dupe(u8, data[start..idx]));
-            start = idx + 1;
-        }
-    }
-    if (start < data.len) {
-        try args.append(try allocator.dupe(u8, data[start..data.len]));
-    }
-    return try args.toOwnedSlice();
-}
+const readCmdline = common.readCmdline;
 
 pub fn run() !void {
     mainInner() catch |err| {
@@ -162,6 +134,7 @@ fn mainInner() !void {
 
             const profile = root.object.get("profile").?.string;
             var groups = MyArrayList(CgPol).init(allocator);
+            defer groups.deinit();
 
             if (root.object.get("groups")) |arr| {
                 for (arr.array.items) |item| {
@@ -170,13 +143,12 @@ fn mainInner() !void {
                         .path = o.get("path").?.string,
                         .cpu_weight = if (o.get("cpu_weight")) |v| @intCast(v.integer) else null,
                         .io_weight = if (o.get("io_weight")) |v| @intCast(v.integer) else null,
-                        .memory_high = if (o.get("memory_high")) |v| try allocator.dupe(u8, v.string) else null,
-                        .memory_max = if (o.get("memory_max")) |v| try allocator.dupe(u8, v.string) else null,
+                        .memory_high = if (o.get("memory_high")) |v| v.string else null,
+                        .memory_max = if (o.get("memory_max")) |v| v.string else null,
                         .pids_max = if (o.get("pids_max")) |v| @intCast(v.integer) else null,
                     });
                 }
             }
-            defer groups.deinit();
 
             var sysctls = MyArrayList([2][]const u8).init(allocator);
             defer sysctls.deinit();
@@ -199,8 +171,7 @@ fn mainInner() !void {
                 }
             }
             try applyCgroups(allocator, groups.items(), dry);
-            try writeEnv(runtime_state, "ALPENGLOW_KERNEL_POLICY_FILE", policy);
-            try writeEnv(runtime_state, "ALPENGLOW_KERNEL_POLICY_PROFILE", profile);
+            try writeRuntimeStateEnv(allocator, runtime_state, policy, profile);
         },
     }
 }
@@ -252,11 +223,15 @@ fn writeKernelFile(dir: []const u8, file: []const u8, val: []const u8) KernelFil
     writeFile(combined, data, false) catch {};
 }
 
-fn writeEnv(path: []const u8, key: []const u8, value: []const u8) !void {
+fn writeRuntimeStateEnv(alloc: mem.Allocator, path: []const u8, policy_file: []const u8, profile: []const u8) !void {
     if (std.fs.path.dirname(path)) |parent| try makePathRecursive(parent);
-    const line = try std.fmt.allocPrint(std.heap.page_allocator, "{s}={s}\n", .{ key, value });
-    defer std.heap.page_allocator.free(line);
-    try writeFile(path, line, true);
+    const content = try std.fmt.allocPrint(
+        alloc,
+        "ALPENGLOW_KERNEL_POLICY_FILE={s}\nALPENGLOW_KERNEL_POLICY_PROFILE={s}\n",
+        .{ policy_file, profile },
+    );
+    defer alloc.free(content);
+    try writeFile(path, content, true);
 }
 
 /// Zig 0.16 testing.tmpDir lives at cwd/.zig-cache/tmp/{sub_path}.
@@ -270,7 +245,19 @@ fn kernelctlTestTmpAbsPath(alloc: mem.Allocator, tmp: std.testing.TmpDir) ![]con
 }
 
 fn readTmpFile(tmp: std.testing.TmpDir, name: []const u8, buf: []u8) ![]u8 {
-    return tmp.dir.readFile(std.testing.io, name, buf);
+    if (comptime builtin.zig_version.minor >= 16) {
+        return tmp.dir.readFile(std.testing.io, name, buf);
+    } else {
+        return tmp.dir.readFile(name, buf);
+    }
+}
+
+fn accessTmpFile(tmp: std.testing.TmpDir, name: []const u8) !void {
+    if (comptime builtin.zig_version.minor >= 16) {
+        return tmp.dir.access(std.testing.io, name, .{});
+    } else {
+        return tmp.dir.access(name, .{});
+    }
 }
 
 test "validateCgroupPolicyPath accepts policy paths" {
@@ -325,7 +312,7 @@ test "wU64 does not write on null" {
     defer testing.allocator.free(tmp_path);
     try wU64(tmp_path, "test_null.txt", null);
 
-    tmp.dir.access(std.testing.io, "test_null.txt", .{}) catch |err| {
+    accessTmpFile(tmp, "test_null.txt") catch |err| {
         try testing.expect(err == error.FileNotFound);
         return;
     };

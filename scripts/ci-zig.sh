@@ -32,4 +32,8 @@ echo "ci-zig: running alpenglow-ctl tests..."
 (cd "${REPO_ROOT}/system/alpenglow-ctl" && zig build test ${RELEASE_FLAG}) 2>&1
 echo "ci-zig: alpenglow-ctl tests OK"
 
+echo "ci-zig: building alpenglow-init (x86_64 + aarch64)..."
+(cd "${REPO_ROOT}/system/init" && zig build ${RELEASE_FLAG} -Dtarget=x86_64-linux-musl && zig build ${RELEASE_FLAG} -Dtarget=aarch64-linux-musl) 2>&1
+echo "ci-zig: alpenglow-init built OK"
+
 printf 'ci-zig: ok\n'
