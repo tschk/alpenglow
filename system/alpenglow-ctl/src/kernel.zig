@@ -102,59 +102,68 @@ pub fn run() !void {
     };
 }
 
-fn mainInner() !void {
-    const allocator = std.heap.page_allocator;
-    const args = try readCmdline(allocator);
+const Cmd = enum { apply, attach };
+const Config = struct {
+    policy: []const u8 = DFL_POL,
+    runtime_state: []const u8 = DFL_RUN,
+    dry: bool = false,
+    cmd: Cmd = .apply,
+    group: []const u8 = "",
+    pid: u32 = 0,
+};
 
+fn parseArgs(args: []const []const u8) Config {
+    var cfg = Config{};
     var i: usize = 1;
-    var policy: []const u8 = DFL_POL;
-    var runtime_state: []const u8 = DFL_RUN;
-    var dry = false;
-    var cmd: enum { apply, attach } = .apply;
-    var group: []const u8 = "";
-    var pid: u32 = 0;
-
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.eql(u8, arg, "attach")) {
-            cmd = .attach;
+            cfg.cmd = .attach;
             while (i + 1 < args.len) {
                 i += 1;
                 const inner = args[i];
                 if (mem.eql(u8, inner, "--group")) {
                     i += 1;
-                    group = args[i];
+                    cfg.group = args[i];
                 } else if (mem.eql(u8, inner, "--pid")) {
                     i += 1;
-                    pid = std.fmt.parseInt(u32, args[i], 10) catch 0;
+                    cfg.pid = std.fmt.parseInt(u32, args[i], 10) catch 0;
                 } else if (mem.eql(u8, inner, "--dry-run")) {
-                    dry = true;
+                    cfg.dry = true;
                 }
             }
         } else if (mem.eql(u8, arg, "--policy")) {
             i += 1;
-            policy = args[i];
+            cfg.policy = args[i];
         } else if (mem.eql(u8, arg, "--runtime-state")) {
             i += 1;
-            runtime_state = args[i];
+            cfg.runtime_state = args[i];
         } else if (mem.eql(u8, arg, "--dry-run")) {
-            dry = true;
+            cfg.dry = true;
         }
     }
+    return cfg;
+}
 
-    switch (cmd) {
+fn mainInner() !void {
+    const allocator = std.heap.page_allocator;
+    const args = try readCmdline(allocator);
+
+    const cfg = parseArgs(args);
+
+    switch (cfg.cmd) {
         .attach => {
-            if (group.len == 0 or pid == 0) return;
-            try validateCgroupAttachGroup(group);
-            const cg = try std.fmt.allocPrint(allocator, "/sys/fs/cgroup/alpenglow/{s}", .{group});
+            if (cfg.group.len == 0 or cfg.pid == 0) return;
+            try validateCgroupAttachGroup(cfg.group);
+            const cg = try std.fmt.allocPrint(allocator, "/sys/fs/cgroup/alpenglow/{s}", .{cfg.group});
             defer allocator.free(cg);
             try makePathRecursive(cg);
-            const buf = try std.fmt.allocPrint(allocator, "{d}\n", .{pid});
+            const buf = try std.fmt.allocPrint(allocator, "{d}\n", .{cfg.pid});
             defer allocator.free(buf);
             try writeKernelFile(cg, "cgroup.procs", buf);
         },
         .apply => {
-            const raw = try readFileLimited(allocator, policy, 1024 * 1024);
+            const raw = try readFileLimited(allocator, cfg.policy, 1024 * 1024);
             defer allocator.free(raw);
             const parsed = try std.json.parseFromSlice(std.json.Value, allocator, raw, .{});
             defer parsed.deinit();
@@ -185,7 +194,7 @@ fn mainInner() !void {
                 while (it.next()) |e| try sysctls.append(.{ e.key_ptr.*, e.value_ptr.*.string });
             }
 
-            if (!dry) {
+            if (!cfg.dry) {
                 // ponytail: modules loaded via kernel cmdline, skip modprobe spawn
                 for (sysctls.items()) |s| {
                     var p: [256]u8 = undefined;
@@ -198,11 +207,31 @@ fn mainInner() !void {
                     writeFile(p[0..idx], s[1], false) catch {};
                 }
             }
-            try applyCgroups(allocator, groups.items(), dry);
-            try writeEnv(runtime_state, "ALPENGLOW_KERNEL_POLICY_FILE", policy);
-            try writeEnv(runtime_state, "ALPENGLOW_KERNEL_POLICY_PROFILE", profile);
+            try applyCgroups(allocator, groups.items(), cfg.dry);
+            try writeEnv(cfg.runtime_state, "ALPENGLOW_KERNEL_POLICY_FILE", cfg.policy);
+            try writeEnv(cfg.runtime_state, "ALPENGLOW_KERNEL_POLICY_PROFILE", profile);
         },
     }
+}
+
+test "parseArgs parses apply arguments correctly" {
+    const testing = std.testing;
+    const args = &[_][]const u8{ "kernelctl", "--dry-run", "--policy", "/tmp/pol.json", "--runtime-state", "/tmp/run.env" };
+    const cfg = parseArgs(args);
+    try testing.expectEqual(Cmd.apply, cfg.cmd);
+    try testing.expectEqual(true, cfg.dry);
+    try testing.expectEqualStrings("/tmp/pol.json", cfg.policy);
+    try testing.expectEqualStrings("/tmp/run.env", cfg.runtime_state);
+}
+
+test "parseArgs parses attach arguments correctly" {
+    const testing = std.testing;
+    const args = &[_][]const u8{ "kernelctl", "attach", "--group", "system", "--pid", "1234", "--dry-run" };
+    const cfg = parseArgs(args);
+    try testing.expectEqual(Cmd.attach, cfg.cmd);
+    try testing.expectEqualStrings("system", cfg.group);
+    try testing.expectEqual(@as(u32, 1234), cfg.pid);
+    try testing.expectEqual(true, cfg.dry);
 }
 
 fn applyCgroups(alloc: mem.Allocator, groups: []CgPol, dry: bool) !void {
