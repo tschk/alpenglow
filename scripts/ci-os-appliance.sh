@@ -111,6 +111,7 @@ assert_contains system/appliance/filesystems/rootfs-layout.json '"default_mode":
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home"'
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
 assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
+sh scripts/test-mount-state-paths.sh
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
@@ -134,8 +135,14 @@ sh scripts/test-initramfs-codec-identity.sh
 assert_file scripts/test-bench-boot.sh
 sh -n scripts/test-bench-boot.sh
 sh scripts/test-bench-boot.sh
+assert_file scripts/test-arm64-kernel-image.sh
+sh -n scripts/test-arm64-kernel-image.sh
+sh scripts/test-arm64-kernel-image.sh
 sh -n scripts/build-aarch64-efi-release.sh
 sh -n scripts/release-assets.sh
+sh -n scripts/verify-release-assets.sh
+sh -n scripts/upload-release-assets.sh
+sh scripts/test-verify-release-assets.sh
 assert_contains scripts/release-assets.sh 'build/sysroots'
 assert_contains scripts/build-aarch64-efi-release.sh 'docker image prune -af'
 

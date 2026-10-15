@@ -1,3 +1,4 @@
+#!/bin/sh
 # Alpenglow mount-state script
 # Mounts persistent state partition by label or kernel arg.
 #
@@ -103,26 +104,6 @@ if ! grep -q ' /state ' /proc/mounts 2>/dev/null; then
   mount -t bcachefs -o rw,nosuid,nodev "${mount_dev}" /state 2>/dev/null || { echo "bcachefs state mount failed: ${mount_dev}" >&2; exit 1; }
 fi
 
-# Create state directories if they don't exist
-for dir in \
-  /state/home \
-  /state/var/lib/alpenglow/browser/profiles \
-  /state/var/lib/alpenglow/browser/cache \
-  /state/var/lib/alpenglow/browser/downloads \
-  /state/var/lib/alpenglow/browser/state \
-  /state/var/lib/alpenglow/browser/logs \
-  /state/var/lib/alpenglow/browser/terminal \
-  /state/var/lib/alpenglow/files \
-  /state/var/lib/alpenglow/system \
-  /state/var/lib/alpenglow/system/plugins \
-  /state/var/lib/alpenglow/oil \
-  /state/var/cache/alpenglow \
-  /state/var/log/alpenglow; do
-  mkdir -p "${dir}" 2>/dev/null || true
-done
-
-# Bind mount state directories into live filesystem
-mount --bind /state/home /home 2>/dev/null || true
-mount --bind /state/var/lib/alpenglow /var/lib/alpenglow 2>/dev/null || true
-mount --bind /state/var/cache/alpenglow /var/cache/alpenglow 2>/dev/null || true
-mount --bind /state/var/log/alpenglow /var/log/alpenglow 2>/dev/null || true
+# Create state directories and bind them into the live filesystem.
+. /usr/local/bin/mount-state-paths.sh
+setup_state_paths /state ""
