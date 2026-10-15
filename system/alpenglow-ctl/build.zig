@@ -1,5 +1,21 @@
 const std = @import("std");
 
+fn createCtlModule(
+    b: *std.Build,
+    path: []const u8,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    common: *std.Build.Module,
+) *std.Build.Module {
+    const mod = b.createModule(.{
+        .root_source_file = b.path(path),
+        .target = target,
+        .optimize = optimize,
+    });
+    mod.addImport("common", common);
+    return mod;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
@@ -8,40 +24,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("../zig-common.zig"),
     });
 
-    const kernel_mod = b.createModule(.{
-        .root_source_file = b.path("src/kernel.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    kernel_mod.addImport("common", common);
+    const kernel_mod = createCtlModule(b, "src/kernel.zig", target, optimize, common);
+    const network_mod = createCtlModule(b, "src/network.zig", target, optimize, common);
+    const pressure_mod = createCtlModule(b, "src/pressure.zig", target, optimize, common);
+    const zram_mod = createCtlModule(b, "src/zram.zig", target, optimize, common);
+    const main_mod = createCtlModule(b, "src/main.zig", target, optimize, common);
 
-    const network_mod = b.createModule(.{
-        .root_source_file = b.path("src/network.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    network_mod.addImport("common", common);
-
-    const pressure_mod = b.createModule(.{
-        .root_source_file = b.path("src/pressure.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    pressure_mod.addImport("common", common);
-
-    const zram_mod = b.createModule(.{
-        .root_source_file = b.path("src/zram.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    zram_mod.addImport("common", common);
-
-    const main_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    main_mod.addImport("common", common);
     main_mod.addImport("kernel", kernel_mod);
     main_mod.addImport("network", network_mod);
     main_mod.addImport("pressure", pressure_mod);
@@ -70,40 +58,24 @@ pub fn build(b: *std.Build) void {
         b.getInstallStep().dependOn(&install.step);
     }
 
-    const kernel_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/kernel.zig"),
-        .target = b.graph.host,
-        .optimize = optimize,
-    });
-    kernel_test_mod.addImport("common", common);
+    const host_target = b.graph.host;
 
-    const kernel_tests = b.addTest(.{
-        .root_module = kernel_test_mod,
-    });
+    const kernel_test_mod = createCtlModule(b, "src/kernel.zig", host_target, optimize, common);
+    const kernel_tests = b.addTest(.{ .root_module = kernel_test_mod });
     kernel_tests.root_module.link_libc = true;
     const run_kernel_tests = b.addRunArtifact(kernel_tests);
 
     const common_test_mod = b.createModule(.{
         .root_source_file = b.path("../zig-common.zig"),
-        .target = b.graph.host,
+        .target = host_target,
         .optimize = optimize,
     });
-    const common_tests = b.addTest(.{
-        .root_module = common_test_mod,
-    });
+    const common_tests = b.addTest(.{ .root_module = common_test_mod });
     common_tests.root_module.link_libc = true;
     const run_common_tests = b.addRunArtifact(common_tests);
 
-    const pressure_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/pressure.zig"),
-        .target = b.graph.host,
-        .optimize = optimize,
-    });
-    pressure_test_mod.addImport("common", common);
-
-    const pressure_tests = b.addTest(.{
-        .root_module = pressure_test_mod,
-    });
+    const pressure_test_mod = createCtlModule(b, "src/pressure.zig", host_target, optimize, common);
+    const pressure_tests = b.addTest(.{ .root_module = pressure_test_mod });
     pressure_tests.root_module.link_libc = true;
     const run_pressure_tests = b.addRunArtifact(pressure_tests);
 
@@ -112,20 +84,13 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_common_tests.step);
     test_step.dependOn(&run_pressure_tests.step);
 
-    const main_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = b.graph.host,
-        .optimize = optimize,
-    });
-    main_test_mod.addImport("common", common);
+    const main_test_mod = createCtlModule(b, "src/main.zig", host_target, optimize, common);
     main_test_mod.addImport("kernel", kernel_mod);
     main_test_mod.addImport("network", network_mod);
     main_test_mod.addImport("pressure", pressure_mod);
     main_test_mod.addImport("zram", zram_mod);
 
-    const main_tests = b.addTest(.{
-        .root_module = main_test_mod,
-    });
+    const main_tests = b.addTest(.{ .root_module = main_test_mod });
     main_tests.root_module.link_libc = true;
     const run_main_tests = b.addRunArtifact(main_tests);
     test_step.dependOn(&run_main_tests.step);
