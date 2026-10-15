@@ -1,8 +1,8 @@
 [package]
 name = "alpenglow-installer"
-version = "0.1.393"
-edition = "2021"
-license-file = "../../LICENSE"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
 
 [lib]
 path = "src/lib.rs"

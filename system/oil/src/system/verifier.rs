@@ -145,3 +145,29 @@ fn verify_message_digest(
         actual: "messageDigest in CMS signedAttrs does not match".into(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_bytes_sha256_and_sha1() {
+        let data = b"alpenglow-apk-test";
+        let sha256_res = hash_bytes(data, OID_RSA_SHA256).expect("sha256");
+        assert_eq!(sha256_res.len(), 32);
+
+        let sha1_res = hash_bytes(data, OID_RSA_SHA1).expect("sha1");
+        assert_eq!(sha1_res.len(), 20);
+
+        let bad_oid = const_oid::ObjectIdentifier::new_unwrap("1.2.3.4");
+        assert!(hash_bytes(data, bad_oid).is_err());
+    }
+
+    #[test]
+    fn test_verify_apk_signature_rejects_invalid_cms_der() {
+        let err = verify_apk_signature(b"tar-bytes", b"not-valid-der", "-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----")
+            .expect_err("invalid DER should fail");
+        assert!(err.to_string().contains("bad CMS signature"));
+    }
+}
+

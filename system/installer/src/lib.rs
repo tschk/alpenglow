@@ -3,7 +3,7 @@ mod tui;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufReader, BufWriter};
+use std::io::{self, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -21,7 +21,14 @@ impl fmt::Display for InstallError {
     }
 }
 
-impl std::error::Error for InstallError {}
+impl std::error::Error for InstallError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            InstallError::Io(err) => Some(err),
+            InstallError::InvalidTarget(_) => None,
+        }
+    }
+}
 
 impl From<io::Error> for InstallError {
     fn from(err: io::Error) -> Self {
@@ -139,7 +146,10 @@ pub fn install_image(
         .open(target)?;
     let mut input = BufReader::new(input);
     let mut output = BufWriter::new(output);
-    Ok(io::copy(&mut input, &mut output)?)
+    let bytes = io::copy(&mut input, &mut output)?;
+    output.flush()?;
+    output.get_ref().sync_all()?;
+    Ok(bytes)
 }
 
 pub fn install_image_maybe_compressed(
@@ -161,6 +171,8 @@ pub fn install_image_maybe_compressed(
     let mut input = BufReader::new(decoder);
     let mut output = BufWriter::new(output);
     let bytes = io::copy(&mut input, &mut output)?;
+    output.flush()?;
+    output.get_ref().sync_all()?;
     Ok(bytes)
 }
 
@@ -272,7 +284,7 @@ mod tests {
     fn test_parse_installer_args_empty() {
         let args: Vec<OsString> = vec![];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, false);
+        assert!(!tui);
         assert_eq!(source, default_live_source());
         assert_eq!(target, None);
     }
@@ -281,7 +293,7 @@ mod tests {
     fn test_parse_installer_args_tui_only() {
         let args: Vec<OsString> = vec![OsString::from("--tui")];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, default_live_source());
         assert_eq!(target, None);
     }
@@ -290,7 +302,7 @@ mod tests {
     fn test_parse_installer_args_source_only() {
         let args: Vec<OsString> = vec![OsString::from("source.img")];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, false);
+        assert!(!tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, None);
     }
@@ -299,7 +311,7 @@ mod tests {
     fn test_parse_installer_args_tui_and_source() {
         let args: Vec<OsString> = vec![OsString::from("--tui"), OsString::from("source.img")];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, None);
     }
@@ -312,7 +324,7 @@ mod tests {
             OsString::from("/dev/sda"),
         ];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, Some(PathBuf::from("/dev/sda")));
     }
@@ -325,7 +337,7 @@ mod tests {
             OsString::from("/dev/sda"),
         ];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, Some(PathBuf::from("/dev/sda")));
     }

@@ -167,8 +167,9 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
 }
 
 #[cfg(feature = "wax")]
-fn merge_tap_packages(
+fn collect_tap_packages(
     mut all: Vec<system::registry::PackageMetadata>,
+    refresh: bool,
 ) -> Vec<system::registry::PackageMetadata> {
     let taps = match tap::Taps::new() {
         Ok(t) => t,
@@ -178,64 +179,27 @@ fn merge_tap_packages(
         }
     };
     let entries: Vec<_> = taps.list().into_iter().cloned().collect();
+    let verb_ing = if refresh { "refreshing" } else { "loading" };
+    let verb_ed = if refresh { "Refreshed" } else { "Loaded" };
+    let verb_inf = if refresh { "refresh" } else { "load" };
     std::thread::scope(|s| {
         let handles: Vec<_> = entries
             .iter()
             .map(|entry| {
                 s.spawn(|| {
                     let registry = tap::TapRegistry::new(&entry.name, &entry.url);
-                    (entry.name.clone(), registry.load())
-                })
-            })
-            .collect();
-        for handle in handles {
-            let (name, result) = match handle
-                .join()
-                .map_err(|_| error::OilError::Install("thread panicked while loading tap".into()))
-            {
-                Ok(res) => res,
-                Err(e) => {
-                    eprintln!("warning: {e}");
-                    continue;
-                }
-            };
-            match result {
-                Ok(index) => {
-                    eprintln!("Loaded {} packages from tap {}", index.len(), name);
-                    all.extend(index);
-                }
-                Err(e) => eprintln!("warning: failed to load tap {name}: {e}"),
-            }
-        }
-    });
-    all
-}
-
-#[cfg(feature = "wax")]
-fn refresh_tap_packages(
-    mut all: Vec<system::registry::PackageMetadata>,
-) -> Vec<system::registry::PackageMetadata> {
-    let taps = match tap::Taps::new() {
-        Ok(t) => t,
-        Err(e) => {
-            eprintln!("warning: failed to load taps: {e}");
-            return all;
-        }
-    };
-    let entries: Vec<_> = taps.list().into_iter().cloned().collect();
-    std::thread::scope(|s| {
-        let handles: Vec<_> = entries
-            .iter()
-            .map(|entry| {
-                s.spawn(|| {
-                    let registry = tap::TapRegistry::new(&entry.name, &entry.url);
-                    (entry.name.clone(), registry.update())
+                    let res = if refresh {
+                        registry.update()
+                    } else {
+                        registry.load()
+                    };
+                    (entry.name.clone(), res)
                 })
             })
             .collect();
         for handle in handles {
             let (name, result) = match handle.join().map_err(|_| {
-                error::OilError::Install("thread panicked while refreshing tap".into())
+                error::OilError::Install(format!("thread panicked while {verb_ing} tap"))
             }) {
                 Ok(res) => res,
                 Err(e) => {
@@ -245,14 +209,28 @@ fn refresh_tap_packages(
             };
             match result {
                 Ok(index) => {
-                    eprintln!("Refreshed {} packages from tap {}", index.len(), name);
+                    eprintln!("{verb_ed} {} packages from tap {}", index.len(), name);
                     all.extend(index);
                 }
-                Err(e) => eprintln!("warning: failed to refresh tap {name}: {e}"),
+                Err(e) => eprintln!("warning: failed to {verb_inf} tap {name}: {e}"),
             }
         }
     });
     all
+}
+
+#[cfg(feature = "wax")]
+fn merge_tap_packages(
+    all: Vec<system::registry::PackageMetadata>,
+) -> Vec<system::registry::PackageMetadata> {
+    collect_tap_packages(all, false)
+}
+
+#[cfg(feature = "wax")]
+fn refresh_tap_packages(
+    all: Vec<system::registry::PackageMetadata>,
+) -> Vec<system::registry::PackageMetadata> {
+    collect_tap_packages(all, true)
 }
 
 #[cfg(feature = "wax")]
@@ -456,8 +434,8 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
             let dest = dest.as_ref().unwrap();
-            install_package(pkg, dest)?;
-            state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
+            let files = install_package(pkg, dest)?;
+            state.mark_installed_with_files(&pkg.name, Some(pkg.version.as_str()), files);
             println!("Installed {} {}", pkg.name, pkg.version);
         }
     }
@@ -480,9 +458,9 @@ fn run_install_recipe(recipe_path: PathBuf, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     let dest = util::security::validate_install_dest(&recipe.install_dest())?;
-    install_package(&pkg, &dest)?;
+    let files = install_package(&pkg, &dest)?;
     let mut state = install::InstallState::new()?;
-    state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
+    state.mark_installed_with_files(&pkg.name, Some(pkg.version.as_str()), files);
     state.save()?;
     println!(
         "Installed {} {} (recipe: {})",
@@ -519,8 +497,8 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
-                install_package(latest, &dest)?;
-                state.mark_installed(name, Some(latest.version.as_str()));
+                let files = install_package(latest, &dest)?;
+                state.mark_installed_with_files(name, Some(latest.version.as_str()), files);
                 println!("Reinstalled {name} {}", latest.version);
             }
         }
@@ -599,8 +577,8 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
             );
         } else {
             let dest = dest.as_ref().unwrap();
-            install_package(latest, dest)?;
-            state.mark_installed(name, Some(latest.version.as_str()));
+            let files = install_package(latest, dest)?;
+            state.mark_installed_with_files(name, Some(latest.version.as_str()), files);
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
         }
     }
@@ -726,7 +704,7 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
     }
 }
 
-fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
+fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<Vec<PathBuf>> {
     let dest = util::security::validate_install_dest(dest)?;
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
@@ -781,7 +759,7 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
 
     let _ = std::fs::remove_file(tmp.path());
 
-    result.map(|_| ())
+    result.map(|(files, _dirs)| files)
 }
 
 #[cfg(test)]

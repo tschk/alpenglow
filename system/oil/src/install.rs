@@ -10,6 +10,8 @@ pub struct InstalledPackage {
     pub version: String,
     pub install_date: i64,
     pub pinned: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<PathBuf>,
 }
 
 fn state_path() -> Result<PathBuf> {
@@ -53,7 +55,17 @@ impl InstallState {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn mark_installed(&mut self, name: &str, version: Option<&str>) {
+        self.mark_installed_with_files(name, version, Vec::new());
+    }
+
+    pub fn mark_installed_with_files(
+        &mut self,
+        name: &str,
+        version: Option<&str>,
+        files: Vec<PathBuf>,
+    ) {
         let version_str = version.unwrap_or_default();
         let install_date = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -64,23 +76,36 @@ impl InstallState {
             pkg.version.clear();
             pkg.version.push_str(version_str);
             pkg.install_date = install_date;
+            if !files.is_empty() {
+                pkg.files = files;
+            }
         } else {
             let pkg = InstalledPackage {
                 name: name.to_string(),
                 version: version_str.to_string(),
                 install_date,
                 pinned: false,
+                files,
             };
             self.packages.insert(name.to_string(), pkg);
         }
     }
 
     pub fn remove(&mut self, name: &str) -> Result<()> {
-        self.packages.remove(name);
+        if let Some(pkg) = self.packages.remove(name) {
+            for file in &pkg.files {
+                let _ = std::fs::remove_file(file);
+            }
+        }
         Ok(())
     }
 
     pub fn clear(&mut self) {
+        for pkg in self.packages.values() {
+            for file in &pkg.files {
+                let _ = std::fs::remove_file(file);
+            }
+        }
         self.packages.clear();
     }
 
@@ -271,6 +296,37 @@ mod tests {
 
         assert_eq!(loaded, state.packages);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_remove_and_clear_delete_tracked_files() -> Result<()> {
+        let _guard = EnvGuard::new();
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        std::env::set_var("HOME", temp_dir.path());
+
+        let file_a = temp_dir.path().join("bin-a");
+        let file_b = temp_dir.path().join("bin-b");
+        std::fs::write(&file_a, b"binary-a")?;
+        std::fs::write(&file_b, b"binary-b")?;
+
+        let mut state = InstallState::new()?;
+        state.mark_installed_with_files("pkg-a", Some("1.0"), vec![file_a.clone()]);
+        state.mark_installed_with_files("pkg-b", Some("1.0"), vec![file_b.clone()]);
+        state.save()?;
+
+        let reloaded = InstallState::new()?;
+        assert_eq!(
+            reloaded.get("pkg-a").expect("pkg-a").files,
+            vec![file_a.clone()]
+        );
+
+        state.remove("pkg-a")?;
+        assert!(!file_a.exists(), "remove() should delete tracked files");
+        assert!(file_b.exists(), "unrelated package files must remain");
+
+        state.clear();
+        assert!(!file_b.exists(), "clear() should delete tracked files");
         Ok(())
     }
 }

@@ -34,7 +34,9 @@ if [ -f .cargo/config.toml ]; then
 fi
 
 run_cargo cargo check --workspace
+run_cargo cargo clippy --workspace --all-targets -- -D warnings
 run_cargo cargo test -p oil
 run_cargo cargo test -p oil --no-default-features
+run_cargo cargo test -p alpenglow-installer
 
 printf 'ci-rust-core: ok\n'

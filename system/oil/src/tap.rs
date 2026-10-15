@@ -29,7 +29,9 @@ impl Taps {
         let path = taps_path()?;
         let taps = if path.exists() {
             let raw = std::fs::read_to_string(&path)?;
-            serde_json::from_str(&raw).unwrap_or_default()
+            serde_json::from_str(&raw).map_err(|e| {
+                OilError::Install(format!("corrupt tap state {}: {e}", path.display()))
+            })?
         } else {
             HashMap::new()
         };
@@ -348,6 +350,26 @@ mod tests {
         assert!(result.is_err());
         if let Err(e) = result {
             assert!(matches!(e, OilError::Io(_)));
+        }
+    }
+
+    #[test]
+    fn test_taps_rejects_corrupt_json() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let home_dir = std::path::PathBuf::from(std::env::var_os("HOME").unwrap());
+        let oil_dir = home_dir.join(".oil");
+        std::fs::create_dir_all(&oil_dir).unwrap();
+        std::fs::write(oil_dir.join("taps.json"), "{invalid-json").unwrap();
+
+        match Taps::new() {
+            Err(OilError::Install(msg)) => {
+                assert!(
+                    msg.contains("corrupt tap state"),
+                    "unexpected error message: {msg}"
+                );
+            }
+            Ok(_) => panic!("corrupt taps.json must not load as empty"),
+            Err(other) => panic!("Expected OilError::Install, got {other:?}"),
         }
     }
 }
