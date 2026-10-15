@@ -98,6 +98,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # main 2024-09-12
@@ -187,6 +189,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
 
       - name: Free disk space
         if: matrix.arch == 'aarch64'
@@ -272,6 +276,8 @@ jobs:
           path: riscv64-src
 
       - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
 
       - name: Setup QEMU binfmt (arm64)
         run: |
