@@ -140,6 +140,9 @@ sh -n scripts/test-arm64-kernel-image.sh
 sh scripts/test-arm64-kernel-image.sh
 sh -n scripts/build-aarch64-efi-release.sh
 sh -n scripts/release-assets.sh
+sh -n scripts/verify-release-assets.sh
+sh -n scripts/upload-release-assets.sh
+sh scripts/test-verify-release-assets.sh
 assert_contains scripts/release-assets.sh 'build/sysroots'
 assert_contains scripts/build-aarch64-efi-release.sh 'docker image prune -af'
 

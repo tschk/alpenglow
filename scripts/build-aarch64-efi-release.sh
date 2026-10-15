@@ -29,9 +29,9 @@ require_cmd() {
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" > "$1.sha256"
+    (cd "${ROOT_DIR}" && sha256sum "build/release/assets/${1##*/}") > "$1.sha256"
   else
-    shasum -a 256 "$1" > "$1.sha256"
+    (cd "${ROOT_DIR}" && shasum -a 256 "build/release/assets/${1##*/}") > "$1.sha256"
   fi
 }
 
