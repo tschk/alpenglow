@@ -91,3 +91,205 @@ fn installer_args_strip_tui_flag() {
     assert_eq!(source, PathBuf::from("a.img"));
     assert_eq!(target, Some(PathBuf::from("/dev/vdb")));
 }
+
+fn pattern(len: usize) -> Vec<u8> {
+    (0..len).map(|i| (i % 251) as u8).collect()
+}
+
+#[test]
+fn progress_reports_monotonic_bytes_and_finishes_at_the_total() {
+    use alpenglow_installer::{install_image_with_progress, InstallProgress};
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let target = dir.path().join("target.img");
+    let data = pattern(9 * 1024 * 1024 + 123);
+    fs::write(&source, &data).unwrap();
+
+    let mut seen: Vec<InstallProgress> = Vec::new();
+    let written =
+        install_image_with_progress(&source, &target, true, |progress| seen.push(progress))
+            .unwrap();
+
+    assert_eq!(written, data.len() as u64);
+    assert_eq!(fs::read(&target).unwrap(), data);
+    assert!(
+        seen.len() >= 3,
+        "expected several updates, got {}",
+        seen.len()
+    );
+    assert!(seen.iter().all(|p| p.total == Some(data.len() as u64)));
+    assert!(seen
+        .windows(2)
+        .all(|pair| pair[0].written <= pair[1].written));
+    assert_eq!(seen.first().unwrap().written, 0);
+    let last = seen.last().unwrap();
+    assert_eq!(last.written, data.len() as u64);
+    assert_eq!(last.percent(), Some(100));
+}
+
+#[test]
+fn progress_knows_the_decompressed_size_when_the_frame_records_it() {
+    use alpenglow_installer::install_image_with_progress;
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target.img");
+    let data = pattern(5 * 1024 * 1024);
+    // One-shot compression stores the content size in the frame header.
+    fs::write(&source, zstd::bulk::compress(&data, 3).unwrap()).unwrap();
+
+    let mut last = None;
+    install_image_with_progress(&source, &target, true, |progress| last = Some(progress)).unwrap();
+
+    assert_eq!(fs::read(&target).unwrap(), data);
+    let last = last.unwrap();
+    assert_eq!(last.total, Some(data.len() as u64));
+    assert_eq!(last.percent(), Some(100));
+}
+
+#[test]
+fn progress_total_is_unknown_for_streamed_zstd_but_the_data_is_intact() {
+    use alpenglow_installer::install_image_with_progress;
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target.img");
+    let data = pattern(3 * 1024 * 1024);
+    // Streaming compression cannot know the size up front.
+    fs::write(&source, zstd::encode_all(&data[..], 3).unwrap()).unwrap();
+
+    let mut last = None;
+    install_image_with_progress(&source, &target, true, |progress| last = Some(progress)).unwrap();
+
+    assert_eq!(fs::read(&target).unwrap(), data);
+    let last = last.unwrap();
+    assert_eq!(last.total, None);
+    assert_eq!(last.percent(), None);
+    assert_eq!(last.written, data.len() as u64);
+}
+
+#[test]
+fn progress_install_still_refuses_non_block_targets_and_missing_sources() {
+    use alpenglow_installer::install_image_with_progress;
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let target = dir.path().join("target.img");
+    fs::write(&source, b"alpenglow").unwrap();
+    fs::write(&target, b"untouched").unwrap();
+    let err = install_image_with_progress(&source, &target, false, |_| {}).unwrap_err();
+    assert!(err.to_string().contains("refusing"));
+    assert_eq!(fs::read(&target).unwrap(), b"untouched");
+
+    let err = install_image_with_progress(&dir.path().join("nope.img"), &target, true, |_| {})
+        .unwrap_err();
+    assert!(err.to_string().contains("No such file"));
+}
+
+#[test]
+fn plain_install_of_a_zst_named_file_stays_a_raw_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("raw.img.zst");
+    let target = dir.path().join("target.img");
+    fs::write(&source, b"not actually compressed").unwrap();
+    install_image(&source, &target, true).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"not actually compressed");
+}
+
+#[test]
+fn percent_clamps_and_handles_zero_totals() {
+    use alpenglow_installer::{InstallPhase, InstallProgress};
+    let progress = |written, total| InstallProgress {
+        phase: InstallPhase::Writing,
+        written,
+        total,
+    };
+    assert_eq!(progress(0, Some(100)).percent(), Some(0));
+    assert_eq!(progress(50, Some(100)).percent(), Some(50));
+    assert_eq!(progress(500, Some(100)).percent(), Some(100));
+    assert_eq!(progress(10, Some(0)).percent(), None);
+    assert_eq!(progress(10, None).percent(), None);
+}
+
+#[test]
+fn verified_install_writes_then_verifies_and_reports_both_phases() {
+    use alpenglow_installer::{install_image_verified, InstallPhase, InstallProgress};
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let target = dir.path().join("target.img");
+    let data = pattern(6 * 1024 * 1024 + 7);
+    fs::write(&source, &data).unwrap();
+
+    let mut seen: Vec<InstallProgress> = Vec::new();
+    let written = install_image_verified(&source, &target, true, |p| seen.push(p)).unwrap();
+
+    assert_eq!(written, data.len() as u64);
+    assert_eq!(fs::read(&target).unwrap(), data);
+    let first_verify = seen
+        .iter()
+        .position(|p| p.phase == InstallPhase::Verifying)
+        .expect("a verifying phase");
+    assert!(seen[..first_verify]
+        .iter()
+        .all(|p| p.phase == InstallPhase::Writing));
+    assert!(seen[first_verify..]
+        .iter()
+        .all(|p| p.phase == InstallPhase::Verifying));
+    let last = seen.last().unwrap();
+    assert_eq!(last.written, data.len() as u64);
+    assert_eq!(last.total, Some(data.len() as u64));
+    assert_eq!(last.percent(), Some(100));
+}
+
+#[test]
+fn verified_install_of_zstd_checks_the_decompressed_bytes() {
+    use alpenglow_installer::install_image_verified;
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target.img");
+    let data = pattern(2 * 1024 * 1024);
+    fs::write(&source, zstd::encode_all(&data[..], 3).unwrap()).unwrap();
+    install_image_verified(&source, &target, true, |_| {}).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), data);
+}
+
+fn digest_of(data: &[u8]) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(data).to_vec()
+}
+
+#[test]
+fn verification_detects_a_flipped_byte() {
+    use alpenglow_installer::verify_written;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("disk.img");
+    let data = pattern(3 * 1024 * 1024);
+    fs::write(&target, &data).unwrap();
+    verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap();
+
+    let mut corrupted = data.clone();
+    corrupted[2_000_000] ^= 0x01;
+    fs::write(&target, &corrupted).unwrap();
+    let err = verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap_err();
+    assert!(err.to_string().contains("differs from the image"), "{err}");
+}
+
+#[test]
+fn verification_detects_a_disk_that_is_too_short() {
+    use alpenglow_installer::verify_written;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("disk.img");
+    let data = pattern(1024 * 1024);
+    fs::write(&target, &data[..data.len() - 100]).unwrap();
+    let err = verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap_err();
+    assert!(err.to_string().contains("ended after"), "{err}");
+}
+
+#[test]
+fn verification_ignores_whatever_follows_the_image_on_a_larger_disk() {
+    use alpenglow_installer::verify_written;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("disk.img");
+    let data = pattern(1024 * 1024);
+    let mut disk = data.clone();
+    disk.extend_from_slice(&[0xAA; 4096]);
+    fs::write(&target, &disk).unwrap();
+    verify_written(&target, data.len() as u64, &digest_of(&data), |_| {}).unwrap();
+}

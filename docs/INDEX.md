@@ -8,6 +8,7 @@
 ## Runtime And Appliance
 
 - [Editions and roles](./editions-and-roles.md)
+- [Installer](./installer.md)
 - [Immutable Rootfs](./architecture/immutable-rootfs.md)
 - [Oil recipe format](./architecture/oil-recipe-format.md)
 

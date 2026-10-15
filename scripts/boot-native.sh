@@ -387,7 +387,9 @@ if [ "${GRAPHICAL}" = "1" ]; then
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
   # glibc Mesa/Vulkan/EGL libs from Debian
-  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ] || [ "$(cat "${OUT_DIR}/glibc-libs/.graphics-backend" 2>/dev/null || true)" != "${GRAPHICS_BACKEND}" ]; then
+  # The installer GUI (gpui-ce) also links X11 xkb libs; rebuild caches that predate them.
+  if [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libvulkan.so.1" ] || [ "$(cat "${OUT_DIR}/glibc-libs/.graphics-backend" 2>/dev/null || true)" != "${GRAPHICS_BACKEND}" ] ||
+     [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0" ] || [ ! -f "${OUT_DIR}/glibc-libs/lib/x86_64-linux-gnu/libxcb-xkb.so.1" ]; then
     sh "${BACKEND_DIR}/scripts/install-graphics-libs.sh" "${OUT_DIR}" "${GRAPHICS_BACKEND}"
   fi
   echo "  graphics libs: ${OUT_DIR}/glibc-libs (${GRAPHICS_BACKEND})"
