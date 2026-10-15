@@ -353,10 +353,24 @@ fn contains_ignore_ascii_case(haystack: &str, needle: &[u8]) -> bool {
     let first_upper = needle[0].to_ascii_uppercase();
     let needle_tail = &needle[1..];
 
-    haystack_bytes.windows(needle.len()).any(|w| {
-        let b = w[0];
-        (b == first_lower || b == first_upper) && w[1..].eq_ignore_ascii_case(needle_tail)
-    })
+    let mut pos = 0;
+    while pos + needle.len() <= haystack_bytes.len() {
+        match memchr::memchr2(
+            first_lower,
+            first_upper,
+            &haystack_bytes[pos..haystack_bytes.len() - needle.len() + 1],
+        ) {
+            Some(i) => {
+                pos += i;
+                if haystack_bytes[pos + 1..pos + needle.len()].eq_ignore_ascii_case(needle_tail) {
+                    return true;
+                }
+                pos += 1;
+            }
+            None => break,
+        }
+    }
+    false
 }
 
 fn oil_secure_tmp_dir() -> Result<PathBuf> {
