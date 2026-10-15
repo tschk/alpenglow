@@ -245,23 +245,20 @@ fn renderJson(gpa: std.mem.Allocator, snapshot: Snapshot) ![]const u8 {
 
 fn renderRuntimeEnv(gpa: std.mem.Allocator, snapshot: Snapshot) ![]const u8 {
     var default_iface: []const u8 = "";
+    var default_is_lo = false;
+    var up_count: usize = 0;
+
     for (snapshot.interfaces) |iface| {
-        if (!std.mem.eql(u8, iface.name, "lo") and std.mem.eql(u8, iface.operstate, "up")) {
-            default_iface = iface.name;
-            break;
-        }
-    }
-    if (default_iface.len == 0) {
-        for (snapshot.interfaces) |iface| {
-            if (std.mem.eql(u8, iface.operstate, "up")) {
+        if (std.mem.eql(u8, iface.operstate, "up")) {
+            up_count += 1;
+            if (default_iface.len == 0) {
                 default_iface = iface.name;
-                break;
+                default_is_lo = std.mem.eql(u8, iface.name, "lo");
+            } else if (default_is_lo and !std.mem.eql(u8, iface.name, "lo")) {
+                default_iface = iface.name;
+                default_is_lo = false;
             }
         }
-    }
-    var up_count: usize = 0;
-    for (snapshot.interfaces) |iface| {
-        if (std.mem.eql(u8, iface.operstate, "up")) up_count += 1;
     }
     return std.fmt.allocPrint(gpa, "ALPENGLOW_NETD_INTERFACES={d}\nALPENGLOW_NETD_UP_INTERFACES={d}\nALPENGLOW_NETD_DEFAULT_INTERFACE={s}\nALPENGLOW_NETD_GENERATED_UNIX_MS={d}\n", .{
         snapshot.interfaces.len,
