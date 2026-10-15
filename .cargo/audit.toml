@@ -1,0 +1,21 @@
+# cargo-audit configuration.
+#
+# Scope rule: this list contains ONLY advisories with no patched release
+# (unfixable today). Never add an advisory that has a fixed upgrade
+# available -- upgrade the dependency instead.
+[advisories]
+ignore = [
+    # rsa 0.9.10 -- Marvin attack (RustSec RUSTSEC-2023-0071). No patched
+    # release exists upstream (patched = [] as of 2026-10-15); direct
+    # dependency of oil. Remove this entry as soon as a fixed rsa ships.
+    "RUSTSEC-2023-0071",
+    # Unmaintained crates with no patched release (abandoned upstream);
+    # warnings only, not vulnerabilities:
+    "RUSTSEC-2025-0052",  # async-std 1.13.2
+    "RUSTSEC-2024-0384",  # instant 0.1.13
+    "RUSTSEC-2024-0436",  # paste 1.0.15
+    "RUSTSEC-2026-0173",  # proc-macro-error2 2.0.1
+    "RUSTSEC-2025-0134",  # rustls-pemfile 2.2.0
+    "RUSTSEC-2026-0206",  # rustybuzz 0.14.1, 0.20.1
+    "RUSTSEC-2026-0192",  # ttf-parser 0.20.0, 0.21.1, 0.25.1
+]

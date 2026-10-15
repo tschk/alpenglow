@@ -49,6 +49,12 @@ fn find_apk_key_in_root(root: &Path, keyname: &str) -> Option<String> {
 
 /// Extract an APK package and return (files, dirs) of absolute paths written.
 pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    const MAX_APK_SIZE: u64 = 2 * 1024 * 1024 * 1024;
+    if std::fs::metadata(path)?.len() > MAX_APK_SIZE {
+        return Err(OilError::Install(format!(
+            "APK size exceeds maximum {MAX_APK_SIZE}"
+        )));
+    }
     let data = std::fs::read(path)?;
 
     // Split into three gzip streams
@@ -83,9 +89,18 @@ pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Ve
 /// Split a concatenated-gzip file into up to `count` individually
 /// decompressed streams by scanning for gzip magic bytes.
 fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-    const MAX_STREAM_COUNT: usize = 3;
     const MAX_STREAM_SIZE: usize = 1024 * 1024 * 1024; // 1GB per stream
     const MAX_TOTAL_SIZE: usize = 2 * 1024 * 1024 * 1024; // 2GB total
+    split_gzip_streams_with_limits(data, count, MAX_STREAM_SIZE, MAX_TOTAL_SIZE)
+}
+
+fn split_gzip_streams_with_limits(
+    data: &[u8],
+    count: usize,
+    max_stream_size: usize,
+    max_total_size: usize,
+) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+    const MAX_STREAM_COUNT: usize = 3;
 
     if count > MAX_STREAM_COUNT {
         return Err(OilError::Install(format!(
@@ -93,11 +108,11 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
         )));
     }
 
-    if data.len() > MAX_TOTAL_SIZE {
+    if data.len() > max_total_size {
         return Err(OilError::Install(format!(
             "APK size {} exceeds maximum {}",
             data.len(),
-            MAX_TOTAL_SIZE
+            max_total_size
         )));
     }
 
@@ -111,24 +126,30 @@ fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Ve
         let mut decoder = flate2::read::GzDecoder::new(slice);
         let mut buf = Vec::new();
 
-        decoder.read_to_end(&mut buf)?;
+        let remaining = max_total_size - total_decompressed;
+        let allowed = max_stream_size.min(remaining);
+        decoder
+            .by_ref()
+            .take(allowed as u64 + 1)
+            .read_to_end(&mut buf)?;
 
-        if buf.len() > MAX_STREAM_SIZE {
+        if buf.len() > max_stream_size {
             return Err(OilError::Install(format!(
                 "Stream {} size {} exceeds maximum {}",
                 i,
                 buf.len(),
-                MAX_STREAM_SIZE
+                max_stream_size
             )));
         }
 
-        total_decompressed += buf.len();
-        if total_decompressed > MAX_TOTAL_SIZE {
+        if buf.len() > remaining {
             return Err(OilError::Install(format!(
                 "Total decompressed size {} exceeds maximum {}",
-                total_decompressed, MAX_TOTAL_SIZE
+                total_decompressed + buf.len(),
+                max_total_size
             )));
         }
+        total_decompressed += buf.len();
 
         out.push(buf);
     }
@@ -362,6 +383,34 @@ mod tests {
         assert_eq!(out1, b"stream 1 data");
         assert_eq!(out2, b"stream 2 data");
         assert_eq!(out3, b"stream 3 data");
+        Ok(())
+    }
+
+    #[test]
+    fn test_split_gzip_streams_rejects_expansion_before_full_allocation(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut combined = create_gz_stream(&vec![b'a'; 2048])?;
+        combined.extend(create_gz_stream(b"control")?);
+        combined.extend(create_gz_stream(b"data")?);
+        let err = split_gzip_streams_with_limits(&combined, 3, 1024, 4096)
+            .expect_err("expanded stream must be rejected");
+        assert!(err
+            .to_string()
+            .contains("Stream 0 size 1025 exceeds maximum 1024"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_split_gzip_streams_enforces_aggregate_budget(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut combined = create_gz_stream(&vec![b'a'; 600])?;
+        combined.extend(create_gz_stream(&vec![b'b'; 600])?);
+        combined.extend(create_gz_stream(b"data")?);
+        let err = split_gzip_streams_with_limits(&combined, 3, 1024, 1000)
+            .expect_err("aggregate expansion must be rejected");
+        assert!(err
+            .to_string()
+            .contains("Total decompressed size 1001 exceeds maximum 1000"));
         Ok(())
     }
 
