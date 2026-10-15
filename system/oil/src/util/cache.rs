@@ -64,4 +64,20 @@ mod tests {
             .unwrap();
         assert!(!is_cache_fresh(tmp.path()));
     }
+
+    #[test]
+    fn test_is_cache_fresh_directory() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        assert!(is_cache_fresh(tmp_dir.path()));
+    }
+
+    #[test]
+    fn test_is_cache_fresh_exact_boundary() {
+        let tmp = NamedTempFile::new().unwrap();
+        let exact_time = SystemTime::now() - Duration::from_secs(24 * 3600);
+        tmp.as_file()
+            .set_times(std::fs::FileTimes::new().set_modified(exact_time))
+            .unwrap();
+        assert!(!is_cache_fresh(tmp.path()));
+    }
 }
