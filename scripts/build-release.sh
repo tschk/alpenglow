@@ -45,10 +45,14 @@ KERNEL_BUILD=1 BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5 
 }
 cp "${KERNEL}" "${OUT_DIR}/vmlinuz" 2>/dev/null || true
 cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}" 2>/dev/null || true
-INITRAMFS="$(initramfs_resolve_release_artifact "${OUT_DIR}/../native" "${OUT_DIR}" 2>/dev/null || true)"
-if [ -z "${INITRAMFS}" ] && [ -f "${OUT_DIR}/initramfs.cpio.gz" ]; then
-  INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
-fi
+INITRAMFS="$(initramfs_resolve_release_artifact "${OUT_DIR}/../native" "${OUT_DIR}")" || {
+  if [ -f "${OUT_DIR}/initramfs.cpio.gz" ]; then
+    INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
+  else
+    echo "missing built initramfs under ${OUT_DIR}" >&2
+    exit 1
+  fi
+}
 test -f "${KERNEL}" || { echo "missing built kernel: ${KERNEL}" >&2; exit 1; }
 test -n "${INITRAMFS}" && test -f "${INITRAMFS}" || { echo "missing built initramfs under ${OUT_DIR}" >&2; exit 1; }
 initramfs_assert_codec_identity "${INITRAMFS}" || exit 1

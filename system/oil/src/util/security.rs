@@ -24,9 +24,6 @@ pub fn validate_download_url(url: &str) -> Result<()> {
             "refusing insecure download URL: {url}"
         )));
     }
-    if std::env::var_os("OIL_ALLOW_ANY_DOWNLOAD_HOST").is_some() {
-        return Ok(());
-    }
     let parsed: ureq::http::Uri = url
         .parse()
         .map_err(|_| OilError::Install(format!("invalid download URL: {url}")))?;
@@ -45,8 +42,20 @@ pub fn validate_download_url(url: &str) -> Result<()> {
         return Ok(());
     }
     Err(OilError::Install(format!(
-        "download host not allowed: {host} (set OIL_ALLOW_ANY_DOWNLOAD_HOST=1 to override)"
+        "download host not allowed: {host}"
     )))
+}
+
+/// GET `url` after host allowlist, then re-check the final URI so HTTP
+/// redirects cannot land on a host outside the allowlist.
+pub fn get_validated(url: &str) -> Result<ureq::http::Response<ureq::Body>> {
+    validate_download_url(url)?;
+    let resp = ureq::get(url)
+        .call()
+        .map_err(|e| OilError::Install(format!("download failed: {e}")))?;
+    use ureq::ResponseExt;
+    validate_download_url(&resp.get_uri().to_string())?;
+    Ok(resp)
 }
 
 pub fn validate_install_dest(dest: &Path) -> Result<PathBuf> {
@@ -142,6 +151,29 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_rejects_disallowed_host_before_fetch() {
+        let err = get_validated("https://attacker.example/payload").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn allow_any_download_host_env_does_not_bypass_allowlist() {
+        let _lock = env_lock();
+        std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
+        let err = validate_download_url("https://attacker.example/payload").unwrap_err();
+        std::env::remove_var("OIL_ALLOW_ANY_DOWNLOAD_HOST");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
     fn rejects_parent_install_path() {
         assert!(validate_install_dest(Path::new("/usr/local/../etc")).is_err());
     }
@@ -152,6 +184,27 @@ mod tests {
             validate_install_dest(Path::new("/usr/local")).unwrap(),
             PathBuf::from("/usr/local")
         );
+    }
+
+    #[test]
+    fn validate_install_dest_edge_cases() {
+        assert_eq!(
+            validate_install_dest(Path::new("/opt/foo/bar")).unwrap(),
+            PathBuf::from("/opt/foo/bar")
+        );
+        assert_eq!(
+            validate_install_dest(Path::new("/usr/local/bin")).unwrap(),
+            PathBuf::from("/usr/local/bin")
+        );
+        assert_eq!(
+            validate_install_dest(Path::new("/opt/./foo")).unwrap(),
+            PathBuf::from("/opt/foo")
+        );
+        assert!(validate_install_dest(Path::new("/usr/bin")).is_err());
+        assert!(validate_install_dest(Path::new("usr/local")).is_err());
+        assert!(validate_install_dest(Path::new("/usr/local/../bin")).is_err());
+        assert!(validate_install_dest(Path::new("/opt2")).is_err());
+        assert!(validate_install_dest(Path::new("/usr/local_bin")).is_err());
     }
 
     #[test]
@@ -176,7 +229,7 @@ mod tests {
                     "--exact",
                     "--nocapture",
                 ])
-                .env_remove("OIL_SYSTEM_PREFIX")
+                .env_clear()
                 .status()
                 .expect("spawn test subprocess");
             assert!(status.success());

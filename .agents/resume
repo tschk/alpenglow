@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Fast orb resume: restore cargo PATH only. No installs.
+set -euo pipefail
+
+# shellcheck disable=SC1091
+[ -f "${HOME}/.cargo/env" ] && . "${HOME}/.cargo/env"
+export PATH="${HOME}/.cargo/bin:${PATH}"
+
+command -v rustc >/dev/null 2>&1 || { echo "[resume] rustc not on PATH" >&2; exit 1; }
+command -v cargo >/dev/null 2>&1 || { echo "[resume] cargo not on PATH" >&2; exit 1; }
+echo "[resume] ok rustc=$(rustc --version | awk '{print $2}')"

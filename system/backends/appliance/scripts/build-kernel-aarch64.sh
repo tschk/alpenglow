@@ -111,4 +111,5 @@ docker run --rm --platform linux/amd64 \
   '
 
 remove_kernel_tree
+docker rmi debian:bookworm-slim >/dev/null 2>&1 || true
 echo "  kernel: ${VMLINUZ}"

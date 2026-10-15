@@ -60,7 +60,7 @@ fn main() {
             "-t",
             "tmpfs",
             "-o",
-            "nosuid,nodev,mode=1777",
+            "nosuid,nodev,noexec,mode=1777",
             "tmpfs",
             "/tmp",
         ],

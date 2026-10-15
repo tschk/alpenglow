@@ -57,15 +57,15 @@ assert_contains system/backends/appliance/kernel/alpenglow-internet-appliance.co
 
 # Build scripts
 assert_file scripts/boot-native.sh
-sh -n scripts/boot-native.sh 2>/dev/null || true
+sh -n scripts/boot-native.sh || fail "syntax: scripts/boot-native.sh"
 for lib_script in scripts/lib/*.sh; do
   [ -f "${lib_script}" ] || continue
-  sh -n "${lib_script}" 2>/dev/null || true
+  sh -n "${lib_script}" || fail "syntax: ${lib_script}"
 done
 assert_file scripts/build.sh
-sh -n scripts/build.sh 2>/dev/null || true
+sh -n scripts/build.sh || fail "syntax: scripts/build.sh"
 assert_file scripts/build-release.sh
-sh -n scripts/build-release.sh 2>/dev/null || true
+sh -n scripts/build-release.sh || fail "syntax: scripts/build-release.sh"
 
 # Rust crates compile
 cargo check 2>/dev/null || echo "warning: cargo check failed (expected outside Linux)"
@@ -111,6 +111,7 @@ assert_contains system/appliance/filesystems/rootfs-layout.json '"default_mode":
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home"'
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
 assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
+sh scripts/test-mount-state-paths.sh
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
@@ -131,5 +132,15 @@ assert_file scripts/test-initramfs-codec-identity.sh
 sh -n scripts/lib/initramfs-codec-identity.sh
 sh -n scripts/test-initramfs-codec-identity.sh
 sh scripts/test-initramfs-codec-identity.sh
+assert_file scripts/test-bench-boot.sh
+sh -n scripts/test-bench-boot.sh
+sh scripts/test-bench-boot.sh
+assert_file scripts/test-arm64-kernel-image.sh
+sh -n scripts/test-arm64-kernel-image.sh
+sh scripts/test-arm64-kernel-image.sh
+sh -n scripts/build-aarch64-efi-release.sh
+sh -n scripts/release-assets.sh
+assert_contains scripts/release-assets.sh 'build/sysroots'
+assert_contains scripts/build-aarch64-efi-release.sh 'docker image prune -af'
 
 printf 'ci-os-appliance: ok\n'

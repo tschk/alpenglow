@@ -81,8 +81,13 @@ third_party/ghostty/zig-out/
 Module.symvers
 *.symvers
 modules.order
-.agents/
+.agents/*
+!.agents/setup
+!.agents/resume
 system/backends/appliance/vro/vro
+
+# Amp orb portals (local)
+.amp/portals/
 
 # Local/tooling directories
 .poolside/
@@ -92,3 +97,5 @@ zig-linux-x86_64-0.14.0/
 .pi-subagents/
 /sbin/
 main
+zig-x86_64-linux-0.16.0/
+zig.tar.xz

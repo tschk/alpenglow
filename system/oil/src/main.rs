@@ -285,6 +285,39 @@ fn system_prefix(cli: Option<PathBuf>) -> Option<PathBuf> {
     cli.or_else(|| std::env::var_os("OIL_SYSTEM_PREFIX").map(PathBuf::from))
 }
 
+fn run_system_add(packages: Vec<String>, prefix: Option<PathBuf>, dry_run: bool) -> Result<()> {
+    if packages.is_empty() {
+        return Err(error::OilError::Install(
+            "system add requires at least one package".into(),
+        ));
+    }
+    let dest = install_dest(system_prefix(prefix).as_deref())?;
+    let registry_packages = load_registry()?;
+    let index = PackageIndex::new(&registry_packages);
+    for name in packages {
+        let pkg = index
+            .find(&name)
+            .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
+        if dry_run {
+            println!(
+                "Would install {} {} into {}",
+                pkg.name,
+                pkg.version,
+                dest.display()
+            );
+        } else {
+            install_package(pkg, &dest)?;
+            println!(
+                "Installed {} {} into {}",
+                pkg.name,
+                pkg.version,
+                dest.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn run_system(command: SystemCommands) -> Result<()> {
     match command {
         SystemCommands::Add {
@@ -292,38 +325,7 @@ fn run_system(command: SystemCommands) -> Result<()> {
             prefix,
             no_script: _,
             dry_run,
-        } => {
-            if packages.is_empty() {
-                return Err(error::OilError::Install(
-                    "system add requires at least one package".into(),
-                ));
-            }
-            let dest = install_dest(system_prefix(prefix).as_deref())?;
-            let registry_packages = load_registry()?;
-            let index = PackageIndex::new(&registry_packages);
-            for name in packages {
-                let pkg = index
-                    .find(&name)
-                    .ok_or_else(|| error::OilError::FormulaNotFound(name.clone()))?;
-                if dry_run {
-                    println!(
-                        "Would install {} {} into {}",
-                        pkg.name,
-                        pkg.version,
-                        dest.display()
-                    );
-                } else {
-                    install_package(pkg, &dest)?;
-                    println!(
-                        "Installed {} {} into {}",
-                        pkg.name,
-                        pkg.version,
-                        dest.display()
-                    );
-                }
-            }
-            Ok(())
-        }
+        } => run_system_add(packages, prefix, dry_run),
         SystemCommands::Sync { prefix: _ } => {
             println!("system sync: staged installs are applied immediately");
             Ok(())
@@ -443,12 +445,18 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let index = PackageIndex::new(&registry_packages);
     let order = index.resolve_install_order(&pending, |name| state.get(name).is_some())?;
 
+    let dest = if !dry_run {
+        Some(install_dest(None)?)
+    } else {
+        None
+    };
+
     for pkg in &order {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = install_dest(None)?;
-            install_package(pkg, &dest)?;
+            let dest = dest.as_ref().unwrap();
+            install_package(pkg, dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
         }
@@ -507,10 +515,10 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     };
     let registry_packages = load_registry()?;
     let index = PackageIndex::new(&registry_packages);
+    let dest = install_dest(None)?;
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
-                let dest = install_dest(None)?;
                 install_package(latest, &dest)?;
                 state.mark_installed(name, Some(latest.version.as_str()));
                 println!("Reinstalled {name} {}", latest.version);
@@ -577,6 +585,12 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     };
     let upgrades = plan_upgrades(targets.as_deref(), &installed, &index);
 
+    let dest = if !dry_run && !upgrades.is_empty() {
+        Some(install_dest(None)?)
+    } else {
+        None
+    };
+
     for (name, current, latest) in &upgrades {
         if dry_run {
             println!(
@@ -584,8 +598,8 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 current.version, latest.version
             );
         } else {
-            let dest = install_dest(None)?;
-            install_package(latest, &dest)?;
+            let dest = dest.as_ref().unwrap();
+            install_package(latest, dest)?;
             state.mark_installed(name, Some(latest.version.as_str()));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
         }
@@ -714,13 +728,12 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
 
 fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
     let dest = util::security::validate_install_dest(dest)?;
-    util::security::validate_download_url(&pkg.download_url)?;
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
 
-    let resp = ureq::get(url)
-        .call()
-        .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
+    let resp = util::security::get_validated(url).map_err(|e| {
+        error::OilError::Install(format!("download failed for {}: {e}", pkg.name))
+    })?;
 
     let tmp_dir = oil_secure_tmp_dir()?;
     let mut tmp = tempfile::Builder::new()

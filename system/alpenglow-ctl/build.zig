@@ -111,4 +111,22 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_kernel_tests.step);
     test_step.dependOn(&run_common_tests.step);
     test_step.dependOn(&run_pressure_tests.step);
+
+    const main_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
+    });
+    main_test_mod.addImport("common", common);
+    main_test_mod.addImport("kernel", kernel_mod);
+    main_test_mod.addImport("network", network_mod);
+    main_test_mod.addImport("pressure", pressure_mod);
+    main_test_mod.addImport("zram", zram_mod);
+
+    const main_tests = b.addTest(.{
+        .root_module = main_test_mod,
+    });
+    main_tests.root_module.link_libc = true;
+    const run_main_tests = b.addRunArtifact(main_tests);
+    test_step.dependOn(&run_main_tests.step);
 }

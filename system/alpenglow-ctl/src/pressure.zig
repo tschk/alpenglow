@@ -72,7 +72,7 @@ fn update(gpa: std.mem.Allocator, pressure_path: []const u8, state_json: []const
     const json = try renderJson(gpa, p);
     defer gpa.free(json);
     if (std.fs.path.dirname(state_json)) |parent| {
-        makePathRecursive(parent) catch {};
+        try makePathRecursive(parent);
     }
     try writeFile(state_json, json, true);
 }

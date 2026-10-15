@@ -84,6 +84,7 @@ fn parseOperstate(value: ?[]const u8) []const u8 {
 
 fn parseCarrier(value: ?[]const u8) ?bool {
     const v = value orelse return null;
+    if (v.len == 0) return null;
     return switch (v[0]) {
         '0' => false,
         '1' => true,
@@ -276,10 +277,10 @@ fn writeSnapshot(gpa: std.mem.Allocator, snapshot: Snapshot, state_json: []const
     const env = try renderRuntimeEnv(gpa, snapshot);
     defer gpa.free(env);
 
-    if (std.fs.path.dirname(state_json)) |parent| makePathRecursive(parent) catch {};
+    if (std.fs.path.dirname(state_json)) |parent| try makePathRecursive(parent);
     try writeFile(state_json, json, true);
 
-    if (std.fs.path.dirname(runtime_env)) |parent| makePathRecursive(parent) catch {};
+    if (std.fs.path.dirname(runtime_env)) |parent| try makePathRecursive(parent);
     try writeFileMode(runtime_env, env, true, 0o600);
 }
 
@@ -384,6 +385,15 @@ pub fn run() !void {
     };
 }
 
+test "parseOperstate handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqualStrings("down", parseOperstate(null));
+    try testing.expectEqualStrings("up", parseOperstate("up"));
+    try testing.expectEqualStrings("down", parseOperstate("down"));
+    try testing.expectEqualStrings("down", parseOperstate("unknown"));
+    try testing.expectEqualStrings("down", parseOperstate(""));
+}
+
 test "parseKind handles valid and edge case inputs" {
     const testing = std.testing;
     try testing.expectEqualStrings("ethernet", parseKind(null));
@@ -396,4 +406,26 @@ test "parseKind handles valid and edge case inputs" {
     try testing.expectEqualStrings("ethernet", parseKind("-"));
     try testing.expectEqualStrings("ethernet", parseKind("  "));
     try testing.expectEqualStrings("ethernet", parseKind("\n"));
+}
+
+test "parseCarrier handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqual(null, parseCarrier(null));
+    try testing.expectEqual(false, parseCarrier("0"));
+    try testing.expectEqual(true, parseCarrier("1"));
+    try testing.expectEqual(false, parseCarrier("0\n"));
+    try testing.expectEqual(true, parseCarrier("1\n"));
+    try testing.expectEqual(null, parseCarrier("2"));
+    try testing.expectEqual(null, parseCarrier(""));
+    try testing.expectEqual(null, parseCarrier("abc"));
+}
+
+test "parseU32 handles valid and edge case inputs" {
+    const testing = std.testing;
+    try testing.expectEqual(@as(?u32, 123), parseU32("123"));
+    try testing.expectEqual(@as(?u32, 0), parseU32("0"));
+    try testing.expectEqual(@as(?u32, 4294967295), parseU32("4294967295"));
+    try testing.expectEqual(@as(?u32, null), parseU32("abc"));
+    try testing.expectEqual(@as(?u32, null), parseU32("-1"));
+    try testing.expectEqual(@as(?u32, null), parseU32(""));
 }

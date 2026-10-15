@@ -17,6 +17,42 @@ EFI="${QEMU_EFI:-${EFI:-0}}"
 VNC="${QEMU_VNC:-}"
 KERNEL_CMDLINE="${KERNEL_CMDLINE:-quiet console=ttyS0 init=/init}"
 
+if [ -z "${MEMORY_MB}" ]; then
+  echo "ERROR: MEMORY_MB must not be empty." >&2; exit 1
+fi
+case "${MEMORY_MB}" in
+  *[!0-9]*) echo "ERROR: MEMORY_MB must be purely numeric." >&2; exit 1 ;;
+esac
+
+if [ -z "${HEADLESS}" ]; then
+  echo "ERROR: HEADLESS must not be empty." >&2; exit 1
+fi
+case "${HEADLESS}" in
+  *[!0-9]*) echo "ERROR: HEADLESS must be numeric (0 or 1)." >&2; exit 1 ;;
+esac
+
+if [ -z "${EFI}" ]; then
+  echo "ERROR: EFI must not be empty." >&2; exit 1
+fi
+case "${EFI}" in
+  *[!0-9]*) echo "ERROR: EFI must be numeric (0 or 1)." >&2; exit 1 ;;
+esac
+
+case "${ACCEL}" in
+  *[\`\$\|\&\;\<\>\\]*) echo "ERROR: ACCEL contains invalid shell metacharacters." >&2; exit 1 ;;
+esac
+
+case "${VNC}" in
+  *[\`\$\|\&\;\<\>\\]*) echo "ERROR: VNC contains invalid shell metacharacters." >&2; exit 1 ;;
+esac
+
+case "${KERNEL_CMDLINE}" in
+  *[\`\$\|\&\;\<\>\\]*)
+    echo "ERROR: KERNEL_CMDLINE contains potentially unsafe shell metacharacters." >&2
+    exit 1
+    ;;
+esac
+
 command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo "missing qemu-system-x86_64"; exit 1; }
 [ -f "${KERNEL}" ] || { echo "missing kernel: ${KERNEL}"; exit 1; }
 [ -f "${INITRAMFS}" ] || { echo "missing initramfs: ${INITRAMFS}"; exit 1; }
@@ -44,7 +80,9 @@ fi
 
 if [ -n "${OVMF}" ]; then
   # Try OVMF + kernel EFI stub. If firmware fails (e.g. EFI stub missing), fall through.
-  "$@" -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}" 2>/dev/null && exit 0 || true
+  if "$@" -bios "${OVMF}" -kernel "${KERNEL}" -initrd "${INITRAMFS}" -append "${KERNEL_CMDLINE}" 2>/dev/null; then
+    exit 0
+  fi
 fi
 
 # SeaBIOS / direct kernel boot (no EFI stub or OVMF unavailable)
