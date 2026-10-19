@@ -376,4 +376,38 @@ mod tests {
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
     }
+
+    #[test]
+    fn test_resolve_install_order_complex() {
+        // App depends on A and B.
+        // A depends on C.
+        // B depends on C and D.
+        // C and D have no dependencies.
+        let pkgs = vec![
+            sample_pkg("app", vec!["a".to_string(), "b".to_string()]),
+            sample_pkg("a", vec!["c".to_string()]),
+            sample_pkg("b", vec!["c".to_string(), "d".to_string()]),
+            sample_pkg("c", vec![]),
+            sample_pkg("d", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+
+        // Dependencies must come before their dependents.
+        // C must come before A and B.
+        // D must come before B.
+        // A and B must come before App.
+        let pos = |name: &str| names.iter().position(|&n| n == name).unwrap();
+        assert!(pos("c") < pos("a"));
+        assert!(pos("c") < pos("b"));
+        assert!(pos("d") < pos("b"));
+        assert!(pos("a") < pos("app"));
+        assert!(pos("b") < pos("app"));
+        assert_eq!(names.len(), 5);
+        assert_eq!(*names.last().unwrap(), "app");
+    }
 }
