@@ -273,4 +273,22 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_install_state_clear_method() -> Result<()> {
+        let _guard = EnvGuard::new();
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        std::env::set_var("HOME", temp_dir.path());
+
+        let mut state = InstallState::new().expect("Failed to create new InstallState");
+
+        state.mark_installed("pkg-1", Some("1.0"));
+        state.mark_installed("pkg-2", Some("2.0"));
+        assert!(!state.packages.is_empty());
+
+        state.clear();
+        assert!(state.packages.is_empty());
+
+        Ok(())
+    }
 }
