@@ -367,4 +367,28 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_error_on_invalid_json() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalidjson", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(&cache_path, b"not json").expect("write bad data");
+
+        let err = registry.load().expect_err("bad data should return error");
+        assert!(matches!(err, OilError::Json(_)), "unexpected error: {err:?}");
+    }
+
+    #[test]
+    fn load_returns_error_on_invalid_schema() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalidschema", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(&cache_path, b"{\"not\": \"a list\"}").expect("write bad schema data");
+
+        let err = registry.load().expect_err("bad schema should return error");
+        assert!(matches!(err, OilError::Json(_)), "unexpected error: {err:?}");
+    }
 }
