@@ -93,13 +93,24 @@ fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
     return try args.toOwnedSlice();
 }
 
-pub fn run() !void {
-    mainInner() catch |err| {
-        writeStderr("alpenglow-kernelctl: ");
-        writeStderr(@errorName(err));
-        writeStderr("\n");
-        std.process.exit(1);
+fn runInternal(comptime Env: type, env: *Env) !void {
+    env.mainInner() catch |err| {
+        env.writeStderr("alpenglow-kernelctl: ");
+        env.writeStderr(@errorName(err));
+        env.writeStderr("\n");
+        return env.exit(1);
     };
+}
+
+const ProdEnv = struct {
+    fn mainInner(_: *ProdEnv) !void { return _mainInner(); }
+    fn writeStderr(_: *ProdEnv, msg: []const u8) void { common.writeStderr(msg); }
+    fn exit(_: *ProdEnv, code: u8) !void { std.process.exit(code); }
+};
+
+pub fn run() !void {
+    var env = ProdEnv{};
+    try runInternal(ProdEnv, &env);
 }
 
 const Cmd = enum { apply, attach };
@@ -144,6 +155,8 @@ fn parseArgs(args: []const []const u8) Config {
     }
     return cfg;
 }
+
+const _mainInner = mainInner;
 
 fn mainInner() !void {
     const allocator = std.heap.page_allocator;
@@ -402,4 +415,51 @@ test "writeKernelFile surfaces error on oversized value" {
     var big: [4096]u8 = undefined;
     @memset(big[0..], 'x');
     try testing.expectError(error.ValueTooLong, writeKernelFile(tmp_path, "oversized.txt", big[0..]));
+}
+
+const TestEnv = struct {
+    main_inner_error: ?anyerror = null,
+    stderr_buf: MyArrayList(u8),
+    exit_code: ?u8 = null,
+
+    fn mainInner(self: *TestEnv) !void {
+        if (self.main_inner_error) |err| {
+            return err;
+        }
+    }
+
+    fn writeStderr(self: *TestEnv, msg: []const u8) void {
+        self.stderr_buf.appendSlice(msg) catch {};
+    }
+
+    fn exit(self: *TestEnv, code: u8) !void {
+        self.exit_code = code;
+    }
+};
+
+test "runInternal exits on error" {
+    const testing = std.testing;
+    var env = TestEnv{
+        .main_inner_error = error.MockError,
+        .stderr_buf = MyArrayList(u8).init(testing.allocator),
+    };
+    defer env.stderr_buf.deinit();
+
+    try runInternal(TestEnv, &env);
+
+    try testing.expectEqual(@as(?u8, 1), env.exit_code);
+    try testing.expectEqualStrings("alpenglow-kernelctl: MockError\n", env.stderr_buf.items());
+}
+
+test "runInternal completes normally" {
+    const testing = std.testing;
+    var env = TestEnv{
+        .stderr_buf = MyArrayList(u8).init(testing.allocator),
+    };
+    defer env.stderr_buf.deinit();
+
+    try runInternal(TestEnv, &env);
+
+    try testing.expectEqual(@as(?u8, null), env.exit_code);
+    try testing.expectEqualStrings("", env.stderr_buf.items());
 }
