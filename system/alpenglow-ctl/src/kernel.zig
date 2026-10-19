@@ -94,11 +94,22 @@ fn readCmdline(allocator: std.mem.Allocator) ![]const []const u8 {
 }
 
 pub fn run() !void {
-    mainInner() catch |err| {
-        writeStderr("alpenglow-kernelctl: ");
-        writeStderr(@errorName(err));
-        writeStderr("\n");
-        std.process.exit(1);
+    var env = ProdEnv{};
+    try runInternal(ProdEnv, &env);
+}
+
+const ProdEnv = struct {
+    fn writeStderr(_: *ProdEnv, msg: []const u8) void { common.writeStderr(msg); }
+    fn exit(_: *ProdEnv, code: u8) !void { std.process.exit(code); }
+    fn mainInner(_: *ProdEnv) !void { return _mainInner(); }
+};
+
+fn runInternal(comptime Env: type, env: *Env) !void {
+    env.mainInner() catch |err| {
+        env.writeStderr("alpenglow-kernelctl: ");
+        env.writeStderr(@errorName(err));
+        env.writeStderr("\n");
+        try env.exit(1);
     };
 }
 
@@ -145,7 +156,7 @@ fn parseArgs(args: []const []const u8) Config {
     return cfg;
 }
 
-fn mainInner() !void {
+fn _mainInner() !void {
     const allocator = std.heap.page_allocator;
     const args = try readCmdline(allocator);
 
@@ -299,7 +310,7 @@ fn kernelctlTestTmpAbsPath(alloc: mem.Allocator, tmp: std.testing.TmpDir) ![]con
 }
 
 fn readTmpFile(tmp: std.testing.TmpDir, name: []const u8, buf: []u8) ![]u8 {
-    return tmp.dir.readFile(std.testing.io, name, buf);
+    return tmp.dir.readFile(name, buf);
 }
 
 test "validateCgroupPolicyPath accepts policy paths" {
@@ -354,7 +365,7 @@ test "wU64 does not write on null" {
     defer testing.allocator.free(tmp_path);
     try wU64(tmp_path, "test_null.txt", null);
 
-    tmp.dir.access(std.testing.io, "test_null.txt", .{}) catch |err| {
+    tmp.dir.access("test_null.txt", .{}) catch |err| {
         try testing.expect(err == error.FileNotFound);
         return;
     };
@@ -402,4 +413,52 @@ test "writeKernelFile surfaces error on oversized value" {
     var big: [4096]u8 = undefined;
     @memset(big[0..], 'x');
     try testing.expectError(error.ValueTooLong, writeKernelFile(tmp_path, "oversized.txt", big[0..]));
+}
+
+const TestEnv = struct {
+    stderr: common.MyArrayList(u8),
+    exit_code: ?u8 = null,
+    inner_error: ?anyerror = null,
+
+    fn init(allocator: std.mem.Allocator) TestEnv {
+        return .{
+            .stderr = common.MyArrayList(u8).init(allocator),
+        };
+    }
+
+    fn deinit(self: *TestEnv) void {
+        self.stderr.deinit();
+    }
+
+    fn writeStderr(self: *TestEnv, msg: []const u8) void {
+        self.stderr.appendSlice(msg) catch {};
+    }
+
+    fn exit(self: *TestEnv, code: u8) !void {
+        self.exit_code = code;
+        return error.Exit;
+    }
+
+    fn mainInner(self: *TestEnv) !void {
+        if (self.inner_error) |err| return err;
+    }
+};
+
+test "runInternal success" {
+    var env = TestEnv.init(std.testing.allocator);
+    defer env.deinit();
+
+    try runInternal(TestEnv, &env);
+    try std.testing.expectEqual(@as(?u8, null), env.exit_code);
+    try std.testing.expectEqualStrings("", env.stderr.items());
+}
+
+test "runInternal error handling" {
+    var env = TestEnv.init(std.testing.allocator);
+    defer env.deinit();
+    env.inner_error = error.TestError;
+
+    try std.testing.expectError(error.Exit, runInternal(TestEnv, &env));
+    try std.testing.expectEqual(@as(?u8, 1), env.exit_code);
+    try std.testing.expectEqualStrings("alpenglow-kernelctl: TestError\n", env.stderr.items());
 }

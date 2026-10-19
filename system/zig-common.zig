@@ -501,13 +501,13 @@ test "sysOpenat" {
     defer tmp.cleanup();
 
     // Create a file in the temp directory first
-    const fd_create = try sysOpenat(tmp.dir.handle, "test_file.txt", .{ .CREAT = true, .ACCMODE = .WRONLY }, 0o644);
+    const fd_create = try sysOpenat(tmp.dir.fd, "test_file.txt", .{ .CREAT = true, .ACCMODE = .WRONLY }, 0o644);
     sysClose(fd_create);
 
     // Now test opening it with sysOpenat
-    const fd_open = try sysOpenat(tmp.dir.handle, "test_file.txt", .{ .ACCMODE = .RDONLY }, 0);
+    const fd_open = try sysOpenat(tmp.dir.fd, "test_file.txt", .{ .ACCMODE = .RDONLY }, 0);
     sysClose(fd_open);
 
     // Test opening a non-existent file
-    try testing.expectError(error.FileNotFound, sysOpenat(tmp.dir.handle, "does_not_exist.txt", .{ .ACCMODE = .RDONLY }, 0));
+    try testing.expectError(error.FileNotFound, sysOpenat(tmp.dir.fd, "does_not_exist.txt", .{ .ACCMODE = .RDONLY }, 0));
 }
