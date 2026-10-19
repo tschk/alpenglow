@@ -612,7 +612,9 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 current.version, latest.version
             );
         } else {
-            let dest = dest.as_ref().unwrap();
+            let dest = dest
+                .as_ref()
+                .ok_or_else(|| error::OilError::Install("install destination not set".into()))?;
             install_package(latest, dest)?;
             state.mark_installed(name, Some(latest.version.as_str()));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
