@@ -219,6 +219,56 @@ mod tests {
     }
 
     #[test]
+    fn normalize_exact_prefixes() {
+        let (name1, url1) = normalize_tap("http://");
+        assert_eq!(name1, "http://");
+        assert_eq!(url1, "http://");
+
+        let (name2, url2) = normalize_tap("https://");
+        assert_eq!(name2, "https://");
+        assert_eq!(url2, "https://");
+
+        let (name3, url3) = normalize_tap("git@");
+        assert_eq!(name3, "git@");
+        assert_eq!(url3, "git@");
+    }
+
+    #[test]
+    fn normalize_single_slash() {
+        let (name, url) = normalize_tap("/");
+        assert_eq!(name, "/");
+        assert_eq!(url, "/");
+    }
+
+    #[test]
+    fn normalize_git_suffix_no_slash() {
+        let (name, url) = normalize_tap("myrepo.git");
+        assert_eq!(name, "myrepo.git");
+        assert_eq!(url, "myrepo.git");
+    }
+
+    #[test]
+    fn normalize_git_middle() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
+    }
+
+    #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_git_after_slash() {
+        let (name, url) = normalize_tap("user/.git");
+        assert_eq!(name, "user/.git");
+        assert_eq!(url, "https://github.com/user/");
+    }
+
+    #[test]
     fn index_url_for_github_repo() {
         let registry = TapRegistry::new("undivisible/tap", "https://github.com/undivisible/tap");
         assert_eq!(
