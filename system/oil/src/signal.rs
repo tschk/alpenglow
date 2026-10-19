@@ -26,10 +26,12 @@ mod tests {
         }
 
         let exe = env::current_exe().unwrap();
-        let mut child = Command::new(exe)
+        let child = Command::new(exe)
             .env("TEST_SIGNAL_HANDLER_CHILD", "1")
             .arg("signal::tests::test_signal_handler")
             .arg("--exact")
+            .arg("--nocapture")
+            .stderr(std::process::Stdio::piped())
             .spawn()
             .expect("failed to spawn child");
 
@@ -42,7 +44,15 @@ mod tests {
             .expect("failed to run kill");
         assert!(status.success());
 
-        let exit_status = child.wait().expect("failed to wait on child");
-        assert_eq!(exit_status.code(), Some(130));
+        let output = child.wait_with_output().expect("failed to wait on child");
+        assert_eq!(output.status.code(), Some(130));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("Interrupted"));
+    }
+
+    #[test]
+    fn test_install_handler_does_not_panic() {
+        install_handler();
+        install_handler();
     }
 }
