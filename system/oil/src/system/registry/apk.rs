@@ -585,4 +585,30 @@ mod tests {
         assert_eq!(cached[0].name, packages[0].name);
         assert_eq!(cached[0].download_url, packages[0].download_url);
     }
+
+    #[test]
+    fn refresh_clears_cache_and_calls_load() {
+        use crate::test_support::IsolatedHome;
+        let _home = IsolatedHome::new();
+        let registry = ApkRegistry::new("https://example.com/alpine", "v3.20");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        let packages = parse_apkindex(
+            "P:ripgrep\nV:14.1.1-r0\nT:Search tool\nI:12345\n\n",
+            "https://dl-cdn.alpinelinux.org/alpine",
+            "v3.21",
+            "community",
+            "aarch64",
+        );
+        write_cache(&cache_path, &packages).expect("write valid cache");
+        assert!(cache_path.exists(), "cache should exist before refresh");
+
+        let err = registry.refresh().expect_err("refresh should trigger network fetch and fail");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed") || msg.contains("Failed to fetch"),
+            "unexpected error: {msg}"
+        );
+        assert!(!cache_path.exists(), "cache should be removed by refresh");
+    }
 }
