@@ -172,6 +172,16 @@ mod tests {
             ("=pkg", ""),
             ("<pkg", ""),
             (">pkg", ""),
+            ("pkg~=1.0", "pkg~"),
+            ("pkg~1.0", "pkg~1.0"),
+            ("pkg>=", "pkg"),
+            ("pkg<=", "pkg"),
+            ("pkg==", "pkg"),
+            ("pkg<>", "pkg"),
+            ("pkg=<>", "pkg"),
+            ("pkg@testing", "pkg@testing"),
+            ("pkg:provider", "pkg:provider"),
+            ("pkg!provider", "pkg!provider"),
         ];
 
         for (input, expected) in cases {
