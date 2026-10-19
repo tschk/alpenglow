@@ -8,12 +8,20 @@ import { renderDocument, renderResponse } from "../src/document";
 const outDir = resolve(import.meta.dir, "..", "dist");
 const staticDir = await buildSite(outDir);
 
+const routes: Record<
+  string,
+  (request: Request) => Response | Promise<Response>
+> = {
+  "/": renderResponse,
+};
+
 async function handler(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
 
-  if (pathname === "/") {
-    return renderResponse(request);
+  const routeHandler = routes[pathname];
+  if (routeHandler) {
+    return routeHandler(request);
   }
 
   if (request.method === "GET" || request.method === "HEAD") {
