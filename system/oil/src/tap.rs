@@ -113,9 +113,8 @@ impl TapRegistry {
         let url = self.index_url();
 
         eprintln!("Fetching tap index: {url}");
-        let resp = crate::util::security::get_validated(&url).map_err(|e| {
-            OilError::Install(format!("Failed to fetch tap index from {url}: {e}"))
-        })?;
+        let resp = crate::util::security::get_validated(&url)
+            .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
         let mut body = Vec::new();
         resp.into_body()
             .into_reader()
@@ -357,13 +356,11 @@ mod tests {
         let registry = TapRegistry::new("corrupt", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"{not valid json}",
-        )
-        .expect("write corrupt tap cache");
+        std::fs::write(&cache_path, b"{not valid json}").expect("write corrupt tap cache");
 
-        let err = registry.load().expect_err("corrupt tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
