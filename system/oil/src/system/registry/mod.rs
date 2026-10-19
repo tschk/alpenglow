@@ -376,4 +376,47 @@ mod tests {
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
     }
+
+    #[test]
+    fn test_resolve_install_order_not_found() {
+        let pkgs = vec![sample_pkg("app", vec!["nonexistent".to_string()])];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            OilError::FormulaNotFound(name) => assert_eq!(name, "nonexistent"),
+            _ => panic!("expected FormulaNotFound"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_install_order_shared_dependency() {
+        let pkgs = vec![
+            sample_pkg("app1", vec!["libshared".to_string()]),
+            sample_pkg("app2", vec!["libshared".to_string()]),
+            sample_pkg("libshared", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["libshared", "app1", "app2"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_empty_dep_name() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["".to_string(), ">1.0".to_string()]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["app"]);
+    }
 }
