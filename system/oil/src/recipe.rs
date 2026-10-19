@@ -273,4 +273,54 @@ provides:
         assert_eq!(meta.provides, vec!["prov1".to_string()]);
 
     }
+
+    #[test]
+    fn rejects_empty_version() {
+        let yaml = r#"
+name: pkg
+version: "   "
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("empty version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_missing_required_fields() {
+        let yaml_no_name = r#"
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        assert!(Recipe::parse(yaml_no_name).is_err());
+
+        let yaml_no_version = r#"
+name: pkg
+source:
+  url: https://example.com/pkg.apk
+"#;
+        assert!(Recipe::parse(yaml_no_version).is_err());
+
+        let yaml_no_source = r#"
+name: pkg
+version: "1.0"
+"#;
+        assert!(Recipe::parse(yaml_no_source).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_type_fields() {
+        let yaml = r#"
+name:
+  - list
+  - instead
+  - of
+  - string
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        assert!(Recipe::parse(yaml).is_err());
+    }
 }
