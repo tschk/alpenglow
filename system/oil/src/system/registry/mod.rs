@@ -376,4 +376,37 @@ mod tests {
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
     }
+
+    #[test]
+    fn test_resolve_install_order_missing_dependency() {
+        let pkgs = vec![sample_pkg("app", vec!["nonexistent".to_string()])];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
+        assert!(result.is_err());
+        let err = result.expect_err("formula not found").to_string();
+        assert!(err.contains("formula not found"));
+    }
+
+    #[test]
+    fn test_resolve_install_order_shared_dependency() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["libb".to_string(), "libc".to_string()]),
+            sample_pkg("libb", vec!["liba".to_string()]),
+            sample_pkg("libc", vec!["liba".to_string()]),
+            sample_pkg("liba", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names.len(), 4);
+        assert_eq!(names[0], "liba");
+        assert_eq!(names[3], "app");
+        assert!(names[1] == "libb" || names[1] == "libc");
+        assert!(names[2] == "libb" || names[2] == "libc");
+        assert_ne!(names[1], names[2]);
+    }
 }
