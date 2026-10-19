@@ -1,4 +1,5 @@
 // Alpenglow Rust init — replaces the shell /init script
+use std::io::BufRead;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
@@ -31,8 +32,8 @@ fn main() {
         ],
     );
     let mut shm_size = String::from("mode=1777,size=256m");
-    if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
-        for line in meminfo.lines() {
+    if let Ok(file) = std::fs::File::open("/proc/meminfo") {
+        for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
             if line.starts_with("MemTotal:") {
                 if let Some(kb_str) = line.split_whitespace().nth(1) {
                     if let Ok(kb) = kb_str.parse::<u64>() {
