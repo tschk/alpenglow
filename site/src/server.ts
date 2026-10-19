@@ -6,12 +6,20 @@ import { renderResponse } from "./document";
 const port = Number(process.env.PORT) || 3000;
 const staticDir = await buildSite();
 
+const routes: Record<
+  string,
+  (request: Request) => Response | Promise<Response>
+> = {
+  "/": renderResponse,
+};
+
 export async function handler(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
 
-  if (pathname === "/") {
-    return renderResponse(request);
+  const routeHandler = routes[pathname];
+  if (routeHandler) {
+    return routeHandler(request);
   }
 
   if (request.method === "GET" || request.method === "HEAD") {
