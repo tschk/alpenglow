@@ -31,3 +31,6 @@ signal-hook = "0.3"
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 serde_norway = "0.9.42"
+
+[dev-dependencies]
+mockito = "1.7.2"
