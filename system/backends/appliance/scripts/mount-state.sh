@@ -22,10 +22,15 @@ done
 
 valid_key_path() {
   case "$1" in
-    *..*) return 1 ;;
-    /*) return 0 ;;
+    /*) ;;
     *) return 1 ;;
   esac
+  case "$1" in
+    */../*|*/..|../*|..) return 1 ;;
+    */./*|*/.|./*|.) return 1 ;;
+    *//*) return 1 ;;
+  esac
+  return 0
 }
 
 state_block_dev() {
