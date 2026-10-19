@@ -609,6 +609,65 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let apk_path = dir.path().join("test.apk");
+        let dest_dir = dir.path().join("dest");
+
+        let mut sig_tar = tar::Builder::new(Vec::new());
+        let mut sig_header = tar::Header::new_gnu();
+        let sig_data = b"dummy signature";
+        let keyname = "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub";
+        let sig_filename = format!(".SIGN.RSA.{}", keyname);
+        sig_header.set_size(sig_data.len() as u64);
+        sig_header.set_cksum();
+        sig_tar.append_data(&mut sig_header, &sig_filename, &sig_data[..])?;
+        let sig_tar_data = sig_tar.into_inner()?;
+
+        let mut ctrl_tar = tar::Builder::new(Vec::new());
+        let mut ctrl_header = tar::Header::new_gnu();
+        let ctrl_data = b"dummy control";
+        ctrl_header.set_size(ctrl_data.len() as u64);
+        ctrl_header.set_cksum();
+        ctrl_tar.append_data(&mut ctrl_header, ".PKGINFO", &ctrl_data[..])?;
+        let ctrl_tar_data = ctrl_tar.into_inner()?;
+
+        let mut data_tar = tar::Builder::new(Vec::new());
+        let mut data_header = tar::Header::new_gnu();
+        let file_data = b"hello world";
+        data_header.set_size(file_data.len() as u64);
+        data_header.set_cksum();
+        data_tar.append_data(&mut data_header, "hello.txt", &file_data[..])?;
+        let data_tar_data = data_tar.into_inner()?;
+
+        let mut apk_data = Vec::new();
+        apk_data.extend(create_gz_stream(&sig_tar_data)?);
+        apk_data.extend(create_gz_stream(&ctrl_tar_data)?);
+        apk_data.extend(create_gz_stream(&data_tar_data)?);
+
+        std::fs::write(&apk_path, &apk_data)?;
+
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+        struct EnvCleaner;
+        impl Drop for EnvCleaner {
+            fn drop(&mut self) {
+                std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+            }
+        }
+        let _cleaner = EnvCleaner;
+
+        let (files, _dirs) = extract_tracked(&apk_path, &dest_dir)?;
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0], dest_dir.join("hello.txt"));
+
+        let extracted_content = std::fs::read_to_string(dest_dir.join("hello.txt"))?;
+        assert_eq!(extracted_content, "hello world");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
         let missing_path = dir.path().join("does_not_exist.apk");
