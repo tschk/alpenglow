@@ -116,7 +116,7 @@ impl<'a> PackageIndex<'a> {
 
 pub fn parse_dep_name(dep: &str) -> &str {
     let token = dep.split_whitespace().next().unwrap_or(dep);
-    token.split(['=', '<', '>']).next().unwrap_or(token).trim()
+    token.split(['=', '<', '>', '~']).next().unwrap_or(token).trim()
 }
 
 #[cfg(test)]
@@ -136,6 +136,8 @@ mod tests {
             ("rg<14.1.1-r0", "rg"),
             // with greater than constraint
             ("rg>14.1.1-r0", "rg"),
+            // with fuzzy constraint
+            ("rg~14.1.1-r0", "rg"),
             // complex edge cases
             ("", ""),
             ("   ", ""),
@@ -148,19 +150,23 @@ mod tests {
             ("pkg = 1.0", "pkg"),
             ("pkg < 1.0", "pkg"),
             ("pkg > 1.0", "pkg"),
+            ("pkg ~ 1.0", "pkg"),
             // multiple constraints
             ("pkg=1.0-r0 <2.0", "pkg"),
             // compound constraints
             ("pkg>=1.0", "pkg"),
             ("pkg<=1.0", "pkg"),
+            ("pkg~=1.0", "pkg"),
             // weird prefixes
             ("!pkg", "!pkg"),
             // missing edge cases
             ("=1.0.0", ""),
             ("<1.0.0", ""),
             (">1.0.0", ""),
+            ("~1.0.0", ""),
             (" = 1.0", ""),
             (" < 1.0", ""),
+            (" ~ 1.0", ""),
             ("📦=1.0", "📦"),
             ("name-with-🦀>1.0", "name-with-🦀"),
             ("pkg\t=\n1.0", "pkg"),
@@ -168,10 +174,12 @@ mod tests {
             ("=", ""),
             ("<", ""),
             (">", ""),
+            ("~", ""),
             ("<=>", ""),
             ("=pkg", ""),
             ("<pkg", ""),
             (">pkg", ""),
+            ("~pkg", ""),
         ];
 
         for (input, expected) in cases {
