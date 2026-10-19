@@ -469,8 +469,10 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = dest.as_ref().unwrap();
-            install_package(pkg, dest)?;
+            let dest_path = dest.as_ref().ok_or_else(|| {
+                error::OilError::Install("Install destination is missing".to_string())
+            })?;
+            install_package(pkg, dest_path)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
         }
