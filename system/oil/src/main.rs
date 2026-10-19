@@ -468,8 +468,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     for pkg in &order {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
-        } else {
-            let dest = dest.as_ref().unwrap();
+        } else if let Some(dest) = &dest {
             install_package(pkg, dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
@@ -611,8 +610,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 "Would upgrade {name}: {} → {}",
                 current.version, latest.version
             );
-        } else {
-            let dest = dest.as_ref().unwrap();
+        } else if let Some(dest) = &dest {
             install_package(latest, dest)?;
             state.mark_installed(name, Some(latest.version.as_str()));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
