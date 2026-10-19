@@ -91,3 +91,34 @@ fn installer_args_strip_tui_flag() {
     assert_eq!(source, PathBuf::from("a.img"));
     assert_eq!(target, Some(PathBuf::from("/dev/vdb")));
 }
+
+#[test]
+fn zst_auto_install_fails_on_missing_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("non_existent_source.img.zst");
+    let target = dir.path().join("target.img");
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    assert!(err.to_string().contains("No such file or directory"));
+}
+
+#[test]
+fn zst_auto_install_fails_on_unopenable_target() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target_dir");
+
+    // Valid zstd compressed payload for "alpenglow-compressed-test"
+    let zst_data: &[u8] = &[
+        0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x58, 0xc9, 0x00, 0x00, 0x61, 0x6c, 0x70, 0x65, 0x6e, 0x67,
+        0x6c, 0x6f, 0x77, 0x2d, 0x63, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64, 0x2d,
+        0x74, 0x65, 0x73, 0x74, 0xc6, 0x62, 0xe6, 0x26,
+    ];
+    fs::write(&source, zst_data).unwrap();
+
+    // Create target as a directory so opening it for writing fails
+    fs::create_dir(&target).unwrap();
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    assert!(err.to_string().contains("refusing to write image to non-block-device target"));
+}
