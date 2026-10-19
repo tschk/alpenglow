@@ -180,6 +180,27 @@ mod tests {
     }
 
     #[test]
+    fn normalize_user_repo_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_user_repo_partial_git_match() {
+        let (name, url) = normalize_tap("user/repo.gitt");
+        assert_eq!(name, "user/repo.gitt");
+        assert_eq!(url, "https://github.com/user/repo.gitt");
+    }
+
+    #[test]
+    fn normalize_user_repo_git_in_middle() {
+        let (name, url) = normalize_tap("user/repo.git-foo");
+        assert_eq!(name, "user/repo.git-foo");
+        assert_eq!(url, "https://github.com/user/repo.git-foo");
+    }
+
+    #[test]
     fn normalize_http_url_passthrough() {
         let (name, url) = normalize_tap("http://example.com/tap");
         assert_eq!(name, "http://example.com/tap");
