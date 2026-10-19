@@ -67,7 +67,7 @@ impl Taps {
 }
 
 pub fn normalize_tap(name: &str) -> (String, String) {
-    if name.starts_with("http://") || name.starts_with("https://") || name.starts_with("git@") {
+    if name.starts_with("https://") || name.starts_with("git@") {
         (name.to_string(), name.to_string())
     } else if name.matches('/').count() == 1 && !name.starts_with('/') && !name.ends_with('/') {
         let trimmed = name.trim_end_matches(".git");
@@ -177,13 +177,6 @@ mod tests {
         let (name, url) = normalize_tap("user/repo.git");
         assert_eq!(name, "user/repo.git");
         assert_eq!(url, "https://github.com/user/repo");
-    }
-
-    #[test]
-    fn normalize_http_url_passthrough() {
-        let (name, url) = normalize_tap("http://example.com/tap");
-        assert_eq!(name, "http://example.com/tap");
-        assert_eq!(url, "http://example.com/tap");
     }
 
     #[test]
