@@ -543,6 +543,41 @@ mod tests {
     }
 
     #[test]
+    fn refresh_clears_cache_and_attempts_load() {
+        use crate::test_support::IsolatedHome;
+        let _home = IsolatedHome::new();
+        // Use a disallowed URL so load() will fail quickly rather than hitting the network
+        let registry = ApkRegistry::new("https://attacker.example/alpine", "v3.20");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        let packages = [PackageMetadata {
+            name: "testpkg".into(),
+            version: "1.0".into(),
+            description: "test".into(),
+            // Safe URL so it would be loaded if we didn't clear the cache
+            download_url: "https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/testpkg-1.0.apk".into(),
+            sha256: None,
+            installed_size: 0,
+            depends: Vec::new(),
+            provides: Vec::new(),
+        }];
+
+        write_cache(&cache_path, &packages).expect("write cache");
+        assert!(cache_path.exists());
+
+        // if we just loaded, it would return the packages
+        let loaded = registry.load().expect("load from cache");
+        assert_eq!(loaded.len(), 1);
+
+        // refresh should clear the cache and then call load()
+        // load() will now fail because the network URL is attacker.example and not in cache
+        let err = registry.refresh().expect_err("should fail after clearing cache");
+
+        assert!(!cache_path.exists(), "cache should be deleted");
+        assert!(err.to_string().contains("download host not allowed"), "should try to fetch from network and fail due to security check");
+    }
+
+    #[test]
     fn load_skips_poisoned_cache_with_disallowed_urls() {
         use crate::test_support::IsolatedHome;
         let _home = IsolatedHome::new();
