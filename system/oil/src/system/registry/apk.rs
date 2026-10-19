@@ -585,4 +585,27 @@ mod tests {
         assert_eq!(cached[0].name, packages[0].name);
         assert_eq!(cached[0].download_url, packages[0].download_url);
     }
+
+    #[test]
+    fn refresh_deletes_cache_before_loading() {
+        use crate::test_support::IsolatedHome;
+        let _home = IsolatedHome::new();
+
+        let registry = ApkRegistry::new("https://attacker.example/alpine", "v3.20");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        // Write a fake cache file and a fake uncompressed cache file
+        std::fs::write(&cache_path, "fake cache data").unwrap();
+        let uncompressed_cache_path = cache_path.with_extension("");
+        std::fs::write(&uncompressed_cache_path, "fake uncompressed cache data").unwrap();
+        assert!(cache_path.exists());
+        assert!(uncompressed_cache_path.exists());
+
+        // Refresh should delete the cache and then fail during load due to invalid mirror
+        let _err = registry.refresh().unwrap_err();
+
+        // Verify the cache file was deleted
+        assert!(!cache_path.exists());
+        assert!(!uncompressed_cache_path.exists());
+    }
 }
