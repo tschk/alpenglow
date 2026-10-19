@@ -531,6 +531,68 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let apk_path = dir.path().join("test.apk");
+        let dest_dir = dir.path().join("dest");
+
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+
+        let mut data = Vec::new();
+
+        // Stream 1: signature (dummy)
+        let mut tar1 = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let sig_data = b"dummy signature data";
+        header.set_size(sig_data.len() as u64);
+        header.set_cksum();
+        tar1.append_data(
+            &mut header,
+            ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+            &sig_data[..],
+        )?;
+        let mut encoder = GzEncoder::new(&mut data, Compression::default());
+        encoder.write_all(&tar1.into_inner()?)?;
+        encoder.finish()?;
+
+        // Stream 2: control
+        let mut tar2 = tar::Builder::new(Vec::new());
+        let mut header2 = tar::Header::new_gnu();
+        let control_data = b"control data";
+        header2.set_size(control_data.len() as u64);
+        header2.set_cksum();
+        tar2.append_data(&mut header2, ".PKGINFO", &control_data[..])?;
+        let mut encoder2 = GzEncoder::new(&mut data, Compression::default());
+        encoder2.write_all(&tar2.into_inner()?)?;
+        encoder2.finish()?;
+
+        // Stream 3: data
+        let mut tar3 = tar::Builder::new(Vec::new());
+        let mut header3 = tar::Header::new_gnu();
+        let file_data = b"file data";
+        header3.set_size(file_data.len() as u64);
+        header3.set_cksum();
+        tar3.append_data(&mut header3, "test_file.txt", &file_data[..])?;
+        let mut encoder3 = GzEncoder::new(&mut data, Compression::default());
+        encoder3.write_all(&tar3.into_inner()?)?;
+        encoder3.finish()?;
+
+        std::fs::write(&apk_path, data)?;
+
+        let result = extract_tracked(&apk_path, &dest_dir);
+        assert!(result.is_ok());
+
+        let (files, _dirs) = result.unwrap();
+        assert_eq!(files.len(), 1);
+
+        assert_eq!(std::fs::read_to_string(dest_dir.join("test_file.txt"))?, "file data");
+
+        std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_untar_entry_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
         let mut tar_builder = tar::Builder::new(Vec::new());
