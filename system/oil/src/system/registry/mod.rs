@@ -25,8 +25,9 @@ pub struct PackageIndex<'a> {
 
 impl<'a> PackageIndex<'a> {
     pub fn new(packages: &'a [PackageMetadata]) -> Self {
-        let mut name_index = HashMap::new();
-        let mut provides_index = HashMap::new();
+        let mut name_index = HashMap::with_capacity(packages.len());
+        // Estimate provides capacity (assume at least 1 provide per package)
+        let mut provides_index = HashMap::with_capacity(packages.len());
 
         for (i, pkg) in packages.iter().enumerate() {
             for prov in &pkg.provides {
