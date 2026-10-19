@@ -779,4 +779,59 @@ mod tests {
         let dest = Path::new("/tmp/dest/foo");
         assert!(!is_safe_symlink(link_target, dest, dest_dir));
     }
+
+    #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let apk_path = dir.path().join("test.apk");
+        let dest_dir = dir.path().join("dest");
+
+        let stream1 = create_gz_stream(b"")?;
+        let stream2 = create_gz_stream(b"")?;
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let file_data = b"hello world";
+        header.set_size(file_data.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "test.txt", &file_data[..])?;
+        let stream3 = create_gz_stream(&tar_builder.into_inner()?)?;
+
+        let mut apk_data = stream1;
+        apk_data.extend(stream2);
+        apk_data.extend(stream3);
+        std::fs::write(&apk_path, apk_data)?;
+
+        struct EnvGuard {
+            original: Option<String>,
+        }
+        impl EnvGuard {
+            fn new() -> Self {
+                let original = std::env::var("OIL_INSECURE_NO_VERIFY").ok();
+                std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+                Self { original }
+            }
+        }
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                if let Some(val) = &self.original {
+                    std::env::set_var("OIL_INSECURE_NO_VERIFY", val);
+                } else {
+                    std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+                }
+            }
+        }
+
+        // For this test, we skip signature verification by using insecure mode
+        let _guard = EnvGuard::new();
+
+        let result = extract_tracked(&apk_path, &dest_dir);
+
+        let (files, dirs) = result?;
+        assert_eq!(files.len(), 1);
+        assert_eq!(dirs.len(), 0);
+        assert_eq!(files[0], dest_dir.join("test.txt"));
+        assert_eq!(std::fs::read_to_string(&files[0])?, "hello world");
+
+        Ok(())
+    }
 }
