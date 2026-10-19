@@ -260,13 +260,13 @@ fn process_tar_entry<R: std::io::Read>(
     if let Some(parent) = dest.parent() {
         if !created_dirs.contains(parent) {
             std::fs::create_dir_all(parent)?;
+            created_dirs.insert(parent.to_path_buf());
             let mut current = parent;
-            while !created_dirs.contains(current) {
-                created_dirs.insert(current.to_path_buf());
-                current = match current.parent() {
-                    Some(p) => p,
-                    None => break,
-                };
+            while let Some(p) = current.parent() {
+                if !created_dirs.insert(p.to_path_buf()) {
+                    break;
+                }
+                current = p;
             }
         }
     }
