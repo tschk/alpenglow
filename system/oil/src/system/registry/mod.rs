@@ -172,6 +172,11 @@ mod tests {
             ("=pkg", ""),
             ("<pkg", ""),
             (">pkg", ""),
+            // tilde versions
+            ("pkg~1.0", "pkg~1.0"),
+            ("~pkg", "~pkg"),
+            ("pkg=~1.0", "pkg"),
+            ("pkg<~1.0", "pkg"),
         ];
 
         for (input, expected) in cases {
