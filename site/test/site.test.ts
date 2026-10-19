@@ -8,18 +8,27 @@ import { renderDocument, renderResponse } from "../src/document";
 const outDir = resolve(import.meta.dir, "..", "dist");
 const staticDir = await buildSite(outDir);
 
+async function handleRoot(request: Request): Promise<Response> {
+  return renderResponse(request);
+}
+
+async function handleStatic(request: Request, pathname: string, dir: string): Promise<Response | null> {
+  if (request.method === "GET" || request.method === "HEAD") {
+    return await tryServeStatic(dir, pathname);
+  }
+  return null;
+}
+
 async function handler(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
 
   if (pathname === "/") {
-    return renderResponse(request);
+    return handleRoot(request);
   }
 
-  if (request.method === "GET" || request.method === "HEAD") {
-    const staticRes = await tryServeStatic(staticDir, pathname);
-    if (staticRes) return staticRes;
-  }
+  const staticRes = await handleStatic(request, pathname, staticDir);
+  if (staticRes) return staticRes;
 
   return new Response("Not Found", { status: 404 });
 }
