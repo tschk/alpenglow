@@ -332,7 +332,10 @@ fn main() {
             cx.new(|_| InstallerView::new(source, target))
         }) {
             eprintln!("Failed to open window: {:?}", e);
-            cx.quit();
+            eprintln!("Falling back to terminal installer...");
+            std::process::exit(alpenglow_installer::run_installer(
+                std::env::args_os().skip(1),
+            ));
         }
     });
 }
@@ -393,5 +396,35 @@ mod tests {
                 name
             );
         }
+    }
+
+    #[test]
+    fn test_gui_fallback_without_display() {
+        let mut exe = std::env::current_exe().unwrap();
+        exe.pop(); // remove test executable name
+        if exe.ends_with("deps") {
+            exe.pop(); // remove `deps` directory
+        }
+        exe.push("alpenglow-install-gui");
+
+        let output = std::process::Command::new(exe)
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
+            .output()
+            .expect("Failed to execute alpenglow-install-gui");
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("Failed to open window"),
+            "stderr did not contain expected fallback message, got: {}",
+            stderr
+        );
+        assert!(
+            stderr.contains("Falling back to terminal installer..."),
+            "stderr did not contain fallback notification, got: {}",
+            stderr
+        );
+        // The terminal installer will fail because we are not in a TTY or don't provide proper args,
+        // but it should exit with a specific error or status, which means it reached the fallback.
     }
 }
