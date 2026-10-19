@@ -469,7 +469,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = dest.as_ref().unwrap();
+            let dest = dest.as_ref().ok_or_else(|| error::OilError::Install("Destination is None when not in dry run".into()))?;
             install_package(pkg, dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
