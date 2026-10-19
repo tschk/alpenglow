@@ -779,4 +779,86 @@ mod tests {
         let dest = Path::new("/tmp/dest/foo");
         assert!(!is_safe_symlink(link_target, dest, dest_dir));
     }
+
+    // Helper struct for tests that modify environment variables
+    struct EnvGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        var_name: &'static str,
+        original_val: Option<std::ffi::OsString>,
+    }
+
+    impl EnvGuard {
+        fn new(var_name: &'static str) -> Self {
+            static ENV_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+            let lock = ENV_MUTEX
+                .get_or_init(|| std::sync::Mutex::new(()))
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let original_val = std::env::var_os(var_name);
+            Self {
+                _lock: lock,
+                var_name,
+                original_val,
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.original_val {
+                Some(val) => std::env::set_var(self.var_name, val),
+                None => std::env::remove_var(self.var_name),
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let apk_path = dir.path().join("test.apk");
+        let dest_dir = dir.path().join("dest");
+        std::fs::create_dir_all(&dest_dir)?;
+
+        // Create a mock valid APK with 3 gzip streams
+        let mut data = Vec::new();
+
+        // Stream 1 (signature)
+        let mut tar1 = tar::Builder::new(Vec::new());
+        let mut header1 = tar::Header::new_gnu();
+        header1.set_size(10);
+        header1.set_cksum();
+        tar1.append_data(&mut header1, ".SIGN.RSA.test.pub", b"signature!".as_ref())?;
+        data.extend(create_gz_stream(&tar1.into_inner()?)?);
+
+        // Stream 2 (control)
+        let mut tar2 = tar::Builder::new(Vec::new());
+        let mut header2 = tar::Header::new_gnu();
+        header2.set_size(10);
+        header2.set_cksum();
+        tar2.append_data(&mut header2, ".PKGINFO", b"pkginfo...".as_ref())?;
+        data.extend(create_gz_stream(&tar2.into_inner()?)?);
+
+        // Stream 3 (data)
+        let mut tar3 = tar::Builder::new(Vec::new());
+        let mut header3 = tar::Header::new_gnu();
+        let file_data = b"file data!";
+        header3.set_size(file_data.len() as u64);
+        header3.set_cksum();
+        tar3.append_data(&mut header3, "file.txt", file_data.as_ref())?;
+        data.extend(create_gz_stream(&tar3.into_inner()?)?);
+
+        std::fs::write(&apk_path, &data)?;
+
+        // Need to bypass signature verification for the test to pass safely
+        let _guard = EnvGuard::new("OIL_INSECURE_NO_VERIFY");
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+
+        let (files, _dirs) = extract_tracked(&apk_path, &dest_dir)?;
+
+        assert_eq!(files.len(), 1);
+        assert!(files[0].ends_with("file.txt"));
+        assert!(dest_dir.join("file.txt").exists());
+
+        Ok(())
+    }
 }
