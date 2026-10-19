@@ -27,8 +27,9 @@ impl InstallState {
     pub fn new() -> Result<Self> {
         let path = state_path()?;
         let packages = if path.exists() {
-            let raw = std::fs::read_to_string(&path)?;
-            serde_json::from_str(&raw).map_err(|e| {
+            let file = std::fs::File::open(&path)?;
+            let reader = std::io::BufReader::new(file);
+            serde_json::from_reader(reader).map_err(|e| {
                 crate::error::OilError::Install(format!(
                     "corrupt install state {}: {e}",
                     path.display()
