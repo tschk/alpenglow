@@ -585,4 +585,36 @@ mod tests {
         assert_eq!(cached[0].name, packages[0].name);
         assert_eq!(cached[0].download_url, packages[0].download_url);
     }
+
+    #[test]
+    fn refresh_clears_cache_and_reloads_correctly() {
+        use crate::test_support::IsolatedHome;
+        let _home = IsolatedHome::new();
+        let registry = ApkRegistry::new("https://attacker.example/alpine", "v3.20");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        let poisoned = [PackageMetadata {
+            name: "evil".into(),
+            version: "1".into(),
+            description: String::new(),
+            download_url: "https://attacker.example/evil.apk".into(),
+            sha256: None,
+            installed_size: 0,
+            depends: Vec::new(),
+            provides: Vec::new(),
+        }];
+
+        write_cache(&cache_path, &poisoned).expect("write poisoned cache");
+        assert!(cache_path.exists());
+
+        let err = registry.refresh().expect_err("poisoned registry should fail to fetch from attacker URL");
+
+        assert!(!cache_path.exists(), "cache must be deleted");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("download host not allowed"),
+            "unexpected error: {msg}"
+        );
+    }
 }
