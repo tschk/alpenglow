@@ -530,6 +530,94 @@ mod tests {
         Ok(())
     }
 
+    // Helper to guard environment variables
+    struct EnvGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_insecure: Option<std::ffi::OsString>,
+    }
+
+    impl EnvGuard {
+        fn new() -> Self {
+            use std::sync::{Mutex, OnceLock};
+            static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+            let lock = ENV_MUTEX
+                .get_or_init(|| Mutex::new(()))
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+
+            let original_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
+            Self {
+                _lock: lock,
+                original_insecure,
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.original_insecure {
+                Some(val) => std::env::set_var("OIL_INSECURE_NO_VERIFY", val),
+                None => std::env::remove_var("OIL_INSECURE_NO_VERIFY"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let apk_path = dir.path().join("test.apk");
+        let dest_dir = dir.path().join("dest");
+
+        let _guard = EnvGuard::new();
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+
+        // Stream 1: Signature (dummy)
+        let mut s1 = GzEncoder::new(Vec::new(), Compression::default());
+        s1.write_all(b"dummy sig")?;
+        let s1_data = s1.finish()?;
+
+        // Stream 2: Control (dummy)
+        let mut s2 = GzEncoder::new(Vec::new(), Compression::default());
+        s2.write_all(b"dummy control")?;
+        let s2_data = s2.finish()?;
+
+        // Stream 3: Data tar
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let file_content = b"hello world";
+        header.set_size(file_content.len() as u64);
+        header.set_path("hello.txt")?;
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar_builder.append(&header, &file_content[..])?;
+        let tar_data = tar_builder.into_inner()?;
+
+        let mut s3 = GzEncoder::new(Vec::new(), Compression::default());
+        s3.write_all(&tar_data)?;
+        let s3_data = s3.finish()?;
+
+        let mut combined = Vec::new();
+        combined.extend(&s1_data);
+        combined.extend(&s2_data);
+        combined.extend(&s3_data);
+
+        std::fs::write(&apk_path, &combined)?;
+
+        let result = extract_tracked(&apk_path, &dest_dir);
+
+        let (files, dirs) = result?;
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(dirs.len(), 0);
+
+        let extracted_file_path = dest_dir.join("hello.txt");
+        assert!(extracted_file_path.exists());
+        let content = std::fs::read_to_string(&extracted_file_path)?;
+        assert_eq!(content, "hello world");
+
+        Ok(())
+    }
+
     #[test]
     fn test_untar_entry_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
