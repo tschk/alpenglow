@@ -19,6 +19,11 @@ pub fn verify_sha256(data: &[u8], expected: &str) -> Result<()> {
 }
 
 pub fn validate_download_url(url: &str) -> Result<()> {
+    #[cfg(test)]
+    if std::env::var("OIL_TEST_ALLOW_MOCK_HOST").is_ok() && url.starts_with("http://127.0.0.1") {
+        return Ok(());
+    }
+
     if !url.starts_with("https://") {
         return Err(OilError::Install(format!(
             "refusing insecure download URL: {url}"
@@ -37,6 +42,11 @@ pub fn validate_download_url(url: &str) -> Result<()> {
         "raw.githubusercontent.com",
     ];
     const ALLOWED_SUFFIXES: &[&str] = &[".alpinelinux.org", ".githubusercontent.com"];
+
+    #[cfg(test)]
+    if std::env::var("OIL_TEST_ALLOW_MOCK_HOST").is_ok() && host == "127.0.0.1" {
+        return Ok(());
+    }
 
     if ALLOWED_HOSTS.contains(&host) || ALLOWED_SUFFIXES.iter().any(|s| host.ends_with(s)) {
         return Ok(());

@@ -585,4 +585,55 @@ mod tests {
         assert_eq!(cached[0].name, packages[0].name);
         assert_eq!(cached[0].download_url, packages[0].download_url);
     }
+
+    #[test]
+    fn refresh_removes_cache_and_calls_load() {
+        use crate::test_support::IsolatedHome;
+        use mockito::Server;
+        let _home = IsolatedHome::new();
+        let mut server = Server::new();
+        let registry = ApkRegistry::new(&server.url(), "v3.20");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        let arch = &registry.arch;
+        let main_path = format!("/v3.20/main/{}/APKINDEX.tar.gz", arch);
+        let community_path = format!("/v3.20/community/{}/APKINDEX.tar.gz", arch);
+
+        let mut tarball = Vec::new();
+        {
+            let encoder = flate2::write::GzEncoder::new(&mut tarball, flate2::Compression::fast());
+            let mut archive = tar::Builder::new(encoder);
+            let content = b"P:mockpkg
+V:1.0.0
+
+";
+            let mut header = tar::Header::new_gnu();
+            header.set_path("APKINDEX").unwrap();
+            header.set_size(content.len() as u64);
+            header.set_cksum();
+            archive.append(&header, &content[..]).unwrap();
+            archive.finish().unwrap();
+        }
+
+        let _m1 = server.mock("GET", main_path.as_str()).with_status(200).with_body(&tarball).create();
+        let _m2 = server.mock("GET", community_path.as_str()).with_status(200).with_body(&tarball).create();
+
+        let valid_packages = [];
+        write_cache(&cache_path, &valid_packages).expect("write valid cache");
+        let uncompressed_path = cache_path.with_extension("");
+        std::fs::write(&uncompressed_path, "dummy").expect("write uncompressed");
+
+        std::env::set_var("OIL_TEST_ALLOW_MOCK_HOST", "1");
+        let result = registry.refresh().expect("refresh should succeed with mocked network");
+        std::env::remove_var("OIL_TEST_ALLOW_MOCK_HOST");
+
+        assert!(!uncompressed_path.exists(), "uncompressed cache should be removed");
+
+        // The cache might be re-written by load(), so we actually want to test that load() works
+        // The fact that load() returned Ok with results proves the function refreshed and loaded.
+
+        assert!(result.len() > 0);
+        assert_eq!(result[0].name, "mockpkg");
+        assert_eq!(result[0].version, "1.0.0");
+    }
 }
