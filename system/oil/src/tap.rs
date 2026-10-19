@@ -367,4 +367,47 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_git_extension_in_middle() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
+    }
+
+    #[test]
+    fn normalize_minimal_schemes() {
+        let (name1, url1) = normalize_tap("http://");
+        assert_eq!(name1, "http://");
+        assert_eq!(url1, "http://");
+
+        let (name2, url2) = normalize_tap("https://");
+        assert_eq!(name2, "https://");
+        assert_eq!(url2, "https://");
+
+        let (name3, url3) = normalize_tap("git@");
+        assert_eq!(name3, "git@");
+        assert_eq!(url3, "git@");
+    }
+
+    #[test]
+    fn normalize_single_slash_only() {
+        let (name, url) = normalize_tap("/");
+        assert_eq!(name, "/");
+        assert_eq!(url, "/");
+    }
+
+    #[test]
+    fn normalize_plain_name_with_git_extension() {
+        let (name, url) = normalize_tap("mytap.git");
+        assert_eq!(name, "mytap.git");
+        assert_eq!(url, "mytap.git");
+    }
 }
