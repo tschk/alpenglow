@@ -48,6 +48,7 @@ done
 
 valid_image_path() {
   case "$1" in
+    */../*|*/..|../*|..) return 1 ;;
     LABEL=*|/sysroot/*|/mnt/*) return 0 ;;
     *) return 1 ;;
   esac
@@ -55,6 +56,7 @@ valid_image_path() {
 
 valid_state_path() {
   case "$1" in
+    */../*|*/..|../*|..) return 1 ;;
     LABEL=alpenglow-state|/dev/*) return 0 ;;
     *) return 1 ;;
   esac
@@ -62,7 +64,7 @@ valid_state_path() {
 
 valid_key_path() {
   case "$1" in
-    *..*) return 1 ;;
+    */../*|*/..|../*|..) return 1 ;;
     /*) return 0 ;;
     *) return 1 ;;
   esac
