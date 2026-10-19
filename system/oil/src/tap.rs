@@ -180,6 +180,27 @@ mod tests {
     }
 
     #[test]
+    fn normalize_user_repo_shorthand_with_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_ssh_url_passthrough() {
+        let (name, url) = normalize_tap("ssh://git@github.com/user/repo.git");
+        assert_eq!(name, "ssh://git@github.com/user/repo.git");
+        assert_eq!(url, "ssh://git@github.com/user/repo.git");
+    }
+
+    #[test]
+    fn normalize_file_url_passthrough() {
+        let (name, url) = normalize_tap("file:///path/to/repo");
+        assert_eq!(name, "file:///path/to/repo");
+        assert_eq!(url, "file:///path/to/repo");
+    }
+
+    #[test]
     fn normalize_http_url_passthrough() {
         let (name, url) = normalize_tap("http://example.com/tap");
         assert_eq!(name, "http://example.com/tap");
