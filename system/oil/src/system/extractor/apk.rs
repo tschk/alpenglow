@@ -619,6 +619,50 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let data = b"file content";
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "test.txt", &data[..])?;
+        let tar_data = tar_builder.into_inner()?;
+
+        let stream1 = create_gz_stream(b"dummy signature data")?;
+        let stream2 = create_gz_stream(b"empty control")?;
+        let stream3 = create_gz_stream(&tar_data)?;
+
+        let mut combined = Vec::new();
+        combined.extend(&stream1);
+        combined.extend(&stream2);
+        combined.extend(&stream3);
+
+        let apk_path = dir.path().join("test.apk");
+        std::fs::write(&apk_path, &combined)?;
+
+        let dest_dir = dir.path().join("dest");
+
+        let orig_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+
+        let result = extract_tracked(&apk_path, &dest_dir);
+
+        if let Some(val) = orig_insecure {
+            std::env::set_var("OIL_INSECURE_NO_VERIFY", val);
+        } else {
+            std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+        }
+
+        assert!(result.is_ok());
+        let extracted_file = dest_dir.join("test.txt");
+        assert!(extracted_file.exists());
+        assert_eq!(std::fs::read_to_string(&extracted_file)?, "file content");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_extract_signature_info_success() -> std::result::Result<(), Box<dyn std::error::Error>>
     {
         let mut tar_builder = tar::Builder::new(Vec::new());
