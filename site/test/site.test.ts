@@ -1,28 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
-import { tryServeStatic } from "@tschk/moonshine-server";
 import { resolve } from "node:path";
 import { buildSite } from "../src/build";
 import { renderDocument, renderResponse } from "../src/document";
+import { createHandler } from "../src/handler";
 
 const outDir = resolve(import.meta.dir, "..", "dist");
 const staticDir = await buildSite(outDir);
-
-async function handler(request: Request): Promise<Response> {
-  const url = new URL(request.url);
-  const pathname = url.pathname.replace(/\/+$/, "") || "/";
-
-  if (pathname === "/") {
-    return renderResponse(request);
-  }
-
-  if (request.method === "GET" || request.method === "HEAD") {
-    const staticRes = await tryServeStatic(staticDir, pathname);
-    if (staticRes) return staticRes;
-  }
-
-  return new Response("Not Found", { status: 404 });
-}
+const handler = createHandler(staticDir);
 
 describe("alpenglow site", () => {
   test("GET / returns 200 with HTML", async () => {
