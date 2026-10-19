@@ -212,6 +212,34 @@ mod tests {
     }
 
     #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_git_in_middle() {
+        let (name, url) = normalize_tap("user/my.git.repo");
+        assert_eq!(name, "user/my.git.repo");
+        assert_eq!(url, "https://github.com/user/my.git.repo");
+    }
+
+    #[test]
+    fn normalize_ssh_url_without_git_prefix() {
+        let (name, url) = normalize_tap("github.com:user/repo.git");
+        assert_eq!(name, "github.com:user/repo.git");
+        assert_eq!(url, "https://github.com/github.com:user/repo");
+    }
+
+    #[test]
+    fn normalize_ssh_with_scheme() {
+        let (name, url) = normalize_tap("ssh://git@github.com/user/repo.git");
+        assert_eq!(name, "ssh://git@github.com/user/repo.git");
+        assert_eq!(url, "ssh://git@github.com/user/repo.git");
+    }
+
+    #[test]
     fn normalize_empty_string() {
         let (name, url) = normalize_tap("");
         assert_eq!(name, "");
