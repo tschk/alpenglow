@@ -180,6 +180,13 @@ mod tests {
     }
 
     #[test]
+    fn normalize_user_repo_shorthand_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
     fn normalize_http_url_passthrough() {
         let (name, url) = normalize_tap("http://example.com/tap");
         assert_eq!(name, "http://example.com/tap");
@@ -191,6 +198,13 @@ mod tests {
         let (name, url) = normalize_tap("mytap");
         assert_eq!(name, "mytap");
         assert_eq!(url, "mytap");
+    }
+
+    #[test]
+    fn normalize_user_repo_git_in_middle() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
     }
 
     #[test]
