@@ -66,14 +66,17 @@ impl Taps {
     }
 }
 
-pub fn normalize_tap(name: &str) -> (String, String) {
-    if name.starts_with("http://") || name.starts_with("https://") || name.starts_with("git@") {
-        (name.to_string(), name.to_string())
+pub fn normalize_tap(name: &str) -> Result<(String, String)> {
+    if name.starts_with("http://") {
+        return Err(OilError::Install("unencrypted http:// URLs are not allowed".into()));
+    }
+    if name.starts_with("https://") || name.starts_with("git@") {
+        Ok((name.to_string(), name.to_string()))
     } else if name.matches('/').count() == 1 && !name.starts_with('/') && !name.ends_with('/') {
         let trimmed = name.trim_end_matches(".git");
-        (name.to_string(), format!("https://github.com/{}", trimmed))
+        Ok((name.to_string(), format!("https://github.com/{}", trimmed)))
     } else {
-        (name.to_string(), name.to_string())
+        Ok((name.to_string(), name.to_string()))
     }
 }
 
@@ -153,67 +156,66 @@ mod tests {
 
     #[test]
     fn normalize_user_repo_shorthand() {
-        let (name, url) = normalize_tap("undivisible/tap");
+        let (name, url) = normalize_tap("undivisible/tap").unwrap();
         assert_eq!(name, "undivisible/tap");
         assert_eq!(url, "https://github.com/undivisible/tap");
     }
 
     #[test]
     fn normalize_url_passthrough() {
-        let (name, url) = normalize_tap("https://example.com/tap");
+        let (name, url) = normalize_tap("https://example.com/tap").unwrap();
         assert_eq!(name, "https://example.com/tap");
         assert_eq!(url, "https://example.com/tap");
     }
 
     #[test]
     fn normalize_git_url_passthrough() {
-        let (name, url) = normalize_tap("git@github.com:undivisible/tap.git");
+        let (name, url) = normalize_tap("git@github.com:undivisible/tap.git").unwrap();
         assert_eq!(name, "git@github.com:undivisible/tap.git");
         assert_eq!(url, "git@github.com:undivisible/tap.git");
     }
 
     #[test]
     fn normalize_user_repo_shorthand_with_git_extension() {
-        let (name, url) = normalize_tap("user/repo.git");
+        let (name, url) = normalize_tap("user/repo.git").unwrap();
         assert_eq!(name, "user/repo.git");
         assert_eq!(url, "https://github.com/user/repo");
     }
 
     #[test]
     fn normalize_http_url_passthrough() {
-        let (name, url) = normalize_tap("http://example.com/tap");
-        assert_eq!(name, "http://example.com/tap");
-        assert_eq!(url, "http://example.com/tap");
+        let err = normalize_tap("http://example.com/tap").unwrap_err();
+        assert!(err.to_string().contains("unencrypted"));
     }
 
     #[test]
     fn normalize_plain_name() {
-        let (name, url) = normalize_tap("mytap");
+        let (name, url) = normalize_tap("mytap").unwrap();
         assert_eq!(name, "mytap");
         assert_eq!(url, "mytap");
     }
 
     #[test]
     fn normalize_too_many_slashes() {
-        let (name, url) = normalize_tap("user/repo/extra");
+        let (name, url) = normalize_tap("user/repo/extra").unwrap();
         assert_eq!(name, "user/repo/extra");
         assert_eq!(url, "user/repo/extra");
     }
 
     #[test]
     fn normalize_leading_trailing_slashes() {
-        let (name1, url1) = normalize_tap("/leading-slash");
+        let (name1, url1) = normalize_tap("/leading-slash").unwrap();
         assert_eq!(name1, "/leading-slash");
         assert_eq!(url1, "/leading-slash");
 
-        let (name2, url2) = normalize_tap("trailing-slash/");
+        let (name2, url2) = normalize_tap("trailing-slash/").unwrap();
         assert_eq!(name2, "trailing-slash/");
         assert_eq!(url2, "trailing-slash/");
     }
 
     #[test]
     fn normalize_empty_string() {
-        let (name, url) = normalize_tap("");
+        let (name, url) = normalize_tap("").unwrap();
         assert_eq!(name, "");
         assert_eq!(url, "");
     }
