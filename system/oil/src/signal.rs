@@ -14,7 +14,7 @@ pub fn install_handler() {
 mod tests {
     use super::*;
     use std::env;
-    use std::process::Command;
+    use std::process::{Command, Stdio};
 
     #[test]
     fn test_signal_handler() {
@@ -26,10 +26,12 @@ mod tests {
         }
 
         let exe = env::current_exe().unwrap();
-        let mut child = Command::new(exe)
+        let child = Command::new(exe)
             .env("TEST_SIGNAL_HANDLER_CHILD", "1")
+            .arg("--nocapture")
             .arg("signal::tests::test_signal_handler")
             .arg("--exact")
+            .stderr(Stdio::piped())
             .spawn()
             .expect("failed to spawn child");
 
@@ -42,7 +44,9 @@ mod tests {
             .expect("failed to run kill");
         assert!(status.success());
 
-        let exit_status = child.wait().expect("failed to wait on child");
-        assert_eq!(exit_status.code(), Some(130));
+        let output = child.wait_with_output().expect("failed to wait on child");
+        assert_eq!(output.status.code(), Some(130));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("Interrupted"), "stderr was: {:?}", stderr);
     }
 }
