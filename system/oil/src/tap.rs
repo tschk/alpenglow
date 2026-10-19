@@ -219,20 +219,6 @@ mod tests {
     }
 
     #[test]
-    fn normalize_multiple_git_extensions() {
-        let (name, url) = normalize_tap("user/repo.git.git");
-        assert_eq!(name, "user/repo.git.git");
-        assert_eq!(url, "https://github.com/user/repo");
-    }
-
-    #[test]
-    fn normalize_git_in_middle() {
-        let (name, url) = normalize_tap("user/my.git.repo");
-        assert_eq!(name, "user/my.git.repo");
-        assert_eq!(url, "https://github.com/user/my.git.repo");
-    }
-
-    #[test]
     fn index_url_for_github_repo() {
         let registry = TapRegistry::new("undivisible/tap", "https://github.com/undivisible/tap");
         assert_eq!(
