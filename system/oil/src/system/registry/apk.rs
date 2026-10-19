@@ -74,15 +74,12 @@ impl ApkRegistry {
             }
         }
 
-        let mut handles = Vec::with_capacity(self.repos.len());
-        for repo in &self.repos {
-            let url = self.index_url(repo);
-            let repo = repo.clone();
-            let mirror = self.mirror.clone();
-            let branch = self.branch.clone();
-            let arch = self.arch.clone();
-            handles.push(std::thread::spawn(
-                move || -> Result<Vec<PackageMetadata>> {
+        let mut all_packages = std::thread::scope(|s| -> Result<Vec<PackageMetadata>> {
+            let mut all_packages: Vec<PackageMetadata> = Vec::new();
+            let mut handles = Vec::with_capacity(self.repos.len());
+            for repo in &self.repos {
+                let url = self.index_url(repo);
+                handles.push(s.spawn(move || -> Result<Vec<PackageMetadata>> {
                     eprintln!("Fetching APK index: {url}");
                     let resp = crate::util::security::get_validated(&url).map_err(|e| {
                         OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
@@ -92,21 +89,21 @@ impl ApkRegistry {
                         MAX_COMPRESSED_INDEX_SIZE,
                         "APK index body",
                     )?;
-                    let packages = parse_apkindex_archive(&body, &mirror, &branch, &repo, &arch)?;
-                    eprintln!("Parsed {} packages from {branch}/{repo}", packages.len());
+                    let packages = parse_apkindex_archive(&body, &self.mirror, &self.branch, repo, &self.arch)?;
+                    eprintln!("Parsed {} packages from {}/{}", packages.len(), self.branch, repo);
                     Ok(packages)
-                },
-            ));
-        }
+                }));
+            }
 
-        let mut all_packages: Vec<PackageMetadata> = Vec::new();
-        for handle in handles {
-            all_packages.extend(
-                handle
-                    .join()
-                    .map_err(|_| OilError::Install("APK index fetch worker panicked".into()))??,
-            );
-        }
+            for handle in handles {
+                all_packages.extend(
+                    handle
+                        .join()
+                        .map_err(|_| OilError::Install("APK index fetch worker panicked".into()))??,
+                );
+            }
+            Ok(all_packages)
+        })?;
 
         // Deduplicate
         let mut seen = std::collections::HashSet::new();
