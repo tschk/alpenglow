@@ -41,7 +41,10 @@ impl Taps {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&path, serde_json::to_string_pretty(&self.taps)?)?;
+        let file = std::fs::File::create(&path)?;
+        let mut writer = std::io::BufWriter::new(file);
+        serde_json::to_writer_pretty(&mut writer, &self.taps)?;
+        std::io::Write::flush(&mut writer)?;
         Ok(())
     }
 
@@ -113,9 +116,8 @@ impl TapRegistry {
         let url = self.index_url();
 
         eprintln!("Fetching tap index: {url}");
-        let resp = crate::util::security::get_validated(&url).map_err(|e| {
-            OilError::Install(format!("Failed to fetch tap index from {url}: {e}"))
-        })?;
+        let resp = crate::util::security::get_validated(&url)
+            .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
         let mut body = Vec::new();
         resp.into_body()
             .into_reader()
@@ -357,13 +359,11 @@ mod tests {
         let registry = TapRegistry::new("corrupt", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"{not valid json}",
-        )
-        .expect("write corrupt tap cache");
+        std::fs::write(&cache_path, b"{not valid json}").expect("write corrupt tap cache");
 
-        let err = registry.load().expect_err("corrupt tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }

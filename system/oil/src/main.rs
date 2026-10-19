@@ -745,9 +745,8 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
 
-    let resp = util::security::get_validated(url).map_err(|e| {
-        error::OilError::Install(format!("download failed for {}: {e}", pkg.name))
-    })?;
+    let resp = util::security::get_validated(url)
+        .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
 
     let tmp_dir = oil_secure_tmp_dir()?;
     let mut tmp = tempfile::Builder::new()
