@@ -219,6 +219,34 @@ mod tests {
     }
 
     #[test]
+    fn normalize_single_slash() {
+        let (name, url) = normalize_tap("/");
+        assert_eq!(name, "/");
+        assert_eq!(url, "/");
+    }
+
+    #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_git_extension_in_middle() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
+    }
+
+    #[test]
+    fn normalize_other_schemes() {
+        let (name, url) = normalize_tap("ssh://git@github.com/user/repo");
+        assert_eq!(name, "ssh://git@github.com/user/repo");
+        assert_eq!(url, "ssh://git@github.com/user/repo");
+    }
+
+    #[test]
     fn index_url_for_github_repo() {
         let registry = TapRegistry::new("undivisible/tap", "https://github.com/undivisible/tap");
         assert_eq!(
