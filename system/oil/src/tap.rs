@@ -41,7 +41,9 @@ impl Taps {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&path, serde_json::to_string_pretty(&self.taps)?)?;
+        let file = std::fs::File::create(&path)?;
+        let writer = std::io::BufWriter::new(file);
+        serde_json::to_writer_pretty(writer, &self.taps)?;
         Ok(())
     }
 
