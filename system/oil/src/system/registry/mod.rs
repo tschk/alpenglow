@@ -376,4 +376,49 @@ mod tests {
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
     }
+
+    #[test]
+    fn test_resolve_install_order_missing_dependency() {
+        let pkgs = vec![sample_pkg("app", vec!["missing".to_string()])];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
+        assert!(result.is_err());
+        let err = result.expect_err("missing dep").to_string();
+        assert!(err.contains("formula not found"));
+    }
+
+    #[test]
+    fn test_resolve_install_order_multiple_roots_shared_dep() {
+        let pkgs = vec![
+            sample_pkg("app1", vec!["common".to_string()]),
+            sample_pkg("app2", vec!["common".to_string()]),
+            sample_pkg("common", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(
+                &["app1".to_string(), "app2".to_string()],
+                |n| skip.contains(n),
+            )
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["common", "app1", "app2"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_empty_dependency_name() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["".to_string(), "=".to_string(), "valid".to_string()]),
+            sample_pkg("valid", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["valid", "app"]);
+    }
 }
