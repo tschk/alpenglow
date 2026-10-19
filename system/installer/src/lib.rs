@@ -357,4 +357,61 @@ mod tests {
         ];
         assert_eq!(run_installer(args), 1);
     }
+
+    #[test]
+    fn test_install_image_maybe_compressed_source_not_found() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("non_existent.img.zst");
+        let target = dir.path().join("target.img");
+        let result = install_image_maybe_compressed(&source, &target, true);
+        assert!(result.is_err());
+        match result {
+            Err(InstallError::Io(err)) => {
+                assert_eq!(err.kind(), io::ErrorKind::NotFound);
+            }
+            _ => panic!("Expected Io error for source not found"),
+        }
+    }
+
+    #[test]
+    fn test_install_image_maybe_compressed_invalid_zstd() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("invalid.img.zst");
+        std::fs::write(&source, b"not a zstd file").unwrap();
+        let target = dir.path().join("target.img");
+        let result = install_image_maybe_compressed(&source, &target, true);
+        assert!(result.is_err());
+        match result {
+            Err(InstallError::Io(err)) => {
+                assert_eq!(err.kind(), io::ErrorKind::Other);
+                assert!(err.to_string().contains("Unknown frame descriptor"));
+            }
+            _ => panic!("Expected Io error for invalid zstd, got: {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_install_image_maybe_compressed_target_permission_denied() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("source.img.zst");
+
+        let empty_zstd = zstd::encode_all(std::io::Cursor::new(b""), 0).unwrap();
+        std::fs::write(&source, empty_zstd).unwrap();
+
+        let target = dir.path().join("target.img");
+        std::fs::write(&target, b"existing").unwrap();
+
+        let mut perms = std::fs::metadata(&target).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&target, perms).unwrap();
+
+        let result = install_image_maybe_compressed(&source, &target, true);
+        assert!(result.is_err());
+        match result {
+            Err(InstallError::Io(err)) => {
+                assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+            }
+            _ => panic!("Expected PermissionDenied Io error, got: {:?}", result),
+        }
+    }
 }
