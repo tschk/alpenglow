@@ -468,8 +468,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     for pkg in &order {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
-        } else {
-            let dest = dest.as_ref().unwrap();
+        } else if let Some(dest) = dest.as_ref() {
             install_package(pkg, dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
