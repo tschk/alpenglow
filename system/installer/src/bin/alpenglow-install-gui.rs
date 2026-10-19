@@ -176,10 +176,11 @@ fn main() {
             let disk_2_detail = self.disk_detail(2);
             let disk_3 = self.disk_label(3);
             let disk_3_detail = self.disk_detail(3);
-            let has_disk_0 = self.disks.first().is_some();
-            let has_disk_1 = self.disks.get(1).is_some();
-            let has_disk_2 = self.disks.get(2).is_some();
-            let has_disk_3 = self.disks.get(3).is_some();
+            let disks_len = self.disks.len();
+            let has_disk_0 = disks_len > 0;
+            let has_disk_1 = disks_len > 1;
+            let has_disk_2 = disks_len > 2;
+            let has_disk_3 = disks_len > 3;
             view! {r#"
                 div bg-[#000000] text-[#ededed] size-full p-4 flex flex-col items-center justify-center font-[Geist]
                     div bg-[#050505] border border-[#262626] rounded shadow-lg w-[940px] flex flex-col overflow-hidden
