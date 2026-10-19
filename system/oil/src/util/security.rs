@@ -144,6 +144,12 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_url() {
+        let err = validate_download_url("https:///x").unwrap_err();
+        assert!(err.to_string().contains("invalid download URL"));
+    }
+
+    #[test]
     fn rejects_bypassed_host() {
         assert!(validate_download_url("https://attacker.com?.githubusercontent.com/").is_err());
         assert!(validate_download_url("https://attacker.com#.githubusercontent.com/").is_err());
