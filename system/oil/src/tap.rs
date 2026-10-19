@@ -219,6 +219,25 @@ mod tests {
     }
 
     #[test]
+    fn normalize_git_extension_edge_cases() {
+        let (name, url) = normalize_tap("foo.git");
+        assert_eq!(name, "foo.git");
+        assert_eq!(url, "foo.git");
+
+        let (name, url) = normalize_tap("user/.git");
+        assert_eq!(name, "user/.git");
+        assert_eq!(url, "https://github.com/user/");
+
+        let (name, url) = normalize_tap(".git/repo");
+        assert_eq!(name, ".git/repo");
+        assert_eq!(url, "https://github.com/.git/repo");
+
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
     fn index_url_for_github_repo() {
         let registry = TapRegistry::new("undivisible/tap", "https://github.com/undivisible/tap");
         assert_eq!(
