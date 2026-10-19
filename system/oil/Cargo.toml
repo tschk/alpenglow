@@ -31,3 +31,10 @@ signal-hook = "0.3"
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 serde_norway = "0.9.42"
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "apk_untar_bench"
+harness = false
