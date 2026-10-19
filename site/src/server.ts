@@ -6,13 +6,16 @@ import { renderResponse } from "./document";
 const port = Number(process.env.PORT) || 3000;
 const staticDir = await buildSite();
 
+const routes: Record<string, (req: Request) => Promise<Response> | Response> = {
+  "/": renderResponse,
+};
+
 export async function handler(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
 
-  if (pathname === "/") {
-    return renderResponse(request);
-  }
+  const route = routes[pathname];
+  if (route) return route(request);
 
   if (request.method === "GET" || request.method === "HEAD") {
     const staticRes = await tryServeStatic(staticDir, pathname);
