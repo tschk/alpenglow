@@ -212,6 +212,69 @@ mod tests {
     }
 
     #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_git_in_username() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
+    }
+
+    #[test]
+    fn normalize_slash_only() {
+        let (name, url) = normalize_tap("/");
+        assert_eq!(name, "/");
+        assert_eq!(url, "/");
+    }
+
+    #[test]
+    fn normalize_partial_github_extension() {
+        let (name, url) = normalize_tap("user/repo.github");
+        assert_eq!(name, "user/repo.github");
+        assert_eq!(url, "https://github.com/user/repo.github");
+    }
+
+    #[test]
+    fn normalize_git_extension_with_trailing_slash() {
+        let (name, url) = normalize_tap("user/repo.git/");
+        assert_eq!(name, "user/repo.git/");
+        assert_eq!(url, "user/repo.git/");
+    }
+
+    #[test]
+    fn normalize_hidden_git_folder() {
+        let (name, url) = normalize_tap("user/.git");
+        assert_eq!(name, "user/.git");
+        assert_eq!(url, "https://github.com/user/");
+    }
+
+    #[test]
+    fn normalize_http_github_url_passthrough() {
+        let (name, url) = normalize_tap("http://github.com/user/repo.git");
+        assert_eq!(name, "http://github.com/user/repo.git");
+        assert_eq!(url, "http://github.com/user/repo.git");
+    }
+
+    #[test]
+    fn normalize_uppercase_git_url_passthrough() {
+        let (name, url) = normalize_tap("GIT@github.com:user/repo.git");
+        assert_eq!(name, "GIT@github.com:user/repo.git");
+        assert_eq!(url, "https://github.com/GIT@github.com:user/repo");
+    }
+
+    #[test]
+    fn normalize_uppercase_http_url_passthrough() {
+        let (name, url) = normalize_tap("HTTP://example.com/tap");
+        assert_eq!(name, "HTTP://example.com/tap");
+        assert_eq!(url, "HTTP://example.com/tap");
+    }
+
+    #[test]
     fn normalize_empty_string() {
         let (name, url) = normalize_tap("");
         assert_eq!(name, "");
