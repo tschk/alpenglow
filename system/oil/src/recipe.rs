@@ -273,4 +273,88 @@ provides:
         assert_eq!(meta.provides, vec!["prov1".to_string()]);
 
     }
+
+    #[test]
+    fn rejects_missing_version() {
+        let yaml = r#"
+name: pkg
+version: ""
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("empty version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_fields() {
+        let yaml_name = r#"
+name: "   "
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml_name).expect_err("whitespace name should be rejected");
+        assert!(err.to_string().contains("'name'"));
+
+        let yaml_version = r#"
+name: pkg
+version: " \t "
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml_version).expect_err("whitespace version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+
+        let yaml_url = r#"
+name: pkg
+version: "1.0"
+source:
+  url: "   \n "
+"#;
+        let err = Recipe::parse(yaml_url).expect_err("whitespace source url should be rejected");
+        assert!(err.to_string().contains("'source.url'"));
+    }
+
+    #[test]
+    fn rejects_missing_required_keys() {
+        let yaml_no_name = r#"
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        assert!(Recipe::parse(yaml_no_name).is_err());
+
+        let yaml_no_version = r#"
+name: pkg
+source:
+  url: https://example.com/pkg.apk
+"#;
+        assert!(Recipe::parse(yaml_no_version).is_err());
+
+        let yaml_no_source = r#"
+name: pkg
+version: "1.0"
+"#;
+        assert!(Recipe::parse(yaml_no_source).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_types() {
+        let yaml_invalid_source = r#"
+name: pkg
+version: "1.0"
+source: https://example.com/pkg.apk
+"#;
+        assert!(Recipe::parse(yaml_invalid_source).is_err());
+
+        let yaml_invalid_build = r#"
+name: pkg
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+build: echo "hello"
+"#;
+        assert!(Recipe::parse(yaml_invalid_build).is_err());
+    }
 }
