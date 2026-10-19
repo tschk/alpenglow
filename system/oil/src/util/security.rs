@@ -269,4 +269,10 @@ mod tests {
         let err = verify_sha256(data, expected).unwrap_err();
         assert!(matches!(err, OilError::ChecksumMismatch { .. }));
     }
+
+    #[test]
+    fn rejects_invalid_url() {
+        assert!(validate_download_url("https://").is_err());
+        assert!(validate_download_url("https:///foo").is_err());
+    }
 }
