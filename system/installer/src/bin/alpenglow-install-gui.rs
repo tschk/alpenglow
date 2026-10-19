@@ -332,7 +332,10 @@ fn main() {
             cx.new(|_| InstallerView::new(source, target))
         }) {
             eprintln!("Failed to open window: {:?}", e);
-            cx.quit();
+            eprintln!("Falling back to TUI...");
+            let args = std::env::args_os().skip(1).collect::<Vec<_>>();
+            let exit_code = alpenglow_installer::run_installer(args);
+            std::process::exit(exit_code);
         }
     });
 }
