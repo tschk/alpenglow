@@ -367,4 +367,44 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_error_on_invalid_package_data() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"[{\"name\":\"foo\"}]",
+        )
+        .expect("write invalid package data");
+
+        let err = registry.load().expect_err("invalid package data should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("missing field"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_on_io_error() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("ioerror", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        // Make it a directory so read_to_string fails
+        std::fs::remove_file(&cache_path).ok();
+        std::fs::create_dir_all(&cache_path).expect("create dir");
+
+        let err = registry.load().expect_err("should return io error");
+        assert!(matches!(err, OilError::Io(_)), "unexpected error: {:?}", err);
+    }
+
+    #[test]
+    fn load_returns_error_when_cache_path_fails() {
+        let _guard = HomeGuard::new().remove_home();
+
+        let registry = TapRegistry::new("mytap", "https://example.com/tap");
+        let err = registry.load().expect_err("should return error");
+        assert_eq!(err.to_string(), "$HOME not set");
+    }
 }
