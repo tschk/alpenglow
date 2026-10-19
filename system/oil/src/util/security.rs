@@ -139,6 +139,15 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_url() {
+        let err = validate_download_url("https:///foo").unwrap_err();
+        assert!(err.to_string().contains("invalid download URL"));
+
+        let err = validate_download_url("https://").unwrap_err();
+        assert!(err.to_string().contains("invalid download URL"));
+    }
+
+    #[test]
     fn rejects_http() {
         assert!(validate_download_url("http://dl-cdn.alpinelinux.org/x.apk").is_err());
     }
