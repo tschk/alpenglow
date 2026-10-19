@@ -91,3 +91,66 @@ fn installer_args_strip_tui_flag() {
     assert_eq!(source, PathBuf::from("a.img"));
     assert_eq!(target, Some(PathBuf::from("/dev/vdb")));
 }
+
+#[test]
+fn zst_auto_install_fails_on_missing_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("nonexistent.img.zst");
+    let target = dir.path().join("target.img");
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    assert!(matches!(err, alpenglow_installer::InstallError::Io(e) if e.kind() == std::io::ErrorKind::NotFound));
+}
+
+#[cfg(unix)]
+#[test]
+fn zst_auto_install_fails_on_readonly_target() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target.img");
+
+    let zst_data: &[u8] = &[
+        0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x58, 0xc9, 0x00, 0x00, 0x61, 0x6c, 0x70, 0x65, 0x6e, 0x67,
+        0x6c, 0x6f, 0x77, 0x2d, 0x63, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64, 0x2d,
+        0x74, 0x65, 0x73, 0x74, 0xc6, 0x62, 0xe6, 0x26,
+    ];
+    std::fs::write(&source, zst_data).unwrap();
+
+    // Create target file, then make it read-only
+    std::fs::write(&target, b"old-data").unwrap();
+    let mut perms = std::fs::metadata(&target).unwrap().permissions();
+    perms.set_mode(0o444); // Read-only
+    std::fs::set_permissions(&target, perms).unwrap();
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    assert!(matches!(err, alpenglow_installer::InstallError::Io(e) if e.kind() == std::io::ErrorKind::PermissionDenied));
+}
+
+#[cfg(unix)]
+#[test]
+fn zst_auto_install_fails_target_dir_readonly() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target_dir = dir.path().join("target_dir");
+    std::fs::create_dir(&target_dir).unwrap();
+    let target = target_dir.join("target.img");
+
+    // Valid zstd compressed payload
+    let zst_data: &[u8] = &[
+        0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x58, 0xc9, 0x00, 0x00, 0x61, 0x6c, 0x70, 0x65, 0x6e, 0x67,
+        0x6c, 0x6f, 0x77, 0x2d, 0x63, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64, 0x2d,
+        0x74, 0x65, 0x73, 0x74, 0xc6, 0x62, 0xe6, 0x26,
+    ];
+    std::fs::write(&source, zst_data).unwrap();
+
+    // Make target_dir read-only so creating target.img fails
+    let mut perms = std::fs::metadata(&target_dir).unwrap().permissions();
+    perms.set_mode(0o555); // r-xr-xr-x
+    std::fs::set_permissions(&target_dir, perms).unwrap();
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    assert!(matches!(err, alpenglow_installer::InstallError::Io(e) if e.kind() == std::io::ErrorKind::PermissionDenied));
+}
