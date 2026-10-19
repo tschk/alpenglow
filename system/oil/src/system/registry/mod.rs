@@ -376,4 +376,21 @@ mod tests {
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
     }
+
+    #[test]
+    fn test_resolve_install_order_multiple_roots() {
+        let pkgs = vec![
+            sample_pkg("app1", vec!["liba".to_string()]),
+            sample_pkg("app2", vec!["libb".to_string()]),
+            sample_pkg("liba", vec![]),
+            sample_pkg("libb", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["liba", "app1", "libb", "app2"]);
+    }
 }
