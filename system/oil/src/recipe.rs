@@ -189,6 +189,29 @@ source:
     }
 
     #[test]
+    fn rejects_missing_version() {
+        let yaml = r#"
+name: pkg
+version: ""
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("empty version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_missing_version_field() {
+        let yaml = r#"
+name: pkg
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("missing version field should be rejected");
+        assert!(err.to_string().contains("missing field `version`"));
+    }
+
+    #[test]
     fn rejects_disallowed_install_path() {
         let yaml = r#"
 name: pkg
