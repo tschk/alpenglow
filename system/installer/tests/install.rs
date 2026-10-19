@@ -67,6 +67,43 @@ fn zst_auto_install_fails_on_invalid_zst() {
 }
 
 #[test]
+fn zst_auto_install_fails_on_missing_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("target.img");
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    match err {
+        alpenglow_installer::InstallError::Io(e) => {
+            assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
+        }
+        _ => panic!("Expected IO error"),
+    }
+}
+
+#[test]
+fn zst_auto_install_fails_on_missing_target_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img.zst");
+    let target = dir.path().join("nonexistent").join("target.img");
+
+    let zst_data: &[u8] = &[
+        0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x58, 0xc9, 0x00, 0x00, 0x61, 0x6c, 0x70, 0x65, 0x6e, 0x67,
+        0x6c, 0x6f, 0x77, 0x2d, 0x63, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64, 0x2d,
+        0x74, 0x65, 0x73, 0x74, 0xc6, 0x62, 0xe6, 0x26,
+    ];
+    std::fs::write(&source, zst_data).unwrap();
+
+    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
+    match err {
+        alpenglow_installer::InstallError::Io(e) => {
+            assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
+        }
+        _ => panic!("Expected IO error"),
+    }
+}
+
+#[test]
 fn install_args_default_to_live_source() {
     let (source, target) = parse_install_args(Vec::<&str>::new());
     assert_eq!(source, default_live_source());
