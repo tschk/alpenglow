@@ -559,7 +559,9 @@ mod tests {
             provides: Vec::new(),
         }];
         write_cache(&cache_path, &poisoned).expect("write poisoned cache");
-        let err = registry.load().expect_err("poisoned cache must not be used");
+        let err = registry
+            .load()
+            .expect_err("poisoned cache must not be used");
         let msg = err.to_string();
         assert!(
             msg.contains("download host not allowed"),
