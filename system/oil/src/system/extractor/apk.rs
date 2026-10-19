@@ -608,6 +608,83 @@ mod tests {
         Ok(())
     }
 
+    // We recreate a simplified EnvGuard here since the one in crate::install is private to tests
+    struct EnvGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_insecure: Option<std::ffi::OsString>,
+    }
+
+    impl EnvGuard {
+        fn new() -> Self {
+            static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+            let lock = ENV_MUTEX.lock().unwrap();
+            let original_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
+            Self {
+                _lock: lock,
+                original_insecure,
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.original_insecure {
+                Some(val) => std::env::set_var("OIL_INSECURE_NO_VERIFY", val),
+                None => std::env::remove_var("OIL_INSECURE_NO_VERIFY"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let dest_dir = dir.path().join("dest");
+
+        let _guard = EnvGuard::new();
+
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+
+        let mut tar1 = tar::Builder::new(Vec::new());
+        let mut header1 = tar::Header::new_gnu();
+        header1.set_size(0);
+        header1.set_cksum();
+        tar1.append_data(&mut header1, ".SIGN.RSA.some-key.pub", b"".as_ref())?;
+        let tar1_data = tar1.into_inner()?;
+        let stream1 = create_gz_stream(&tar1_data)?;
+
+        let mut tar2 = tar::Builder::new(Vec::new());
+        let mut header2 = tar::Header::new_gnu();
+        header2.set_size(0);
+        header2.set_cksum();
+        tar2.append_data(&mut header2, ".PKGINFO", b"".as_ref())?;
+        let tar2_data = tar2.into_inner()?;
+        let stream2 = create_gz_stream(&tar2_data)?;
+
+        let mut tar3 = tar::Builder::new(Vec::new());
+        let mut header3 = tar::Header::new_gnu();
+        let file_data = b"hello world";
+        header3.set_size(file_data.len() as u64);
+        header3.set_cksum();
+        tar3.append_data(&mut header3, "test.txt", &file_data[..])?;
+        let tar3_data = tar3.into_inner()?;
+        let stream3 = create_gz_stream(&tar3_data)?;
+
+        let mut apk_data = stream1;
+        apk_data.extend(stream2);
+        apk_data.extend(stream3);
+
+        let apk_path = dir.path().join("test.apk");
+        std::fs::write(&apk_path, &apk_data)?;
+
+        let (files, _dirs) = extract_tracked(&apk_path, &dest_dir)?;
+
+        assert_eq!(files.len(), 1);
+        assert!(dest_dir.join("test.txt").exists());
+        assert_eq!(std::fs::read_to_string(dest_dir.join("test.txt"))?, "hello world");
+
+        Ok(())
+    }
+
     #[test]
     fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
