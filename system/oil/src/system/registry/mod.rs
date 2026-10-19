@@ -376,4 +376,37 @@ mod tests {
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
     }
+
+    #[test]
+    fn test_resolve_install_order_complex() {
+        let pkgs = vec![
+            sample_pkg("a", vec!["b".to_string(), "c".to_string()]),
+            sample_pkg("b", vec!["c".to_string()]),
+            sample_pkg("c", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["a".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["c", "b", "a"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_multiple_roots() {
+        let pkgs = vec![
+            sample_pkg("a", vec!["b".to_string()]),
+            sample_pkg("b", vec![]),
+            sample_pkg("c", vec!["d".to_string()]),
+            sample_pkg("d", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["a".to_string(), "c".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["b", "a", "d", "c"]);
+    }
 }
