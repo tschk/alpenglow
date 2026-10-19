@@ -133,8 +133,9 @@ impl TapRegistry {
     pub fn load(&self) -> Result<Vec<PackageMetadata>> {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
-            let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
+            let file = std::fs::File::open(&cache_path)?;
+            let reader = std::io::BufReader::new(file);
+            let packages: Vec<PackageMetadata> = serde_json::from_reader(reader)?;
             if packages
                 .iter()
                 .all(|p| crate::util::security::validate_download_url(&p.download_url).is_ok())
