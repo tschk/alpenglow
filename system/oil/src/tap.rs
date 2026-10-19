@@ -159,6 +159,27 @@ mod tests {
     }
 
     #[test]
+    fn normalize_user_repo_shorthand_with_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo");
+    }
+
+    #[test]
+    fn normalize_user_repo_shorthand_with_partial_git_extension() {
+        let (name, url) = normalize_tap("user/repot.git");
+        assert_eq!(name, "user/repot.git");
+        assert_eq!(url, "https://github.com/user/repot");
+    }
+
+    #[test]
+    fn normalize_user_repo_shorthand_with_git_extension_and_suffix() {
+        let (name, url) = normalize_tap("user/repo.git1");
+        assert_eq!(name, "user/repo.git1");
+        assert_eq!(url, "https://github.com/user/repo.git1");
+    }
+
+    #[test]
     fn normalize_url_passthrough() {
         let (name, url) = normalize_tap("https://example.com/tap");
         assert_eq!(name, "https://example.com/tap");
