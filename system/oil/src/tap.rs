@@ -367,4 +367,22 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_install_error_on_file_parsing_errors() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("corrupt_parse", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        // Write bad data that isn't valid JSON list
+        std::fs::write(
+            &cache_path,
+            b"{\"name\": \"test\"}",
+        )
+        .expect("write bad tap cache data");
+
+        let err = registry.load().expect_err("corrupt parse tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("JSON error:") || msg.contains("invalid type"), "unexpected error: {msg}");
+    }
 }
