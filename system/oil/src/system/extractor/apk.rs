@@ -608,6 +608,64 @@ mod tests {
         Ok(())
     }
 
+    static ENV_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_MUTEX
+            .get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+
+    #[test]
+    fn test_extract_tracked_success_insecure() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let _lock = env_lock();
+        let dir = tempdir()?;
+
+        let mut tar_builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        let content = b"hello world";
+        header.set_size(content.len() as u64);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "test.txt", &content[..])?;
+        let tar_data = tar_builder.into_inner()?;
+
+        let mut sig_tar = tar::Builder::new(Vec::new());
+        let mut sig_header = tar::Header::new_gnu();
+        let sig_content = b"dummy";
+        sig_header.set_size(sig_content.len() as u64);
+        sig_header.set_cksum();
+        sig_tar.append_data(&mut sig_header, ".SIGN.RSA.dummy.pub", &sig_content[..])?;
+        let sig_tar_data = sig_tar.into_inner()?;
+
+        let stream1 = create_gz_stream(&sig_tar_data)?;
+        let stream2 = create_gz_stream(&tar::Builder::new(Vec::new()).into_inner()?)?;
+        let stream3 = create_gz_stream(&tar_data)?;
+
+        let mut apk_data = Vec::new();
+        apk_data.extend(stream1);
+        apk_data.extend(stream2);
+        apk_data.extend(stream3);
+
+        let apk_path = dir.path().join("test.apk");
+        std::fs::write(&apk_path, &apk_data)?;
+
+        let dest_dir = dir.path().join("dest");
+
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+        let result = extract_tracked(&apk_path, &dest_dir);
+        std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+
+        let (files, _) = result?;
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0], dest_dir.join("test.txt"));
+
+        let extracted_content = std::fs::read_to_string(&files[0])?;
+        assert_eq!(extracted_content, "hello world");
+
+        Ok(())
+    }
+
     #[test]
     fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
