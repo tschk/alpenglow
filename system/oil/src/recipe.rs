@@ -246,6 +246,54 @@ install: /opt/custom
     }
 
     #[test]
+    fn rejects_missing_version() {
+        let yaml = r#"
+name: pkg
+version: ""
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("empty version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_name() {
+        let yaml = r#"
+name: "   "
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("whitespace name should be rejected");
+        assert!(err.to_string().contains("'name'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_version() {
+        let yaml = r#"
+name: pkg
+version: "   "
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("whitespace version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_source_url() {
+        let yaml = r#"
+name: pkg
+version: "1.0"
+source:
+  url: "   "
+"#;
+        let err = Recipe::parse(yaml).expect_err("whitespace source url should be rejected");
+        assert!(err.to_string().contains("'source.url'"));
+    }
+
+    #[test]
     fn test_to_package_metadata_maps_all_fields() {
         let yaml = r#"
 name: test-pkg
