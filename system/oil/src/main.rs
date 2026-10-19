@@ -469,7 +469,9 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = dest.as_ref().unwrap();
+            let dest = dest.as_ref().ok_or_else(|| {
+                error::OilError::Install("install destination not set".to_string())
+            })?;
             install_package(pkg, dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
@@ -745,9 +747,8 @@ fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Resu
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
 
-    let resp = util::security::get_validated(url).map_err(|e| {
-        error::OilError::Install(format!("download failed for {}: {e}", pkg.name))
-    })?;
+    let resp = util::security::get_validated(url)
+        .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
 
     let tmp_dir = oil_secure_tmp_dir()?;
     let mut tmp = tempfile::Builder::new()
