@@ -70,7 +70,11 @@ pub fn normalize_tap(name: &str) -> (String, String) {
     if name.starts_with("http://") || name.starts_with("https://") || name.starts_with("git@") {
         (name.to_string(), name.to_string())
     } else if name.matches('/').count() == 1 && !name.starts_with('/') && !name.ends_with('/') {
-        let trimmed = name.trim_end_matches(".git");
+        let trimmed = if name.ends_with(".git") {
+            &name[..name.len() - 4]
+        } else {
+            name
+        };
         (name.to_string(), format!("https://github.com/{}", trimmed))
     } else {
         (name.to_string(), name.to_string())
@@ -216,6 +220,27 @@ mod tests {
         let (name, url) = normalize_tap("");
         assert_eq!(name, "");
         assert_eq!(url, "");
+    }
+
+    #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo.git");
+    }
+
+    #[test]
+    fn normalize_git_in_middle() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
+    }
+
+    #[test]
+    fn normalize_just_slash() {
+        let (name, url) = normalize_tap("/");
+        assert_eq!(name, "/");
+        assert_eq!(url, "/");
     }
 
     #[test]
