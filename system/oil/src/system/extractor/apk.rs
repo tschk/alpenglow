@@ -609,6 +609,64 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+
+        let dest_dir = dir.path().join("dest");
+        std::fs::create_dir_all(&dest_dir)?;
+
+        let apk_path = dir.path().join("test.apk");
+
+        // 1. Signature stream
+        let mut tar_builder1 = tar::Builder::new(Vec::new());
+        let mut header1 = tar::Header::new_gnu();
+        let sig_data = b"dummy signature data";
+        header1.set_size(sig_data.len() as u64);
+        header1.set_cksum();
+        tar_builder1.append_data(
+            &mut header1,
+            ".SIGN.RSA.testkey.pub",
+            &sig_data[..],
+        )?;
+        let tar1 = tar_builder1.into_inner()?;
+
+        // 2. Control stream
+        let tar_builder2 = tar::Builder::new(Vec::new());
+        let tar2 = tar_builder2.into_inner()?;
+
+        // 3. Data stream
+        let mut tar_builder3 = tar::Builder::new(Vec::new());
+        let mut header3 = tar::Header::new_gnu();
+        let file_data = b"hello world";
+        header3.set_size(file_data.len() as u64);
+        header3.set_cksum();
+        tar_builder3.append_data(&mut header3, "testfile.txt", &file_data[..])?;
+        let tar3 = tar_builder3.into_inner()?;
+
+        let mut apk_data = Vec::new();
+        apk_data.extend(create_gz_stream(&tar1)?);
+        apk_data.extend(create_gz_stream(&tar2)?);
+        apk_data.extend(create_gz_stream(&tar3)?);
+
+        std::fs::write(&apk_path, &apk_data)?;
+
+        // Set secure keys directory so it finds mock keys or just insecure_mode
+        // Use an isolated home/environment lock to safely modify env
+        let _guard = crate::test_support::IsolatedHome::new();
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+
+        let result = extract_tracked(&apk_path, &dest_dir);
+
+        assert!(result.is_ok(), "extract_tracked failed: {:?}", result.err());
+
+        let extracted_file = dest_dir.join("testfile.txt");
+        assert!(extracted_file.exists());
+        assert_eq!(std::fs::read_to_string(extracted_file)?, "hello world");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
         let missing_path = dir.path().join("does_not_exist.apk");
