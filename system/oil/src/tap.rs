@@ -367,4 +367,21 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_error_on_invalid_schema() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid_schema", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"[{\"invalid\": \"schema\"}]",
+        )
+        .expect("write invalid schema tap cache");
+
+        let err = registry.load().expect_err("invalid schema tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("missing field"), "unexpected error: {msg}");
+    }
 }
