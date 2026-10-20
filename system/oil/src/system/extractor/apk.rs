@@ -240,6 +240,7 @@ fn process_tar_entry<R: std::io::Read>(
     files: &mut Vec<PathBuf>,
     dirs: &mut Vec<PathBuf>,
     created_dirs: &mut std::collections::HashSet<PathBuf>,
+    cached_parent: &mut Option<PathBuf>,
 ) -> Result<()> {
     let entry_path = entry.path()?;
     let entry_str = entry_path.to_string_lossy();
@@ -258,16 +259,12 @@ fn process_tar_entry<R: std::io::Read>(
 
     let dest = dest_dir.join(stripped);
     if let Some(parent) = dest.parent() {
-        if !created_dirs.contains(parent) {
-            std::fs::create_dir_all(parent)?;
-            let mut current = parent;
-            while !created_dirs.contains(current) {
-                created_dirs.insert(current.to_path_buf());
-                current = match current.parent() {
-                    Some(p) => p,
-                    None => break,
-                };
+        if Some(parent) != cached_parent.as_deref() {
+            if !created_dirs.contains(parent) {
+                std::fs::create_dir_all(parent)?;
+                created_dirs.insert(parent.to_path_buf());
             }
+            *cached_parent = Some(parent.to_path_buf());
         }
     }
 
@@ -343,9 +340,18 @@ fn untar(tar_data: &[u8], dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>
     let mut created_dirs = std::collections::HashSet::new();
     created_dirs.insert(dest_dir.to_path_buf());
 
+    let mut cached_parent: Option<PathBuf> = None;
+
     for entry_result in archive.entries()? {
         let entry = entry_result?;
-        process_tar_entry(entry, dest_dir, &mut files, &mut dirs, &mut created_dirs)?;
+        process_tar_entry(
+            entry,
+            dest_dir,
+            &mut files,
+            &mut dirs,
+            &mut created_dirs,
+            &mut cached_parent,
+        )?;
     }
 
     Ok((files, dirs))
