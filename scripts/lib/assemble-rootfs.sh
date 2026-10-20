@@ -117,7 +117,6 @@ SCRIPT
 exec </dev/ttyS0 >/dev/ttyS0 2>&1
 /bin/toybox mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 /bin/toybox mkdir -p /dev/shm /tmp 2>/dev/null
-/bin/toybox chmod 01777 /dev/shm /tmp
 SHM_SIZE="mode=1777,size=256m"
 if [ -r /proc/meminfo ]; then
   mem_total_kb=""
