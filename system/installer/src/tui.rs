@@ -60,6 +60,9 @@ mod tests {
             .collect();
         assert!(rendered.contains("Source: /dev/sda"));
         assert!(rendered.contains("Target: /dev/sdb"));
+        assert!(rendered.contains("Alpenglow Installer"));
+        assert!(rendered.contains("Writes the release image to a target disk"));
+        assert!(rendered.contains("Press Ctrl+C to cancel."));
     }
 
     #[test]
@@ -82,5 +85,8 @@ mod tests {
             .collect();
         assert!(rendered.contains("Source: /dev/sda"));
         assert!(rendered.contains("Target: pass target disk as second argument"));
+        assert!(rendered.contains("Alpenglow Installer"));
+        assert!(rendered.contains("Writes the release image to a target disk"));
+        assert!(rendered.contains("Press Ctrl+C to cancel."));
     }
 }
