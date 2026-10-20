@@ -89,14 +89,14 @@ else
 /bin/toybox mount -t devtmpfs devtmpfs /dev
 /bin/toybox mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 /bin/toybox mkdir -p /dev/shm 2>/dev/null
-SHM_SIZE="mode=1777,size=256m"
+SHM_SIZE="mode=0755,size=256m"
 if [ -r /proc/meminfo ]; then
   mem_total_kb=""
   while read -r key value _; do
     [ "$key" = "MemTotal:" ] && { mem_total_kb="$value"; break; }
   done < /proc/meminfo
   if [ -n "$mem_total_kb" ]; then
-    SHM_SIZE="mode=1777,size=$((mem_total_kb / 2))k"
+    SHM_SIZE="mode=0755,size=$((mem_total_kb / 2))k"
   fi
 fi
 /bin/toybox mount -t tmpfs -o nosuid,nodev,"$SHM_SIZE" tmpfs /dev/shm

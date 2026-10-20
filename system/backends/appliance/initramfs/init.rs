@@ -10,11 +10,7 @@ fn main() {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
         }
-        let mode = if *d == "/dev/shm" || *d == "/tmp" {
-            0o1777
-        } else {
-            0o755
-        };
+        let mode = 0o755;
         if let Err(e) = std::fs::set_permissions(d, std::fs::Permissions::from_mode(mode)) {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
@@ -30,13 +26,13 @@ fn main() {
             "/run",
         ],
     );
-    let mut shm_size = String::from("mode=1777,size=256m");
+    let mut shm_size = String::from("mode=0755,size=256m");
     if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
         for line in meminfo.lines() {
             if line.starts_with("MemTotal:") {
                 if let Some(kb_str) = line.split_whitespace().nth(1) {
                     if let Ok(kb) = kb_str.parse::<u64>() {
-                        shm_size = format!("mode=1777,size={}k", kb / 2);
+                        shm_size = format!("mode=0755,size={}k", kb / 2);
                     }
                 }
                 break;
@@ -60,7 +56,7 @@ fn main() {
             "-t",
             "tmpfs",
             "-o",
-            "nosuid,nodev,noexec,mode=1777",
+            "nosuid,nodev,noexec,mode=0755",
             "tmpfs",
             "/tmp",
         ],

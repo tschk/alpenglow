@@ -62,11 +62,11 @@
     },
     {
       "path": "/dev/shm",
-      "mode": "1777",
+      "mode": "0755",
       "options": [
         "nosuid",
         "nodev",
-        "mode=1777",
+        "mode=0755",
         "size=256m"
       ]
     }
