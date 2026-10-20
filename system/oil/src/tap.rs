@@ -367,4 +367,21 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_error_on_invalid_data() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"{\"some\": \"bad data\"}",
+        )
+        .expect("write bad tap cache");
+
+        let err = registry.load().expect_err("bad tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("expected"), "unexpected error: {msg}");
+    }
 }
