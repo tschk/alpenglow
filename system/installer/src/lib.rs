@@ -85,6 +85,14 @@ where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
 {
+    run_installer_internal(args, draw, false)
+}
+
+pub fn run_installer_internal<I, F>(args: I, draw: F, allow_regular_file: bool) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
     let (tui, source, target) = parse_installer_args(args);
     if tui {
         if let Err(err) = draw(&source, target.as_deref()) {
@@ -96,7 +104,7 @@ where
         eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
-    match install_image_maybe_compressed(&source, &target, false) {
+    match install_image_maybe_compressed(&source, &target, allow_regular_file) {
         Ok(bytes) => {
             println!("wrote {bytes} bytes to {}", target.display());
             0
@@ -272,7 +280,7 @@ mod tests {
     fn test_parse_installer_args_empty() {
         let args: Vec<OsString> = vec![];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, false);
+        assert!(!tui);
         assert_eq!(source, default_live_source());
         assert_eq!(target, None);
     }
@@ -281,7 +289,7 @@ mod tests {
     fn test_parse_installer_args_tui_only() {
         let args: Vec<OsString> = vec![OsString::from("--tui")];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, default_live_source());
         assert_eq!(target, None);
     }
@@ -290,7 +298,7 @@ mod tests {
     fn test_parse_installer_args_source_only() {
         let args: Vec<OsString> = vec![OsString::from("source.img")];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, false);
+        assert!(!tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, None);
     }
@@ -299,7 +307,7 @@ mod tests {
     fn test_parse_installer_args_tui_and_source() {
         let args: Vec<OsString> = vec![OsString::from("--tui"), OsString::from("source.img")];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, None);
     }
@@ -312,7 +320,7 @@ mod tests {
             OsString::from("/dev/sda"),
         ];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, Some(PathBuf::from("/dev/sda")));
     }
@@ -325,7 +333,7 @@ mod tests {
             OsString::from("/dev/sda"),
         ];
         let (tui, source, target) = parse_installer_args(args);
-        assert_eq!(tui, true);
+        assert!(tui);
         assert_eq!(source, PathBuf::from("source.img"));
         assert_eq!(target, Some(PathBuf::from("/dev/sda")));
     }
