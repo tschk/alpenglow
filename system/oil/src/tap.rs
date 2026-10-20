@@ -367,4 +367,21 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_error_on_invalid_utf8_cache() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid_utf8", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"\xFF\xFF\xFF",
+        )
+        .expect("write invalid utf8 tap cache");
+
+        let err = registry.load().expect_err("invalid utf8 tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"), "unexpected error: {msg}");
+    }
 }
