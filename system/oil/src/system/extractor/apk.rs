@@ -530,6 +530,73 @@ mod tests {
         Ok(())
     }
 
+    use std::sync::{Mutex, OnceLock};
+    static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_MUTEX
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+    struct InsecureEnvGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_val: Option<std::ffi::OsString>,
+    }
+    impl InsecureEnvGuard {
+        fn new() -> Self {
+            let lock = env_lock();
+            let original_val = std::env::var_os("OIL_INSECURE_NO_VERIFY");
+            std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+            Self { _lock: lock, original_val }
+        }
+    }
+    impl Drop for InsecureEnvGuard {
+        fn drop(&mut self) {
+            match &self.original_val {
+                Some(val) => std::env::set_var("OIL_INSECURE_NO_VERIFY", val),
+                None => std::env::remove_var("OIL_INSECURE_NO_VERIFY"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let _guard = InsecureEnvGuard::new();
+        let dir = tempdir()?;
+        let apk_path = dir.path().join("test.apk");
+        let dest_dir = dir.path().join("dest");
+        let mut tar_builder1 = tar::Builder::new(Vec::new());
+        let mut header1 = tar::Header::new_gnu();
+        header1.set_size(4); header1.set_cksum();
+        tar_builder1.append_data(&mut header1, ".SIGN.RSA.testkey.pub", &b"sign"[..])?;
+        let stream1 = create_gz_stream(&tar_builder1.into_inner()?)?;
+        let mut tar_builder2 = tar::Builder::new(Vec::new());
+        let mut header2 = tar::Header::new_gnu();
+        header2.set_size(4); header2.set_cksum();
+        tar_builder2.append_data(&mut header2, ".PKGINFO", &b"ctrl"[..])?;
+        let stream2 = create_gz_stream(&tar_builder2.into_inner()?)?;
+        let mut tar_builder3 = tar::Builder::new(Vec::new());
+        let mut header3 = tar::Header::new_gnu();
+        header3.set_size(4); header3.set_cksum();
+        tar_builder3.append_data(&mut header3, "test.txt", &b"data"[..])?;
+        let stream3 = create_gz_stream(&tar_builder3.into_inner()?)?;
+        let mut combined = Vec::new();
+        combined.extend(&stream1); combined.extend(&stream2); combined.extend(&stream3);
+        std::fs::write(&apk_path, &combined)?;
+
+        let result = extract_tracked(&apk_path, &dest_dir);
+        assert!(result.is_ok());
+        let (files, _dirs) = result?;
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0], dest_dir.join("test.txt"));
+
+        let extracted_content = std::fs::read_to_string(dest_dir.join("test.txt"))?;
+        assert_eq!(extracted_content, "data");
+
+        Ok(())
+    }
+
     #[test]
     fn test_untar_entry_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
