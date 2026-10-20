@@ -9,7 +9,6 @@ mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 
 mkdir -p /dev/shm /run /tmp /sysroot /mnt
-chmod 01777 /dev/shm /tmp
 
 SHM_SIZE="mode=1777,size=256m"
 if [ -r /proc/meminfo ]; then
