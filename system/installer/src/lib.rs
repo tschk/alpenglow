@@ -357,4 +357,27 @@ mod tests {
         ];
         assert_eq!(run_installer(args), 1);
     }
+
+    #[test]
+    fn test_real_run_installer_no_target() {
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+        ];
+        assert_eq!(run_installer(args), 2);
+    }
+
+    #[test]
+    fn test_real_run_installer_tui_and_target_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        std::fs::write(&source, b"test").unwrap();
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().into_owned()),
+            OsString::from(target.to_string_lossy().into_owned()),
+        ];
+        assert_eq!(run_installer(args), 1);
+    }
 }
