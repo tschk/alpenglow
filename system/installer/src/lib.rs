@@ -357,4 +357,10 @@ mod tests {
         ];
         assert_eq!(run_installer(args), 1);
     }
+
+    #[test]
+    fn test_run_installer_tui_integration() {
+        let args: Vec<OsString> = vec![OsString::from("--tui")];
+        assert_eq!(run_installer(args), 2);
+    }
 }
