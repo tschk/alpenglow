@@ -117,7 +117,6 @@ SCRIPT
 exec </dev/ttyS0 >/dev/ttyS0 2>&1
 /bin/toybox mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 /bin/toybox mkdir -p /dev/shm /tmp 2>/dev/null
-/bin/toybox chmod 01777 /dev/shm /tmp
 SHM_SIZE="mode=1777,size=256m"
 if [ -r /proc/meminfo ]; then
   mem_total_kb=""
@@ -128,8 +127,8 @@ if [ -r /proc/meminfo ]; then
     SHM_SIZE="mode=1777,size=$((mem_total_kb / 2))k"
   fi
 fi
-/bin/toybox mount -t tmpfs -o nosuid,nodev,"$SHM_SIZE" tmpfs /dev/shm
-/bin/toybox mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /tmp
+/bin/toybox mount -t tmpfs -o nosuid,nodev,noexec,"$SHM_SIZE" tmpfs /dev/shm
+/bin/toybox mount -t tmpfs -o nosuid,nodev,noexec,mode=1777 tmpfs /tmp
 /bin/toybox mkdir -p /run/user/0
 /bin/toybox chown 0:0 /run/user/0
 /bin/toybox chmod 700 /run/user/0
