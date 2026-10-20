@@ -85,6 +85,14 @@ where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
 {
+    run_installer_internal(args, draw, false)
+}
+
+pub fn run_installer_internal<I, F>(args: I, draw: F, allow_regular_file: bool) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
     let (tui, source, target) = parse_installer_args(args);
     if tui {
         if let Err(err) = draw(&source, target.as_deref()) {
@@ -96,7 +104,7 @@ where
         eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
-    match install_image_maybe_compressed(&source, &target, false) {
+    match install_image_maybe_compressed(&source, &target, allow_regular_file) {
         Ok(bytes) => {
             println!("wrote {bytes} bytes to {}", target.display());
             0
@@ -356,5 +364,67 @@ mod tests {
             OsString::from("/dev/null_does_not_exist_xyz"),
         ];
         assert_eq!(run_installer(args), 1);
+    }
+
+    #[test]
+    fn test_run_installer_internal_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        std::fs::write(&source, b"alpenglow_success_test").unwrap();
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        let result = run_installer_internal(args, fake_draw, true);
+        assert_eq!(result, 0);
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "alpenglow_success_test");
+    }
+
+    #[test]
+    fn test_run_installer_internal_tui_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        std::fs::write(&source, b"alpenglow_tui_test").unwrap();
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        let result = run_installer_internal(args, fake_draw, true);
+        assert_eq!(result, 0);
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "alpenglow_tui_test");
+    }
+
+    #[test]
+    fn test_run_installer_internal_tui_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        std::fs::write(&source, b"alpenglow_tui_fail_test").unwrap();
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Err("ui error".to_string())
+        }
+
+        let result = run_installer_internal(args, fake_draw, true);
+        assert_eq!(result, 1);
+        assert!(!target.exists());
     }
 }
