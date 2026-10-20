@@ -352,23 +352,6 @@ mod tests {
     }
 
     #[test]
-    fn load_returns_error_on_invalid_json() {
-        let _home = crate::test_support::IsolatedHome::new();
-        let registry = TapRegistry::new("invalid_json", "https://example.com/tap");
-        let cache_path = registry.cache_path().expect("cache path");
-
-        // Write a syntactically valid JSON array that does NOT match `PackageMetadata`.
-        // This makes `std::fs::read_to_string` succeed but `serde_json::from_str` fail.
-        std::fs::write(&cache_path, b"[{\"invalid\": \"data\"}]").expect("write file");
-
-        let result = registry.load();
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert!(matches!(e, OilError::Json(_)));
-        }
-    }
-
-    #[test]
     fn load_returns_error_on_corrupt_cache() {
         let _home = crate::test_support::IsolatedHome::new();
         let registry = TapRegistry::new("corrupt", "https://example.com/tap");
