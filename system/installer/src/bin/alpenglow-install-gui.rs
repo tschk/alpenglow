@@ -176,7 +176,7 @@ fn main() {
             let disk_2_detail = self.disk_detail(2);
             let disk_3 = self.disk_label(3);
             let disk_3_detail = self.disk_detail(3);
-            let has_disk_0 = self.disks.first().is_some();
+            let has_disk_0 = !self.disks.is_empty();
             let has_disk_1 = self.disks.get(1).is_some();
             let has_disk_2 = self.disks.get(2).is_some();
             let has_disk_3 = self.disks.get(3).is_some();
