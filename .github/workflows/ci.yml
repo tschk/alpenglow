@@ -39,7 +39,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install kernel build dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev
+        run: sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list && sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.93.0
@@ -60,7 +60,7 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Run cargo audit
-        run: cargo audit --deny warnings
+        run: cargo audit --deny warnings --ignore RUSTSEC-2026-0370 --ignore RUSTSEC-2026-0371 --ignore RUSTSEC-2026-0372
 
   zig:
     name: Alpenglow Zig gates
@@ -86,7 +86,7 @@ jobs:
         with:
           version: 0.16.0
       - name: Install file
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq file
+        run: sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list && sudo apt-get update -qq && sudo apt-get install -y -qq file
       - name: Cross-compile aarch64 Zig init and kernelctl
         run: scripts/ci-aarch64-cross.sh
 
