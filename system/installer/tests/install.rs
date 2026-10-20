@@ -91,3 +91,24 @@ fn installer_args_strip_tui_flag() {
     assert_eq!(source, PathBuf::from("a.img"));
     assert_eq!(target, Some(PathBuf::from("/dev/vdb")));
 }
+
+#[test]
+fn run_installer_no_target_fails() {
+    let args: Vec<OsString> = vec![];
+    let exit_code = alpenglow_installer::run_installer(args);
+    assert_eq!(exit_code, 2);
+}
+
+#[test]
+fn run_installer_invalid_target_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    fs::write(&source, b"test").unwrap();
+
+    let args: Vec<OsString> = vec![
+        source.into_os_string(),
+        OsString::from("/dev/nonexistent_device_xyz_123"),
+    ];
+    let exit_code = alpenglow_installer::run_installer(args);
+    assert_eq!(exit_code, 1);
+}
