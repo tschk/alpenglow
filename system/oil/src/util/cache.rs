@@ -31,6 +31,9 @@ mod tests {
         assert_eq!(cache_key(""), "");
         assert_eq!(cache_key("../../etc/passwd"), "------etc-passwd");
         assert_eq!(cache_key("foo/bar\\baz"), "foo-bar-baz");
+        assert_eq!(cache_key("café"), "café");
+        assert_eq!(cache_key("漢字"), "漢字");
+        assert_eq!(cache_key("hello🚀world"), "hello-world");
     }
 
     #[test]
