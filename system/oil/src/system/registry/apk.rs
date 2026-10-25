@@ -543,6 +543,28 @@ mod tests {
     }
 
     #[test]
+    fn refresh_clears_cache_and_attempts_load() {
+        use crate::test_support::IsolatedHome;
+        let _home = IsolatedHome::new();
+        // Use an invalid host so load() fails, but we can still verify
+        // that the cache files were cleared before load() was called.
+        let registry = ApkRegistry::new("https://attacker.example/alpine", "v3.20");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(&cache_path, "dummy cache").unwrap();
+        let uncompressed = cache_path.with_extension("");
+        std::fs::write(&uncompressed, "dummy uncompressed").unwrap();
+
+        assert!(cache_path.exists());
+        assert!(uncompressed.exists());
+
+        let err = registry.refresh().unwrap_err();
+        assert!(!cache_path.exists());
+        assert!(!uncompressed.exists());
+        assert!(err.to_string().contains("download host not allowed"));
+    }
+
+    #[test]
     fn load_skips_poisoned_cache_with_disallowed_urls() {
         use crate::test_support::IsolatedHome;
         let _home = IsolatedHome::new();
