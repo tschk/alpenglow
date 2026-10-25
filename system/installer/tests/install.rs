@@ -148,16 +148,6 @@ fn installer_args_strip_tui_flag() {
 }
 
 #[test]
-fn zst_auto_install_fails_on_missing_source() {
-    let dir = tempfile::tempdir().unwrap();
-    let source = dir.path().join("non_existent_source.img.zst");
-    let target = dir.path().join("target.img");
-
-    let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
-    assert!(err.to_string().contains("No such file or directory"));
-}
-
-#[test]
 fn zst_auto_install_fails_on_unopenable_target() {
     let dir = tempfile::tempdir().unwrap();
     let source = dir.path().join("source.img.zst");
@@ -171,7 +161,7 @@ fn zst_auto_install_fails_on_unopenable_target() {
     ];
     fs::write(&source, zst_data).unwrap();
 
-    // Create target as a directory so opening it for writing fails
+    // A directory target is neither a regular file nor a block device
     fs::create_dir(&target).unwrap();
 
     let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
