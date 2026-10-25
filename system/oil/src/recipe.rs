@@ -189,6 +189,62 @@ source:
     }
 
     #[test]
+    fn rejects_absent_name() {
+        let yaml = r#"
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("missing name should fail parse");
+        assert!(err.to_string().contains("missing field `name`"));
+    }
+
+    #[test]
+    fn rejects_empty_version() {
+        let yaml = r#"
+name: pkg
+version: ""
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("empty version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_absent_version() {
+        let yaml = r#"
+name: pkg
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("missing version should fail parse");
+        assert!(err.to_string().contains("missing field `version`"));
+    }
+
+    #[test]
+    fn rejects_absent_source() {
+        let yaml = r#"
+name: pkg
+version: "1.0"
+"#;
+        let err = Recipe::parse(yaml).expect_err("missing source should fail parse");
+        assert!(err.to_string().contains("missing field `source`"));
+    }
+
+    #[test]
+    fn rejects_absent_source_url() {
+        let yaml = r#"
+name: pkg
+version: "1.0"
+source:
+  sha256: "somehash"
+"#;
+        let err = Recipe::parse(yaml).expect_err("missing source url should fail parse");
+        assert!(err.to_string().contains("missing field `url`"));
+    }
+
+    #[test]
     fn rejects_disallowed_install_path() {
         let yaml = r#"
 name: pkg
@@ -243,6 +299,54 @@ install: /opt/custom
 "#;
         let recipe = Recipe::parse(yaml).expect("recipe should parse");
         assert_eq!(recipe.install_dest(), std::path::PathBuf::from("/opt/custom"));
+    }
+
+    #[test]
+    fn rejects_missing_version() {
+        let yaml = r#"
+name: pkg
+version: ""
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("empty version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_name() {
+        let yaml = r#"
+name: "   "
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("whitespace name should be rejected");
+        assert!(err.to_string().contains("'name'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_version() {
+        let yaml = r#"
+name: pkg
+version: "   "
+source:
+  url: https://example.com/pkg.apk
+"#;
+        let err = Recipe::parse(yaml).expect_err("whitespace version should be rejected");
+        assert!(err.to_string().contains("'version'"));
+    }
+
+    #[test]
+    fn rejects_whitespace_source_url() {
+        let yaml = r#"
+name: pkg
+version: "1.0"
+source:
+  url: "   "
+"#;
+        let err = Recipe::parse(yaml).expect_err("whitespace source url should be rejected");
+        assert!(err.to_string().contains("'source.url'"));
     }
 
     #[test]
