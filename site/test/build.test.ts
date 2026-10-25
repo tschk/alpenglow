@@ -1,37 +1,41 @@
-import { describe, expect, test, spyOn } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { buildSite } from "../src/build";
-import { join } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("buildSite", () => {
-  test("builds the site successfully", async () => {
-    const testOutDir = join(tmpdir(), `buildSite-test-${Math.random()}`);
-    const resultDir = await buildSite(testOutDir);
-    expect(resultDir).toBe(testOutDir);
-    expect(await Bun.file(join(testOutDir, "index.html")).exists()).toBe(true);
-    expect(await Bun.file(join(testOutDir, "shell.js")).exists()).toBe(true);
-  });
-
-  test("throws AggregateError when Bun.build fails", async () => {
-    const buildSpy = spyOn(Bun, "build").mockResolvedValue({
+  test("throws AggregateError when shell bundle fails", async () => {
+    const s = spyOn(Bun, "build").mockResolvedValue({
       success: false,
-      logs: ["mock error log"],
+      logs: ["mock error"],
     } as any);
 
-    const testOutDir = join(tmpdir(), `buildSite-test-${Math.random()}`);
-
+    const tempDir = await mkdtemp(join(tmpdir(), "buildSite-"));
+    let error: unknown;
     try {
-      let error: any;
-      try {
-        await buildSite(testOutDir);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).toBeInstanceOf(AggregateError);
-      expect(error.message).toBe("shell bundle failed");
-      expect(error.errors).toEqual(["mock error log"]);
+      await buildSite(tempDir);
+    } catch (e: unknown) {
+      error = e;
     } finally {
-      buildSpy.mockRestore();
+      s.mockRestore();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).message).toBe("shell bundle failed");
+    expect((error as AggregateError).errors).toEqual(["mock error"]);
+  });
+
+  test("returns outDir on successful build", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "buildSite-"));
+    try {
+      const outDir = await buildSite(tempDir);
+      expect(outDir).toBe(tempDir);
+      expect(await Bun.file(join(tempDir, "index.html")).exists()).toBe(true);
+      expect(await Bun.file(join(tempDir, "shell.js")).exists()).toBe(true);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 });
