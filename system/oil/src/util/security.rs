@@ -153,6 +153,13 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_url() {
+        assert!(validate_download_url("https://").is_err());
+        assert!(validate_download_url("https:///path/only").is_err());
+        assert!(validate_download_url("https://[1::2::3]/").is_err());
+    }
+
+    #[test]
     fn rejects_bypassed_host() {
         assert!(validate_download_url("https://attacker.com?.githubusercontent.com/").is_err());
         assert!(validate_download_url("https://attacker.com#.githubusercontent.com/").is_err());
