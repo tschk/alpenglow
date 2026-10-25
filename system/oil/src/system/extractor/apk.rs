@@ -785,11 +785,10 @@ mod tests {
         original_insecure: Option<std::ffi::OsString>,
     }
 
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     impl InsecureEnvGuard {
         fn new() -> Self {
-            let lock = ENV_LOCK.lock().unwrap();
+            // Shared with util::security tests, which also toggle OIL_INSECURE_NO_VERIFY.
+            let lock = crate::test_support::home_env_lock();
             let original_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
             Self {
                 _lock: lock,

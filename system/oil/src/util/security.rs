@@ -105,15 +105,10 @@ pub fn resolve_install_dest(prefix: Option<&Path>, relative: &Path) -> Result<Pa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
 
-    static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
-
+    // Crate-wide env lock: other modules' tests also toggle OIL_* variables.
     fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-        ENV_MUTEX
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
+        crate::test_support::home_env_lock()
     }
 
     #[test]
