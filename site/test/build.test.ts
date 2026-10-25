@@ -33,6 +33,7 @@ describe("buildSite", () => {
       const outDir = await buildSite(tempDir);
       expect(outDir).toBe(tempDir);
       expect(await Bun.file(join(tempDir, "index.html")).exists()).toBe(true);
+      expect(await Bun.file(join(tempDir, "shell.js")).exists()).toBe(true);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
