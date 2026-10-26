@@ -417,4 +417,29 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"), "unexpected error: {msg}");
     }
+
+    #[test]
+    fn load_returns_error_on_invalid_package_data() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"[{\"name\":\"foo\"}]",
+        )
+        .expect("write invalid package data");
+
+        let err = registry.load().expect_err("invalid package data should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("missing field"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_when_cache_path_fails() {
+        let _guard = HomeGuard::new().remove_home();
+        let registry = TapRegistry::new("mytap", "https://example.com/tap");
+        let err = registry.load().expect_err("should return error");
+        assert_eq!(err.to_string(), "$HOME not set");
+    }
 }
