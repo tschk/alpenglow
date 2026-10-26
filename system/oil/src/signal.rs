@@ -84,4 +84,10 @@ mod tests {
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!stderr.contains("Interrupted"));
     }
+
+    #[test]
+    fn test_install_handler_does_not_panic() {
+        install_handler();
+        install_handler();
+    }
 }
