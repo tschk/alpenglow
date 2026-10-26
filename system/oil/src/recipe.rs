@@ -377,4 +377,17 @@ provides:
         assert_eq!(meta.provides, vec!["prov1".to_string()]);
 
     }
+
+    #[test]
+    fn rejects_invalid_yaml_types() {
+        let yaml = r#"
+name: "pkg"
+version: "1.0"
+source:
+  url: https://example.com/pkg.apk
+depends: "not-a-list"
+"#;
+        let err = Recipe::parse(yaml).expect_err("invalid types should be rejected");
+        assert!(err.to_string().contains("invalid type"));
+    }
 }
