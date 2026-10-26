@@ -468,4 +468,19 @@ mod tests {
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["app"]);
     }
+
+    #[test]
+    fn test_resolve_install_order_skip_requested_root() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("liba", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip = HashSet::from(["app".to_string()]);
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, Vec::<&str>::new());
+    }
 }
