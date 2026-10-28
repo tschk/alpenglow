@@ -103,16 +103,18 @@ Kernel configs live at `system/backends/appliance/kernel/`.
 
 ## Editions
 
-Public SKUs: `potato` (small OS: old `fast` + `minimal`), `desktop`, `internet`. Default is `potato`. `fast` and `minimal` are aliases for `potato`. `standard` is `potato` plus toolchain. Matrix, aliases, and asset names: [docs/editions-and-roles.md](docs/editions-and-roles.md).
+Public SKUs: `fast` (zero-overhead: FAST kernel, Zig init, no `/state` compression, snapshots or kernel policy), `potato` (small general-purpose OS), `desktop`, `internet`. Default is `potato`. `minimal` is an alias for `potato`. `standard` is `potato` plus toolchain. Matrix, aliases, and asset names: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
 ## Performance
+
+`fast` vs `potato` measured 2026-10-28 (x86_64 kernels, QEMU TCG on an arm64 Mac, `scripts/bench-boot.sh`, n=12): `fast` median **2590 ms** to login, 5891072 B kernel with embedded initramfs, 37 MB used at login; `potato` median **3335 ms**, 9528320 B, 42 MB. Details and `/state` compression/snapshot costs: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
 Public SKUs measured 2026-08-26 on a Cloud Agent (Linux 6.12.94+ x86_64, QEMU 8.2.2 **TCG**; nested KVM serial was empty and discarded). Full table: [docs/editions-and-roles.md](docs/editions-and-roles.md).
 
 | SKU | Boot to login | Kernel | Initramfs |
 |-----|---------------|--------|-----------|
 | `potato` | **1017 ms** (`scripts/bench-boot.sh` `ACCEL=tcg MACHINE=pc`; q35 1018 ms) | 8610816 B | 3718491 B |
-| FAST slim (same guest, not a fourth SKU) | **1017 ms** median (`1016 / 1017 / 1017` pc embedded; q35 `1118 / 1017 / 1017`; `MEMORY_MB=512` `1018 / 1017 / 1016`) | 7222272 B | 2313448 B |
+| FAST slim (same guest; now the `fast` SKU) | **1017 ms** median (`1016 / 1017 / 1017` pc embedded; q35 `1118 / 1017 / 1017`; `MEMORY_MB=512` `1018 / 1017 / 1016`) | 7222272 B | 2313448 B |
 | `desktop` | not booted (needs Docker for alpenglowed) | not built | not built |
 | `internet` | not booted (minimal kernel not rebuilt) | — | 3716444 B compose, no `sold` |
 
@@ -169,7 +171,7 @@ Desktop runtime does not ship the system LLVM/Clang compiler toolchain; use `BUI
 
 Alpenglow has one root model:
 
-**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds.
+**Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds; `fast` boots diskless with no optional `/state` features.
 
 **Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. Alpenglowed is a Wayland client on Cage. Smithay `--compositor` is experimental and is not built into the image.
 

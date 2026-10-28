@@ -69,6 +69,7 @@ docker run --rm --platform linux/amd64 \
       rm -f '"${KERNEL_TAR}"'.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
+    sh /kcfg/patches/apply.sh .
     cp /kcfg/alpenglow-virt.config .config
 
     PROFILE="'"${PROFILE}"'"

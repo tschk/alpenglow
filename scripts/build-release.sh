@@ -103,7 +103,14 @@ else
 fi
 
 sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null
-sudo mkfs.bcachefs -L alpenglow-state "${LOOP_STATE}" >/dev/null
+# /state compression is a format-time default (editions.toml state_compression);
+# it lives in the superblock, so mounts need no extra option. fast: none.
+STATE_MKFS_OPTS=""
+case "${STATE_COMPRESSION:-none}" in
+  none) ;;
+  *) STATE_MKFS_OPTS="--compression=${STATE_COMPRESSION}" ;;
+esac
+sudo mkfs.bcachefs ${STATE_MKFS_OPTS} -L alpenglow-state "${LOOP_STATE}" >/dev/null
 
 # ── 5. Install boot files ──────────────────────────────────────────
 echo "→ Installing system..."

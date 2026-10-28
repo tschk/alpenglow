@@ -22,6 +22,7 @@
     }
   },
   "editions": {
+    "fast": { "packages": "packages-fast.txt", "role": "fast", "session": "none", "artifact": "image" },
     "potato": { "packages": "packages-potato.txt", "role": "potato", "session": "none", "artifact": "image" },
     "desktop": { "packages": "packages-runtime.txt", "role": "desktop", "session": "alpenglowed", "artifact": "image" },
     "internet": { "packages": "packages-internet.txt", "role": "internet", "session": "sold", "artifact": "image" }

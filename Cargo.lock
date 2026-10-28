@@ -4101,6 +4101,7 @@ dependencies = [
  "der",
  "flate2",
  "hex",
+ "libc",
  "memchr",
  "rsa",
  "serde",

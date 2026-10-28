@@ -14,7 +14,7 @@ make_asset() {
 }
 
 for arch in x86_64 aarch64; do
-  for edition in potato desktop internet; do
+  for edition in fast potato desktop internet; do
     make_asset "${edition}" "${arch}" img.zst
     make_asset "${edition}" "${arch}" iso
   done

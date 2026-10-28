@@ -27,14 +27,14 @@ add_image_assets() {
 case "${SCOPE}" in
   complete)
     expected="$(for arch in x86_64 aarch64; do
-      for edition in potato desktop internet; do
+      for edition in fast potato desktop internet; do
         add_image_assets "${edition}" "${arch}"
       done
     done
     printf '%s\n' "alpenglow-${VERSION}-potato-riscv64.tar.zst" \
       "alpenglow-${VERSION}-potato-riscv64.tar.zst.sha256")"
     ;;
-  potato-x86_64|desktop-x86_64|internet-x86_64|potato-aarch64|desktop-aarch64|internet-aarch64)
+  fast-x86_64|potato-x86_64|desktop-x86_64|internet-x86_64|fast-aarch64|potato-aarch64|desktop-aarch64|internet-aarch64)
     edition="${SCOPE%-*}"
     arch="${SCOPE#*-}"
     expected="$(add_image_assets "${edition}" "${arch}")"

@@ -44,6 +44,7 @@ docker run --rm --platform linux/amd64 \
       tar -xf k.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
+    sh /kcfg/patches/apply.sh .
     cp /kcfg/alpenglow-qemu-minimal.config .config
     cat /kcfg/lz4.config >> .config 2>/dev/null || true
     cat /kcfg/virt.config >> .config 2>/dev/null || true
@@ -113,7 +114,7 @@ docker run --rm --platform linux/amd64 \
       ./scripts/config --enable CGROUPS --enable CGROUP_SCHED --enable FAIR_GROUP_SCHED --enable CGROUP_PIDS --enable CGROUP_FREEZER --enable CGROUP_DEVICE --enable CGROUP_CPUACCT --enable CGROUP_MISC --enable CGROUP_BPF --enable BLK_CGROUP --enable MEMCG --enable CPUSETS --enable SCHED_MM_CID
       ./scripts/config --enable NAMESPACES --enable UTS_NS --enable IPC_NS --enable USER_NS --enable PID_NS --enable NET_NS
       ./scripts/config --enable PSI --enable PSI_DEFAULT_DISABLED --enable LRU_GEN --enable LRU_GEN_ENABLED
-      ./scripts/config --enable ZRAM --enable ZRAM_BACKEND_LZ4
+      ./scripts/config --enable SWAP --enable BLK_DEV --enable ZRAM --enable ZRAM_BACKEND_LZ4 --enable BCACHEFS_FS
       ./scripts/config --enable SECCOMP --enable SECCOMP_FILTER --enable SECURITY_LANDLOCK
       ./scripts/config --enable TCP_CONG_BBR --enable DEFAULT_BBR --enable NET_SCHED --enable NET_SCH_FQ --enable NET_SCH_FQ_CODEL --enable DEFAULT_FQ
       ./scripts/config --enable SQUASHFS --enable SQUASHFS_XZ --enable SQUASHFS_ZSTD --enable EROFS_FS --enable EROFS_FS_ZIP --enable EROFS_FS_ZIP_ZSTD --enable EROFS_FS_XATTR

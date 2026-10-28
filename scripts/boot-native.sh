@@ -179,6 +179,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
     }
     cd "${KERNEL_SRC}"
+    sh "${BACKEND_DIR}/kernel/patches/apply.sh" "${KERNEL_SRC}"
     if [ -f "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" ]; then
       cp "${BACKEND_DIR}/kernel/${KERNEL_CONFIG}.config" .config
       make ARCH=x86_64 olddefconfig 2>/dev/null
@@ -236,6 +237,7 @@ elif [ ! -f "${KERNEL_IMAGE}" ]; then
       tar -xf "${OUT_DIR}/linux-${KERNEL_VERSION}.tar.xz" -C "${OUT_DIR}"
       mv "${OUT_DIR}/linux-${KERNEL_VERSION}" "${KERNEL_SRC}"
     }
+    sh "${BACKEND_DIR}/kernel/patches/apply.sh" "${KERNEL_SRC}"
     # Base stripped config (auto-adapted to whatever kernel version)
     cp "${ROOT_DIR}/system/backends/appliance/kernel/alpenglow-qemu-minimal.config" "${KERNEL_SRC}/.config"
     cat "${ROOT_DIR}/system/backends/appliance/kernel/lz4.config" >> "${KERNEL_SRC}/.config" 2>/dev/null || true
@@ -586,8 +588,21 @@ fi
 
 mkdir -p "${ROOTFS_DIR}/usr/local/bin"
 mkdir -p "${ROOTFS_DIR}/etc/alpenglow"
+# Per-edition kernel policy (editions.toml kernel_policy); "none" ships nothing.
+# Builds without an edition keep the historical behaviour: internet policy,
+# none for a bare FAST=1 compose.
+if [ -z "${KERNEL_POLICY:-}" ]; then
+  if [ "${FAST}" = "1" ]; then KERNEL_POLICY=none; else KERNEL_POLICY=internet; fi
+fi
+case "${KERNEL_POLICY}" in
+  none) ;;
+  *) cp "${BACKEND_DIR}/kernel-policy-${KERNEL_POLICY}.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json" ;;
+esac
+# Oil snapshots /state before each transaction only when this marker exists.
+if [ "${STATE_SNAPSHOTS:-0}" = "1" ]; then
+  : > "${ROOTFS_DIR}/etc/alpenglow/state-snapshots"
+fi
 if [ "${FAST}" != "1" ]; then
-  cp "${BACKEND_DIR}/kernel-policy.json" "${ROOTFS_DIR}/etc/alpenglow/kernel-policy.json"
   for pair in \
     "alpenglow-ctl/alpenglow-kernelctl:alpenglow-kernelctl" \
     "alpenglow-ctl/alpenglow-netd-zig:alpenglow-netd" \

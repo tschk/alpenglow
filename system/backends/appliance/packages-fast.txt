@@ -1,0 +1,7 @@
+# Alpenglow fast edition — zero-overhead world.
+# Boot, serial login, nothing optional. Add anything else with oil install.
+dinit
+musl
+toybox
+linux-hardened
+alpenglow-initramfs

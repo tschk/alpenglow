@@ -1,6 +1,6 @@
 #!/bin/sh
 # Source after ALPENGLOW_EDITION or ALPENGLOW_ROLE.
-# Public SKUs: potato, desktop, internet.
+# Public SKUs: fast, potato, desktop, internet.
 # ALPENGLOW_SESSION=none|alpenglowed|sold|cage overrides session only.
 set -eu
 
@@ -29,13 +29,13 @@ for _arg in "$@"; do
 done
 
 if [ "${_want_list}" = "1" ]; then
-  printf '%s\n' potato desktop internet
+  printf '%s\n' fast potato desktop internet
   case "$0" in
     */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
   esac
 fi
 if [ "${_want_list_all}" = "1" ]; then
-  printf '%s\n' potato desktop internet fast minimal standard embedded potatoes desktop-lite containers desktop-full workstation kiosk
+  printf '%s\n' fast potato desktop internet minimal standard embedded potatoes desktop-lite containers desktop-full workstation kiosk
   case "$0" in
     */edition-resolve.sh|edition-resolve.sh) exit 0 ;;
   esac
@@ -45,6 +45,9 @@ _session_override="${ALPENGLOW_SESSION:-}"
 _fleet_override="${ALPENGLOW_FLEET:-}"
 _kiosk_override="${ALPENGLOW_KIOSK:-}"
 _artifact_override="${ALPENGLOW_ARTIFACT:-}"
+_state_compression_override="${ALPENGLOW_STATE_COMPRESSION:-}"
+_state_snapshots_override="${ALPENGLOW_STATE_SNAPSHOTS:-}"
+_kernel_policy_override="${ALPENGLOW_KERNEL_POLICY:-}"
 
 if [ -n "${ALPENGLOW_EDITION:-}" ]; then
   EDITION="${ALPENGLOW_EDITION}"
@@ -58,12 +61,13 @@ fi
 _REQUESTED="${EDITION}"
 
 case "${_REQUESTED}" in
-  potato|potatoes|desktop-lite|fast|minimal|standard|embedded|containers) _PUBLIC_SKU=potato ;;
+  fast) _PUBLIC_SKU=fast ;;
+  potato|potatoes|desktop-lite|minimal|standard|embedded|containers) _PUBLIC_SKU=potato ;;
   desktop|desktop-full|workstation) _PUBLIC_SKU=desktop ;;
   internet|kiosk) _PUBLIC_SKU=internet ;;
   *)
     echo "unknown edition or role: ${_REQUESTED}." >&2
-    echo "public SKUs: potato desktop internet" >&2
+    echo "public SKUs: fast potato desktop internet" >&2
     exit 1
     ;;
 esac
@@ -94,6 +98,7 @@ _lines="$(awk -v want="${_PUBLIC_SKU}" '
 BUILD_PROFILE="" KERNEL_PROFILE="" FAST="" GRAPHICAL="" BUILD_SERVICES=""
 ALPENGLOW_AUTOLOGIN="" ALPENGLOW_DESKTOP_FULL="" WORLD_FILE="" SESSION=""
 ROLE="" ARTIFACT="" LOCK_SESSION="" SHELL_LOGIN="" FLEET_AGENT="" ALPENGLOWED_ROLE=""
+STATE_COMPRESSION="" STATE_SNAPSHOTS="" KERNEL_POLICY="" ZIG_INIT_KEY=""
 
 IFS='
 '
@@ -121,6 +126,10 @@ while [ "$#" -gt 0 ]; do
     shell_login) SHELL_LOGIN="${val}" ;;
     fleet_agent) FLEET_AGENT="${val}" ;;
     alpenglowed_role) ALPENGLOWED_ROLE="${val}" ;;
+    state_compression) STATE_COMPRESSION="${val}" ;;
+    state_snapshots) STATE_SNAPSHOTS="${val}" ;;
+    kernel_policy) KERNEL_POLICY="${val}" ;;
+    zig_init) ZIG_INIT_KEY="${val}" ;;
   esac
 done
 
@@ -130,6 +139,9 @@ LOCK_SESSION="${LOCK_SESSION:-0}"
 SHELL_LOGIN="${SHELL_LOGIN:-1}"
 FLEET_AGENT="${FLEET_AGENT:-0}"
 ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE:-none}"
+STATE_COMPRESSION="${STATE_COMPRESSION:-none}"
+STATE_SNAPSHOTS="${STATE_SNAPSHOTS:-0}"
+KERNEL_POLICY="${KERNEL_POLICY:-none}"
 ROLE="${_PUBLIC_SKU}"
 
 case "${_REQUESTED}" in
@@ -140,6 +152,7 @@ case "${_REQUESTED}" in
     WORLD_FILE="packages-standard.txt"
     KERNEL_PROFILE="minimal"
     FAST="0"
+    ZIG_INIT_KEY="0"
     ALPENGLOWED_ROLE="none"
     ;;
   containers)
@@ -179,6 +192,10 @@ fi
 case "${_artifact_override}" in
   oci|tar|userspace) ARTIFACT="userspace" ;;
 esac
+# Deliberate opt-in/out without editing editions.toml (e.g. fast + snapshots).
+[ -n "${_state_compression_override}" ] && STATE_COMPRESSION="${_state_compression_override}"
+[ -n "${_state_snapshots_override}" ] && STATE_SNAPSHOTS="${_state_snapshots_override}"
+[ -n "${_kernel_policy_override}" ] && KERNEL_POLICY="${_kernel_policy_override}"
 
 ALPENGLOW_FLEET="${FLEET_AGENT}"
 if [ "${LOCK_SESSION}" = "1" ] || [ "${_kiosk_override}" = "1" ]; then
@@ -205,10 +222,15 @@ export ALPENGLOW_AUTOLOGIN ALPENGLOW_DESKTOP_FULL WORLD_FILE
 export SESSION ALPENGLOWED_ROLE
 export ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT
 export ALPENGLOW_FLEET ALPENGLOW_KIOSK ALPENGLOW_ARTIFACT
+export STATE_COMPRESSION STATE_SNAPSHOTS KERNEL_POLICY
+if [ "${ZIG_INIT_KEY}" = "1" ]; then
+  ZIG_INIT=1
+  export ZIG_INIT
+fi
 
 if [ "${_want_demo}" = "1" ]; then
-  printf 'ALPENGLOW_EDITION=%s ALPENGLOW_SKU=%s ALPENGLOW_ROLE=%s BUILD_PROFILE=%s KERNEL_PROFILE=%s SESSION=%s ALPENGLOWED_ROLE=%s WORLD_FILE=%s ARTIFACT=%s LOCK_SESSION=%s ALPENGLOW_KIOSK=%s ALPENGLOW_FLEET=%s\n' \
+  printf 'ALPENGLOW_EDITION=%s ALPENGLOW_SKU=%s ALPENGLOW_ROLE=%s BUILD_PROFILE=%s KERNEL_PROFILE=%s SESSION=%s ALPENGLOWED_ROLE=%s WORLD_FILE=%s ARTIFACT=%s LOCK_SESSION=%s ALPENGLOW_KIOSK=%s ALPENGLOW_FLEET=%s FAST=%s STATE_COMPRESSION=%s STATE_SNAPSHOTS=%s KERNEL_POLICY=%s\n' \
     "${ALPENGLOW_EDITION}" "${ALPENGLOW_SKU}" "${ALPENGLOW_ROLE}" "${BUILD_PROFILE}" "${KERNEL_PROFILE}" \
     "${SESSION}" "${ALPENGLOWED_ROLE}" "${WORLD_FILE}" "${ARTIFACT}" "${LOCK_SESSION}" \
-    "${ALPENGLOW_KIOSK}" "${ALPENGLOW_FLEET}"
+    "${ALPENGLOW_KIOSK}" "${ALPENGLOW_FLEET}" "${FAST}" "${STATE_COMPRESSION}" "${STATE_SNAPSHOTS}" "${KERNEL_POLICY}"
 fi

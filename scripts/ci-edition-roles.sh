@@ -1,5 +1,5 @@
 #!/bin/sh
-# CI: public SKUs potato|desktop|internet
+# CI: public SKUs fast|potato|desktop|internet
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -16,10 +16,10 @@ trap 'rm -rf "${tmp}"' EXIT INT TERM
 unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ALPENGLOWED_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE ALPENGLOW_FLEET ALPENGLOW_KIOSK ALPENGLOW_ARTIFACT
 
 list="$(sh scripts/edition-resolve.sh --list)"
-for sku in potato desktop internet; do
+for sku in fast potato desktop internet; do
   printf '%s\n' "${list}" | grep -qx "${sku}" || fail "--list missing ${sku}"
 done
-for gone in fast minimal standard embedded potatoes kiosk workstation desktop-full containers desktop-lite; do
+for gone in minimal standard embedded potatoes kiosk workstation desktop-full containers desktop-lite; do
   printf '%s\n' "${list}" | grep -qx "${gone}" && fail "--list leaked ${gone}"
 done
 
@@ -30,12 +30,20 @@ demo_field() {
 
 assert_eq "$(demo_field potato ALPENGLOW_SKU)" "potato" "potato sku"
 assert_eq "$(demo_field potato SESSION)" "none" "potato session"
-assert_eq "$(demo_field potato KERNEL_PROFILE)" "fast" "potato kernel"
+assert_eq "$(demo_field potato KERNEL_PROFILE)" "minimal" "potato kernel"
+assert_eq "$(demo_field potato FAST)" "0" "potato is not FAST"
 assert_eq "$(demo_field potato WORLD_FILE)" "packages-potato.txt" "potato world"
-assert_eq "$(demo_field fast ALPENGLOW_SKU)" "potato" "fast→potato"
+assert_eq "$(demo_field potato STATE_COMPRESSION)" "lz4" "potato /state compression"
+assert_eq "$(demo_field potato STATE_SNAPSHOTS)" "1" "potato snapshots"
+assert_eq "$(demo_field fast ALPENGLOW_SKU)" "fast" "fast sku"
 assert_eq "$(demo_field fast SESSION)" "none" "fast session"
 assert_eq "$(demo_field fast KERNEL_PROFILE)" "fast" "fast kernel"
-assert_eq "$(demo_field fast WORLD_FILE)" "packages-potato.txt" "fast world"
+assert_eq "$(demo_field fast FAST)" "1" "fast FAST compose"
+assert_eq "$(demo_field fast WORLD_FILE)" "packages-fast.txt" "fast world"
+assert_eq "$(demo_field fast STATE_COMPRESSION)" "none" "fast: no /state compression"
+assert_eq "$(demo_field fast STATE_SNAPSHOTS)" "0" "fast: no snapshots"
+assert_eq "$(demo_field fast KERNEL_POLICY)" "none" "fast: no kernel policy"
+assert_eq "$(ALPENGLOW_STATE_SNAPSHOTS=1 demo_field fast STATE_SNAPSHOTS)" "1" "fast opt-in snapshots"
 assert_eq "$(demo_field minimal ALPENGLOW_SKU)" "potato" "minimal→potato"
 assert_eq "$(demo_field minimal SESSION)" "none" "minimal session"
 assert_eq "$(demo_field minimal WORLD_FILE)" "packages-potato.txt" "minimal world"
@@ -58,6 +66,8 @@ assert_eq "$(
 )" "potato" "default SKU is potato"
 
 assert_file system/backends/appliance/packages-potato.txt
+assert_file system/backends/appliance/packages-fast.txt
+assert_not_contains system/backends/appliance/packages-fast.txt '^(dropbear|chrony|dnsmasq|earlyoom|alpenglowed)$'
 assert_file system/backends/appliance/packages-internet.txt
 assert_contains system/backends/appliance/packages-potato.txt '^dropbear$'
 assert_contains system/backends/appliance/packages-potato.txt '^chrony$'
@@ -84,6 +94,7 @@ run_sku() {
     ARTIFACT="${ARTIFACT}" LOCK_SESSION="${LOCK_SESSION}" SHELL_LOGIN="${SHELL_LOGIN}" \
     ALPENGLOW_KIOSK="${ALPENGLOW_KIOSK}" ALPENGLOWED_ROLE="${ALPENGLOWED_ROLE}" \
     ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL}" ALPENGLOW_EDITION="${ALPENGLOW_EDITION}" \
+    KERNEL_POLICY="${KERNEL_POLICY}" STATE_SNAPSHOTS="${STATE_SNAPSHOTS}" \
     system/backends/appliance/scripts/configure-rootfs.sh "${root}" >/dev/null
 }
 
@@ -95,9 +106,15 @@ assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = chronyd'
 assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = dnsmasq'
 assert_not_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = alpenglowed'
 assert_not_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = sold'
+assert_contains "${tmp}/potato/etc/dinit.d/boot" 'depends-on = alpenglow-zram'
+assert_contains "${tmp}/potato/etc/alpenglow/kernel-policy.json" '"profile": "potato"'
+assert_file "${tmp}/potato/etc/alpenglow/state-snapshots"
 
 run_sku fast
-assert_contains "${tmp}/fast/etc/alpenglow/system.json" '"sku": "potato"'
+assert_contains "${tmp}/fast/etc/alpenglow/system.json" '"sku": "fast"'
+assert_not_contains "${tmp}/fast/etc/dinit.d/boot" 'depends-on = alpenglow-(kernel-policy|zram)'
+[ ! -e "${tmp}/fast/etc/alpenglow/kernel-policy.json" ] || fail "fast ships a kernel policy"
+[ ! -e "${tmp}/fast/etc/alpenglow/state-snapshots" ] || fail "fast enables /state snapshots"
 assert_not_contains "${tmp}/fast/etc/dinit.d/boot" 'depends-on = alpenglowed'
 
 run_sku minimal

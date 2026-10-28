@@ -1,1 +1,3 @@
-
+# Applied in order by apply.sh before olddefconfig.
+# Out-of-tree bcachefs (removed from mainline in 6.18) for the /state partition.
+bcachefs-oot.sh

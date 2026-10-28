@@ -70,7 +70,7 @@ jobs:
           else
             gh release create "${version}" --draft --target "${GITHUB_SHA}" \
               --title "Alpenglow ${version}" \
-              --notes "Testing-only, unstable images under active development. Public SKUs are potato, desktop, and internet. x86_64 and aarch64 desktop images ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-${version}-{potato|desktop|internet}-{x86_64|aarch64}.img.zst and .iso (each with .sha256), and alpenglow-${version}-potato-riscv64.tar.zst with .sha256."
+              --notes "Testing-only, unstable images under active development. Public SKUs are fast, potato, desktop, and internet. x86_64 and aarch64 desktop images ship compressed GPT disk images and UEFI live installer ISOs. ARM64 artifacts target generic UEFI firmware, including UTM; non-UEFI boards require their own firmware and boot chain. Assets: alpenglow-${version}-{fast|potato|desktop|internet}-{x86_64|aarch64}.img.zst and .iso (each with .sha256), and alpenglow-${version}-potato-riscv64.tar.zst with .sha256."
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
@@ -166,11 +166,15 @@ jobs:
       matrix:
         include:
           - arch: x86_64
+            edition: fast
+          - arch: x86_64
             edition: potato
           - arch: x86_64
             edition: desktop
           - arch: x86_64
             edition: internet
+          - arch: aarch64
+            edition: fast
           - arch: aarch64
             edition: potato
           - arch: aarch64

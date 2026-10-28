@@ -97,7 +97,14 @@ sgdisk -n 1:2048:+"${ESP_SIZE_MB}"M -t 1:EF00 -c 1:ALPENGLOW-EFI "${IMAGE}" >/de
 sgdisk -n 2:0:0 -t 2:8300 -c 2:alpenglow-state "${IMAGE}" >/dev/null
 LOOP_DEV="$(sudo losetup --find --show --partscan "${IMAGE}")"
 sudo mkfs.vfat -F 32 -n ALP_EFI "${LOOP_DEV}p1" >/dev/null
-sudo mkfs.bcachefs -L alpenglow-state "${LOOP_DEV}p2" >/dev/null
+# /state compression is a format-time default (editions.toml state_compression);
+# it lives in the superblock, so mounts need no extra option. fast: none.
+STATE_MKFS_OPTS=""
+case "${STATE_COMPRESSION:-none}" in
+  none) ;;
+  *) STATE_MKFS_OPTS="--compression=${STATE_COMPRESSION}" ;;
+esac
+sudo mkfs.bcachefs ${STATE_MKFS_OPTS} -L alpenglow-state "${LOOP_DEV}p2" >/dev/null
 sudo mount "${LOOP_DEV}p1" "${MNT_ESP}"
 sudo mkdir -p "${MNT_ESP}/EFI/BOOT" "${MNT_ESP}/EFI/Alpenglow"
 sudo cp "${LIMINE_DIR}/BOOTAA64.EFI" "${MNT_ESP}/EFI/BOOT/BOOTAA64.EFI"

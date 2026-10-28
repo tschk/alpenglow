@@ -179,7 +179,8 @@ if [ -z "${ALPENGLOWED_ROLE}" ]; then
 fi
 if [ -z "${ALPENGLOW_SKU}" ]; then
   case "${ALPENGLOW_ROLE}" in
-    fast|minimal|potato|potatoes|embedded|containers) ALPENGLOW_SKU="potato" ;;
+    fast) ALPENGLOW_SKU="fast" ;;
+    minimal|potato|potatoes|embedded|containers) ALPENGLOW_SKU="potato" ;;
     desktop|workstation) ALPENGLOW_SKU="desktop" ;;
     internet|kiosk) ALPENGLOW_SKU="internet" ;;
     *) ALPENGLOW_SKU="${ALPENGLOW_ROLE:-${BUILD_PROFILE}}" ;;
@@ -211,6 +212,15 @@ case "${BUILD_PROFILE}" in
     exit 1
     ;;
 esac
+
+# Editions with a kernel policy (editions.toml kernel_policy) apply it at boot
+# and get zram swap; fast (kernel_policy = none) gets neither.
+if [ "${KERNEL_POLICY:-none}" != "none" ]; then
+  case " ${BOOT_SERVICES} " in
+    *" alpenglow-kernel-policy "*) ;;
+    *) BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy alpenglow-zram" ;;
+  esac
+fi
 
 boot_has() {
   _want="$1"
@@ -286,6 +296,12 @@ cp "${FILESYSTEM_MANIFEST_DIR}/state-mounts.json" "${ROOTFS}/etc/alpenglow/files
 cp "${BACKEND_DIR}/backend.json" "${ROOTFS}/etc/alpenglow/backend.json"
 cp "${WORLD_FILE}" "${ROOTFS}/etc/alpenglow/world"
 cp -R "${BACKEND_DIR}/dinit/." "${ROOTFS}/etc/dinit.d/"
+if [ "${KERNEL_POLICY:-none}" != "none" ]; then
+  cp "${BACKEND_DIR}/kernel-policy-${KERNEL_POLICY}.json" "${ROOTFS}/etc/alpenglow/kernel-policy.json"
+fi
+if [ "${STATE_SNAPSHOTS:-0}" = "1" ]; then
+  : > "${ROOTFS}/etc/alpenglow/state-snapshots"
+fi
 rm -rf "${ROOTFS}/etc/runit" "${ROOTFS}/etc/sv" "${ROOTFS}/etc/apk"
 
 # Direct desktop sessions must wait for persistent state when it is mounted.

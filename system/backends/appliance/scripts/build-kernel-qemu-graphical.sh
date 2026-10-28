@@ -37,6 +37,7 @@ docker run --rm --platform linux/amd64 \
       tar -xf k.tar.xz
     fi
     cd "'"${KERNEL_TAR}"'"
+    sh /kcfg/patches/apply.sh .
     cp /kcfg/alpenglow-qemu-minimal.config .config
     cat /kcfg/lz4.config >> .config 2>/dev/null || true
     cat /kcfg/virt.config >> .config 2>/dev/null || true

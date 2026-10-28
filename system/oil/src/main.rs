@@ -294,6 +294,9 @@ fn run_system_add(packages: Vec<String>, prefix: Option<PathBuf>, dry_run: bool)
     let dest = install_dest(system_prefix(prefix).as_deref())?;
     let registry_packages = load_registry()?;
     let index = PackageIndex::new(&registry_packages);
+    if !dry_run {
+        util::snapshot::before_transaction("system-add");
+    }
     for name in packages {
         let pkg = index
             .find(&name)
@@ -460,6 +463,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let order = index.resolve_install_order(&pending, |name| state.get(name).is_some())?;
 
     let dest = if !dry_run {
+        util::snapshot::before_transaction("install");
         Some(install_dest(None)?)
     } else {
         None
@@ -496,6 +500,7 @@ fn run_install_recipe(recipe_path: PathBuf, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     let dest = util::security::validate_install_dest(&recipe.install_dest())?;
+    util::snapshot::before_transaction("install");
     install_package(&pkg, &dest)?;
     let mut state = install::InstallState::new()?;
     state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
@@ -511,6 +516,7 @@ fn run_install_recipe(recipe_path: PathBuf, dry_run: bool) -> Result<()> {
 
 fn run_uninstall(formulae: Vec<String>, all: bool) -> Result<()> {
     let mut state = install::InstallState::new()?;
+    util::snapshot::before_transaction("uninstall");
     if all {
         state.clear();
     } else {
@@ -532,6 +538,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     let registry_packages = load_registry()?;
     let index = PackageIndex::new(&registry_packages);
     let dest = install_dest(None)?;
+    util::snapshot::before_transaction("reinstall");
     for name in &names {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
@@ -602,6 +609,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
     let upgrades = plan_upgrades(targets.as_deref(), &installed, &index);
 
     let dest = if !dry_run && !upgrades.is_empty() {
+        util::snapshot::before_transaction("upgrade");
         Some(install_dest(None)?)
     } else {
         None

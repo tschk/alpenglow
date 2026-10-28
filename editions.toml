@@ -1,17 +1,44 @@
-# Public product SKUs: potato, desktop, internet.
-# potato is the small OS (old fast + minimal cut, one world).
-# Aliases (fast, minimal, standard, embedded, potatoes, kiosk, …) are mapped by
+# Public product SKUs: fast, potato, desktop, internet.
+# fast is the zero-overhead SKU: FAST kernel, Zig /init, nothing optional.
+# potato is the small general-purpose OS (minimal kernel, appliance services).
+# Aliases (minimal, standard, embedded, potatoes, kiosk, …) are mapped by
 # scripts/edition-resolve.sh and are not product SKUs.
+# /state keys: state_compression (none|zstd|lz4…) is the bcachefs format-time
+# default for the state partition; state_snapshots=1 makes Oil snapshot /state
+# before each transaction; kernel_policy names system/backends/appliance/
+# kernel-policy-<name>.json or "none". fast keeps all three off.
+# zig_init=1 uses the static Zig /init (fast implies it via fast = 1).
 # Board (RK3566, etc.) is a kernel/board fragment, not a SKU.
 # Container is ALPENGLOW_ARTIFACT=oci|tar on potato, not a SKU.
 # Resolved by scripts/edition-resolve.sh (ALPENGLOW_EDITION or ALPENGLOW_ROLE, default potato).
 # Override session without changing the image: ALPENGLOW_SESSION=none|alpenglowed|sold|cage
 # GRAPHICAL=1 in boot-native.sh means the Alpenglowed/glibc graphics path, not "any GUI".
 
-[editions.potato]
+[editions.fast]
 build_profile = "minimal"
 kernel_profile = "fast"
 fast = 1
+graphical = 0
+build_services = 0
+alpenglow_autologin = 0
+alpenglow_desktop_full = 0
+world_file = "packages-fast.txt"
+session = "none"
+role = "fast"
+artifact = "image"
+lock_session = 0
+shell_login = 1
+fleet_agent = 0
+alpenglowed_role = "none"
+state_compression = "none"
+state_snapshots = 0
+kernel_policy = "none"
+
+[editions.potato]
+build_profile = "minimal"
+kernel_profile = "minimal"
+fast = 0
+zig_init = 1
 graphical = 0
 build_services = 0
 alpenglow_autologin = 0
@@ -24,6 +51,9 @@ lock_session = 0
 shell_login = 1
 fleet_agent = 0
 alpenglowed_role = "potato"
+state_compression = "lz4"
+state_snapshots = 1
+kernel_policy = "potato"
 
 [editions.desktop]
 build_profile = "desktop"
@@ -41,6 +71,9 @@ lock_session = 0
 shell_login = 1
 fleet_agent = 0
 alpenglowed_role = "desktop"
+state_compression = "lz4"
+state_snapshots = 1
+kernel_policy = "desktop"
 
 [editions.internet]
 build_profile = "minimal"
@@ -58,3 +91,6 @@ lock_session = 0
 shell_login = 1
 fleet_agent = 0
 alpenglowed_role = "internet"
+state_compression = "lz4"
+state_snapshots = 1
+kernel_policy = "internet"
