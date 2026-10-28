@@ -655,7 +655,7 @@ fn run_outdated() -> Result<()> {
 
 #[cfg(feature = "wax")]
 fn handle_tap_add(taps: &mut tap::Taps, name: &str) -> Result<()> {
-    let (name, url) = tap::normalize_tap(name);
+    let (name, url) = tap::normalize_tap(name)?;
     taps.add(&name, &url);
     taps.save()?;
     println!("Tapped {} ({})", name, url);
