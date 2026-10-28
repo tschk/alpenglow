@@ -272,41 +272,27 @@ fn parse_apk_stanza(
     repo: &str,
     arch: &str,
 ) -> Option<PackageMetadata> {
-    let mut name = String::new();
-    let mut version = String::new();
-    let mut description = String::new();
+    let mut name = "";
+    let mut version = "";
+    let mut description = "";
     let mut installed_size: u64 = 0;
-    let mut depends: Vec<String> = Vec::new();
-    let mut provides: Vec<String> = Vec::new();
+    let mut depends_val = "";
+    let mut provides_val = "";
 
     for line in stanza.lines() {
         if line.len() < 2 || line.as_bytes()[1] != b':' {
             continue;
         }
-        let key = &line[..1];
+        let key = line.as_bytes()[0];
         let val = line[2..].trim();
 
         match key {
-            "P" => name = val.to_string(),
-            "V" => version = val.to_string(),
-            "T" => description = val.to_string(),
-            "I" => installed_size = val.parse().unwrap_or(0),
-            "D" => {
-                for dep in val.split_whitespace() {
-                    let dname = super::parse_dep_name(dep);
-                    if !dname.is_empty() && !dname.starts_with('!') {
-                        depends.push(dname.to_string());
-                    }
-                }
-            }
-            "p" => {
-                for prov in val.split_whitespace() {
-                    let pname = super::parse_dep_name(prov);
-                    if !pname.is_empty() {
-                        provides.push(pname.to_string());
-                    }
-                }
-            }
+            b'P' => name = val,
+            b'V' => version = val,
+            b'T' => description = val,
+            b'I' => installed_size = val.parse().unwrap_or(0),
+            b'D' => depends_val = val,
+            b'p' => provides_val = val,
             _ => {}
         }
     }
@@ -315,11 +301,37 @@ fn parse_apk_stanza(
         return None;
     }
 
+    let mut depends = Vec::new();
+    if !depends_val.is_empty() {
+        for dep in depends_val.split(' ') {
+            if dep.is_empty() {
+                continue;
+            }
+            let dname = super::parse_dep_name(dep);
+            if !dname.is_empty() && !dname.starts_with('!') {
+                depends.push(dname.to_owned());
+            }
+        }
+    }
+
+    let mut provides = Vec::new();
+    if !provides_val.is_empty() {
+        for prov in provides_val.split(' ') {
+            if prov.is_empty() {
+                continue;
+            }
+            let pname = super::parse_dep_name(prov);
+            if !pname.is_empty() {
+                provides.push(pname.to_owned());
+            }
+        }
+    }
+
     let url = format!("{mirror}/{branch}/{repo}/{arch}/{name}-{version}.apk");
     Some(PackageMetadata {
-        name,
-        version,
-        description,
+        name: name.to_owned(),
+        version: version.to_owned(),
+        description: description.to_owned(),
         download_url: url,
         sha256: None,
         installed_size,
