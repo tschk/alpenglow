@@ -81,18 +81,19 @@ where
         args,
         tui::draw_installer_tui,
         install_image_maybe_compressed,
+        false,
     )
 }
 
-pub fn run_installer_with_draw<I, F>(args: I, draw: F) -> i32
+pub fn run_installer_with_draw<I, F>(args: I, draw: F, allow_regular_file: bool) -> i32
 where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
 {
-    run_installer_with_draw_and_install(args, draw, install_image_maybe_compressed)
+    run_installer_with_draw_and_install(args, draw, install_image_maybe_compressed, allow_regular_file)
 }
 
-pub fn run_installer_with_draw_and_install<I, F, G>(args: I, draw: F, install: G) -> i32
+pub fn run_installer_with_draw_and_install<I, F, G>(args: I, draw: F, install: G, allow_regular_file: bool) -> i32
 where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
@@ -109,7 +110,7 @@ where
         eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
-    match install(&source, &target, false) {
+    match install(&source, &target, allow_regular_file) {
         Ok(bytes) => {
             println!("wrote {bytes} bytes to {}", target.display());
             0
@@ -355,7 +356,7 @@ mod tests {
             Ok(())
         }
         let args: Vec<OsString> = vec![OsString::from("--tui")];
-        assert_eq!(run_installer_with_draw(args, fake_draw), 2);
+        assert_eq!(run_installer_with_draw(args, fake_draw, false), 2);
     }
 
     #[test]
@@ -397,7 +398,7 @@ mod tests {
         }
 
         assert_eq!(
-            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            run_installer_with_draw_and_install(args, fake_draw, fake_install, false),
             0
         );
     }
@@ -426,7 +427,7 @@ mod tests {
         }
 
         assert_eq!(
-            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            run_installer_with_draw_and_install(args, fake_draw, fake_install, false),
             1
         );
     }
@@ -456,8 +457,29 @@ mod tests {
         }
 
         assert_eq!(
-            run_installer_with_draw_and_install(args, fake_draw_fail, fake_install_unreachable),
+            run_installer_with_draw_and_install(args, fake_draw_fail, fake_install_unreachable, false),
             1
         );
+    }
+
+    #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        assert_eq!(run_installer_with_draw(args, fake_draw, true), 0);
+        assert_eq!(std::fs::read(&target).unwrap(), b"testdata");
     }
 }
