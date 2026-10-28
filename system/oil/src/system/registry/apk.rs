@@ -292,7 +292,10 @@ fn parse_apk_stanza(
             "T" => description = val.to_string(),
             "I" => installed_size = val.parse().unwrap_or(0),
             "D" => {
-                for dep in val.split_whitespace() {
+                for dep in val.split(' ') {
+                    if dep.is_empty() {
+                        continue;
+                    }
                     let dname = super::parse_dep_name(dep);
                     if !dname.is_empty() && !dname.starts_with('!') {
                         depends.push(dname.to_string());
@@ -300,7 +303,10 @@ fn parse_apk_stanza(
                 }
             }
             "p" => {
-                for prov in val.split_whitespace() {
+                for prov in val.split(' ') {
+                    if prov.is_empty() {
+                        continue;
+                    }
                     let pname = super::parse_dep_name(prov);
                     if !pname.is_empty() {
                         provides.push(pname.to_string());

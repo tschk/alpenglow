@@ -115,8 +115,15 @@ impl<'a> PackageIndex<'a> {
 }
 
 pub fn parse_dep_name(dep: &str) -> &str {
-    let token = dep.split_whitespace().next().unwrap_or(dep);
-    token.split(['=', '<', '>', '~']).next().unwrap_or(token).trim()
+    let token = dep.trim_start();
+    let mut end = token.len();
+    for (i, b) in token.bytes().enumerate() {
+        if b.is_ascii_whitespace() || b == b'=' || b == b'<' || b == b'>' || b == b'~' {
+            end = i;
+            break;
+        }
+    }
+    token[..end].trim_end()
 }
 
 #[cfg(test)]
