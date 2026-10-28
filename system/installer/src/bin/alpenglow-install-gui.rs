@@ -21,302 +21,314 @@ fn is_install_disk_name(name: &str) -> bool {
 }
 
 #[cfg(feature = "gui")]
-fn main() {
-    use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
-    use crepuscularity_gpui::prelude::*;
-    use gpui::{bounds, point, size, App, Application, ClickEvent};
-    use std::fs;
-    use std::path::PathBuf;
+use {
+    alpenglow_installer::{install_image_maybe_compressed, parse_install_args},
+    crepuscularity_gpui::prelude::*,
+    gpui::{bounds, point, size, App, Application, ClickEvent},
+    std::fs,
+    std::path::PathBuf,
+};
 
-    struct InstallerView {
-        source: PathBuf,
-        target: Option<PathBuf>,
-        disks: Vec<DiskChoice>,
-        status: String,
-    }
+#[cfg(feature = "gui")]
+struct InstallerView {
+    source: PathBuf,
+    target: Option<PathBuf>,
+    disks: Vec<DiskChoice>,
+    status: String,
+}
 
-    #[derive(Clone)]
-    struct DiskChoice {
-        path: PathBuf,
-        name: String,
-        detail: String,
-    }
+#[cfg(feature = "gui")]
+#[derive(Clone)]
+struct DiskChoice {
+    path: PathBuf,
+    name: String,
+    detail: String,
+}
 
-    impl InstallerView {
-        fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
-            let disks = discover_disks();
-            let target = target.or_else(|| disks.first().map(|disk| disk.path.clone()));
-            let status = target
-                .as_ref()
-                .map(|target| format!("Ready to install to {}", target.display()))
-                .unwrap_or_else(|| {
-                    "No install target found. Attach a disk or use the terminal installer."
-                        .to_string()
-                });
-            Self {
-                source,
-                target,
-                disks,
-                status,
-            }
-        }
-
-        fn refresh_disks(
-            &mut self,
-            _: &ClickEvent,
-            _: &mut gpui::Window,
-            cx: &mut gpui::Context<Self>,
-        ) {
-            self.disks = discover_disks();
-            if self.target.is_none() {
-                self.target = self.disks.first().map(|disk| disk.path.clone());
-            }
-            self.status = self
-                .target
-                .as_ref()
-                .map(|target| format!("Ready to install to {}", target.display()))
-                .unwrap_or_else(|| "No install target found.".to_string());
-            cx.notify();
-        }
-
-        fn select_disk(&mut self, index: usize, cx: &mut gpui::Context<Self>) {
-            let Some(disk) = self.disks.get(index) else {
-                self.status = "That disk is no longer available.".to_string();
-                cx.notify();
-                return;
-            };
-            self.target = Some(disk.path.clone());
-            self.status = format!("Ready to install to {}", disk.path.display());
-            cx.notify();
-        }
-
-        fn select_disk_0(
-            &mut self,
-            _: &ClickEvent,
-            _: &mut gpui::Window,
-            cx: &mut gpui::Context<Self>,
-        ) {
-            self.select_disk(0, cx);
-        }
-
-        fn select_disk_1(
-            &mut self,
-            _: &ClickEvent,
-            _: &mut gpui::Window,
-            cx: &mut gpui::Context<Self>,
-        ) {
-            self.select_disk(1, cx);
-        }
-
-        fn select_disk_2(
-            &mut self,
-            _: &ClickEvent,
-            _: &mut gpui::Window,
-            cx: &mut gpui::Context<Self>,
-        ) {
-            self.select_disk(2, cx);
-        }
-
-        fn select_disk_3(
-            &mut self,
-            _: &ClickEvent,
-            _: &mut gpui::Window,
-            cx: &mut gpui::Context<Self>,
-        ) {
-            self.select_disk(3, cx);
-        }
-
-        fn disk_label(&self, index: usize) -> String {
-            self.disks
-                .get(index)
-                .map(|disk| disk.path.display().to_string())
-                .unwrap_or_default()
-        }
-
-        fn disk_detail(&self, index: usize) -> String {
-            self.disks
-                .get(index)
-                .map(|disk| disk.detail.clone())
-                .unwrap_or_default()
-        }
-
-        fn install(&mut self, _: &ClickEvent, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
-            let Some(target) = self.target.as_ref() else {
-                self.status = "Choose an install target first.".to_string();
-                cx.notify();
-                return;
-            };
-            match install_image_maybe_compressed(&self.source, target, false) {
-                Ok(bytes) => self.status = format!("Wrote {bytes} bytes to {}", target.display()),
-                Err(err) => self.status = format!("Install failed: {err}"),
-            }
-            cx.notify();
+#[cfg(feature = "gui")]
+impl InstallerView {
+    fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
+        let disks = discover_disks();
+        let target = target.or_else(|| disks.first().map(|disk| disk.path.clone()));
+        let status = target
+            .as_ref()
+            .map(|target| format!("Ready to install to {}", target.display()))
+            .unwrap_or_else(|| {
+                "No install target found. Attach a disk or use the terminal installer.".to_string()
+            });
+        Self {
+            source,
+            target,
+            disks,
+            status,
         }
     }
 
-    impl gpui::Render for InstallerView {
-        fn render(
-            &mut self,
-            _window: &mut gpui::Window,
-            cx: &mut gpui::Context<Self>,
-        ) -> impl IntoElement {
-            let source = self.source.display().to_string();
-            let target = self
-                .target
-                .as_ref()
-                .map(|target| target.display().to_string())
-                .unwrap_or_else(|| "No target disk selected".to_string());
-            let status = self.status.clone();
-            let has_target = self.target.is_some();
-            let disk_0 = self.disk_label(0);
-            let disk_0_detail = self.disk_detail(0);
-            let disk_1 = self.disk_label(1);
-            let disk_1_detail = self.disk_detail(1);
-            let disk_2 = self.disk_label(2);
-            let disk_2_detail = self.disk_detail(2);
-            let disk_3 = self.disk_label(3);
-            let disk_3_detail = self.disk_detail(3);
-            let has_disk_0 = self.disks.first().is_some();
-            let has_disk_1 = self.disks.get(1).is_some();
-            let has_disk_2 = self.disks.get(2).is_some();
-            let has_disk_3 = self.disks.get(3).is_some();
-            view! {r#"
-                div bg-[#000000] text-[#ededed] size-full p-4 flex flex-col items-center justify-center font-[Geist]
-                    div bg-[#050505] border border-[#262626] rounded shadow-lg w-[940px] flex flex-col overflow-hidden
-                        div border-b border-[#262626] h-14 px-6 flex flex-row items-center gap-3
-                            div bg-[#ffffff] rounded w-4 h-4
-                            div text-lg font-semibold
-                                "Alpenglow Installer"
-                        div p-6 flex flex-col gap-4
-                            div flex flex-row items-center gap-3
-                                div bg-[#ffffff] text-[#000000] rounded px-4 py-2 text-sm font-bold
-                                    "1 Choose disk"
-                                div border border-[#333333] text-[#a1a1a1] rounded px-4 py-2 text-sm
-                                    "2 Review"
-                                div border border-[#333333] text-[#a1a1a1] rounded px-4 py-2 text-sm
-                                    "3 Install"
-                            div flex flex-row items-end justify-between gap-6
-                                div text-3xl font-bold
-                                    "Select disk"
-                                div text-sm text-[#9a9a9a]
-                                    "This will overwrite the selected disk."
-                            div border border-[#2f2f2f] rounded overflow-hidden flex flex-col
-                                div bg-[#101010] border-b border-[#2f2f2f] px-5 py-4 flex flex-row items-center justify-between
+    fn refresh_disks(
+        &mut self,
+        _: &ClickEvent,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.disks = discover_disks();
+        if self.target.is_none() {
+            self.target = self.disks.first().map(|disk| disk.path.clone());
+        }
+        self.status = self
+            .target
+            .as_ref()
+            .map(|target| format!("Ready to install to {}", target.display()))
+            .unwrap_or_else(|| "No install target found.".to_string());
+        cx.notify();
+    }
+
+    fn select_disk(&mut self, index: usize, cx: &mut gpui::Context<Self>) {
+        let Some(disk) = self.disks.get(index) else {
+            self.status = "That disk is no longer available.".to_string();
+            cx.notify();
+            return;
+        };
+        self.target = Some(disk.path.clone());
+        self.status = format!("Ready to install to {}", disk.path.display());
+        cx.notify();
+    }
+
+    fn select_disk_0(
+        &mut self,
+        _: &ClickEvent,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.select_disk(0, cx);
+    }
+
+    fn select_disk_1(
+        &mut self,
+        _: &ClickEvent,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.select_disk(1, cx);
+    }
+
+    fn select_disk_2(
+        &mut self,
+        _: &ClickEvent,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.select_disk(2, cx);
+    }
+
+    fn select_disk_3(
+        &mut self,
+        _: &ClickEvent,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.select_disk(3, cx);
+    }
+
+    fn disk_label(&self, index: usize) -> String {
+        self.disks
+            .get(index)
+            .map(|disk| disk.path.display().to_string())
+            .unwrap_or_default()
+    }
+
+    fn disk_detail(&self, index: usize) -> String {
+        self.disks
+            .get(index)
+            .map(|disk| disk.detail.clone())
+            .unwrap_or_default()
+    }
+
+    fn install(&mut self, _: &ClickEvent, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
+        let Some(target) = self.target.as_ref() else {
+            self.status = "Choose an install target first.".to_string();
+            cx.notify();
+            return;
+        };
+        match install_image_maybe_compressed(&self.source, target, false) {
+            Ok(bytes) => self.status = format!("Wrote {bytes} bytes to {}", target.display()),
+            Err(err) => self.status = format!("Install failed: {err}"),
+        }
+        cx.notify();
+    }
+}
+
+#[cfg(feature = "gui")]
+impl gpui::Render for InstallerView {
+    fn render(
+        &mut self,
+        _window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl IntoElement {
+        let source = self.source.display().to_string();
+        let target = self
+            .target
+            .as_ref()
+            .map(|target| target.display().to_string())
+            .unwrap_or_else(|| "No target disk selected".to_string());
+        let status = self.status.clone();
+        let has_target = self.target.is_some();
+        let disk_0 = self.disk_label(0);
+        let disk_0_detail = self.disk_detail(0);
+        let disk_1 = self.disk_label(1);
+        let disk_1_detail = self.disk_detail(1);
+        let disk_2 = self.disk_label(2);
+        let disk_2_detail = self.disk_detail(2);
+        let disk_3 = self.disk_label(3);
+        let disk_3_detail = self.disk_detail(3);
+        let has_disk_0 = self.disks.first().is_some();
+        let has_disk_1 = self.disks.get(1).is_some();
+        let has_disk_2 = self.disks.get(2).is_some();
+        let has_disk_3 = self.disks.get(3).is_some();
+        view! {r#"
+            div bg-[#000000] text-[#ededed] size-full p-4 flex flex-col items-center justify-center font-[Geist]
+                div bg-[#050505] border border-[#262626] rounded shadow-lg w-[940px] flex flex-col overflow-hidden
+                    div border-b border-[#262626] h-14 px-6 flex flex-row items-center gap-3
+                        div bg-[#ffffff] rounded w-4 h-4
+                        div text-lg font-semibold
+                            "Alpenglow Installer"
+                    div p-6 flex flex-col gap-4
+                        div flex flex-row items-center gap-3
+                            div bg-[#ffffff] text-[#000000] rounded px-4 py-2 text-sm font-bold
+                                "1 Choose disk"
+                            div border border-[#333333] text-[#a1a1a1] rounded px-4 py-2 text-sm
+                                "2 Review"
+                            div border border-[#333333] text-[#a1a1a1] rounded px-4 py-2 text-sm
+                                "3 Install"
+                        div flex flex-row items-end justify-between gap-6
+                            div text-3xl font-bold
+                                "Select disk"
+                            div text-sm text-[#9a9a9a]
+                                "This will overwrite the selected disk."
+                        div border border-[#2f2f2f] rounded overflow-hidden flex flex-col
+                            div bg-[#101010] border-b border-[#2f2f2f] px-5 py-4 flex flex-row items-center justify-between
+                                div flex flex-col gap-1
+                                    div text-sm font-semibold
+                                        "Available disks"
+                                    div text-xs text-[#8a8a8a]
+                                        "Detected from /sys/block"
+                                button border border-[#3a3a3a] bg-[#050505] text-[#ededed] rounded px-4 py-2 text-xs @click=refresh_disks
+                                    "Refresh"
+                            if {has_disk_0}
+                                button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_0
                                     div flex flex-col gap-1
-                                        div text-sm font-semibold
-                                            "Available disks"
+                                        div text-base font-semibold
+                                            "{disk_0}"
                                         div text-xs text-[#8a8a8a]
-                                            "Detected from /sys/block"
-                                    button border border-[#3a3a3a] bg-[#050505] text-[#ededed] rounded px-4 py-2 text-xs @click=refresh_disks
-                                        "Refresh"
-                                if {has_disk_0}
-                                    button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_0
-                                        div flex flex-col gap-1
-                                            div text-base font-semibold
-                                                "{disk_0}"
-                                            div text-xs text-[#8a8a8a]
-                                                "{disk_0_detail}"
-                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
-                                            "Choose"
-                                if {has_disk_1}
-                                    button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_1
-                                        div flex flex-col gap-1
-                                            div text-base font-semibold
-                                                "{disk_1}"
-                                            div text-xs text-[#8a8a8a]
-                                                "{disk_1_detail}"
-                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
-                                            "Choose"
-                                if {has_disk_2}
-                                    button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_2
-                                        div flex flex-col gap-1
-                                            div text-base font-semibold
-                                                "{disk_2}"
-                                            div text-xs text-[#8a8a8a]
-                                                "{disk_2_detail}"
-                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
-                                            "Choose"
-                                if {has_disk_3}
-                                    button bg-[#050505] text-[#ededed] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_3
-                                        div flex flex-col gap-1
-                                            div text-base font-semibold
-                                                "{disk_3}"
-                                            div text-xs text-[#8a8a8a]
-                                                "{disk_3_detail}"
-                                        div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
-                                            "Choose"
-                            div border border-[#2f2f2f] rounded p-4 flex flex-col gap-2
-                                div text-xs text-[#8a8a8a]
-                                    "Source"
-                                div text-sm text-[#ededed]
-                                    "{source}"
-                                div text-xs text-[#8a8a8a]
-                                    "Target"
-                                div text-sm text-[#ededed]
-                                    "{target}"
-                                div text-xs text-[#8a8a8a]
-                                    "Status"
-                                div text-sm text-[#ededed]
-                                    "{status}"
-                            div border-t border-[#262626] pt-4 flex flex-row items-center justify-between
-                                div text-xs text-[#777777]
-                                    "No changes are made until Install is clicked."
-                                if {has_target}
-                                    button bg-[#ffffff] text-[#000000] font-bold rounded px-6 py-3 @click=install
-                                        "Install"
-                                else
-                                    div text-sm text-[#888888]
-                                        "Choose a disk to continue"
-            "#}
-        }
+                                            "{disk_0_detail}"
+                                    div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                        "Choose"
+                            if {has_disk_1}
+                                button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_1
+                                    div flex flex-col gap-1
+                                        div text-base font-semibold
+                                            "{disk_1}"
+                                        div text-xs text-[#8a8a8a]
+                                            "{disk_1_detail}"
+                                    div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                        "Choose"
+                            if {has_disk_2}
+                                button bg-[#050505] text-[#ededed] border-b border-[#262626] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_2
+                                    div flex flex-col gap-1
+                                        div text-base font-semibold
+                                            "{disk_2}"
+                                        div text-xs text-[#8a8a8a]
+                                            "{disk_2_detail}"
+                                    div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                        "Choose"
+                            if {has_disk_3}
+                                button bg-[#050505] text-[#ededed] px-5 py-3 flex flex-row items-center justify-between @click=select_disk_3
+                                    div flex flex-col gap-1
+                                        div text-base font-semibold
+                                            "{disk_3}"
+                                        div text-xs text-[#8a8a8a]
+                                            "{disk_3_detail}"
+                                    div border border-[#3a3a3a] rounded px-3 py-1 text-xs text-[#d4d4d4]
+                                        "Choose"
+                        div border border-[#2f2f2f] rounded p-4 flex flex-col gap-2
+                            div text-xs text-[#8a8a8a]
+                                "Source"
+                            div text-sm text-[#ededed]
+                                "{source}"
+                            div text-xs text-[#8a8a8a]
+                                "Target"
+                            div text-sm text-[#ededed]
+                                "{target}"
+                            div text-xs text-[#8a8a8a]
+                                "Status"
+                            div text-sm text-[#ededed]
+                                "{status}"
+                        div border-t border-[#262626] pt-4 flex flex-row items-center justify-between
+                            div text-xs text-[#777777]
+                                "No changes are made until Install is clicked."
+                            if {has_target}
+                                button bg-[#ffffff] text-[#000000] font-bold rounded px-6 py-3 @click=install
+                                    "Install"
+                            else
+                                div text-sm text-[#888888]
+                                    "Choose a disk to continue"
+        "#}
     }
+}
 
-    fn discover_disks() -> Vec<DiskChoice> {
-        let entries: Vec<_> = fs::read_dir("/sys/block")
-            .ok()
-            .into_iter()
-            .flat_map(|entries| entries.filter_map(Result::ok))
-            .filter(|entry| {
+#[cfg(feature = "gui")]
+fn discover_disks() -> Vec<DiskChoice> {
+    let entries: Vec<_> = fs::read_dir("/sys/block")
+        .ok()
+        .into_iter()
+        .flat_map(|entries| entries.filter_map(Result::ok))
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy().to_string();
+            is_install_disk_name(&name) && PathBuf::from("/dev").join(&name).exists()
+        })
+        .collect();
+
+    let mut disks = std::thread::scope(|s| {
+        let mut handles = Vec::with_capacity(entries.len());
+        for entry in entries {
+            handles.push(s.spawn(move || {
                 let name = entry.file_name().to_string_lossy().to_string();
-                is_install_disk_name(&name) && PathBuf::from("/dev").join(&name).exists()
-            })
-            .collect();
+                let path = PathBuf::from("/dev").join(&name);
+                let size = fs::read_to_string(entry.path().join("size")).ok();
+                let model = fs::read_to_string(entry.path().join("device/model"))
+                    .ok()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty());
+                let detail = match (
+                    model,
+                    size.and_then(|value| value.trim().parse::<u64>().ok()),
+                ) {
+                    (Some(model), Some(sectors)) => {
+                        format!("{model} - {}", format_disk_size(sectors))
+                    }
+                    (Some(model), None) => model,
+                    (None, Some(sectors)) => format_disk_size(sectors),
+                    (None, None) => "Block device".to_string(),
+                };
+                DiskChoice { path, name, detail }
+            }));
+        }
+        handles
+            .into_iter()
+            .filter_map(|h| h.join().ok())
+            .collect::<Vec<_>>()
+    });
 
-        let mut disks = std::thread::scope(|s| {
-            let mut handles = Vec::with_capacity(entries.len());
-            for entry in entries {
-                handles.push(s.spawn(move || {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    let path = PathBuf::from("/dev").join(&name);
-                    let size = fs::read_to_string(entry.path().join("size")).ok();
-                    let model = fs::read_to_string(entry.path().join("device/model"))
-                        .ok()
-                        .map(|value| value.trim().to_string())
-                        .filter(|value| !value.is_empty());
-                    let detail = match (
-                        model,
-                        size.and_then(|value| value.trim().parse::<u64>().ok()),
-                    ) {
-                        (Some(model), Some(sectors)) => {
-                            format!("{model} - {}", format_disk_size(sectors))
-                        }
-                        (Some(model), None) => model,
-                        (None, Some(sectors)) => format_disk_size(sectors),
-                        (None, None) => "Block device".to_string(),
-                    };
-                    DiskChoice { path, name, detail }
-                }));
-            }
-            handles
-                .into_iter()
-                .filter_map(|h| h.join().ok())
-                .collect::<Vec<_>>()
-        });
+    disks.sort_by(|left, right| left.name.cmp(&right.name));
+    disks
+}
 
-        disks.sort_by(|left, right| left.name.cmp(&right.name));
-        disks
-    }
+#[cfg(not(feature = "gui"))]
+fn main() {
+    println!("GUI feature is not enabled. Please compile with --features gui");
+}
 
+#[cfg(feature = "gui")]
+fn main() {
     let (source, target) = parse_install_args(std::env::args_os().skip(1));
     Application::new().run(|cx: &mut App| {
         let options = gpui_window_options(
@@ -336,7 +348,6 @@ fn main() {
         }
     });
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
