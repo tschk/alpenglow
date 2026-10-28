@@ -68,7 +68,9 @@ impl Taps {
 
 pub fn normalize_tap(name: &str) -> Result<(String, String)> {
     if name.starts_with("http://") {
-        return Err(OilError::Install("unencrypted http:// URLs are not allowed".into()));
+        return Err(OilError::Install(
+            "unencrypted http:// URLs are not allowed".into(),
+        ));
     }
     if name.starts_with("https://") || name.starts_with("git@") {
         Ok((name.to_string(), name.to_string()))
@@ -111,20 +113,19 @@ impl TapRegistry {
         Ok(dir.join(format!("tap-{}.json", cache_key(&self.name))))
     }
 
-    pub fn update(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn update(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
 
         eprintln!("Fetching tap index: {url}");
-        let resp = crate::util::security::get_validated(&url).map_err(|e| {
-            OilError::Install(format!("Failed to fetch tap index from {url}: {e}"))
-        })?;
+        let resp = crate::util::security::get_validated(&url)
+            .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
         let mut body = Vec::new();
         resp.into_body()
             .into_reader()
             .read_to_end(&mut body)
             .map_err(|e| OilError::Install(format!("Failed to read tap index body: {e}")))?;
-        let packages: Vec<PackageMetadata> = serde_json::from_slice(&body)
+        let packages: Vec<PackageMetadata<'static>> = serde_json::from_slice(&body)
             .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -133,11 +134,11 @@ impl TapRegistry {
         Ok(packages)
     }
 
-    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)
+            let packages: Vec<PackageMetadata<'static>> = serde_json::from_str(&data)
                 .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
             if packages
                 .iter()
@@ -320,14 +321,20 @@ mod tests {
         let registry = TapRegistry::new("poison", "https://attacker.example/tap");
         let cache_path = registry.cache_path().expect("cache path");
         let poisoned = [PackageMetadata {
-            name: "evil".into(),
-            version: "1".into(),
-            description: String::new(),
-            download_url: "https://attacker.example/evil.apk".into(),
-            sha256: None,
+            name: std::borrow::Cow::Owned("evil".into()),
+            version: std::borrow::Cow::Owned("1".into()),
+            description: std::borrow::Cow::Owned(String::new()),
+            download_url: std::borrow::Cow::Owned("https://attacker.example/evil.apk".into()),
+            sha256: None.map(std::borrow::Cow::Owned),
             installed_size: 0,
-            depends: Vec::new(),
-            provides: Vec::new(),
+            depends: Vec::new()
+                .into_iter()
+                .map(std::borrow::Cow::Owned)
+                .collect(),
+            provides: Vec::new()
+                .into_iter()
+                .map(std::borrow::Cow::Owned)
+                .collect(),
         }];
         std::fs::write(
             &cache_path,
@@ -381,15 +388,16 @@ mod tests {
         let registry = TapRegistry::new("corrupt", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"{not valid json}",
-        )
-        .expect("write corrupt tap cache");
+        std::fs::write(&cache_path, b"{not valid json}").expect("write corrupt tap cache");
 
-        let err = registry.load().expect_err("corrupt tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
-        assert!(msg.contains("Failed to parse tap index"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("Failed to parse tap index"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]
@@ -398,7 +406,11 @@ mod tests {
         let registry = TapRegistry::new("missing", "http://invalid.url.that.will.fail");
 
         let err = registry.load().expect_err("should return error");
-        assert!(err.to_string().contains("Failed to fetch tap index"), "unexpected error: {}", err);
+        assert!(
+            err.to_string().contains("Failed to fetch tap index"),
+            "unexpected error: {}",
+            err
+        );
     }
 
     #[test]
@@ -407,13 +419,12 @@ mod tests {
         let registry = TapRegistry::new("invalid_struct", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"{\"unexpected\": \"format\"}",
-        )
-        .expect("write invalid json structure to tap cache");
+        std::fs::write(&cache_path, b"{\"unexpected\": \"format\"}")
+            .expect("write invalid json structure to tap cache");
 
-        let err = registry.load().expect_err("invalid json structure in tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("invalid json structure in tap cache should return error");
         let msg = err.to_string();
         assert!(msg.contains("invalid type"), "unexpected error: {msg}");
     }
@@ -430,7 +441,9 @@ mod tests {
         }
         std::fs::create_dir(&cache_path).expect("create directory at cache path");
 
-        let err = registry.load().expect_err("reading a directory as tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("reading a directory as tap cache should return error");
         assert!(matches!(err, OilError::Io(_)), "unexpected error: {err}");
     }
 
@@ -440,15 +453,16 @@ mod tests {
         let registry = TapRegistry::new("invalid_utf8", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"\xFF\xFF\xFF",
-        )
-        .expect("write invalid utf8 tap cache");
+        std::fs::write(&cache_path, b"\xFF\xFF\xFF").expect("write invalid utf8 tap cache");
 
-        let err = registry.load().expect_err("invalid utf8 tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("invalid utf8 tap cache should return error");
         let msg = err.to_string();
-        assert!(msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]
@@ -457,13 +471,11 @@ mod tests {
         let registry = TapRegistry::new("invalid", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"[{\"name\":\"foo\"}]",
-        )
-        .expect("write invalid package data");
+        std::fs::write(&cache_path, b"[{\"name\":\"foo\"}]").expect("write invalid package data");
 
-        let err = registry.load().expect_err("invalid package data should return error");
+        let err = registry
+            .load()
+            .expect_err("invalid package data should return error");
         let msg = err.to_string();
         assert!(msg.contains("missing field"), "unexpected error: {msg}");
     }

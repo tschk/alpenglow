@@ -1,0 +1,16 @@
+<<<<<<< SEARCH
+    #[test]
+    fn parse_apkindex_archive_reads_apkindex_member() {
+=======
+    #[test]
+    fn bench_parse_apkindex() {
+        let stanza = "P:ripgrep\nV:15.1.0-r0\nT:Search tool\nI:12345\nD:so:libc.musl-aarch64.so.1 dep2 dep3 dep4\np:cmd:rg=15.1.0-r0 prov2 prov3 prov4\n\n";
+        let content = stanza.repeat(50000);
+        let start = std::time::Instant::now();
+        let _ = super::parse_apkindex(&content, "mirror", "branch", "repo", "arch");
+        println!("BENCHMARK: parse_apkindex took {:?}", start.elapsed());
+    }
+
+    #[test]
+    fn parse_apkindex_archive_reads_apkindex_member() {
+>>>>>>> REPLACE

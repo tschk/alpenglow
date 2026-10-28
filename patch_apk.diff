@@ -1,0 +1,31 @@
+<<<<<<< SEARCH
+        if name
+            .as_deref()
+            .map(|n| is_apkindex_entry(std::path::Path::new(n)))
+            .unwrap_or(false)
+        {
+            let content = std::str::from_utf8(&tar[data_start..data_end])
+                .map_err(|e| OilError::Install(format!("APKINDEX is not UTF-8: {e}")))?;
+            return Ok(parse_apkindex(content, mirror, branch, repo, arch));
+        }
+=======
+        if name
+            .as_deref()
+            .map(|n| is_apkindex_entry(std::path::Path::new(n)))
+            .unwrap_or(false)
+        {
+            let content = std::str::from_utf8(&tar[data_start..data_end])
+                .map_err(|e| OilError::Install(format!("APKINDEX is not UTF-8: {e}")))?;
+            let pkgs = parse_apkindex(content, mirror, branch, repo, arch);
+            return Ok(pkgs.into_iter().map(|p| PackageMetadata {
+                name: std::borrow::Cow::Owned(p.name.into_owned()),
+                version: std::borrow::Cow::Owned(p.version.into_owned()),
+                description: std::borrow::Cow::Owned(p.description.into_owned()),
+                download_url: std::borrow::Cow::Owned(p.download_url.into_owned()),
+                sha256: p.sha256.map(|s| std::borrow::Cow::Owned(s.into_owned())),
+                installed_size: p.installed_size,
+                depends: p.depends.into_iter().map(|s| std::borrow::Cow::Owned(s.into_owned())).collect(),
+                provides: p.provides.into_iter().map(|s| std::borrow::Cow::Owned(s.into_owned())).collect(),
+            }).collect());
+        }
+>>>>>>> REPLACE
