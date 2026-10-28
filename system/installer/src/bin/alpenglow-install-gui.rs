@@ -21,7 +21,7 @@ fn is_install_disk_name(name: &str) -> bool {
 }
 
 #[cfg(feature = "gui")]
-fn main() {
+mod gui {
     use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
     use crepuscularity_gpui::prelude::*;
     use gpui::{bounds, point, size, App, Application, ClickEvent};
@@ -278,7 +278,7 @@ fn main() {
             .flat_map(|entries| entries.filter_map(Result::ok))
             .filter(|entry| {
                 let name = entry.file_name().to_string_lossy().to_string();
-                is_install_disk_name(&name) && PathBuf::from("/dev").join(&name).exists()
+                super::is_install_disk_name(&name) && PathBuf::from("/dev").join(&name).exists()
             })
             .collect();
 
@@ -298,10 +298,10 @@ fn main() {
                         size.and_then(|value| value.trim().parse::<u64>().ok()),
                     ) {
                         (Some(model), Some(sectors)) => {
-                            format!("{model} - {}", format_disk_size(sectors))
+                            format!("{model} - {}", super::format_disk_size(sectors))
                         }
                         (Some(model), None) => model,
-                        (None, Some(sectors)) => format_disk_size(sectors),
+                        (None, Some(sectors)) => super::format_disk_size(sectors),
                         (None, None) => "Block device".to_string(),
                     };
                     DiskChoice { path, name, detail }
@@ -317,24 +317,31 @@ fn main() {
         disks
     }
 
-    let (source, target) = parse_install_args(std::env::args_os().skip(1));
-    Application::new().run(|cx: &mut App| {
-        let options = gpui_window_options(
-            "alpenglow.installer",
-            "Alpenglow Installer",
-            Some(gpui::WindowBounds::Windowed(bounds(
-                point(gpui::px(140.), gpui::px(64.)),
-                size(gpui::px(1040.), gpui::px(700.)),
-            ))),
-            Some(size(gpui::px(940.), gpui::px(620.))),
-        );
-        if let Err(e) = cx.open_window(options, |_, cx| {
-            cx.new(|_| InstallerView::new(source, target))
-        }) {
-            eprintln!("Failed to open window: {:?}", e);
-            cx.quit();
-        }
-    });
+    pub fn run() {
+        let (source, target) = parse_install_args(std::env::args_os().skip(1));
+        Application::new().run(|cx: &mut App| {
+            let options = gpui_window_options(
+                "alpenglow.installer",
+                "Alpenglow Installer",
+                Some(gpui::WindowBounds::Windowed(bounds(
+                    point(gpui::px(140.), gpui::px(64.)),
+                    size(gpui::px(1040.), gpui::px(700.)),
+                ))),
+                Some(size(gpui::px(940.), gpui::px(620.))),
+            );
+            if let Err(e) = cx.open_window(options, |_, cx| {
+                cx.new(|_| InstallerView::new(source, target))
+            }) {
+                eprintln!("Failed to open window: {:?}", e);
+                cx.quit();
+            }
+        });
+    }
+}
+
+#[cfg(feature = "gui")]
+fn main() {
+    gui::run();
 }
 
 #[cfg(test)]
