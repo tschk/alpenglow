@@ -2,10 +2,14 @@
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
-fn main() {
+
+fn mount_basic_filesystems() {
     run("/bin/mount", &["-t", "proc", "proc", "/proc"]);
     run("/bin/mount", &["-t", "sysfs", "sysfs", "/sys"]);
     run("/bin/mount", &["-t", "devtmpfs", "devtmpfs", "/dev"]);
+}
+
+fn setup_directories() {
     for d in &["/run", "/dev/shm", "/tmp", "/state", "/sysroot"] {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
@@ -19,6 +23,9 @@ fn main() {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
+}
+
+fn mount_tmpfs_filesystems() {
     run(
         "/bin/mount",
         &[
@@ -65,6 +72,9 @@ fn main() {
             "/tmp",
         ],
     );
+}
+
+fn setup_user_run_directory() {
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
     }
@@ -75,6 +85,9 @@ fn main() {
     {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
+}
+
+fn load_kernel_modules() {
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
         if m.is_empty()
             || m.starts_with('-')
@@ -95,6 +108,9 @@ fn main() {
             _ => {}
         }
     }
+}
+
+fn start_dinit() -> ! {
     println!();
     println!("Alpenglow boot (rust-init)");
     println!();
@@ -105,6 +121,16 @@ fn main() {
     eprintln!("init: dinit exec failed: {}", err);
     std::process::exit(1);
 }
+
+fn main() {
+    mount_basic_filesystems();
+    setup_directories();
+    mount_tmpfs_filesystems();
+    setup_user_run_directory();
+    load_kernel_modules();
+    start_dinit();
+}
+
 fn run(prog: &str, args: &[&str]) {
     if let Err(e) = Command::new(prog).args(args).env_clear().status() {
         eprintln!("init: {} failed: {}", prog, e);
