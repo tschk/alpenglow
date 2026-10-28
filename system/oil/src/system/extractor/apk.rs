@@ -858,4 +858,54 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_extract_tracked_no_signature_stream(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let dir = tempdir()?;
+        let dest_dir = dir.path().join("dest");
+        let apk_path = dir.path().join("unsigned.apk");
+
+        // Stream 1 is gzip but not a tar, so no signature entry can be found.
+        let mut data_tar = tar::Builder::new(Vec::new());
+        let file_data = b"hello world";
+        let mut header = tar::Header::new_gnu();
+        header.set_size(file_data.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        data_tar.append_data(&mut header, "hello.txt", &file_data[..])?;
+        let data_tar_data = data_tar.into_inner()?;
+
+        let mut apk_data = create_gz_stream(b"dummy sig")?;
+        apk_data.extend(create_gz_stream(b"dummy control")?);
+        apk_data.extend(create_gz_stream(&data_tar_data)?);
+        std::fs::write(&apk_path, &apk_data)?;
+
+        let _guard = InsecureEnvGuard::new();
+
+        // Secure mode: an unsigned package is rejected before anything is written.
+        std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+        let err = extract_tracked(&apk_path, &dest_dir).unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                OilError::Install(msg)
+                    if msg == "APK has no signature stream; set OIL_INSECURE_NO_VERIFY=1 to override"
+            ),
+            "unexpected error: {err:?}"
+        );
+        assert!(!dest_dir.exists());
+
+        // Insecure mode: extraction proceeds with the data stream.
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+        let (files, dirs) = extract_tracked(&apk_path, &dest_dir)?;
+        assert_eq!(files, vec![dest_dir.join("hello.txt")]);
+        assert!(dirs.is_empty());
+        assert_eq!(
+            std::fs::read_to_string(dest_dir.join("hello.txt"))?,
+            "hello world"
+        );
+
+        Ok(())
+    }
 }
