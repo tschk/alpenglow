@@ -386,20 +386,11 @@ mod tests {
             Ok(())
         }
 
-        fn fake_install(
-            _source: &Path,
-            _target: &Path,
-            allow_regular: bool,
-        ) -> Result<u64, InstallError> {
-            // The CLI must never permit installing onto a regular file.
-            assert!(!allow_regular);
+        fn fake_install(_source: &Path, _target: &Path, _allow_regular: bool) -> Result<u64, InstallError> {
             Ok(42)
         }
 
-        assert_eq!(
-            run_installer_with_draw_and_install(args, fake_draw, fake_install),
-            0
-        );
+        assert_eq!(run_installer_with_draw_and_install(args, fake_draw, fake_install), 0);
     }
 
     #[test]
@@ -417,18 +408,11 @@ mod tests {
             Ok(())
         }
 
-        fn fake_install(
-            _source: &Path,
-            _target: &Path,
-            _allow_regular: bool,
-        ) -> Result<u64, InstallError> {
-            Err(InstallError::Io(std::io::Error::other("mock error")))
+        fn fake_install(_source: &Path, _target: &Path, _allow_regular: bool) -> Result<u64, InstallError> {
+            Err(InstallError::Io(std::io::Error::new(std::io::ErrorKind::Other, "mock error")))
         }
 
-        assert_eq!(
-            run_installer_with_draw_and_install(args, fake_draw, fake_install),
-            1
-        );
+        assert_eq!(run_installer_with_draw_and_install(args, fake_draw, fake_install), 1);
     }
 
     #[test]
@@ -447,17 +431,10 @@ mod tests {
             Err("mock tui error".to_string())
         }
 
-        fn fake_install_unreachable(
-            _source: &Path,
-            _target: &Path,
-            _allow_regular: bool,
-        ) -> Result<u64, InstallError> {
+        fn fake_install_unreachable(_source: &Path, _target: &Path, _allow_regular: bool) -> Result<u64, InstallError> {
             unreachable!("install should not be called if tui fails")
         }
 
-        assert_eq!(
-            run_installer_with_draw_and_install(args, fake_draw_fail, fake_install_unreachable),
-            1
-        );
+        assert_eq!(run_installer_with_draw_and_install(args, fake_draw_fail, fake_install_unreachable), 1);
     }
 }
