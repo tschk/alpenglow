@@ -389,8 +389,10 @@ mod tests {
         fn fake_install(
             _source: &Path,
             _target: &Path,
-            _allow_regular: bool,
+            allow_regular: bool,
         ) -> Result<u64, InstallError> {
+            // The CLI must never permit installing onto a regular file.
+            assert!(!allow_regular);
             Ok(42)
         }
 
