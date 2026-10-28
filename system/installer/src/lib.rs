@@ -359,6 +359,39 @@ mod tests {
     }
 
     #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn mock_install(
+            source: &Path,
+            target: &Path,
+            _allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            let data = std::fs::read(source).unwrap();
+            std::fs::write(target, &data).unwrap();
+            Ok(data.len() as u64)
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw, mock_install),
+            0
+        );
+    }
+
+    #[test]
     fn test_run_installer_fail_invalid_target() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("source.img");
