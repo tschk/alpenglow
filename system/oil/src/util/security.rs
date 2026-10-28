@@ -105,15 +105,10 @@ pub fn resolve_install_dest(prefix: Option<&Path>, relative: &Path) -> Result<Pa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
 
-    static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
-
+    // Crate-wide env lock: other modules' tests also toggle OIL_* variables.
     fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-        ENV_MUTEX
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
+        crate::test_support::home_env_lock()
     }
 
     #[test]
@@ -139,8 +134,33 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_url_format() {
+        let err1 = validate_download_url("https://").unwrap_err();
+        assert!(err1.to_string().contains("invalid download URL: https://"));
+
+        let err2 = validate_download_url("https:///foo").unwrap_err();
+        assert!(err2.to_string().contains("invalid download URL: https:///foo"));
+    }
+
+    #[test]
     fn rejects_http() {
         assert!(validate_download_url("http://dl-cdn.alpinelinux.org/x.apk").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_url() {
+        assert!(validate_download_url("https://").is_err());
+        assert!(validate_download_url("https:///path/only").is_err());
+        assert!(validate_download_url("https://[1::2::3]/").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_url_authority_with_exact_message() {
+        let err = validate_download_url("https://a b/").unwrap_err();
+        assert_eq!(err.to_string(), "invalid download URL: https://a b/");
+
+        let err2 = validate_download_url("https:///").unwrap_err();
+        assert_eq!(err2.to_string(), "invalid download URL: https:///");
     }
 
     #[test]

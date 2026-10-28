@@ -77,13 +77,26 @@ pub fn run_installer<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
-    run_installer_with_draw(args, tui::draw_installer_tui)
+    run_installer_with_draw_and_install(
+        args,
+        tui::draw_installer_tui,
+        install_image_maybe_compressed,
+    )
 }
 
 pub fn run_installer_with_draw<I, F>(args: I, draw: F) -> i32
 where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
+    run_installer_with_draw_and_install(args, draw, install_image_maybe_compressed)
+}
+
+pub fn run_installer_with_draw_and_install<I, F, G>(args: I, draw: F, install: G) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+    G: FnOnce(&Path, &Path, bool) -> Result<u64, InstallError>,
 {
     let (tui, source, target) = parse_installer_args(args);
     if tui {
@@ -96,7 +109,7 @@ where
         eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
-    match install_image_maybe_compressed(&source, &target, false) {
+    match install(&source, &target, false) {
         Ok(bytes) => {
             println!("wrote {bytes} bytes to {}", target.display());
             0
@@ -356,5 +369,95 @@ mod tests {
             OsString::from("/dev/null_does_not_exist_xyz"),
         ];
         assert_eq!(run_installer(args), 1);
+    }
+
+    #[test]
+    fn test_run_installer_success_with_mock() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn fake_install(
+            _source: &Path,
+            _target: &Path,
+            allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            // The CLI must never permit installing onto a regular file.
+            assert!(!allow_regular);
+            Ok(42)
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            0
+        );
+    }
+
+    #[test]
+    fn test_run_installer_install_fail_with_mock() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn fake_install(
+            _source: &Path,
+            _target: &Path,
+            _allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            Err(InstallError::Io(std::io::Error::other("mock error")))
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            1
+        );
+    }
+
+    #[test]
+    fn test_run_installer_tui_fail_with_mock() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw_fail(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Err("mock tui error".to_string())
+        }
+
+        fn fake_install_unreachable(
+            _source: &Path,
+            _target: &Path,
+            _allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            unreachable!("install should not be called if tui fails")
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw_fail, fake_install_unreachable),
+            1
+        );
     }
 }
