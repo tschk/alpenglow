@@ -29,4 +29,9 @@ describe("styles", () => {
     expect(globalCss).toContain("z-index: 10;");
     expect(globalCss).toContain("pointer-events: auto;");
   });
+
+  test("includes xterm host child styles", () => {
+    expect(globalCss).toContain("#xterm_host canvas {");
+    expect(globalCss).toContain("#xterm_host textarea {");
+  });
 });
