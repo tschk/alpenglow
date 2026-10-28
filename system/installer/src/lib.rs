@@ -89,10 +89,36 @@ where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
 {
-    run_installer_with_draw_and_install(args, draw, install_image_maybe_compressed)
+    run_installer_with_draw_internal(args, draw, false)
+}
+
+#[cfg(test)]
+pub fn run_installer_with_draw_allow_regular<I, F>(args: I, draw: F) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
+    run_installer_with_draw_internal(args, draw, true)
+}
+
+fn run_installer_with_draw_internal<I, F>(args: I, draw: F, allow_regular_file: bool) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
+    run_installer_with_draw_and_install_internal(args, draw, install_image_maybe_compressed, allow_regular_file)
 }
 
 pub fn run_installer_with_draw_and_install<I, F, G>(args: I, draw: F, install: G) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+    G: FnOnce(&Path, &Path, bool) -> Result<u64, InstallError>,
+{
+    run_installer_with_draw_and_install_internal(args, draw, install, false)
+}
+
+fn run_installer_with_draw_and_install_internal<I, F, G>(args: I, draw: F, install: G, allow_regular_file: bool) -> i32
 where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
@@ -109,7 +135,7 @@ where
         eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
-    match install(&source, &target, false) {
+    match install(&source, &target, allow_regular_file) {
         Ok(bytes) => {
             println!("wrote {bytes} bytes to {}", target.display());
             0
@@ -369,6 +395,31 @@ mod tests {
             OsString::from("/dev/null_does_not_exist_xyz"),
         ];
         assert_eq!(run_installer(args), 1);
+    }
+
+    #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        std::fs::write(&source, b"testdata").unwrap();
+        std::fs::write(&target, b"old").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        assert_eq!(
+            run_installer_with_draw_allow_regular(args, fake_draw),
+            0
+        );
     }
 
     #[test]
