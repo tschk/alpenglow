@@ -289,7 +289,10 @@ mod tests {
 
         state.clear();
 
-        assert!(state.packages.is_empty(), "State should be empty after clear");
+        assert!(
+            state.packages.is_empty(),
+            "State should be empty after clear"
+        );
 
         Ok(())
     }
