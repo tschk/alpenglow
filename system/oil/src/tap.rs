@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use crate::error::{OilError, Result};
 use crate::system::registry::PackageMetadata;
+
 use crate::util::cache::{cache_key, is_cache_fresh};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,7 +112,7 @@ impl TapRegistry {
         Ok(dir.join(format!("tap-{}.json", cache_key(&self.name))))
     }
 
-    pub fn update(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn update(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
 
@@ -124,7 +125,7 @@ impl TapRegistry {
             .into_reader()
             .read_to_end(&mut body)
             .map_err(|e| OilError::Install(format!("Failed to read tap index body: {e}")))?;
-        let packages: Vec<PackageMetadata> = serde_json::from_slice(&body)
+        let s = String::from_utf8(body.clone()).unwrap(); let leaked: &'static str = Box::leak(s.into_boxed_str()); let packages: Vec<PackageMetadata<'static>> = serde_json::from_str(leaked)
             .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -133,11 +134,11 @@ impl TapRegistry {
         Ok(packages)
     }
 
-    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)
+            let leaked: &'static str = Box::leak(data.into_boxed_str()); let packages: Vec<PackageMetadata<'static>> = serde_json::from_str(leaked)
                 .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
             if packages
                 .iter()
@@ -153,6 +154,7 @@ impl TapRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
     use std::time::{Duration, SystemTime};
 
     #[test]
@@ -320,10 +322,10 @@ mod tests {
         let registry = TapRegistry::new("poison", "https://attacker.example/tap");
         let cache_path = registry.cache_path().expect("cache path");
         let poisoned = [PackageMetadata {
-            name: "evil".into(),
-            version: "1".into(),
-            description: String::new(),
-            download_url: "https://attacker.example/evil.apk".into(),
+            name: Cow::Owned("evil".into()),
+            version: Cow::Owned("1".into()),
+            description: Cow::Owned(String::new()),
+            download_url: Cow::Owned("https://attacker.example/evil.apk".into()),
             sha256: None,
             installed_size: 0,
             depends: Vec::new(),

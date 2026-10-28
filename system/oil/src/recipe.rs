@@ -17,6 +17,7 @@ use serde::Deserialize;
 
 use crate::error::Result;
 use crate::system::registry::PackageMetadata;
+use std::borrow::Cow;
 use crate::util;
 
 fn default_install_path() -> String {
@@ -98,16 +99,16 @@ impl Recipe {
     /// This is the same type the Alpine APKINDEX loader produces, so
     /// `install_package()` treats a recipe-sourced package identically to
     /// a registry-sourced one.
-    pub fn to_package_metadata(&self) -> PackageMetadata {
+    pub fn to_package_metadata(&self) -> PackageMetadata<'static> {
         PackageMetadata {
-            name: self.name.clone(),
-            version: self.version.clone(),
-            description: self.description.clone(),
-            download_url: self.source.url.clone(),
-            sha256: self.source.sha256.clone(),
+            name: Cow::Owned(self.name.clone()),
+            version: Cow::Owned(self.version.clone()),
+            description: Cow::Owned(self.description.clone()),
+            download_url: Cow::Owned(self.source.url.clone()),
+            sha256: self.source.sha256.clone().map(Cow::Owned),
             installed_size: 0,
-            depends: self.depends.clone(),
-            provides: self.provides.clone(),
+            depends: self.depends.clone().into_iter().map(Cow::Owned).collect(),
+            provides: self.provides.clone().into_iter().map(Cow::Owned).collect(),
         }
     }
 
@@ -173,7 +174,7 @@ provides:
         assert_eq!(meta.name, "dinit");
         assert_eq!(meta.version, "0.21.0-r0");
         assert_eq!(meta.download_url, recipe.source.url);
-        assert_eq!(meta.sha256, recipe.source.sha256);
+        assert_eq!(meta.sha256.as_ref().map(|s| s.as_ref()), recipe.source.sha256.as_deref());
     }
 
     #[test]
