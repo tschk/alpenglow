@@ -850,6 +850,8 @@ mod tests {
         let result = extract_tracked(&apk_path, &dest_dir)?;
 
         assert_eq!(result.0.len(), 1); // one file written
+        assert_eq!(result.0, vec![dest_dir.join("hello.txt")]);
+        assert!(result.1.is_empty());
         assert!(dest_dir.join("hello.txt").exists());
         let content = std::fs::read_to_string(dest_dir.join("hello.txt"))?;
         assert_eq!(content, "hello world");
