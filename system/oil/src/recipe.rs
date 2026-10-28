@@ -100,14 +100,14 @@ impl Recipe {
     /// a registry-sourced one.
     pub fn to_package_metadata(&self) -> PackageMetadata {
         PackageMetadata {
-            name: self.name.clone(),
-            version: self.version.clone(),
-            description: self.description.clone(),
-            download_url: self.source.url.clone(),
-            sha256: self.source.sha256.clone(),
+            name: self.name.clone().into(),
+            version: self.version.clone().into(),
+            description: self.description.clone().into(),
+            download_url: self.source.url.clone().into(),
+            sha256: self.source.sha256.clone().map(Into::into),
             installed_size: 0,
-            depends: self.depends.clone(),
-            provides: self.provides.clone(),
+            depends: self.depends.clone().into_iter().map(Into::into).collect(),
+            provides: self.provides.clone().into_iter().map(Into::into).collect(),
         }
     }
 
@@ -173,7 +173,7 @@ provides:
         assert_eq!(meta.name, "dinit");
         assert_eq!(meta.version, "0.21.0-r0");
         assert_eq!(meta.download_url, recipe.source.url);
-        assert_eq!(meta.sha256, recipe.source.sha256);
+        assert_eq!(meta.sha256, recipe.source.sha256.clone().map(Into::into));
     }
 
     #[test]
