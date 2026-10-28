@@ -98,6 +98,20 @@ where
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
     G: FnOnce(&Path, &Path, bool) -> Result<u64, InstallError>,
 {
+    run_installer_internal(args, draw, install, false)
+}
+
+pub fn run_installer_internal<I, F, G>(
+    args: I,
+    draw: F,
+    install: G,
+    allow_regular_file: bool,
+) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+    G: FnOnce(&Path, &Path, bool) -> Result<u64, InstallError>,
+{
     let (tui, source, target) = parse_installer_args(args);
     if tui {
         if let Err(err) = draw(&source, target.as_deref()) {
@@ -109,7 +123,7 @@ where
         eprintln!("usage: alpenglow-install [--tui] <source.img|source.img.zst> <target-disk>");
         return 2;
     };
-    match install(&source, &target, false) {
+    match install(&source, &target, allow_regular_file) {
         Ok(bytes) => {
             println!("wrote {bytes} bytes to {}", target.display());
             0
@@ -199,6 +213,40 @@ mod tests {
             default_live_source(),
             PathBuf::from("/run/alpenglow/alpenglow.img.zst")
         );
+    }
+
+    #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn fake_install_mock_fs(
+            source: &Path,
+            target: &Path,
+            allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            assert!(!allow_regular);
+            std::fs::copy(source, target).map_err(InstallError::Io)
+        }
+
+        assert_eq!(
+            run_installer_internal(args, fake_draw, fake_install_mock_fs, false),
+            0
+        );
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "testdata");
     }
 
     #[test]
