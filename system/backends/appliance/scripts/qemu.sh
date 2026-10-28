@@ -39,15 +39,15 @@ case "${EFI}" in
 esac
 
 case "${ACCEL}" in
-  *[\`\$\|\&\;\<\>\\]*) echo "ERROR: ACCEL contains invalid shell metacharacters." >&2; exit 1 ;;
+  *[!a-zA-Z0-9]*) echo "ERROR: ACCEL contains invalid shell metacharacters." >&2; exit 1 ;;
 esac
 
 case "${VNC}" in
-  *[\`\$\|\&\;\<\>\\]*) echo "ERROR: VNC contains invalid shell metacharacters." >&2; exit 1 ;;
+  *[!a-zA-Z0-9.\:-]*) echo "ERROR: VNC contains invalid shell metacharacters." >&2; exit 1 ;;
 esac
 
 case "${KERNEL_CMDLINE}" in
-  *[\`\$\|\&\;\<\>\\]*)
+  *[!a-zA-Z0-9_.=,/\ \:-]*)
     echo "ERROR: KERNEL_CMDLINE contains potentially unsafe shell metacharacters." >&2
     exit 1
     ;;
