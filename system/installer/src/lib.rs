@@ -189,6 +189,15 @@ fn is_block_device(_metadata: &fs::Metadata) -> bool {
 }
 
 #[cfg(test)]
+pub fn run_installer_with_draw_and_regular_file_allowed<I, F>(args: I, draw: F) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
+    run_installer_with_draw_and_install(args, draw, |s, t, _| install_image_maybe_compressed(s, t, true))
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::{tempdir, NamedTempFile};
@@ -356,6 +365,33 @@ mod tests {
         }
         let args: Vec<OsString> = vec![OsString::from("--tui")];
         assert_eq!(run_installer_with_draw(args, fake_draw), 2);
+    }
+
+    #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let fake_draw = move |_source: &Path, _target: Option<&Path>| -> Result<(), String> {
+            tx.send(true).unwrap();
+            Ok(())
+        };
+
+        assert_eq!(
+            run_installer_with_draw_and_regular_file_allowed(args, fake_draw),
+            0
+        );
+        assert_eq!(std::fs::read(&target).unwrap(), b"testdata");
+        assert!(rx.recv().unwrap());
     }
 
     #[test]
