@@ -70,11 +70,7 @@ pub fn normalize_tap(name: &str) -> (String, String) {
     if name.starts_with("http://") || name.starts_with("https://") || name.starts_with("git@") {
         (name.to_string(), name.to_string())
     } else if name.matches('/').count() == 1 && !name.starts_with('/') && !name.ends_with('/') {
-        let trimmed = if name.ends_with(".git") {
-            &name[..name.len() - 4]
-        } else {
-            name
-        };
+        let trimmed = name.strip_suffix(".git").unwrap_or(name);
         (name.to_string(), format!("https://github.com/{}", trimmed))
     } else {
         (name.to_string(), name.to_string())
@@ -391,5 +387,80 @@ mod tests {
         let err = registry.load().expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
         assert!(msg.contains("expected"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_on_invalid_json_structure() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid_struct", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"{\"unexpected\": \"format\"}",
+        )
+        .expect("write invalid json structure to tap cache");
+
+        let err = registry.load().expect_err("invalid json structure in tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("invalid type"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_on_io_error() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("io_error", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        // Create a directory at the cache path so that reading it as a file fails
+        if let Some(parent) = cache_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::create_dir(&cache_path).expect("create directory at cache path");
+
+        let err = registry.load().expect_err("reading a directory as tap cache should return error");
+        assert!(matches!(err, OilError::Io(_)), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn load_returns_error_on_invalid_utf8_cache() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid_utf8", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"\xFF\xFF\xFF",
+        )
+        .expect("write invalid utf8 tap cache");
+
+        let err = registry.load().expect_err("invalid utf8 tap cache should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_on_invalid_package_data() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("invalid", "https://example.com/tap");
+        let cache_path = registry.cache_path().expect("cache path");
+
+        std::fs::write(
+            &cache_path,
+            b"[{\"name\":\"foo\"}]",
+        )
+        .expect("write invalid package data");
+
+        let err = registry.load().expect_err("invalid package data should return error");
+        let msg = err.to_string();
+        assert!(msg.contains("missing field"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_when_cache_path_fails() {
+        let _guard = HomeGuard::new().remove_home();
+        let registry = TapRegistry::new("mytap", "https://example.com/tap");
+        let err = registry.load().expect_err("should return error");
+        assert_eq!(err.to_string(), "$HOME not set");
     }
 }
