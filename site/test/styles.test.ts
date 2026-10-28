@@ -34,4 +34,8 @@ describe("styles", () => {
     expect(globalCss).toContain("#xterm_host canvas {");
     expect(globalCss).toContain("#xterm_host textarea {");
   });
+
+  test("defines the boot top bar separator", () => {
+    expect(globalCss).toContain(".boot-top-sep {");
+  });
 });
