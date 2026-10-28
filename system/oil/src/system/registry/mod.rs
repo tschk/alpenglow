@@ -116,7 +116,11 @@ impl<'a> PackageIndex<'a> {
 
 pub fn parse_dep_name(dep: &str) -> &str {
     let token = dep.split_whitespace().next().unwrap_or(dep);
-    token.split(['=', '<', '>', '~']).next().unwrap_or(token).trim()
+    token
+        .split(['=', '<', '>', '~'])
+        .next()
+        .unwrap_or(token)
+        .trim()
 }
 
 #[cfg(test)]
@@ -412,10 +416,9 @@ mod tests {
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
-            .resolve_install_order(
-                &["app1".to_string(), "app2".to_string()],
-                |n| skip.contains(n),
-            )
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| {
+                skip.contains(n)
+            })
             .expect("resolve order");
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["liba", "app1", "libb", "app2"]);
@@ -423,9 +426,7 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_not_found() {
-        let pkgs = vec![
-            sample_pkg("app", vec!["liba".to_string()]),
-        ];
+        let pkgs = vec![sample_pkg("app", vec!["liba".to_string()])];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
@@ -456,7 +457,9 @@ mod tests {
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
-            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| skip.contains(n))
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| {
+                skip.contains(n)
+            })
             .expect("resolve order");
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["libshared", "app1", "app2"]);
@@ -464,9 +467,7 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_empty_dep_name() {
-        let pkgs = vec![
-            sample_pkg("app", vec!["".to_string(), ">1.0".to_string()]),
-        ];
+        let pkgs = vec![sample_pkg("app", vec!["".to_string(), ">1.0".to_string()])];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
