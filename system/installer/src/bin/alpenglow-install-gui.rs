@@ -21,14 +21,17 @@ fn is_install_disk_name(name: &str) -> bool {
 }
 
 #[cfg(feature = "gui")]
-fn main() {
-    use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
+mod gui {
+
+    use super::format_disk_size;
+    use super::is_install_disk_name;
+    use alpenglow_installer::install_image_maybe_compressed;
     use crepuscularity_gpui::prelude::*;
-    use gpui::{bounds, point, size, App, Application, ClickEvent};
+    use gpui::ClickEvent;
     use std::fs;
     use std::path::PathBuf;
 
-    struct InstallerView {
+    pub(crate) struct InstallerView {
         source: PathBuf,
         target: Option<PathBuf>,
         disks: Vec<DiskChoice>,
@@ -43,7 +46,7 @@ fn main() {
     }
 
     impl InstallerView {
-        fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
+        pub(crate) fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
             let disks = discover_disks();
             let target = target.or_else(|| disks.first().map(|disk| disk.path.clone()));
             let status = target
@@ -316,10 +319,15 @@ fn main() {
         disks.sort_by(|left, right| left.name.cmp(&right.name));
         disks
     }
+}
 
-    let (source, target) = parse_install_args(std::env::args_os().skip(1));
-    Application::new().run(|cx: &mut App| {
-        let options = gpui_window_options(
+#[cfg(feature = "gui")]
+fn main() {
+    use crepuscularity_gpui::prelude::*;
+    use gpui::{bounds, point, size};
+    let (source, target) = alpenglow_installer::parse_install_args(std::env::args_os().skip(1));
+    gpui::Application::new().run(|cx: &mut gpui::App| {
+        let options = crepuscularity_gpui::prelude::gpui_window_options(
             "alpenglow.installer",
             "Alpenglow Installer",
             Some(gpui::WindowBounds::Windowed(bounds(
@@ -329,13 +337,16 @@ fn main() {
             Some(size(gpui::px(940.), gpui::px(620.))),
         );
         if let Err(e) = cx.open_window(options, |_, cx| {
-            cx.new(|_| InstallerView::new(source, target))
+            cx.new(|_| gui::InstallerView::new(source, target))
         }) {
             eprintln!("Failed to open window: {:?}", e);
             cx.quit();
         }
     });
 }
+
+#[cfg(not(feature = "gui"))]
+fn main() {}
 
 #[cfg(test)]
 mod tests {
