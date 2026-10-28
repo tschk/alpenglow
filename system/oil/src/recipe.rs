@@ -98,16 +98,24 @@ impl Recipe {
     /// This is the same type the Alpine APKINDEX loader produces, so
     /// `install_package()` treats a recipe-sourced package identically to
     /// a registry-sourced one.
-    pub fn to_package_metadata(&self) -> PackageMetadata {
+    pub fn to_package_metadata(&self) -> PackageMetadata<'static> {
         PackageMetadata {
-            name: self.name.clone(),
-            version: self.version.clone(),
-            description: self.description.clone(),
-            download_url: self.source.url.clone(),
-            sha256: self.source.sha256.clone(),
+            name: std::borrow::Cow::Owned(self.name.clone()),
+            version: std::borrow::Cow::Owned(self.version.clone()),
+            description: std::borrow::Cow::Owned(self.description.clone()),
+            download_url: std::borrow::Cow::Owned(self.source.url.clone()),
+            sha256: self.source.sha256.clone().map(std::borrow::Cow::Owned),
             installed_size: 0,
-            depends: self.depends.clone(),
-            provides: self.provides.clone(),
+            depends: self
+                .depends
+                .iter()
+                .map(|s| std::borrow::Cow::Owned(s.clone()))
+                .collect(),
+            provides: self
+                .provides
+                .iter()
+                .map(|s| std::borrow::Cow::Owned(s.clone()))
+                .collect(),
         }
     }
 
@@ -173,7 +181,10 @@ provides:
         assert_eq!(meta.name, "dinit");
         assert_eq!(meta.version, "0.21.0-r0");
         assert_eq!(meta.download_url, recipe.source.url);
-        assert_eq!(meta.sha256, recipe.source.sha256);
+        assert_eq!(
+            meta.sha256,
+            recipe.source.sha256.clone().map(std::borrow::Cow::Owned)
+        );
     }
 
     #[test]
@@ -298,7 +309,10 @@ source:
 install: /opt/custom
 "#;
         let recipe = Recipe::parse(yaml).expect("recipe should parse");
-        assert_eq!(recipe.install_dest(), std::path::PathBuf::from("/opt/custom"));
+        assert_eq!(
+            recipe.install_dest(),
+            std::path::PathBuf::from("/opt/custom")
+        );
     }
 
     #[test]
@@ -371,11 +385,13 @@ provides:
         assert_eq!(meta.version, "1.2.3-r4");
         assert_eq!(meta.description, "A test package");
         assert_eq!(meta.download_url, "https://example.com/test-pkg.apk");
-        assert_eq!(meta.sha256.as_deref(), Some("01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"));
+        assert_eq!(
+            meta.sha256.as_deref(),
+            Some("01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b")
+        );
         assert_eq!(meta.installed_size, 0);
         assert_eq!(meta.depends, vec!["dep1".to_string(), "dep2".to_string()]);
         assert_eq!(meta.provides, vec!["prov1".to_string()]);
-
     }
 
     #[test]

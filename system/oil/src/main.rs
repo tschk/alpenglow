@@ -168,8 +168,8 @@ fn dispatch_command(cmd: Commands) -> Result<()> {
 
 #[cfg(feature = "wax")]
 fn merge_tap_packages(
-    mut all: Vec<system::registry::PackageMetadata>,
-) -> Vec<system::registry::PackageMetadata> {
+    mut all: Vec<system::registry::PackageMetadata<'static>>,
+) -> Vec<system::registry::PackageMetadata<'static>> {
     let taps = match tap::Taps::new() {
         Ok(t) => t,
         Err(e) => {
@@ -213,8 +213,8 @@ fn merge_tap_packages(
 
 #[cfg(feature = "wax")]
 fn refresh_tap_packages(
-    mut all: Vec<system::registry::PackageMetadata>,
-) -> Vec<system::registry::PackageMetadata> {
+    mut all: Vec<system::registry::PackageMetadata<'static>>,
+) -> Vec<system::registry::PackageMetadata<'static>> {
     let taps = match tap::Taps::new() {
         Ok(t) => t,
         Err(e) => {
@@ -256,24 +256,24 @@ fn refresh_tap_packages(
 }
 
 #[cfg(feature = "wax")]
-fn load_registry() -> Result<Vec<system::registry::PackageMetadata>> {
+fn load_registry() -> Result<Vec<system::registry::PackageMetadata<'static>>> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().load()?;
     Ok(merge_tap_packages(apk))
 }
 
 #[cfg(not(feature = "wax"))]
-fn load_registry() -> Result<Vec<system::registry::PackageMetadata>> {
+fn load_registry() -> Result<Vec<system::registry::PackageMetadata<'static>>> {
     system::registry::apk::ApkRegistry::alpine_default().load()
 }
 
 #[cfg(feature = "wax")]
-fn refresh_registry() -> Result<Vec<system::registry::PackageMetadata>> {
+fn refresh_registry() -> Result<Vec<system::registry::PackageMetadata<'static>>> {
     let apk = system::registry::apk::ApkRegistry::alpine_default().refresh()?;
     Ok(refresh_tap_packages(apk))
 }
 
 #[cfg(not(feature = "wax"))]
-fn refresh_registry() -> Result<Vec<system::registry::PackageMetadata>> {
+fn refresh_registry() -> Result<Vec<system::registry::PackageMetadata<'static>>> {
     system::registry::apk::ApkRegistry::alpine_default().refresh()
 }
 
@@ -477,7 +477,7 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 error::OilError::Install("Installation destination not set".to_string())
             })?;
             install_package(pkg, dest)?;
-            state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
+            state.mark_installed(&pkg.name, Some(&pkg.version));
             println!("Installed {} {}", pkg.name, pkg.version);
         }
     }
@@ -503,7 +503,7 @@ fn run_install_recipe(recipe_path: PathBuf, dry_run: bool) -> Result<()> {
     util::snapshot::before_transaction("install");
     install_package(&pkg, &dest)?;
     let mut state = install::InstallState::new()?;
-    state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
+    state.mark_installed(&pkg.name, Some(&pkg.version));
     state.save()?;
     println!(
         "Installed {} {} (recipe: {})",
@@ -543,7 +543,7 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
         if let Some(_pkg) = state.get(name) {
             if let Some(latest) = index.find(name) {
                 install_package(latest, &dest)?;
-                state.mark_installed(name, Some(latest.version.as_str()));
+                state.mark_installed(name, Some(&latest.version));
                 println!("Reinstalled {name} {}", latest.version);
             }
         }
@@ -552,14 +552,14 @@ fn run_reinstall(packages: Vec<String>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn plan_upgrades<'a>(
+fn plan_upgrades<'a, 'p>(
     targets: Option<&'a [String]>,
     installed: &'a std::collections::HashMap<String, install::InstalledPackage>,
-    index: &'a PackageIndex<'a>,
+    index: &'a PackageIndex<'a, 'p>,
 ) -> Vec<(
     &'a String,
     &'a install::InstalledPackage,
-    &'a system::registry::PackageMetadata,
+    &'a system::registry::PackageMetadata<'p>,
 )> {
     let mut upgrades = Vec::new();
 
@@ -626,7 +626,7 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 error::OilError::Install("Installation destination not set".to_string())
             })?;
             install_package(latest, dest)?;
-            state.mark_installed(name, Some(latest.version.as_str()));
+            state.mark_installed(name, Some(&latest.version));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
         }
     }
@@ -752,14 +752,13 @@ fn run_tap(tap: Option<String>, action: Option<TapAction>) -> Result<()> {
     }
 }
 
-fn install_package(pkg: &system::registry::PackageMetadata, dest: &Path) -> Result<()> {
+fn install_package(pkg: &system::registry::PackageMetadata<'_>, dest: &Path) -> Result<()> {
     let dest = util::security::validate_install_dest(dest)?;
     let url = &pkg.download_url;
     eprintln!("Downloading {} {}...", pkg.name, pkg.version);
 
-    let resp = util::security::get_validated(url).map_err(|e| {
-        error::OilError::Install(format!("download failed for {}: {e}", pkg.name))
-    })?;
+    let resp = util::security::get_validated(url)
+        .map_err(|e| error::OilError::Install(format!("download failed for {}: {e}", pkg.name)))?;
 
     let tmp_dir = oil_secure_tmp_dir()?;
     let mut tmp = tempfile::Builder::new()

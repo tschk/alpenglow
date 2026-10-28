@@ -5,34 +5,36 @@ use std::collections::{HashMap, HashSet};
 
 use crate::error::{OilError, Result};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PackageMetadata {
-    pub name: String,
-    pub version: String,
-    pub description: String,
-    pub download_url: String,
-    pub sha256: Option<String>,
+use std::borrow::Cow;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PackageMetadata<'a> {
+    pub name: Cow<'a, str>,
+    pub version: Cow<'a, str>,
+    pub description: Cow<'a, str>,
+    pub download_url: Cow<'a, str>,
+    pub sha256: Option<Cow<'a, str>>,
     pub installed_size: u64,
-    pub depends: Vec<String>,
-    pub provides: Vec<String>,
+    pub depends: Vec<Cow<'a, str>>,
+    pub provides: Vec<Cow<'a, str>>,
 }
 
-pub struct PackageIndex<'a> {
-    pub packages: &'a [PackageMetadata],
+pub struct PackageIndex<'a, 'p> {
+    pub packages: &'a [PackageMetadata<'p>],
     name_index: HashMap<&'a str, usize>,
     provides_index: HashMap<&'a str, usize>,
 }
 
-impl<'a> PackageIndex<'a> {
-    pub fn new(packages: &'a [PackageMetadata]) -> Self {
+impl<'a, 'p> PackageIndex<'a, 'p> {
+    pub fn new(packages: &'a [PackageMetadata<'p>]) -> Self {
         let mut name_index = HashMap::with_capacity(packages.len());
         let mut provides_index = HashMap::with_capacity(packages.len());
 
         for (i, pkg) in packages.iter().enumerate() {
             for prov in &pkg.provides {
-                provides_index.entry(prov.as_str()).or_insert(i);
+                provides_index.entry(prov.as_ref()).or_insert(i);
             }
-            name_index.entry(pkg.name.as_str()).or_insert(i);
+            name_index.entry(pkg.name.as_ref()).or_insert(i);
         }
 
         Self {
@@ -42,7 +44,7 @@ impl<'a> PackageIndex<'a> {
         }
     }
 
-    pub fn find(&self, name: &str) -> Option<&'a PackageMetadata> {
+    pub fn find(&self, name: &str) -> Option<&'a PackageMetadata<'p>> {
         if let Some(&i) = self.name_index.get(name) {
             return Some(&self.packages[i]);
         }
@@ -58,7 +60,7 @@ impl<'a> PackageIndex<'a> {
         &self,
         roots: &[String],
         skip: F,
-    ) -> Result<Vec<&'a PackageMetadata>> {
+    ) -> Result<Vec<&'a PackageMetadata<'p>>> {
         let mut order = Vec::new();
         let mut visiting = HashSet::new();
         let mut scheduled = HashSet::new();
@@ -76,7 +78,7 @@ impl<'a> PackageIndex<'a> {
         skip: F,
         visiting: &mut HashSet<String>,
         scheduled: &mut HashSet<String>,
-        order: &mut Vec<&'a PackageMetadata>,
+        order: &mut Vec<&'a PackageMetadata<'p>>,
     ) -> Result<()> {
         if skip(name) {
             return Ok(());
@@ -86,18 +88,18 @@ impl<'a> PackageIndex<'a> {
             .find(name)
             .ok_or_else(|| OilError::FormulaNotFound(name.to_string()))?;
 
-        if scheduled.contains(&pkg.name) {
+        if scheduled.contains(pkg.name.as_ref()) {
             return Ok(());
         }
 
-        if visiting.contains(&pkg.name) {
+        if visiting.contains(pkg.name.as_ref()) {
             return Err(OilError::Install(format!(
                 "circular dependency involving {}",
                 pkg.name
             )));
         }
 
-        visiting.insert(pkg.name.clone());
+        visiting.insert(pkg.name.to_string());
 
         for dep in &pkg.depends {
             let dep_name = parse_dep_name(dep);
@@ -107,8 +109,8 @@ impl<'a> PackageIndex<'a> {
             self.visit_install_deps(dep_name, skip, visiting, scheduled, order)?;
         }
 
-        visiting.remove(&pkg.name);
-        scheduled.insert(pkg.name.clone());
+        visiting.remove(pkg.name.as_ref());
+        scheduled.insert(pkg.name.to_string());
         order.push(pkg);
         Ok(())
     }
@@ -116,7 +118,11 @@ impl<'a> PackageIndex<'a> {
 
 pub fn parse_dep_name(dep: &str) -> &str {
     let token = dep.split_whitespace().next().unwrap_or(dep);
-    token.split(['=', '<', '>', '~']).next().unwrap_or(token).trim()
+    token
+        .split(['=', '<', '>', '~'])
+        .next()
+        .unwrap_or(token)
+        .trim()
 }
 
 #[cfg(test)]
@@ -195,24 +201,27 @@ mod tests {
     fn test_package_index_find_by_name() {
         let pkgs = vec![
             PackageMetadata {
-                name: "curl".to_string(),
-                version: "8.0.0".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("curl".to_string()),
+                version: std::borrow::Cow::Owned("8.0.0".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec![],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
             },
             PackageMetadata {
-                name: "libssl3".to_string(),
-                version: "3.0.0".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("libssl3".to_string()),
+                version: std::borrow::Cow::Owned("3.0.0".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec!["libssl".to_string()],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec!["libssl".to_string()]
+                    .into_iter()
+                    .map(std::borrow::Cow::Owned)
+                    .collect(),
             },
         ];
         let index = PackageIndex::new(&pkgs);
@@ -226,34 +235,40 @@ mod tests {
     fn test_package_index_preserves_first_match_and_input_order() {
         let packages = vec![
             PackageMetadata {
-                name: "duplicate".to_string(),
-                version: "first".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("duplicate".to_string()),
+                version: std::borrow::Cow::Owned("first".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec!["virtual".to_string(), "shared".to_string()],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec!["virtual".to_string(), "shared".to_string()]
+                    .into_iter()
+                    .map(std::borrow::Cow::Owned)
+                    .collect(),
             },
             PackageMetadata {
-                name: "virtual".to_string(),
-                version: "named".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("virtual".to_string()),
+                version: std::borrow::Cow::Owned("named".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec!["shared".to_string()],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec!["shared".to_string()]
+                    .into_iter()
+                    .map(std::borrow::Cow::Owned)
+                    .collect(),
             },
             PackageMetadata {
-                name: "duplicate".to_string(),
-                version: "second".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("duplicate".to_string()),
+                version: std::borrow::Cow::Owned("second".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec![],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
             },
         ];
         let index = PackageIndex::new(&packages);
@@ -262,7 +277,7 @@ mod tests {
             index
                 .packages
                 .iter()
-                .map(|pkg| pkg.version.as_str())
+                .map(|pkg| pkg.version.as_ref())
                 .collect::<Vec<_>>(),
             vec!["first", "named", "second"]
         );
@@ -280,24 +295,30 @@ mod tests {
 
         let pkgs = vec![
             PackageMetadata {
-                name: "pkgA".to_string(),
-                version: "1.0.0".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("pkgA".to_string()),
+                version: std::borrow::Cow::Owned("1.0.0".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec!["providerA".to_string(), "shared".to_string()],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec!["providerA".to_string(), "shared".to_string()]
+                    .into_iter()
+                    .map(std::borrow::Cow::Owned)
+                    .collect(),
             },
             PackageMetadata {
-                name: "providerA".to_string(),
-                version: "2.0.0".to_string(),
-                description: String::new(),
-                download_url: String::new(),
-                sha256: None,
+                name: std::borrow::Cow::Owned("providerA".to_string()),
+                version: std::borrow::Cow::Owned("2.0.0".to_string()),
+                description: std::borrow::Cow::Owned(String::new()),
+                download_url: std::borrow::Cow::Owned(String::new()),
+                sha256: None.map(std::borrow::Cow::Owned),
                 installed_size: 0,
-                depends: vec![],
-                provides: vec!["shared".to_string()],
+                depends: vec![].into_iter().map(std::borrow::Cow::Owned).collect(),
+                provides: vec!["shared".to_string()]
+                    .into_iter()
+                    .map(std::borrow::Cow::Owned)
+                    .collect(),
             },
         ];
         let index = PackageIndex::new(&pkgs);
@@ -311,15 +332,15 @@ mod tests {
         assert_eq!(found_shared.version, "1.0.0");
     }
 
-    fn sample_pkg(name: &str, depends: Vec<String>) -> PackageMetadata {
+    fn sample_pkg(name: &str, depends: Vec<String>) -> PackageMetadata<'static> {
         PackageMetadata {
-            name: name.to_string(),
-            version: "1.0.0".to_string(),
-            description: String::new(),
-            download_url: String::new(),
+            name: std::borrow::Cow::Owned(name.to_string()),
+            version: std::borrow::Cow::Owned("1.0.0".to_string()),
+            description: std::borrow::Cow::Owned(String::new()),
+            download_url: std::borrow::Cow::Owned(String::new()),
             sha256: None,
             installed_size: 0,
-            depends,
+            depends: depends.into_iter().map(std::borrow::Cow::Owned).collect(),
             provides: vec![],
         }
     }
@@ -335,7 +356,7 @@ mod tests {
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["liba", "app"]);
     }
 
@@ -351,7 +372,7 @@ mod tests {
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["liba", "libb", "app"]);
     }
 
@@ -366,7 +387,7 @@ mod tests {
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["app"]);
     }
 
@@ -397,7 +418,7 @@ mod tests {
         let order = index
             .resolve_install_order(&["a".to_string()], |n| skip.contains(n))
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["d", "b", "c", "a"]);
     }
 
@@ -412,20 +433,17 @@ mod tests {
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
-            .resolve_install_order(
-                &["app1".to_string(), "app2".to_string()],
-                |n| skip.contains(n),
-            )
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| {
+                skip.contains(n)
+            })
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["liba", "app1", "libb", "app2"]);
     }
 
     #[test]
     fn test_resolve_install_order_not_found() {
-        let pkgs = vec![
-            sample_pkg("app", vec!["liba".to_string()]),
-        ];
+        let pkgs = vec![sample_pkg("app", vec!["liba".to_string()])];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
@@ -456,23 +474,23 @@ mod tests {
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
-            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| skip.contains(n))
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| {
+                skip.contains(n)
+            })
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["libshared", "app1", "app2"]);
     }
 
     #[test]
     fn test_resolve_install_order_empty_dep_name() {
-        let pkgs = vec![
-            sample_pkg("app", vec!["".to_string(), ">1.0".to_string()]),
-        ];
+        let pkgs = vec![sample_pkg("app", vec!["".to_string(), ">1.0".to_string()])];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, vec!["app"]);
     }
 
@@ -487,7 +505,7 @@ mod tests {
         let order = index
             .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
             .expect("resolve order");
-        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_ref()).collect();
         assert_eq!(names, Vec::<&str>::new());
     }
 }
