@@ -372,6 +372,37 @@ mod tests {
     }
 
     #[test]
+    fn test_run_installer_with_draw_success_with_mock() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn fake_install(
+            _source: &Path,
+            _target: &Path,
+            allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            assert!(!allow_regular);
+            Ok(42)
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            0
+        );
+    }
+
+    #[test]
     fn test_run_installer_success_with_mock() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("source.img");
