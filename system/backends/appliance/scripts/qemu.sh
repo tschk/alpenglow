@@ -47,7 +47,7 @@ case "${VNC}" in
 esac
 
 case "${KERNEL_CMDLINE}" in
-  *[\`\$\|\&\;\<\>\\]*)
+  *[\`\$\|\&\;\<\>\(\)\'\"\\]*)
     echo "ERROR: KERNEL_CMDLINE contains potentially unsafe shell metacharacters." >&2
     exit 1
     ;;
