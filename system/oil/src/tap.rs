@@ -70,11 +70,7 @@ pub fn normalize_tap(name: &str) -> (String, String) {
     if name.starts_with("http://") || name.starts_with("https://") || name.starts_with("git@") {
         (name.to_string(), name.to_string())
     } else if name.matches('/').count() == 1 && !name.starts_with('/') && !name.ends_with('/') {
-        let trimmed = if name.ends_with(".git") {
-            &name[..name.len() - 4]
-        } else {
-            name
-        };
+        let trimmed = name.strip_suffix(".git").unwrap_or(name);
         (name.to_string(), format!("https://github.com/{}", trimmed))
     } else {
         (name.to_string(), name.to_string())
