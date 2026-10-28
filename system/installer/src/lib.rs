@@ -422,10 +422,7 @@ mod tests {
             _target: &Path,
             _allow_regular: bool,
         ) -> Result<u64, InstallError> {
-            Err(InstallError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "mock error",
-            )))
+            Err(InstallError::Io(std::io::Error::other("mock error")))
         }
 
         assert_eq!(
