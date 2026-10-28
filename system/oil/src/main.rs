@@ -469,7 +469,9 @@ fn run_install(packages: Vec<String>, dry_run: bool) -> Result<()> {
         if dry_run {
             println!("Would install {} {}", pkg.name, pkg.version);
         } else {
-            let dest = dest.as_ref().unwrap();
+            let dest = dest.as_ref().ok_or_else(|| {
+                error::OilError::Install("Installation destination not set".to_string())
+            })?;
             install_package(pkg, dest)?;
             state.mark_installed(&pkg.name, Some(pkg.version.as_str()));
             println!("Installed {} {}", pkg.name, pkg.version);
@@ -612,7 +614,9 @@ fn run_upgrade(packages: Vec<String>, dry_run: bool) -> Result<()> {
                 current.version, latest.version
             );
         } else {
-            let dest = dest.as_ref().unwrap();
+            let dest = dest.as_ref().ok_or_else(|| {
+                error::OilError::Install("Installation destination not set".to_string())
+            })?;
             install_package(latest, dest)?;
             state.mark_installed(name, Some(latest.version.as_str()));
             println!("Upgraded {name}: {} → {}", current.version, latest.version);
@@ -651,7 +655,7 @@ fn run_outdated() -> Result<()> {
 
 #[cfg(feature = "wax")]
 fn handle_tap_add(taps: &mut tap::Taps, name: &str) -> Result<()> {
-    let (name, url) = tap::normalize_tap(name);
+    let (name, url) = tap::normalize_tap(name)?;
     taps.add(&name, &url);
     taps.save()?;
     println!("Tapped {} ({})", name, url);
