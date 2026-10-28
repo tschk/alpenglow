@@ -25,8 +25,8 @@ pub struct PackageIndex<'a> {
 
 impl<'a> PackageIndex<'a> {
     pub fn new(packages: &'a [PackageMetadata]) -> Self {
-        let mut name_index = HashMap::new();
-        let mut provides_index = HashMap::new();
+        let mut name_index = HashMap::with_capacity(packages.len());
+        let mut provides_index = HashMap::with_capacity(packages.len());
 
         for (i, pkg) in packages.iter().enumerate() {
             for prov in &pkg.provides {
@@ -116,7 +116,7 @@ impl<'a> PackageIndex<'a> {
 
 pub fn parse_dep_name(dep: &str) -> &str {
     let token = dep.split_whitespace().next().unwrap_or(dep);
-    token.split(['=', '<', '>']).next().unwrap_or(token).trim()
+    token.split(['=', '<', '>', '~']).next().unwrap_or(token).trim()
 }
 
 #[cfg(test)]
@@ -172,6 +172,13 @@ mod tests {
             ("=pkg", ""),
             ("<pkg", ""),
             (">pkg", ""),
+            ("pkg=", "pkg"),
+            ("pkg<", "pkg"),
+            ("pkg>", "pkg"),
+            ("pkg~1.0", "pkg"),
+            ("pkg~", "pkg"),
+            ("~pkg", ""),
+            ("~", ""),
         ];
 
         for (input, expected) in cases {
@@ -375,5 +382,112 @@ mod tests {
         assert!(result.is_err());
         let err = result.expect_err("circular dep").to_string();
         assert!(err.contains("circular dependency"));
+    }
+
+    #[test]
+    fn test_resolve_install_order_diamond_dependency() {
+        let pkgs = vec![
+            sample_pkg("a", vec!["b".to_string(), "c".to_string()]),
+            sample_pkg("b", vec!["d".to_string()]),
+            sample_pkg("c", vec!["d".to_string()]),
+            sample_pkg("d", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["a".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["d", "b", "c", "a"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_multiple_roots() {
+        let pkgs = vec![
+            sample_pkg("app1", vec!["liba".to_string()]),
+            sample_pkg("app2", vec!["libb".to_string(), "liba".to_string()]),
+            sample_pkg("liba", vec![]),
+            sample_pkg("libb", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(
+                &["app1".to_string(), "app2".to_string()],
+                |n| skip.contains(n),
+            )
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["liba", "app1", "libb", "app2"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_not_found() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["liba".to_string()]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), OilError::FormulaNotFound(_)));
+    }
+
+    #[test]
+    fn test_resolve_install_order_not_found_names_missing_dep() {
+        let pkgs = vec![sample_pkg("app", vec!["nonexistent".to_string()])];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            OilError::FormulaNotFound(name) => assert_eq!(name, "nonexistent"),
+            _ => panic!("expected FormulaNotFound"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_install_order_shared_dependency() {
+        let pkgs = vec![
+            sample_pkg("app1", vec!["libshared".to_string()]),
+            sample_pkg("app2", vec!["libshared".to_string()]),
+            sample_pkg("libshared", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app1".to_string(), "app2".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["libshared", "app1", "app2"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_empty_dep_name() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["".to_string(), ">1.0".to_string()]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip: HashSet<String> = HashSet::new();
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["app"]);
+    }
+
+    #[test]
+    fn test_resolve_install_order_skip_requested_root() {
+        let pkgs = vec![
+            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("liba", vec![]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let skip = HashSet::from(["app".to_string()]);
+        let order = index
+            .resolve_install_order(&["app".to_string()], |n| skip.contains(n))
+            .expect("resolve order");
+        let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, Vec::<&str>::new());
     }
 }
