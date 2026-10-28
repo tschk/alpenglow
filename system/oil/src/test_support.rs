@@ -32,6 +32,10 @@ impl IsolatedHome {
             previous,
         }
     }
+
+    pub fn path(&self) -> &std::path::Path {
+        self._dir.path()
+    }
 }
 
 #[cfg(test)]

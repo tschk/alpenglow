@@ -68,7 +68,9 @@ impl Taps {
 
 pub fn normalize_tap(name: &str) -> Result<(String, String)> {
     if name.starts_with("http://") {
-        return Err(OilError::Install("unencrypted http:// URLs are not allowed".into()));
+        return Err(OilError::Install(
+            "unencrypted http:// URLs are not allowed".into(),
+        ));
     }
     if name.starts_with("https://") || name.starts_with("git@") {
         Ok((name.to_string(), name.to_string()))
@@ -116,9 +118,8 @@ impl TapRegistry {
         let url = self.index_url();
 
         eprintln!("Fetching tap index: {url}");
-        let resp = crate::util::security::get_validated(&url).map_err(|e| {
-            OilError::Install(format!("Failed to fetch tap index from {url}: {e}"))
-        })?;
+        let resp = crate::util::security::get_validated(&url)
+            .map_err(|e| OilError::Install(format!("Failed to fetch tap index from {url}: {e}")))?;
         let mut body = Vec::new();
         resp.into_body()
             .into_reader()
@@ -381,15 +382,16 @@ mod tests {
         let registry = TapRegistry::new("corrupt", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"{not valid json}",
-        )
-        .expect("write corrupt tap cache");
+        std::fs::write(&cache_path, b"{not valid json}").expect("write corrupt tap cache");
 
-        let err = registry.load().expect_err("corrupt tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
-        assert!(msg.contains("Failed to parse tap index"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("Failed to parse tap index"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]
@@ -398,7 +400,11 @@ mod tests {
         let registry = TapRegistry::new("missing", "http://invalid.url.that.will.fail");
 
         let err = registry.load().expect_err("should return error");
-        assert!(err.to_string().contains("Failed to fetch tap index"), "unexpected error: {}", err);
+        assert!(
+            err.to_string().contains("Failed to fetch tap index"),
+            "unexpected error: {}",
+            err
+        );
     }
 
     #[test]
@@ -407,13 +413,12 @@ mod tests {
         let registry = TapRegistry::new("invalid_struct", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"{\"unexpected\": \"format\"}",
-        )
-        .expect("write invalid json structure to tap cache");
+        std::fs::write(&cache_path, b"{\"unexpected\": \"format\"}")
+            .expect("write invalid json structure to tap cache");
 
-        let err = registry.load().expect_err("invalid json structure in tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("invalid json structure in tap cache should return error");
         let msg = err.to_string();
         assert!(msg.contains("invalid type"), "unexpected error: {msg}");
     }
@@ -430,7 +435,9 @@ mod tests {
         }
         std::fs::create_dir(&cache_path).expect("create directory at cache path");
 
-        let err = registry.load().expect_err("reading a directory as tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("reading a directory as tap cache should return error");
         assert!(matches!(err, OilError::Io(_)), "unexpected error: {err}");
     }
 
@@ -440,15 +447,16 @@ mod tests {
         let registry = TapRegistry::new("invalid_utf8", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"\xFF\xFF\xFF",
-        )
-        .expect("write invalid utf8 tap cache");
+        std::fs::write(&cache_path, b"\xFF\xFF\xFF").expect("write invalid utf8 tap cache");
 
-        let err = registry.load().expect_err("invalid utf8 tap cache should return error");
+        let err = registry
+            .load()
+            .expect_err("invalid utf8 tap cache should return error");
         let msg = err.to_string();
-        assert!(msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("stream did not contain valid UTF-8") || msg.contains("invalid utf-8"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]
@@ -457,13 +465,11 @@ mod tests {
         let registry = TapRegistry::new("invalid", "https://example.com/tap");
         let cache_path = registry.cache_path().expect("cache path");
 
-        std::fs::write(
-            &cache_path,
-            b"[{\"name\":\"foo\"}]",
-        )
-        .expect("write invalid package data");
+        std::fs::write(&cache_path, b"[{\"name\":\"foo\"}]").expect("write invalid package data");
 
-        let err = registry.load().expect_err("invalid package data should return error");
+        let err = registry
+            .load()
+            .expect_err("invalid package data should return error");
         let msg = err.to_string();
         assert!(msg.contains("missing field"), "unexpected error: {msg}");
     }
