@@ -22,4 +22,16 @@ describe("styles", () => {
     expect(globalCss).toContain(".site-credit {");
     expect(globalCss).toContain("#xterm_host {");
   });
+
+  test("hides hidden elements and layers the boot UI", () => {
+    expect(globalCss).toContain(".hidden {\n  display: none;\n}");
+    expect(globalCss).toContain("#boot_status[hidden] {\n  display: none !important;\n}");
+    expect(globalCss).toContain("z-index: 10;");
+    expect(globalCss).toContain("pointer-events: auto;");
+  });
+
+  test("includes xterm host child styles", () => {
+    expect(globalCss).toContain("#xterm_host canvas {");
+    expect(globalCss).toContain("#xterm_host textarea {");
+  });
 });
