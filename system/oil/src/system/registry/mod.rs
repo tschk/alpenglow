@@ -116,7 +116,7 @@ impl<'a> PackageIndex<'a> {
 
 pub fn parse_dep_name(dep: &str) -> &str {
     let token = dep.split_whitespace().next().unwrap_or(dep);
-    token.split(['=', '<', '>']).next().unwrap_or(token).trim()
+    token.split(['=', '<', '>', '~']).next().unwrap_or(token).trim()
 }
 
 #[cfg(test)]
@@ -172,6 +172,13 @@ mod tests {
             ("=pkg", ""),
             ("<pkg", ""),
             (">pkg", ""),
+            ("pkg=", "pkg"),
+            ("pkg<", "pkg"),
+            ("pkg>", "pkg"),
+            ("pkg~1.0", "pkg"),
+            ("pkg~", "pkg"),
+            ("~pkg", ""),
+            ("~", ""),
         ];
 
         for (input, expected) in cases {
