@@ -372,6 +372,44 @@ mod tests {
     }
 
     #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        let draw_called = std::rc::Rc::new(std::cell::Cell::new(false));
+        let draw_called_clone = draw_called.clone();
+        let fake_draw = move |_source: &Path, _target: Option<&Path>| -> Result<(), String> {
+            draw_called_clone.set(true);
+            Ok(())
+        };
+
+        fn fake_install(
+            source: &Path,
+            target: &Path,
+            _allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            let bytes = std::fs::copy(source, target)?;
+            Ok(bytes)
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            0
+        );
+
+        assert!(draw_called.get());
+        assert_eq!(std::fs::read(&target).unwrap(), b"testdata");
+    }
+
+    #[test]
     fn test_run_installer_success_with_mock() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("source.img");
