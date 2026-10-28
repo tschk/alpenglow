@@ -70,7 +70,7 @@ pub fn normalize_tap(name: &str) -> (String, String) {
     if name.starts_with("http://") || name.starts_with("https://") || name.starts_with("git@") {
         (name.to_string(), name.to_string())
     } else if name.matches('/').count() == 1 && !name.starts_with('/') && !name.ends_with('/') {
-        let trimmed = name.trim_end_matches(".git");
+        let trimmed = name.strip_suffix(".git").unwrap_or(name);
         (name.to_string(), format!("https://github.com/{}", trimmed))
     } else {
         (name.to_string(), name.to_string())
@@ -134,7 +134,8 @@ impl TapRegistry {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
+            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)
+                .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
             if packages
                 .iter()
                 .all(|p| crate::util::security::validate_download_url(&p.download_url).is_ok())
@@ -216,6 +217,27 @@ mod tests {
         let (name, url) = normalize_tap("");
         assert_eq!(name, "");
         assert_eq!(url, "");
+    }
+
+    #[test]
+    fn normalize_multiple_git_extensions() {
+        let (name, url) = normalize_tap("user/repo.git.git");
+        assert_eq!(name, "user/repo.git.git");
+        assert_eq!(url, "https://github.com/user/repo.git");
+    }
+
+    #[test]
+    fn normalize_git_in_middle() {
+        let (name, url) = normalize_tap("user.git/repo");
+        assert_eq!(name, "user.git/repo");
+        assert_eq!(url, "https://github.com/user.git/repo");
+    }
+
+    #[test]
+    fn normalize_just_slash() {
+        let (name, url) = normalize_tap("/");
+        assert_eq!(name, "/");
+        assert_eq!(url, "/");
     }
 
     #[test]
@@ -365,7 +387,16 @@ mod tests {
 
         let err = registry.load().expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
-        assert!(msg.contains("expected"), "unexpected error: {msg}");
+        assert!(msg.contains("Failed to parse tap index"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_on_missing_cache() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("missing", "http://invalid.url.that.will.fail");
+
+        let err = registry.load().expect_err("should return error");
+        assert!(err.to_string().contains("Failed to fetch tap index"), "unexpected error: {}", err);
     }
 
     #[test]
