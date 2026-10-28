@@ -780,57 +780,81 @@ mod tests {
         assert!(!is_safe_symlink(link_target, dest, dest_dir));
     }
 
+    struct InsecureEnvGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_insecure: Option<std::ffi::OsString>,
+    }
+
+    impl InsecureEnvGuard {
+        fn new() -> Self {
+            // Shared with util::security tests, which also toggle OIL_INSECURE_NO_VERIFY.
+            let lock = crate::test_support::home_env_lock();
+            let original_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
+            Self {
+                _lock: lock,
+                original_insecure,
+            }
+        }
+    }
+
+    impl Drop for InsecureEnvGuard {
+        fn drop(&mut self) {
+            match &self.original_insecure {
+                Some(val) => std::env::set_var("OIL_INSECURE_NO_VERIFY", val),
+                None => std::env::remove_var("OIL_INSECURE_NO_VERIFY"),
+            }
+        }
+    }
+
     #[test]
     fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
-        let apk_path = dir.path().join("test.apk");
         let dest_dir = dir.path().join("dest");
+        let apk_path = dir.path().join("test.apk");
 
-        let stream1 = create_gz_stream(b"")?;
-        let stream2 = create_gz_stream(b"")?;
-        let mut tar_builder = tar::Builder::new(Vec::new());
+        // We'll create a tar archive for each of the three streams.
+        // 1. Signature stream
+        let mut sig_tar = tar::Builder::new(Vec::new());
+        let sig_data = b"dummy signature";
         let mut header = tar::Header::new_gnu();
+        header.set_size(sig_data.len() as u64);
+        header.set_cksum();
+        sig_tar.append_data(&mut header, ".SIGN.RSA.testkey.pub", &sig_data[..])?;
+        let sig_tar_data = sig_tar.into_inner()?;
+
+        // 2. Control stream (can be empty tar)
+        let ctrl_tar = tar::Builder::new(Vec::new());
+        let ctrl_tar_data = ctrl_tar.into_inner()?;
+
+        // 3. Data stream
+        let mut data_tar = tar::Builder::new(Vec::new());
         let file_data = b"hello world";
+        let mut header = tar::Header::new_gnu();
         header.set_size(file_data.len() as u64);
         header.set_cksum();
-        tar_builder.append_data(&mut header, "test.txt", &file_data[..])?;
-        let stream3 = create_gz_stream(&tar_builder.into_inner()?)?;
+        data_tar.append_data(&mut header, "hello.txt", &file_data[..])?;
+        let data_tar_data = data_tar.into_inner()?;
 
-        let mut apk_data = stream1;
-        apk_data.extend(stream2);
-        apk_data.extend(stream3);
-        std::fs::write(&apk_path, apk_data)?;
+        // Compress each tar
+        let mut apk_data = create_gz_stream(&sig_tar_data)?;
+        apk_data.extend(create_gz_stream(&ctrl_tar_data)?);
+        apk_data.extend(create_gz_stream(&data_tar_data)?);
 
-        struct EnvGuard {
-            original: Option<String>,
-        }
-        impl EnvGuard {
-            fn new() -> Self {
-                let original = std::env::var("OIL_INSECURE_NO_VERIFY").ok();
-                std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
-                Self { original }
-            }
-        }
-        impl Drop for EnvGuard {
-            fn drop(&mut self) {
-                if let Some(val) = &self.original {
-                    std::env::set_var("OIL_INSECURE_NO_VERIFY", val);
-                } else {
-                    std::env::remove_var("OIL_INSECURE_NO_VERIFY");
-                }
-            }
-        }
+        std::fs::write(&apk_path, &apk_data)?;
 
-        // For this test, we skip signature verification by using insecure mode
-        let _guard = EnvGuard::new();
+        let _guard = InsecureEnvGuard::new();
 
-        let result = extract_tracked(&apk_path, &dest_dir);
+        // Set OIL_INSECURE_NO_VERIFY=1 so we don't need a real key or valid signature
+        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
 
-        let (files, dirs) = result?;
-        assert_eq!(files.len(), 1);
-        assert_eq!(dirs.len(), 0);
-        assert_eq!(files[0], dest_dir.join("test.txt"));
-        assert_eq!(std::fs::read_to_string(&files[0])?, "hello world");
+        let result = extract_tracked(&apk_path, &dest_dir)?;
+
+        assert_eq!(result.0.len(), 1); // one file written
+        assert_eq!(result.0, vec![dest_dir.join("hello.txt")]);
+        assert!(result.1.is_empty());
+        assert!(dest_dir.join("hello.txt").exists());
+        let content = std::fs::read_to_string(dest_dir.join("hello.txt"))?;
+        assert_eq!(content, "hello world");
 
         Ok(())
     }
