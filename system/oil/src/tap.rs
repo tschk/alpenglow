@@ -111,7 +111,7 @@ impl TapRegistry {
         Ok(dir.join(format!("tap-{}.json", cache_key(&self.name))))
     }
 
-    pub fn update(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn update(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
 
@@ -130,10 +130,10 @@ impl TapRegistry {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&cache_path, &body)?;
-        Ok(packages)
+        Ok(packages.into_iter().map(|p| p.into_owned()).collect())
     }
 
-    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
@@ -143,7 +143,7 @@ impl TapRegistry {
                 .iter()
                 .all(|p| crate::util::security::validate_download_url(&p.download_url).is_ok())
             {
-                return Ok(packages);
+                return Ok(packages.into_iter().map(|p| p.into_owned()).collect());
             }
         }
         self.update()
@@ -320,10 +320,10 @@ mod tests {
         let registry = TapRegistry::new("poison", "https://attacker.example/tap");
         let cache_path = registry.cache_path().expect("cache path");
         let poisoned = [PackageMetadata {
-            name: "evil".into(),
-            version: "1".into(),
-            description: String::new(),
-            download_url: "https://attacker.example/evil.apk".into(),
+            name: "evil".to_string().into(),
+            version: "1".to_string().into(),
+            description: String::new().into(),
+            download_url: "https://attacker.example/evil.apk".to_string().into(),
             sha256: None,
             installed_size: 0,
             depends: Vec::new(),
