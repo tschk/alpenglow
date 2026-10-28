@@ -2,7 +2,7 @@
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
-fn main() {
+fn setup_base_filesystems() {
     run("/bin/mount", &["-t", "proc", "proc", "/proc"]);
     run("/bin/mount", &["-t", "sysfs", "sysfs", "/sys"]);
     run("/bin/mount", &["-t", "devtmpfs", "devtmpfs", "/dev"]);
@@ -19,6 +19,9 @@ fn main() {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
+}
+
+fn setup_tmpfs() {
     run(
         "/bin/mount",
         &[
@@ -75,6 +78,9 @@ fn main() {
     {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
+}
+
+fn load_modules() {
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
         if m.is_empty()
             || m.starts_with('-')
@@ -95,6 +101,13 @@ fn main() {
             _ => {}
         }
     }
+}
+
+fn main() {
+    setup_base_filesystems();
+    setup_tmpfs();
+    load_modules();
+
     println!();
     println!("Alpenglow boot (rust-init)");
     println!();
