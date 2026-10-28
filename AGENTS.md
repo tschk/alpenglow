@@ -83,8 +83,8 @@ Release tags use `v0.1.<git rev-list --count HEAD>`.
 | Rust | `scripts/ci-rust-core.sh` |
 | Zig | `scripts/ci-zig.sh` |
 | Appliance contract | `scripts/ci-os-appliance.sh` |
-| Kernel config + bcachefs graft (every push) | `scripts/ci-kernel.sh config` |
-| Potato bzImage (kernel-path changes only) | `scripts/ci-kernel.sh build` (`.github/workflows/kernel-build.yml`) |
+| Kernel config + bcachefs graft (every push, 1m40s measured) | `scripts/ci-kernel.sh config` |
+| Potato bzImage (kernel-path changes only, 10m04s cold ccache) | `scripts/ci-kernel.sh build` (`.github/workflows/kernel-build.yml`) |
 | Boot bench | `scripts/bench-boot.sh` (needs image) |
 
 ## SSH lab hosts (optional)
