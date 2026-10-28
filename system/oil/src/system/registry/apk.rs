@@ -4,6 +4,7 @@ use crate::util::cache::{cache_key, is_cache_fresh};
 use flate2::{read::MultiGzDecoder, write::GzEncoder, Compression};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 const MAX_COMPRESSED_INDEX_SIZE: usize = 64 * 1024 * 1024;
 const MAX_DECOMPRESSED_INDEX_SIZE: usize = 256 * 1024 * 1024;
@@ -271,13 +272,24 @@ fn parse_apk_stanza(
     branch: &str,
     repo: &str,
     arch: &str,
+    cache: &mut std::collections::HashMap<String, Arc<str>>,
 ) -> Option<PackageMetadata> {
     let mut name = String::new();
     let mut version = String::new();
     let mut description = String::new();
     let mut installed_size: u64 = 0;
-    let mut depends: Vec<String> = Vec::new();
-    let mut provides: Vec<String> = Vec::new();
+    let mut depends: Vec<Arc<str>> = Vec::new();
+    let mut provides: Vec<Arc<str>> = Vec::new();
+
+    let mut get_cached = |s: &str| -> Arc<str> {
+        if let Some(arc) = cache.get(s) {
+            arc.clone()
+        } else {
+            let arc: Arc<str> = Arc::from(s);
+            cache.insert(s.to_string(), arc.clone());
+            arc
+        }
+    };
 
     for line in stanza.lines() {
         if line.len() < 2 || line.as_bytes()[1] != b':' {
@@ -295,7 +307,7 @@ fn parse_apk_stanza(
                 for dep in val.split_whitespace() {
                     let dname = super::parse_dep_name(dep);
                     if !dname.is_empty() && !dname.starts_with('!') {
-                        depends.push(dname.to_string());
+                        depends.push(get_cached(dname));
                     }
                 }
             }
@@ -303,7 +315,7 @@ fn parse_apk_stanza(
                 for prov in val.split_whitespace() {
                     let pname = super::parse_dep_name(prov);
                     if !pname.is_empty() {
-                        provides.push(pname.to_string());
+                        provides.push(get_cached(pname));
                     }
                 }
             }
@@ -336,6 +348,7 @@ fn parse_apkindex(
     arch: &str,
 ) -> Vec<PackageMetadata> {
     let mut packages = Vec::new();
+    let mut cache = std::collections::HashMap::new();
 
     for stanza in content.split("\n\n") {
         let stanza = stanza.trim();
@@ -343,7 +356,7 @@ fn parse_apkindex(
             continue;
         }
 
-        if let Some(pkg) = parse_apk_stanza(stanza, mirror, branch, repo, arch) {
+        if let Some(pkg) = parse_apk_stanza(stanza, mirror, branch, repo, arch, &mut cache) {
             packages.push(pkg);
         }
     }
@@ -479,7 +492,7 @@ mod tests {
         let pkg = &packages[0];
         assert_eq!(pkg.name, "ripgrep");
         assert_eq!(pkg.version, "14.1.1-r0");
-        assert_eq!(pkg.provides, vec!["rg"]);
+        assert_eq!(pkg.provides, vec![Arc::from("rg")]);
     }
 
     #[test]
