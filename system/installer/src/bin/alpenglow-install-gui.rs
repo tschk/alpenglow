@@ -21,14 +21,14 @@ fn is_install_disk_name(name: &str) -> bool {
 }
 
 #[cfg(feature = "gui")]
-fn main() {
+mod gui {
     use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
     use crepuscularity_gpui::prelude::*;
     use gpui::{bounds, point, size, App, Application, ClickEvent};
     use std::fs;
     use std::path::PathBuf;
 
-    struct InstallerView {
+    pub struct InstallerView {
         source: PathBuf,
         target: Option<PathBuf>,
         disks: Vec<DiskChoice>,
@@ -36,14 +36,14 @@ fn main() {
     }
 
     #[derive(Clone)]
-    struct DiskChoice {
+    pub struct DiskChoice {
         path: PathBuf,
         name: String,
         detail: String,
     }
 
     impl InstallerView {
-        fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
+        pub fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
             let disks = discover_disks();
             let target = target.or_else(|| disks.first().map(|disk| disk.path.clone()));
             let status = target
@@ -61,7 +61,7 @@ fn main() {
             }
         }
 
-        fn refresh_disks(
+        pub fn refresh_disks(
             &mut self,
             _: &ClickEvent,
             _: &mut gpui::Window,
@@ -79,7 +79,7 @@ fn main() {
             cx.notify();
         }
 
-        fn select_disk(&mut self, index: usize, cx: &mut gpui::Context<Self>) {
+        pub fn select_disk(&mut self, index: usize, cx: &mut gpui::Context<Self>) {
             let Some(disk) = self.disks.get(index) else {
                 self.status = "That disk is no longer available.".to_string();
                 cx.notify();
@@ -90,7 +90,7 @@ fn main() {
             cx.notify();
         }
 
-        fn select_disk_0(
+        pub fn select_disk_0(
             &mut self,
             _: &ClickEvent,
             _: &mut gpui::Window,
@@ -99,7 +99,7 @@ fn main() {
             self.select_disk(0, cx);
         }
 
-        fn select_disk_1(
+        pub fn select_disk_1(
             &mut self,
             _: &ClickEvent,
             _: &mut gpui::Window,
@@ -108,7 +108,7 @@ fn main() {
             self.select_disk(1, cx);
         }
 
-        fn select_disk_2(
+        pub fn select_disk_2(
             &mut self,
             _: &ClickEvent,
             _: &mut gpui::Window,
@@ -117,7 +117,7 @@ fn main() {
             self.select_disk(2, cx);
         }
 
-        fn select_disk_3(
+        pub fn select_disk_3(
             &mut self,
             _: &ClickEvent,
             _: &mut gpui::Window,
@@ -126,21 +126,26 @@ fn main() {
             self.select_disk(3, cx);
         }
 
-        fn disk_label(&self, index: usize) -> String {
+        pub fn disk_label(&self, index: usize) -> String {
             self.disks
                 .get(index)
                 .map(|disk| disk.path.display().to_string())
                 .unwrap_or_default()
         }
 
-        fn disk_detail(&self, index: usize) -> String {
+        pub fn disk_detail(&self, index: usize) -> String {
             self.disks
                 .get(index)
                 .map(|disk| disk.detail.clone())
                 .unwrap_or_default()
         }
 
-        fn install(&mut self, _: &ClickEvent, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
+        pub fn install(
+            &mut self,
+            _: &ClickEvent,
+            _: &mut gpui::Window,
+            cx: &mut gpui::Context<Self>,
+        ) {
             let Some(target) = self.target.as_ref() else {
                 self.status = "Choose an install target first.".to_string();
                 cx.notify();
@@ -271,14 +276,14 @@ fn main() {
         }
     }
 
-    fn discover_disks() -> Vec<DiskChoice> {
+    pub fn discover_disks() -> Vec<DiskChoice> {
         let entries: Vec<_> = fs::read_dir("/sys/block")
             .ok()
             .into_iter()
             .flat_map(|entries| entries.filter_map(Result::ok))
             .filter(|entry| {
                 let name = entry.file_name().to_string_lossy().to_string();
-                is_install_disk_name(&name) && PathBuf::from("/dev").join(&name).exists()
+                super::is_install_disk_name(&name) && PathBuf::from("/dev").join(&name).exists()
             })
             .collect();
 
@@ -298,10 +303,10 @@ fn main() {
                         size.and_then(|value| value.trim().parse::<u64>().ok()),
                     ) {
                         (Some(model), Some(sectors)) => {
-                            format!("{model} - {}", format_disk_size(sectors))
+                            format!("{model} - {}", super::format_disk_size(sectors))
                         }
                         (Some(model), None) => model,
-                        (None, Some(sectors)) => format_disk_size(sectors),
+                        (None, Some(sectors)) => super::format_disk_size(sectors),
                         (None, None) => "Block device".to_string(),
                     };
                     DiskChoice { path, name, detail }
@@ -317,25 +322,35 @@ fn main() {
         disks
     }
 
-    let (source, target) = parse_install_args(std::env::args_os().skip(1));
-    Application::new().run(|cx: &mut App| {
-        let options = gpui_window_options(
-            "alpenglow.installer",
-            "Alpenglow Installer",
-            Some(gpui::WindowBounds::Windowed(bounds(
-                point(gpui::px(140.), gpui::px(64.)),
-                size(gpui::px(1040.), gpui::px(700.)),
-            ))),
-            Some(size(gpui::px(940.), gpui::px(620.))),
-        );
-        if let Err(e) = cx.open_window(options, |_, cx| {
-            cx.new(|_| InstallerView::new(source, target))
-        }) {
-            eprintln!("Failed to open window: {:?}", e);
-            cx.quit();
-        }
-    });
+    pub fn run_gui() {
+        let (source, target) = parse_install_args(std::env::args_os().skip(1));
+        Application::new().run(|cx: &mut App| {
+            let options = gpui_window_options(
+                "alpenglow.installer",
+                "Alpenglow Installer",
+                Some(gpui::WindowBounds::Windowed(bounds(
+                    point(gpui::px(140.), gpui::px(64.)),
+                    size(gpui::px(1040.), gpui::px(700.)),
+                ))),
+                Some(size(gpui::px(940.), gpui::px(620.))),
+            );
+            if let Err(e) = cx.open_window(options, |_, cx| {
+                cx.new(|_| InstallerView::new(source, target))
+            }) {
+                eprintln!("Failed to open window: {:?}", e);
+                cx.quit();
+            }
+        });
+    }
 }
+
+#[cfg(feature = "gui")]
+fn main() {
+    gui::run_gui();
+}
+
+#[cfg(not(feature = "gui"))]
+fn main() {}
 
 #[cfg(test)]
 mod tests {
