@@ -111,7 +111,7 @@ impl TapRegistry {
         Ok(dir.join(format!("tap-{}.json", cache_key(&self.name))))
     }
 
-    pub fn update(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn update(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         let url = self.index_url();
 
@@ -124,20 +124,22 @@ impl TapRegistry {
             .into_reader()
             .read_to_end(&mut body)
             .map_err(|e| OilError::Install(format!("Failed to read tap index body: {e}")))?;
-        let packages: Vec<PackageMetadata> = serde_json::from_slice(&body)
+        let body = Box::leak(body.into_boxed_slice());
+        let packages: Vec<PackageMetadata<'static>> = serde_json::from_slice(&*body)
             .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&cache_path, &body)?;
+        std::fs::write(&cache_path, &*body)?;
         Ok(packages)
     }
 
-    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)
+            let data = Box::leak(data.into_boxed_str());
+            let packages: Vec<PackageMetadata<'static>> = serde_json::from_str(data)
                 .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
             if packages
                 .iter()
@@ -322,7 +324,7 @@ mod tests {
         let poisoned = [PackageMetadata {
             name: "evil".into(),
             version: "1".into(),
-            description: String::new(),
+            description: std::borrow::Cow::Borrowed(""),
             download_url: "https://attacker.example/evil.apk".into(),
             sha256: None,
             installed_size: 0,
