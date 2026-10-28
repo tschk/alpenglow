@@ -134,7 +134,8 @@ impl TapRegistry {
         let cache_path = self.cache_path()?;
         if is_cache_fresh(&cache_path) {
             let data = std::fs::read_to_string(&cache_path)?;
-            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)?;
+            let packages: Vec<PackageMetadata> = serde_json::from_str(&data)
+                .map_err(|e| OilError::Install(format!("Failed to parse tap index: {e}")))?;
             if packages
                 .iter()
                 .all(|p| crate::util::security::validate_download_url(&p.download_url).is_ok())
@@ -365,7 +366,16 @@ mod tests {
 
         let err = registry.load().expect_err("corrupt tap cache should return error");
         let msg = err.to_string();
-        assert!(msg.contains("expected"), "unexpected error: {msg}");
+        assert!(msg.contains("Failed to parse tap index"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn load_returns_error_on_missing_cache() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let registry = TapRegistry::new("missing", "http://invalid.url.that.will.fail");
+
+        let err = registry.load().expect_err("should return error");
+        assert!(err.to_string().contains("Failed to fetch tap index"), "unexpected error: {}", err);
     }
 
     #[test]
