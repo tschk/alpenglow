@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Cancel superseded runs on main too, so pushes do not pile up in the queue.
+  cancel-in-progress: true
 
 jobs:
   os-appliance:
@@ -52,6 +53,19 @@ jobs:
         run: cargo install bindgen-cli --locked
       - name: Build Rust kernel module
         run: scripts/ci-rust-kernel-module.sh
+
+  kernel-config:
+    name: Kernel config + bcachefs graft
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install kernel build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev
+      - name: Check profile configs and compile fs/bcachefs
+        run: scripts/ci-kernel.sh config
 
   rust-audit:
     name: Alpenglow Rust dependency audit

@@ -1,0 +1,63 @@
+name: Kernel build
+
+# Full potato (minimal profile) bzImage, no initramfs, no boot. Only runs when
+# the kernel build inputs change; scripts/ci-kernel.sh config covers every push.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - system/backends/appliance/kernel/**
+      - system/backends/appliance/scripts/build-kernel-*.sh
+      - scripts/boot-native.sh
+      - scripts/ci-kernel.sh
+      - .github/workflows/kernel-build.yml
+  pull_request:
+    paths:
+      - system/backends/appliance/kernel/**
+      - system/backends/appliance/scripts/build-kernel-*.sh
+      - scripts/boot-native.sh
+      - scripts/ci-kernel.sh
+      - .github/workflows/kernel-build.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  potato-bzimage:
+    name: Potato kernel bzImage (no boot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 400M
+      CCACHE_COMPRESS: "1"
+      CCACHE_BASEDIR: /tmp/linux-ci
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install kernel build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison bc libssl-dev libelf-dev ccache
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: kernel-ccache-${{ hashFiles('scripts/boot-native.sh', 'system/backends/appliance/kernel/**') }}
+          restore-keys: kernel-ccache-
+      - name: Build potato bzImage
+        run: |
+          ccache -z
+          CC="ccache gcc" scripts/ci-kernel.sh build
+          ccache -s
+      # Save only from main, one entry per kernel-input hash, to bound cache storage.
+      - name: Save ccache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: kernel-ccache-${{ hashFiles('scripts/boot-native.sh', 'system/backends/appliance/kernel/**') }}

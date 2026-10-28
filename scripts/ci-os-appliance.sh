@@ -134,6 +134,7 @@ sh -n scripts/test-initramfs-codec-identity.sh
 sh scripts/test-initramfs-codec-identity.sh
 assert_file scripts/test-bench-boot.sh
 sh -n scripts/test-bench-boot.sh
+sh -n scripts/ci-kernel.sh
 sh scripts/test-bench-boot.sh
 assert_file scripts/test-arm64-kernel-image.sh
 sh -n scripts/test-arm64-kernel-image.sh
