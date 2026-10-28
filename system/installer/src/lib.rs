@@ -84,12 +84,22 @@ where
     )
 }
 
+pub fn run_installer_internal<I, F>(args: I, draw: F, allow_regular_file: bool) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
+{
+    run_installer_with_draw_and_install(args, draw, |source, target, _| {
+        install_image_maybe_compressed(source, target, allow_regular_file)
+    })
+}
+
 pub fn run_installer_with_draw<I, F>(args: I, draw: F) -> i32
 where
     I: IntoIterator<Item = OsString>,
     F: FnOnce(&Path, Option<&Path>) -> Result<(), String>,
 {
-    run_installer_with_draw_and_install(args, draw, install_image_maybe_compressed)
+    run_installer_internal(args, draw, false)
 }
 
 pub fn run_installer_with_draw_and_install<I, F, G>(args: I, draw: F, install: G) -> i32
@@ -356,6 +366,28 @@ mod tests {
         }
         let args: Vec<OsString> = vec![OsString::from("--tui")];
         assert_eq!(run_installer_with_draw(args, fake_draw), 2);
+    }
+
+    #[test]
+    fn test_run_installer_with_draw_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        std::fs::write(&source, b"testdata").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        assert_eq!(run_installer_internal(args, fake_draw, true), 0);
+        assert_eq!(std::fs::read(&target).unwrap(), b"testdata");
     }
 
     #[test]
