@@ -112,6 +112,7 @@ assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
 assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
 sh scripts/test-mount-state-paths.sh
+sh scripts/test-alpenglowed-build-readonly.sh
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"
