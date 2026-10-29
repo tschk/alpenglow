@@ -241,6 +241,8 @@ mod tests {
 
     #[test]
     fn resolve_install_dest_without_prefix() {
+        // install/main tests set OIL_SYSTEM_PREFIX under the same lock.
+        let _lock = env_lock();
         if std::env::var_os("OIL_SYSTEM_PREFIX").is_some() {
             let exe = std::env::current_exe().expect("current test binary");
             let status = std::process::Command::new(exe)

@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::error::Result;
+
+/// Where `oil install` puts packages. Images bind /state/oil here, so
+/// packages and the database below survive reboots and share /state snapshots.
+pub const PACKAGE_ROOT: &str = "/opt/oil";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPackage {
@@ -10,13 +14,25 @@ pub struct InstalledPackage {
     pub version: String,
     pub install_date: i64,
     pub pinned: bool,
+    /// Files written by the last install, relative to the package root.
+    #[serde(default)]
+    pub files: Vec<String>,
+}
+
+/// The package root, honouring OIL_SYSTEM_PREFIX for staged roots.
+pub fn package_root() -> Result<PathBuf> {
+    crate::util::security::resolve_install_dest(None, Path::new(PACKAGE_ROOT))
 }
 
 fn state_path() -> Result<PathBuf> {
+    Ok(package_root()?.join("var/lib/oil/installed.json"))
+}
+
+/// Pre-/opt/oil location, read once so existing records are not lost.
+fn legacy_state_path() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .map(|d| d.join(".oil").join("installed.json"))
-        .ok_or_else(|| crate::error::OilError::Install("$HOME not set".into()))
 }
 
 pub struct InstallState {
@@ -25,7 +41,12 @@ pub struct InstallState {
 
 impl InstallState {
     pub fn new() -> Result<Self> {
-        let path = state_path()?;
+        let mut path = state_path()?;
+        if !path.exists() {
+            if let Some(legacy) = legacy_state_path().filter(|p| p.exists()) {
+                path = legacy;
+            }
+        }
         let packages = if path.exists() {
             let raw = std::fs::read_to_string(&path)?;
             serde_json::from_str(&raw).map_err(|e| {
@@ -70,9 +91,38 @@ impl InstallState {
                 version: version_str.to_string(),
                 install_date,
                 pinned: false,
+                files: Vec::new(),
             };
             self.packages.insert(name.to_string(), pkg);
         }
+    }
+
+    /// Record the files an install wrote (absolute paths under `root`).
+    pub fn set_files(&mut self, name: &str, root: &Path, files: &[PathBuf]) {
+        if let Some(pkg) = self.packages.get_mut(name) {
+            pkg.files = files
+                .iter()
+                .filter_map(|f| f.strip_prefix(root).ok())
+                .map(|f| f.to_string_lossy().into_owned())
+                .collect();
+        }
+    }
+
+    /// Installed packages with at least one recorded file missing from `root`,
+    /// e.g. after /state was restored or a transaction was interrupted.
+    pub fn broken_packages(&self, root: &Path) -> Vec<String> {
+        let mut broken: Vec<String> = self
+            .packages
+            .values()
+            .filter(|pkg| {
+                pkg.files
+                    .iter()
+                    .any(|f| std::fs::symlink_metadata(root.join(f)).is_err())
+            })
+            .map(|pkg| pkg.name.clone())
+            .collect();
+        broken.sort();
+        broken
     }
 
     pub fn remove(&mut self, name: &str) -> Result<()> {
@@ -97,60 +147,117 @@ mod tests {
     struct EnvGuard {
         _lock: std::sync::MutexGuard<'static, ()>,
         original_home: Option<std::ffi::OsString>,
+        original_prefix: Option<std::ffi::OsString>,
     }
 
     impl EnvGuard {
         fn new() -> Self {
             let lock = home_env_lock();
             let original_home = std::env::var_os("HOME");
+            let original_prefix = std::env::var_os("OIL_SYSTEM_PREFIX");
             Self {
                 _lock: lock,
                 original_home,
+                original_prefix,
             }
+        }
+
+        /// Point both HOME and the package root prefix at `dir`.
+        fn isolate(&self, dir: &Path) {
+            std::env::set_var("HOME", dir);
+            std::env::set_var("OIL_SYSTEM_PREFIX", dir);
         }
     }
 
     impl Drop for EnvGuard {
         fn drop(&mut self) {
-            match &self.original_home {
-                Some(home) => std::env::set_var("HOME", home),
-                None => std::env::remove_var("HOME"),
+            for (key, value) in [
+                ("HOME", &self.original_home),
+                ("OIL_SYSTEM_PREFIX", &self.original_prefix),
+            ] {
+                match value {
+                    Some(v) => std::env::set_var(key, v),
+                    None => std::env::remove_var(key),
+                }
             }
         }
     }
 
     #[test]
-    fn test_state_path_no_home() -> Result<()> {
-        let _guard = EnvGuard::new();
-        std::env::remove_var("HOME");
+    fn state_lives_under_the_package_root() -> Result<()> {
+        // The database must sit next to the files it describes, under the
+        // root that images bind from /state, not in RAM-backed $HOME.
+        let guard = EnvGuard::new();
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        guard.isolate(temp_dir.path());
+        std::env::set_var("HOME", temp_dir.path().join("ram-home"));
 
-        let result = state_path();
-        assert!(result.is_err(), "Expected error when HOME is not set");
-        match result {
-            Err(crate::error::OilError::Install(msg)) => {
-                assert_eq!(msg, "$HOME not set");
-            }
-            _ => panic!("Expected OilError::Install"),
-        }
+        assert_eq!(package_root()?, temp_dir.path().join("opt/oil"));
+        let mut state = InstallState::new()?;
+        state.mark_installed("pkg", Some("1.0"));
+        state.save()?;
+        assert!(temp_dir
+            .path()
+            .join("opt/oil/var/lib/oil/installed.json")
+            .exists());
+        assert!(!temp_dir.path().join("ram-home/.oil").exists());
         Ok(())
     }
 
     #[test]
-    fn test_state_path_with_home() -> Result<()> {
-        let _guard = EnvGuard::new();
+    fn legacy_home_state_is_still_read() -> Result<()> {
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        guard.isolate(temp_dir.path());
+        let legacy = temp_dir.path().join(".oil");
+        std::fs::create_dir_all(&legacy)?;
+        std::fs::write(
+            legacy.join("installed.json"),
+            r#"{"old":{"name":"old","version":"1","install_date":0,"pinned":false}}"#,
+        )?;
 
-        let result = state_path().expect("Expected valid state path");
-        assert_eq!(result, temp_dir.path().join(".oil").join("installed.json"));
+        let state = InstallState::new()?;
+        assert_eq!(state.get("old").map(|p| p.version.as_str()), Some("1"));
+        assert!(state.get("old").unwrap().files.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn broken_packages_lists_only_packages_with_missing_files() -> Result<()> {
+        let guard = EnvGuard::new();
+        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
+        guard.isolate(temp_dir.path());
+        let root = temp_dir.path().join("root");
+        std::fs::create_dir_all(root.join("usr/bin"))?;
+        std::fs::write(root.join("usr/bin/ok"), "")?;
+        std::os::unix::fs::symlink("ok", root.join("usr/bin/ok-link"))?;
+        std::os::unix::fs::symlink("gone", root.join("usr/bin/dangling"))?;
+
+        let mut state = InstallState::new()?;
+        for name in ["intact", "half", "untracked", "linked"] {
+            state.mark_installed(name, Some("1"));
+        }
+        state.set_files("intact", &root, &[root.join("usr/bin/ok")]);
+        state.set_files(
+            "half",
+            &root,
+            &[root.join("usr/bin/ok"), root.join("usr/bin/missing")],
+        );
+        // A dangling symlink is still the file the package installed.
+        state.set_files(
+            "linked",
+            &root,
+            &[root.join("usr/bin/ok-link"), root.join("usr/bin/dangling")],
+        );
+        assert_eq!(state.broken_packages(&root), vec!["half".to_string()]);
         Ok(())
     }
 
     #[test]
     fn test_install_state_new() -> Result<()> {
-        let _guard = EnvGuard::new();
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        guard.isolate(temp_dir.path());
 
         let state = InstallState::new().expect("Failed to create new InstallState");
         assert!(
@@ -162,10 +269,10 @@ mod tests {
 
     #[test]
     fn test_install_state_rejects_corrupt_json() -> Result<()> {
-        let _guard = EnvGuard::new();
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
-        let oil_dir = temp_dir.path().join(".oil");
+        guard.isolate(temp_dir.path());
+        let oil_dir = temp_dir.path().join("opt/oil/var/lib/oil");
         std::fs::create_dir_all(&oil_dir).expect("create .oil");
         std::fs::write(oil_dir.join("installed.json"), "{not-json").expect("write corrupt state");
 
@@ -184,9 +291,9 @@ mod tests {
 
     #[test]
     fn test_install_state_save_load() -> Result<()> {
-        let _guard = EnvGuard::new();
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        guard.isolate(temp_dir.path());
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
         state.mark_installed("pkg-a", Some("1.0.0"));
@@ -207,9 +314,9 @@ mod tests {
 
     #[test]
     fn test_install_state_operations() -> Result<()> {
-        let _guard = EnvGuard::new();
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        guard.isolate(temp_dir.path());
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 
@@ -239,9 +346,9 @@ mod tests {
 
     #[test]
     fn test_install_state_load_method() -> Result<()> {
-        let _guard = EnvGuard::new();
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        guard.isolate(temp_dir.path());
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 
@@ -276,9 +383,9 @@ mod tests {
 
     #[test]
     fn test_install_state_clear() -> Result<()> {
-        let _guard = EnvGuard::new();
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        guard.isolate(temp_dir.path());
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 

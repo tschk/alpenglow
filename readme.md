@@ -79,7 +79,7 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
 | Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Default graphical session. [Soliloquy](https://github.com/tschk/soliloquy) `sold` is an optional session for the internet role |
-| Security | AppArmor, read-only root (optional) | Hardened by default |
+| Security | Landlock, no loadable kernel modules, immutable RAM root, locked root, key-only SSH | AppArmor and module signing are not shipped: kernels are built without module support, and AppArmor would need a parser and profiles the image does not carry |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y |
 
@@ -173,6 +173,10 @@ Alpenglow has one root model:
 
 **Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds; `fast` boots diskless with no optional `/state` features.
 
+**Packages** — `oil install` puts packages under `/opt/oil`, which images bind from `/state/oil`, so installs (and Oil's database) survive reboots and are covered by `/state` snapshots. `oil system sync` reinstalls any recorded package whose files are missing. Packages are verified against Alpine's signing keys; `OIL_INSECURE_NO_VERIFY=1` is only for unsigned local packages.
+
+**First boot** — root ships locked. The first console login sets its password, kept on `/state`. SSH (dropbear) is key-only. On potato and internet, add keys to `/root/.ssh/authorized_keys`; it and the host keys live on `/state` once it is mounted; the desktop image refuses root over SSH and reads `~/.ssh` instead.
+
 **Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. Alpenglowed is a Wayland client on Cage. Smithay `--compositor` is experimental and is not built into the image.
 
 ## Services
@@ -182,7 +186,7 @@ Alpenglow has one root model:
 | SSH (dropbear) | ✅ | ✅ | ✅ | dinit |
 | NTP (chronyd) | ✅ | ✅ | ✅ | dinit |
 | DNS cache (dnsmasq) | ✅ | ✅ | ✅ | dinit |
-| Logging (syslogd) | ✅ | ✅ | ✅ | dinit |
+| Logging (syslogd) | partial | not in x86 images yet | ✅ | dinit |
 | DHCP networking | ✅ | ✅ | ✅ | dinit |
 | WiFi (iwd) | ✅ | optional | ✅ | dinit |
 | Wayland + Alpenglowed | ✅ | optional | ✅ | dinit |

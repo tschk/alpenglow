@@ -28,10 +28,24 @@ valid_key_path() {
   esac
 }
 
+# GPT partition name from sysfs: needs neither udev nor blkid support for
+# bcachefs. Release images name the state partition alpenglow-state.
+partname_dev() {
+  for uevent in "${SYSFS_BLOCK:-/sys/class/block}"/*/uevent; do
+    [ -r "${uevent}" ] || continue
+    if grep -qx "PARTNAME=$1" "${uevent}"; then
+      dev="$(sed -n 's/^DEVNAME=//p' "${uevent}")"
+      [ -n "${dev}" ] && { echo "/dev/${dev}"; return 0; }
+    fi
+  done
+  return 1
+}
+
 state_block_dev() {
   spec="$1"
   case "${spec}" in
-    LABEL=*) blkid -L "${spec#LABEL=}" 2>/dev/null || true ;;
+    LABEL=*) blkid -L "${spec#LABEL=}" 2>/dev/null | grep . || partname_dev "${spec#LABEL=}" || true ;;
+    PARTLABEL=*) partname_dev "${spec#PARTLABEL=}" || true ;;
     /dev/*) echo "${spec}" ;;
     *) echo "${spec}" ;;
   esac
@@ -63,7 +77,7 @@ open_luks_state() {
   fi
 
   if [ "${need_open}" -eq 0 ]; then
-    echo "${spec}"
+    echo "${dev}"
     return 0
   fi
 

@@ -98,6 +98,18 @@ build_host_gui_installer() {
   GUI_INSTALLER="${ROOT_DIR}/target/release/alpenglow-install-gui"
 }
 
+# Oil ships in every edition but fast; build it like the installer so
+# boot-native.sh installs this binary instead of building its own.
+if [ "${FAST}" != "1" ]; then
+  if [ -n "${RUST_TARGET}" ]; then
+    cargo build --locked --release --target "${RUST_TARGET}" -p oil --manifest-path "${ROOT_DIR}/Cargo.toml" \
+      --target-dir "${ROOT_DIR}/target"
+  else
+    cargo build --locked --release -p oil --manifest-path "${ROOT_DIR}/Cargo.toml" --target-dir "${ROOT_DIR}/target"
+  fi
+  mkdir -p "${ROOT_DIR}/build/native"
+  cp "${INSTALLER_DIR}/oil" "${ROOT_DIR}/build/native/oil"
+fi
 ALPENGLOW_VERSION="${VERSION}" ALPENGLOW_ARCH="${ARCH}" sh "${ROOT_DIR}/scripts/build-release.sh"
 build_installer --bin alpenglow-install
 if [ "${EDITION}" = "desktop" ] && [ "${ARCH}" = "x86_64" ]; then

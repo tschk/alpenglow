@@ -50,7 +50,10 @@ export STATE_TEST_MOUNT_LOG="${tmp}/mount.log"
 . "${helper}"
 stage="fresh paths"
 setup_state_paths "${tmp}/state" "${tmp}/target"
-[ "$(wc -l <"${STATE_TEST_MOUNT_LOG}" | tr -d ' ')" -eq 4 ]
+[ "$(wc -l <"${STATE_TEST_MOUNT_LOG}" | tr -d ' ')" -eq 5 ]
+# Oil packages persist: /opt/oil is /state/oil, created when missing.
+grep -Fxq -- "--bind ${tmp}/state/oil ${tmp}/target/opt/oil" "${STATE_TEST_MOUNT_LOG}"
+[ -d "${tmp}/state/oil" ] && [ -d "${tmp}/target/opt/oil" ]
 grep -Fq "770:770 ${tmp}/state/var/lib/alpenglow/browser/profiles" "${STATE_TEST_CHOWN_LOG}"
 [ "$(stat -c %a "${tmp}/state/var/lib/alpenglow/browser/profiles" 2>/dev/null || stat -f %Lp "${tmp}/state/var/lib/alpenglow/browser/profiles")" = 700 ]
 

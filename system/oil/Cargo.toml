@@ -19,13 +19,10 @@ serde_json = "1"
 ureq = "3"
 tar = "0.4"
 flate2 = "1"
-sha2 = "0.10"
-sha1 = "0.10"
+sha2 = { version = "0.10", features = ["oid"] }
+sha1 = { version = "0.10", features = ["oid"] }
 hex = "0.4"
 rsa = { version = "0.9", features = ["pem"] }
-cms = "0.2"
-const-oid = "0.9"
-der = "0.7"
 signature = "2"
 signal-hook = "0.3"
 clap = { version = "4", features = ["derive"] }

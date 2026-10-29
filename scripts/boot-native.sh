@@ -317,7 +317,16 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   if [ -f "${OUT_DIR}/greetd/usr/bin/greetd" ]; then
     echo "  greetd: ${OUT_DIR}/greetd/usr/bin/greetd"
   fi
+fi
 
+# Network services the edition's world file asks for (editions.toml
+# world_file) are built whatever the build profile; release images are then
+# checked for them by scripts/check-release-rootfs.sh.
+WORLD_PATH=""
+[ -n "${WORLD_FILE:-}" ] && WORLD_PATH="${BACKEND_DIR}/${WORLD_FILE}"
+world_has() { [ "${FAST}" != "1" ] && [ -n "${WORLD_PATH}" ] && grep -qx "$1" "${WORLD_PATH}"; }
+
+if [ "${BUILD_SERVICES}" = "1" ] || world_has dropbear; then
   # dropbear — SSH server (static musl)
   docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache gcc musl-dev make curl tar xz linux-headers >/dev/null 2>&1
@@ -340,10 +349,12 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
     make -j$(nproc) PROGRAMS="dropbear dropbearkey dropbearconvert" >/dev/null 2>&1
     make install DESTDIR=/out/dropbear >/dev/null 2>&1
   ' 2>&1 | tail -1
-  if [ -f "${OUT_DIR}/dropbear/usr/bin/dropbear" ]; then
-    echo "  dropbear: ${OUT_DIR}/dropbear/usr/bin/dropbear"
+  if [ -f "${OUT_DIR}/dropbear/usr/sbin/dropbear" ]; then
+    echo "  dropbear: ${OUT_DIR}/dropbear/usr/sbin/dropbear"
   fi
+fi
 
+if [ "${BUILD_SERVICES}" = "1" ] || world_has chrony; then
   # chrony — NTP daemon (static musl)
   docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache gcc musl-dev make curl tar xz >/dev/null 2>&1
@@ -362,7 +373,9 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   if [ -f "${OUT_DIR}/chrony/usr/sbin/chronyd" ]; then
     echo "  chronyd: ${OUT_DIR}/chrony/usr/sbin/chronyd"
   fi
+fi
 
+if [ "${BUILD_SERVICES}" = "1" ] || world_has dnsmasq; then
   # dnsmasq — local DNS caching resolver (static musl)
   docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache gcc musl-dev make curl tar xz linux-headers >/dev/null 2>&1
@@ -376,6 +389,24 @@ if [ "${BUILD_SERVICES}" = "1" ]; then
   ' 2>&1 | tail -1
   if [ -f "${OUT_DIR}/dnsmasq/usr/sbin/dnsmasq" ]; then
     echo "  dnsmasq: ${OUT_DIR}/dnsmasq/usr/sbin/dnsmasq"
+  fi
+fi
+
+if world_has sdhcp; then
+  # sdhcp — DHCP client for images without udhcpc (static musl)
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+    apk add --no-cache gcc musl-dev make curl tar >/dev/null 2>&1
+    cd /tmp
+    curl -fsSL https://dl.2f30.org/releases/sdhcp-0.1.tar.gz -o sdhcp.tar.gz || exit 1
+    echo "08e43f3d540f62ba9b4a72774fee39074d81f272955c84dd283d8fbaef44deed  sdhcp.tar.gz" | sha256sum -c - || exit 1
+    tar -xzf sdhcp.tar.gz
+    cd sdhcp-0.1
+    make CC=gcc CFLAGS="-Os -D_BSD_SOURCE" LDFLAGS="-static -s" >/dev/null
+    mkdir -p /out/sdhcp/usr/sbin
+    cp sdhcp /out/sdhcp/usr/sbin/sdhcp
+  ' 2>&1 | tail -1
+  if [ -f "${OUT_DIR}/sdhcp/usr/sbin/sdhcp" ]; then
+    echo "  sdhcp: ${OUT_DIR}/sdhcp/usr/sbin/sdhcp"
   fi
 fi
 
@@ -436,11 +467,8 @@ if [ "${FAST}" != "1" ] && [ -f "${OUT_DIR}/dinit-install/sbin/dinitctl" ]; then
   cp "${OUT_DIR}/dinit-install/sbin/dinitctl" "${ROOTFS_DIR}/sbin/"
 fi
 
-# Install userspace services (if built via BUILD_SERVICES=1)
-if [ -d "${OUT_DIR}/dropbear" ]; then
-  cp -R "${OUT_DIR}/dropbear/" "${ROOTFS_DIR}/"
-  mkdir -p "${ROOTFS_DIR}/etc/dropbear"
-fi
+# Desktop-path services (if built via BUILD_SERVICES=1). Network services
+# (dropbear, chrony, dnsmasq, sdhcp) are installed by assemble_rootfs_config.
 if [ "${BUILD_PROFILE}" != "minimal" ]; then
   if [ -d "${OUT_DIR}/iwd" ]; then
     cp -R "${OUT_DIR}/iwd/" "${ROOTFS_DIR}/"
@@ -451,13 +479,6 @@ if [ "${BUILD_PROFILE}" != "minimal" ]; then
     cp -R "${OUT_DIR}/greetd/" "${ROOTFS_DIR}/"
     mkdir -p "${ROOTFS_DIR}/etc/greetd"
     cp "${BACKEND_DIR}/rootfs-overlay/etc/greetd/config.toml" "${ROOTFS_DIR}/etc/greetd/" 2>/dev/null || true
-  fi
-  if [ -d "${OUT_DIR}/chrony" ]; then
-    cp -R "${OUT_DIR}/chrony/" "${ROOTFS_DIR}/"
-    mkdir -p "${ROOTFS_DIR}/etc/chrony"
-  fi
-  if [ -d "${OUT_DIR}/dnsmasq" ]; then
-    cp -R "${OUT_DIR}/dnsmasq/" "${ROOTFS_DIR}/"
   fi
 fi
 
@@ -618,6 +639,21 @@ if [ "${FAST}" != "1" ]; then
   done
 fi
 
+# Oil (native package manager): every edition but fast. Built here and
+# installed into the rootfs by assemble_rootfs_config.
+OIL_BIN="${ROOT_DIR}/build/native/oil"
+OIL_SRC="${ROOT_DIR}/system/oil"
+if [ "${FAST}" != "1" ] && [ ! -f "${OIL_BIN}" ] && [ -d "${OIL_SRC}" ]; then
+  echo "→ Building Oil (native package manager)..."
+  # Oil is a workspace member, so the whole tree is mounted (read-only).
+  docker run --rm --platform linux/amd64 -v "${ROOT_DIR}:/src:ro" -v "${OUT_DIR}:/out" rust:1-alpine sh -c '
+    apk add --no-cache musl-dev make >/dev/null
+    cargo build --locked --release -p oil --manifest-path /src/Cargo.toml --target-dir /tmp/oil-target
+    cp /tmp/oil-target/release/oil /out/oil
+  '
+  [ -f "${OIL_BIN}" ] && echo "  oil: ${OIL_BIN}"
+fi
+
 # shellcheck source=scripts/lib/assemble-rootfs.sh
 . "${ROOT_DIR}/scripts/lib/assemble-rootfs.sh"
 assemble_rootfs_config
@@ -628,26 +664,6 @@ type = process
 command = /usr/bin/alpenglowed-run.sh
 restart = yes
 ALPENGLOW
-fi
-
-# Oil (native package manager)
-OIL_BIN="${ROOT_DIR}/build/native/oil"
-OIL_SRC="${ROOT_DIR}/system/oil"
-if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
-  cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
-elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
-  echo "→ Building Oil (native package manager)..."
-  docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
-    apk add --no-cache rust cargo make gcc musl-dev >/dev/null
-    cd /oil-src
-    cargo build --release --no-default-features --features wax 2>/dev/null
-    cp target/release/oil /out/oil 2>/dev/null
-  ' 2>&1 | tail -1
-  if [ -f "${OUT_DIR}/oil" ]; then
-    cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
-    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
-    echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
-  fi
 fi
 
 # Build initramfs

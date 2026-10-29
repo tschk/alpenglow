@@ -1,4 +1,5 @@
-# Network — lightweight DHCP (sdhcp)
+# Network — lightweight DHCP (sdhcp). Backgrounded so an unplugged machine
+# still boots; sdhcp keeps retrying and renews the lease once bound.
 type = scripted
-command = /usr/sbin/sdhcp -e eth0
+command = /bin/toybox sh -c "/bin/toybox ifconfig lo 127.0.0.1 up; /bin/toybox ifconfig eth0 up; /usr/sbin/sdhcp eth0 &"
 restart = no

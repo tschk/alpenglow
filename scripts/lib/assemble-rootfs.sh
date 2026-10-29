@@ -8,7 +8,7 @@ _assemble_qemu_mount_units() {
   mkdir -p "${ROOTFS_DIR}/etc/dinit.d"
   cat > "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0" << 'SHELL'
 type = process
-command = /bin/toybox getty -L 115200 ttyS0 vt100
+command = /bin/toybox getty -L -l /usr/local/bin/alpenglow-login 115200 ttyS0 vt100
 restart = yes
 depends-on = mount-filesystems
 SHELL
@@ -47,16 +47,36 @@ depends-on = syslogd
 CROND
 }
 
+# Write base entries to an /etc database, keeping entries already there
+# (configure-rootfs.sh adds service users before this runs).
+_merge_etc_db() {
+  db="${ROOTFS_DIR}/etc/$1"
+  base="$(cat)"
+  old=""
+  [ -f "${db}" ] && old="$(cat "${db}")"
+  {
+    printf '%s\n' "${base}"
+    printf '%s\n' "${old}" | while IFS= read -r line; do
+      [ -n "${line}" ] || continue
+      printf '%s\n' "${base}" | grep -q "^${line%%:*}:" || printf '%s\n' "${line}"
+    done
+  } > "${db}.new"
+  mv "${db}.new" "${db}"
+}
+
 _assemble_boot_native_passwd() {
   mkdir -p "${ROOTFS_DIR}/etc"
-  cat > "${ROOTFS_DIR}/etc/passwd" << 'PASSWD'
+  _merge_etc_db passwd << 'PASSWD'
 root:x:0:0:root:/root:/bin/toybox sh
 seatd:x:772:772:seatd:/var/empty:/sbin/nologin
 PASSWD
-  cat > "${ROOTFS_DIR}/etc/shadow" << 'SHADOW'
-root::19999:0:99999:7:::
+  # Root ships locked ('!'): the first console login sets a password
+  # (alpenglow-login). An empty field would let anyone in without one.
+  _merge_etc_db shadow << 'SHADOW'
+root:!:19999:0:99999:7:::
 SHADOW
-  cat > "${ROOTFS_DIR}/etc/group" << 'GROUP'
+  chmod 600 "${ROOTFS_DIR}/etc/shadow"
+  _merge_etc_db group << 'GROUP'
 root:x:0:
 wheel:x:10:
 daemon:x:1:
@@ -167,6 +187,7 @@ INIT
   mknod -m 444 "${ROOTFS_DIR}/dev/urandom" c 1 9 2>/dev/null || true
 
   echo "alpenglow" > "${ROOTFS_DIR}/etc/hostname"
+  _assemble_login
 
   mkdir -p "${ROOTFS_DIR}/root/.ssh"
   chmod 700 "${ROOTFS_DIR}/root/.ssh"
@@ -221,17 +242,155 @@ LOGX
   chmod 755 "${ROOTFS_DIR}/usr/local/bin/logrotate.sh"
 }
 
+# Console login wrapper used by every edition's getty.
+_assemble_login() {
+  mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+  cat > "${ROOTFS_DIR}/usr/local/bin/alpenglow-login" << 'LOGIN'
+#!/bin/toybox sh
+# Root ships locked. The first console login sets its password and keeps
+# the hash on /state, so it survives reboots on editions that mount /state.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+saved=/state/etc/root-shadow
+if [ -s "${saved}" ] && ! grep -qxF "$(cat "${saved}")" /etc/shadow; then
+  { cat "${saved}"; grep -v '^root:' /etc/shadow; } > /etc/shadow.new &&
+    chmod 600 /etc/shadow.new && mv /etc/shadow.new /etc/shadow
+fi
+if grep -q '^root:!:' /etc/shadow; then
+  echo "First login on this machine: choose a root password."
+  until /bin/toybox passwd -a sha512 root; do :; done
+  if grep -q ' /state ' /proc/mounts; then
+    mkdir -p /state/etc && chmod 700 /state/etc
+    grep '^root:' /etc/shadow > "${saved}" && chmod 600 "${saved}"
+  else
+    echo "No /state mounted: this password lasts until reboot."
+  fi
+fi
+exec /bin/toybox login "$@"
+LOGIN
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/alpenglow-login"
+}
+
+# Network services and Oil built by boot-native.sh (world file / BUILD_SERVICES).
+_assemble_network_payloads() {
+  for svc in dropbear chrony dnsmasq sdhcp; do
+    [ -d "${OUT_DIR}/${svc}" ] && cp -R "${OUT_DIR}/${svc}/." "${ROOTFS_DIR}/"
+  done
+  [ -d "${OUT_DIR}/dropbear" ] && mkdir -p "${ROOTFS_DIR}/etc/dropbear"
+  [ -d "${OUT_DIR}/chrony" ] && mkdir -p "${ROOTFS_DIR}/etc/chrony"
+  if [ "${FAST:-0}" != "1" ] && [ -f "${OUT_DIR}/oil" ]; then
+    mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+    cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
+    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+  fi
+  return 0
+}
+
+# Where `oil install` puts packages (/opt/oil, bound from /state/oil): make
+# them runnable from the RAM root without touching it at runtime.
+_assemble_oil_runtime() {
+  [ -f "${ROOTFS_DIR}/usr/local/bin/oil" ] || return 0
+  mkdir -p "${ROOTFS_DIR}/opt/oil" "${ROOTFS_DIR}/lib" "${ROOTFS_DIR}/etc/profile.d"
+  # Alpine binaries load /lib/ld-musl-x86_64.so.1; the musl package puts it
+  # under /opt/oil/lib. Static images have no loader of their own.
+  if [ ! -e "${ROOTFS_DIR}/lib/ld-musl-x86_64.so.1" ] && [ ! -L "${ROOTFS_DIR}/lib/ld-musl-x86_64.so.1" ]; then
+    ln -s /opt/oil/lib/ld-musl-x86_64.so.1 "${ROOTFS_DIR}/lib/ld-musl-x86_64.so.1"
+  fi
+  printf '%s\n' /opt/oil/lib /opt/oil/usr/lib /lib /usr/lib /usr/local/lib \
+    > "${ROOTFS_DIR}/etc/ld-musl-x86_64.path"
+  cat > "${ROOTFS_DIR}/etc/profile.d/oil.sh" << 'OILPATH'
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/oil/usr/sbin:/opt/oil/usr/bin:/opt/oil/sbin:/opt/oil/bin"
+export PATH
+OILPATH
+  if [ ! -f "${ROOTFS_DIR}/etc/profile" ]; then
+    cat > "${ROOTFS_DIR}/etc/profile" << 'PROFILE'
+for f in /etc/profile.d/*.sh; do [ -r "$f" ] && . "$f"; done
+PROFILE
+  fi
+}
+
+# Units for potato/internet (minimal profile, not fast): /state, DHCP and
+# the network services their world asks for. Services start without an
+# address and pick it up once DHCP binds, so nothing blocks boot offline.
+_assemble_lean_service_units() {
+  d="${ROOTFS_DIR}/etc/dinit.d"
+  mkdir -p "${d}" "${ROOTFS_DIR}/usr/local/bin" "${ROOTFS_DIR}/etc/dropbear"
+  cp "${BACKEND_DIR}/scripts/mount-state.sh" "${BACKEND_DIR}/scripts/mount-state-paths.sh" \
+    "${ROOTFS_DIR}/usr/local/bin/"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/mount-state.sh"
+  for dir in home var/lib/alpenglow var/cache/alpenglow var/log/alpenglow; do
+    mkdir -p "${ROOTFS_DIR}/${dir}"
+  done
+  # Edition kernel policy (editions.toml kernel_policy) and zram swap.
+  [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && cp "${BACKEND_DIR}/dinit/alpenglow-kernel-policy" "${d}/"
+  [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && cp "${BACKEND_DIR}/dinit/alpenglow-zram" "${d}/"
+  # Diskless boots are valid: no state partition means RAM-only, said aloud.
+  cat > "${d}/state-mount" << 'UNIT'
+type = scripted
+command = /bin/toybox sh -c "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; /usr/local/bin/mount-state.sh || echo 'alpenglow: /state not mounted; changes last until reboot'"
+restart = no
+depends-on = mount-filesystems
+UNIT
+  resolv_flag=""
+  if [ -x "${ROOTFS_DIR}/usr/sbin/dnsmasq" ]; then
+    resolv_flag="-d"
+    echo "nameserver 127.0.0.1" > "${ROOTFS_DIR}/etc/resolv.conf"
+  fi
+  if [ -x "${ROOTFS_DIR}/usr/sbin/sdhcp" ]; then
+    cat > "${d}/networking" << UNIT
+type = scripted
+command = /bin/toybox sh -c "/bin/toybox ifconfig lo 127.0.0.1 up; /bin/toybox ifconfig eth0 up; /usr/sbin/sdhcp ${resolv_flag} eth0 &"
+restart = no
+depends-on = mount-filesystems
+UNIT
+  fi
+  if [ -x "${ROOTFS_DIR}/usr/sbin/dropbear" ]; then
+    # Host keys and root's authorized_keys live on /state when it is mounted.
+    cat > "${d}/dropbear" << 'UNIT'
+type = process
+command = /bin/toybox sh -c "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; if grep -q ' /state ' /proc/mounts && ! grep -q ' /etc/dropbear ' /proc/mounts; then mkdir -p /state/etc/dropbear && mkdir -p -m 700 /state/root-ssh && mount --bind /state/etc/dropbear /etc/dropbear && mount --bind /state/root-ssh /root/.ssh; fi; exec /usr/sbin/dropbear -F -R -s"
+restart = yes
+depends-on = state-mount
+waits-for = networking
+UNIT
+  fi
+  if [ -x "${ROOTFS_DIR}/usr/sbin/chronyd" ]; then
+    cat > "${d}/chronyd" << 'UNIT'
+type = process
+command = /usr/sbin/chronyd -d -s -u chrony -f /etc/chrony/chrony.conf
+restart = yes
+waits-for = networking
+UNIT
+  fi
+  if [ -x "${ROOTFS_DIR}/usr/sbin/dnsmasq" ]; then
+    cat > "${d}/dnsmasq" << 'UNIT'
+type = process
+command = /usr/sbin/dnsmasq -k -u dnsmasq -C /etc/dnsmasq.conf
+restart = yes
+waits-for = networking
+UNIT
+  fi
+  _merge_etc_db passwd << 'PASSWD'
+chrony:x:776:776:chrony:/var/empty:/sbin/nologin
+dnsmasq:x:777:777:dnsmasq:/var/empty:/sbin/nologin
+PASSWD
+  _merge_etc_db group << 'GROUP'
+chrony:x:776:
+dnsmasq:x:777:
+GROUP
+}
+
 _wire_boot_services() {
   mkdir -p "${ROOTFS_DIR}/etc/dinit.d/boot.d"
   for svc in ${BOOT_SERVICES}; do
     ln -sf "/etc/dinit.d/${svc}" "${ROOTFS_DIR}/etc/dinit.d/boot.d/${svc}" 2>/dev/null || true
   done
+  # waits-for: one failing service must not stop the console with it.
   {
     echo "type = scripted"
     echo "command = /bin/true"
     echo "restart = no"
     for svc in ${BOOT_SERVICES}; do
-      echo "depends-on = ${svc}"
+      echo "waits-for = ${svc}"
     done
   } > "${ROOTFS_DIR}/etc/dinit.d/boot"
 }
@@ -239,7 +398,16 @@ _wire_boot_services() {
 _assemble_native_boot_services() {
   case "${BUILD_PROFILE}" in
     minimal)
-      BOOT_SERVICES="shell-ttyS0 mount-filesystems"
+      # boot + SSH + time + logs; each only if its binary was built.
+      BOOT_SERVICES="shell-ttyS0 mount-filesystems state-mount"
+      [ -f "${ROOTFS_DIR}/etc/dinit.d/networking" ] && [ -x "${ROOTFS_DIR}/usr/sbin/sdhcp" ] && BOOT_SERVICES="${BOOT_SERVICES} networking"
+      toybox_has syslogd && BOOT_SERVICES="${BOOT_SERVICES} syslogd"
+      toybox_has crond && BOOT_SERVICES="${BOOT_SERVICES} crond"
+      [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-kernel-policy"
+      [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
+      [ -x "${ROOTFS_DIR}/usr/sbin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
+      [ -x "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
+      [ -x "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
       ;;
     standard)
       BOOT_SERVICES="shell-ttyS0 mount-filesystems networking syslogd crond"
@@ -250,7 +418,7 @@ _assemble_native_boot_services() {
       [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-netd" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-netd"
       [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-zram"
       [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-pressurectl-zig" ] && BOOT_SERVICES="${BOOT_SERVICES} alpenglow-pressure"
-      [ -f "${ROOTFS_DIR}/usr/bin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
+      [ -f "${ROOTFS_DIR}/usr/sbin/dropbear" ] && BOOT_SERVICES="${BOOT_SERVICES} dropbear"
       [ -f "${ROOTFS_DIR}/usr/sbin/chronyd" ] && BOOT_SERVICES="${BOOT_SERVICES} chronyd"
       [ -f "${ROOTFS_DIR}/usr/sbin/dnsmasq" ] && BOOT_SERVICES="${BOOT_SERVICES} dnsmasq"
       ;;
@@ -291,16 +459,19 @@ _assemble_minimal_rootfs() {
     _assemble_common_rootfs_tail
     return
   fi
-  _assemble_minimal_toybox_networking
   _assemble_minimal_toybox_syslogd
   _assemble_minimal_toybox_crond
+  _assemble_minimal_configs
+  _assemble_network_payloads
+  _assemble_lean_service_units
+  _assemble_oil_runtime
   _assemble_native_boot_services
   _wire_boot_services
-  _assemble_minimal_configs
   _assemble_common_rootfs_tail
 }
 
 _assemble_production_rootfs() {
+  _assemble_network_payloads
   BUILD_PROFILE="${BUILD_PROFILE}" \
     ALPENGLOW_DESKTOP_FULL="${ALPENGLOW_DESKTOP_FULL:-1}" \
     sh "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
@@ -329,6 +500,7 @@ _assemble_production_rootfs() {
     _assemble_minimal_toybox_crond
   fi
 
+  _assemble_oil_runtime
   _assemble_common_rootfs_tail
 }
 

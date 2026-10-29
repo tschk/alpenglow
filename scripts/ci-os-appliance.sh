@@ -112,6 +112,10 @@ assert_contains system/appliance/filesystems/state-mounts.json '"target": "/home
 assert_contains system/appliance/filesystems/state-mounts.json '"target": "/var/lib/alpenglow"'
 assert_contains system/appliance/filesystems/state-mounts.json '"format": "bcachefs"'
 sh scripts/test-mount-state-paths.sh
+# Release images: fail-fast build, and rootfs contents per editions.toml.
+sh -n scripts/check-release-rootfs.sh
+sh scripts/test-build-release-failfast.sh
+sh scripts/test-release-rootfs.sh
 
 # Generate appliance rootfs and validate it
 tmp_root="$(mktemp -d)"

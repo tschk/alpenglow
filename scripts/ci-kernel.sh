@@ -56,6 +56,8 @@ case "${MODE}" in
     for profile in minimal desktop; do
       configure "${profile}"
       want_y "${profile}" SWAP BLK_DEV ZRAM BCACHEFS_FS
+      # readme "Security": no loadable modules, so there is nothing to sign.
+      ! grep -q '^CONFIG_MODULES=y$' .config || fail "${profile}: CONFIG_MODULES must stay off"
     done
     configure fast
     for opt in SWAP ZRAM BCACHEFS_FS; do
