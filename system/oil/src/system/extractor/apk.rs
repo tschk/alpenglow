@@ -1,20 +1,55 @@
 /// Extract an Alpine .apk package to dest_dir.
 ///
-/// .apk files are concatenated gzip streams:
-///   - Stream 1: tar with signature files (.SIGN.RSA.<key>, etc.)
-///   - Stream 2: tar with control metadata (.PKGINFO, .INSTALL)
-///   - Stream 3: tar with actual package data (what gets installed)
+/// .apk files are concatenated gzip members:
+///   - Member 1: tar with signature files (.SIGN.RSA.<key> / .SIGN.RSA256.<key>)
+///   - Member 2: tar with control metadata (.PKGINFO, .INSTALL)
+///   - Member 3: tar with actual package data (what gets installed)
+///
+/// The signature covers the compressed control member; `.PKGINFO`'s
+/// `datahash` covers the compressed data member (see `system::verifier`).
 use std::io::Read;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
 use crate::error::{OilError, Result};
-use crate::system::verifier;
+use crate::system::verifier::{self, SigHash};
 
-/// Try well-known Alpine public key paths. Returns the first PEM found.
-fn find_apk_key(keyname: &str) -> Option<String> {
-    find_apk_key_in_root(Path::new("/"), keyname)
+/// Alpine's release signing keys (alpine-keys 2.4, cross-checked against
+/// aports main/alpine-keys). Keys in /etc/apk/keys and /usr/share/apk/keys
+/// are trusted too, so taps can add their own.
+macro_rules! alpine_key {
+    ($id:literal) => {
+        (
+            concat!("alpine-devel@lists.alpinelinux.org-", $id, ".rsa.pub"),
+            include_str!(concat!(
+                "../../../keys/alpine-devel@lists.alpinelinux.org-",
+                $id,
+                ".rsa.pub"
+            )),
+        )
+    };
 }
+
+const BUILTIN_KEYS: &[(&str, &str)] = &[
+    alpine_key!("4a6a0840"),
+    alpine_key!("5243ef4b"),
+    alpine_key!("524d27bb"),
+    alpine_key!("5261cecb"),
+    alpine_key!("58199dcc"),
+    alpine_key!("58cbb476"),
+    alpine_key!("58e4f17d"),
+    alpine_key!("5e69ca50"),
+    alpine_key!("60ac2099"),
+    alpine_key!("6165ee59"),
+    alpine_key!("61666e3f"),
+    alpine_key!("616a9724"),
+    alpine_key!("616abc23"),
+    alpine_key!("616ac3bc"),
+    alpine_key!("616adfeb"),
+    alpine_key!("616ae350"),
+    alpine_key!("616db30d"),
+];
 
 fn is_safe_apk_keyname(keyname: &str) -> bool {
     !keyname.is_empty()
@@ -26,29 +61,34 @@ fn is_safe_apk_keyname(keyname: &str) -> bool {
             .all(|c| matches!(c, std::path::Component::Normal(_)))
 }
 
+/// Look up a public key by its exact filename, as apk-tools does.
 fn find_apk_key_in_root(root: &Path, keyname: &str) -> Option<String> {
     if !is_safe_apk_keyname(keyname) {
         return None;
     }
-    let candidates = [
-        format!("etc/apk/keys/{keyname}.pub"),
-        format!("usr/share/apk/keys/{keyname}.pub"),
-        format!("etc/apk/keys/alpine-devel@lists.alpinelinux.org-{keyname}.pub"),
-        format!("etc/apk/keys/alpine-devel@lists.alpinelinux.org-{keyname}.pem"),
-    ];
-    for candidate in &candidates {
-        let path = root.join(candidate);
-        if let Ok(pem) = std::fs::read_to_string(path) {
+    for dir in ["etc/apk/keys", "usr/share/apk/keys"] {
+        if let Ok(pem) = std::fs::read_to_string(root.join(dir).join(keyname)) {
             if pem.contains("BEGIN") {
                 return Some(pem);
             }
         }
     }
-    None
+    BUILTIN_KEYS
+        .iter()
+        .find(|(name, _)| *name == keyname)
+        .map(|(_, pem)| (*pem).to_string())
 }
 
 /// Extract an APK package and return (files, dirs) of absolute paths written.
 pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    extract_tracked_with_keys(path, dest_dir, Path::new("/"))
+}
+
+fn extract_tracked_with_keys(
+    path: &Path,
+    dest_dir: &Path,
+    key_root: &Path,
+) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     const MAX_APK_SIZE: u64 = 2 * 1024 * 1024 * 1024;
     if std::fs::metadata(path)?.len() > MAX_APK_SIZE {
         return Err(OilError::Install(format!(
@@ -56,57 +96,94 @@ pub fn extract_tracked(path: &Path, dest_dir: &Path) -> Result<(Vec<PathBuf>, Ve
         )));
     }
     let data = std::fs::read(path)?;
+    let members = split_gzip_members(&data)?;
+    let data_tar = verify_package(&data, &members, key_root)?;
 
-    // Split into three gzip streams
-    let streams = split_gzip_streams(&data, 3)?;
+    // Extract the data tar — this is what goes on disk
+    std::fs::create_dir_all(dest_dir)?;
+    untar(data_tar, dest_dir)
+}
 
-    // Verify signature from stream 1 against data tar (stream 3)
-    let sig_keyname = extract_signature_info(&streams.0);
-    if let Some((keyname, sig_bytes)) = sig_keyname {
-        if let Some(pubkey_pem) = find_apk_key(&keyname) {
-            eprintln!("Verifying APK signature (key: {keyname})...");
-            verifier::verify_apk_signature(&streams.2, &sig_bytes, &pubkey_pem)
-                .map_err(|e| OilError::Install(format!("signature verification failed: {e}")))?;
-            eprintln!("Signature OK.");
-        } else if crate::util::security::insecure_mode() {
-            eprintln!("Warning: no public key found for '{keyname}', skipping verification");
-        } else {
-            return Err(OilError::Install(format!(
-                "no public key found for '{keyname}'; set OIL_INSECURE_NO_VERIFY=1 to override"
-            )));
+/// One gzip member: its compressed byte range in the file and its contents.
+struct Member {
+    raw: Range<usize>,
+    tar: Vec<u8>,
+}
+
+/// Verify signature and datahash; return the data tar to extract.
+fn verify_package<'a>(data: &[u8], members: &'a [Member], key_root: &Path) -> Result<&'a [u8]> {
+    let insecure = crate::util::security::insecure_mode();
+    let signatures = match members.len() {
+        3 => extract_signatures(&members[0].tar),
+        _ => Vec::new(),
+    };
+    let data_member = members
+        .last()
+        .ok_or_else(|| OilError::Install("APK has no gzip members".into()))?;
+    if signatures.is_empty() {
+        if insecure {
+            eprintln!("Warning: unsigned APK, skipping verification");
+            return Ok(&data_member.tar);
         }
-    } else if !crate::util::security::insecure_mode() {
         return Err(OilError::Install(
             "APK has no signature stream; set OIL_INSECURE_NO_VERIFY=1 to override".into(),
         ));
     }
 
-    // Extract data tar (stream 3) — this is what goes on disk
-    std::fs::create_dir_all(dest_dir)?;
-    untar(&streams.2, dest_dir)
+    let control = &members[1];
+    let control_raw = &data[control.raw.clone()];
+    let mut last_err = None;
+    let mut verified_with = None;
+    for (keyname, hash, sig) in &signatures {
+        let Some(pem) = find_apk_key_in_root(key_root, keyname) else {
+            last_err = Some(OilError::Install(format!(
+                "no public key found for '{keyname}'"
+            )));
+            continue;
+        };
+        match verifier::verify_rsa_signature(control_raw, sig, *hash, &pem) {
+            Ok(()) => {
+                verified_with = Some(keyname.clone());
+                break;
+            }
+            Err(e) => last_err = Some(e),
+        }
+    }
+    let Some(keyname) = verified_with else {
+        let err = last_err.unwrap_or_else(|| OilError::Install("no usable signature".into()));
+        if insecure {
+            eprintln!("Warning: {err}; skipping verification");
+            return Ok(&data_member.tar);
+        }
+        return Err(OilError::Install(format!(
+            "signature verification failed: {err}; set OIL_INSECURE_NO_VERIFY=1 to override"
+        )));
+    };
+
+    // The signature authenticates the control member; .PKGINFO's datahash
+    // then authenticates the data member. Without it the payload is unbound.
+    let datahash = pkginfo_value(&control.tar, "datahash")
+        .ok_or_else(|| OilError::Install("signed APK has no datahash in .PKGINFO".into()))?;
+    verifier::verify_datahash(&data[data_member.raw.clone()], &datahash)
+        .map_err(|e| OilError::Install(format!("data verification failed: {e}")))?;
+    eprintln!("Signature OK (key: {keyname}).");
+    Ok(&data_member.tar)
 }
 
-/// Split a concatenated-gzip file into up to `count` individually
-/// decompressed streams by scanning for gzip magic bytes.
-fn split_gzip_streams(data: &[u8], count: usize) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-    const MAX_STREAM_SIZE: usize = 1024 * 1024 * 1024; // 1GB per stream
+/// Split a concatenated-gzip file into its members, decompressing each and
+/// recording the exact compressed byte range it occupies.
+fn split_gzip_members(data: &[u8]) -> Result<Vec<Member>> {
+    const MAX_STREAM_SIZE: usize = 1024 * 1024 * 1024; // 1GB per member
     const MAX_TOTAL_SIZE: usize = 2 * 1024 * 1024 * 1024; // 2GB total
-    split_gzip_streams_with_limits(data, count, MAX_STREAM_SIZE, MAX_TOTAL_SIZE)
+    split_gzip_members_with_limits(data, MAX_STREAM_SIZE, MAX_TOTAL_SIZE)
 }
 
-fn split_gzip_streams_with_limits(
+fn split_gzip_members_with_limits(
     data: &[u8],
-    count: usize,
     max_stream_size: usize,
     max_total_size: usize,
-) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-    const MAX_STREAM_COUNT: usize = 3;
-
-    if count > MAX_STREAM_COUNT {
-        return Err(OilError::Install(format!(
-            "Requested {count} streams, maximum is {MAX_STREAM_COUNT}"
-        )));
-    }
+) -> Result<Vec<Member>> {
+    const MAX_MEMBERS: usize = 3;
 
     if data.len() > max_total_size {
         return Err(OilError::Install(format!(
@@ -116,22 +193,26 @@ fn split_gzip_streams_with_limits(
         )));
     }
 
-    let starts = find_gzip_stream_starts(data, count)?;
-
-    let mut out = Vec::with_capacity(count);
+    let mut members = Vec::new();
+    let mut offset = 0;
     let mut total_decompressed: usize = 0;
-
-    for i in 0..count {
-        let slice = &data[starts[i]..];
-        let mut decoder = flate2::read::GzDecoder::new(slice);
-        let mut buf = Vec::new();
-
+    while offset < data.len() {
+        if members.len() == MAX_MEMBERS {
+            return Err(OilError::Install(format!(
+                "APK has more than {MAX_MEMBERS} gzip members"
+            )));
+        }
+        let i = members.len();
+        let rest = &data[offset..];
+        let mut decoder = flate2::bufread::GzDecoder::new(rest);
         let remaining = max_total_size - total_decompressed;
         let allowed = max_stream_size.min(remaining);
+        let mut buf = Vec::new();
         decoder
             .by_ref()
             .take(allowed as u64 + 1)
-            .read_to_end(&mut buf)?;
+            .read_to_end(&mut buf)
+            .map_err(|e| OilError::Install(format!("gzip member {i}: {e}")))?;
 
         if buf.len() > max_stream_size {
             return Err(OilError::Install(format!(
@@ -141,7 +222,6 @@ fn split_gzip_streams_with_limits(
                 max_stream_size
             )));
         }
-
         if buf.len() > remaining {
             return Err(OilError::Install(format!(
                 "Total decompressed size {} exceeds maximum {}",
@@ -151,58 +231,69 @@ fn split_gzip_streams_with_limits(
         }
         total_decompressed += buf.len();
 
-        out.push(buf);
-    }
-
-    Ok((out.remove(0), out.remove(0), out.remove(0)))
-}
-
-fn find_gzip_stream_starts(data: &[u8], count: usize) -> Result<Vec<usize>> {
-    let mut starts: Vec<usize> = Vec::new();
-    let mut last_pos = 0;
-
-    let mut offset = 0;
-    while let Some(pos) = memchr::memchr(0x1f, &data[offset..]) {
-        let i = offset + pos;
-        if i + 1 < data.len() && data[i + 1] == 0x8b {
-            if i < last_pos {
-                return Err(OilError::Install("Invalid gzip stream overlap".into()));
-            }
-            starts.push(i);
-            last_pos = i;
-
-            if starts.len() >= count {
-                break;
-            }
+        // bufread::GzDecoder stops at the end of one member's trailer.
+        let consumed = rest.len() - decoder.into_inner().len();
+        if consumed == 0 {
+            return Err(OilError::Install(format!("empty gzip member {i}")));
         }
-        offset = i + 1;
+        members.push(Member {
+            raw: offset..offset + consumed,
+            tar: buf,
+        });
+        offset += consumed;
     }
 
-    if starts.len() < count {
+    if members.len() < 2 {
         return Err(OilError::Install(format!(
-            "APK has {} gzip streams, expected {count}",
-            starts.len()
+            "APK has {} gzip members, expected 3",
+            members.len()
         )));
     }
-
-    Ok(starts)
+    Ok(members)
 }
 
-/// Extract the first `.SIGN.RSA.<keyname>` file from the signature tar
-/// and return (keyname, raw CMS DER bytes).
-fn extract_signature_info(tar_data: &[u8]) -> Option<(String, Vec<u8>)> {
+/// Every `.SIGN.RSA.<key>` (SHA-1) and `.SIGN.RSA256.<key>` (SHA-256) entry.
+fn extract_signatures(tar_data: &[u8]) -> Vec<(String, SigHash, Vec<u8>)> {
+    let mut out = Vec::new();
     let mut archive = Archive::new(tar_data);
+    let Ok(entries) = archive.entries() else {
+        return out;
+    };
+    for entry in entries {
+        let Ok(mut entry) = entry else { break };
+        let path = entry.path_bytes().into_owned();
+        let (hash, rest) = if let Some(rest) = path.strip_prefix(b".SIGN.RSA256.") {
+            (SigHash::Sha256, rest)
+        } else if let Some(rest) = path.strip_prefix(b".SIGN.RSA.") {
+            (SigHash::Sha1, rest)
+        } else {
+            continue;
+        };
+        let keyname = String::from_utf8_lossy(rest)
+            .trim_end_matches('\0')
+            .to_string();
+        let mut sig = Vec::new();
+        if entry.read_to_end(&mut sig).is_ok() {
+            out.push((keyname, hash, sig));
+        }
+    }
+    out
+}
+
+/// Read `key = value` from the control tar's .PKGINFO.
+fn pkginfo_value(control_tar: &[u8], key: &str) -> Option<String> {
+    let mut archive = Archive::new(control_tar);
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
-        let bytes = entry.path_bytes();
-        if let Some(rest) = bytes.strip_prefix(b".SIGN.RSA.") {
-            let keyname = String::from_utf8_lossy(rest)
-                .trim_end_matches('\0')
-                .to_string();
-            let mut sig = Vec::new();
-            entry.read_to_end(&mut sig).ok()?;
-            return Some((keyname, sig));
+        if entry.path_bytes().as_ref() != b".PKGINFO" {
+            continue;
         }
+        let mut text = String::new();
+        entry.read_to_string(&mut text).ok()?;
+        return text.lines().find_map(|line| {
+            let (k, v) = line.split_once(" = ")?;
+            (k.trim() == key).then(|| v.trim().to_string())
+        });
     }
     None
 }
@@ -359,41 +450,185 @@ mod tests {
     use std::io::Write;
     use tempfile::tempdir;
 
+    type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
+
+    /// alpine-keys 2.4-r1 for x86_64, byte-for-byte from dl-cdn v3.20/main,
+    /// signed by alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub.
+    const REAL_APK: &[u8] = include_bytes!("../../../tests/fixtures/alpine-keys-2.4-r1.apk");
+    const REAL_KEY: &str = "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub";
+
     fn create_gz_stream(data: &[u8]) -> std::result::Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(data)?;
         Ok(encoder.finish()?)
     }
 
+    fn tar_with(
+        name: &str,
+        body: &[u8],
+    ) -> std::result::Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, name, body)?;
+        Ok(builder.into_inner()?)
+    }
+
+    struct InsecureEnvGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_insecure: Option<std::ffi::OsString>,
+    }
+
+    impl InsecureEnvGuard {
+        fn new(insecure: bool) -> Self {
+            // Shared with util::security tests, which also toggle OIL_INSECURE_NO_VERIFY.
+            let lock = crate::test_support::home_env_lock();
+            let original_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
+            if insecure {
+                std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+            } else {
+                std::env::remove_var("OIL_INSECURE_NO_VERIFY");
+            }
+            Self {
+                _lock: lock,
+                original_insecure,
+            }
+        }
+    }
+
+    impl Drop for InsecureEnvGuard {
+        fn drop(&mut self) {
+            match &self.original_insecure {
+                Some(val) => std::env::set_var("OIL_INSECURE_NO_VERIFY", val),
+                None => std::env::remove_var("OIL_INSECURE_NO_VERIFY"),
+            }
+        }
+    }
+
+    /// Run the secure path over `apk` with only the built-in keys trusted.
+    fn extract_secure(
+        apk: &[u8],
+    ) -> std::result::Result<(Vec<PathBuf>, tempfile::TempDir), OilError> {
+        let dir = tempdir().expect("tempdir");
+        let apk_path = dir.path().join("pkg.apk");
+        std::fs::write(&apk_path, apk).expect("write apk");
+        let empty_root = dir.path().join("keys-root");
+        let dest = dir.path().join("dest");
+        let (files, _) = extract_tracked_with_keys(&apk_path, &dest, &empty_root)?;
+        Ok((files, dir))
+    }
+
+    fn member_ranges(apk: &[u8]) -> Vec<Range<usize>> {
+        split_gzip_members(apk)
+            .expect("split")
+            .into_iter()
+            .map(|m| m.raw)
+            .collect()
+    }
+
     #[test]
-    fn test_split_gzip_streams_happy_path() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let stream1 = create_gz_stream(b"stream 1 data")?;
-        let stream2 = create_gz_stream(b"stream 2 data")?;
-        let stream3 = create_gz_stream(b"stream 3 data")?;
-
-        let mut combined = Vec::new();
-        combined.extend(&stream1);
-        combined.extend(&stream2);
-        combined.extend(&stream3);
-
-        let result = split_gzip_streams(&combined, 3);
-        assert!(result.is_ok());
-        let (out1, out2, out3) = result?;
-
-        assert_eq!(out1, b"stream 1 data");
-        assert_eq!(out2, b"stream 2 data");
-        assert_eq!(out3, b"stream 3 data");
+    fn genuine_alpine_package_verifies_and_extracts() -> TestResult {
+        let _guard = InsecureEnvGuard::new(false);
+        let (files, dir) = extract_secure(REAL_APK)?;
+        let key = dir.path().join("dest/usr/share/apk/keys").join(REAL_KEY);
+        assert!(files.contains(&key), "missing {}", key.display());
+        // The package ships the very key that signed it; it must match ours.
+        assert_eq!(
+            std::fs::read_to_string(&key)?,
+            find_apk_key_in_root(Path::new("/nonexistent"), REAL_KEY).unwrap()
+        );
         Ok(())
     }
 
     #[test]
-    fn test_split_gzip_streams_rejects_expansion_before_full_allocation(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn tampered_data_member_is_rejected() -> TestResult {
+        let _guard = InsecureEnvGuard::new(false);
+        // Re-compress the data tar with one payload byte flipped: still a
+        // valid gzip member, but no longer the bytes datahash pins.
+        let members = split_gzip_members(REAL_APK)?;
+        let mut data_tar = members[2].tar.clone();
+        let last_nonzero = data_tar.iter().rposition(|b| *b != 0).unwrap();
+        data_tar[last_nonzero] ^= 0x01;
+        let mut apk = REAL_APK[..members[2].raw.start].to_vec();
+        apk.extend(create_gz_stream(&data_tar)?);
+
+        let err = extract_secure(&apk).unwrap_err();
+        assert!(
+            err.to_string().contains("data verification failed"),
+            "{err}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn tampered_control_member_is_rejected() -> TestResult {
+        let _guard = InsecureEnvGuard::new(false);
+        // Swap in a control member carrying the data member's real hash: the
+        // datahash would pass, so only the signature can catch it.
+        let ranges = member_ranges(REAL_APK);
+        let data_hash = hex::encode(<sha2::Sha256 as sha2::Digest>::digest(
+            &REAL_APK[ranges[2].clone()],
+        ));
+        let pkginfo = format!("pkgname = evil\ndatahash = {data_hash}\n");
+        let mut apk = REAL_APK[ranges[0].clone()].to_vec();
+        apk.extend(create_gz_stream(&tar_with(
+            ".PKGINFO",
+            pkginfo.as_bytes(),
+        )?)?);
+        apk.extend_from_slice(&REAL_APK[ranges[2].clone()]);
+
+        let err = extract_secure(&apk).unwrap_err();
+        assert!(
+            err.to_string().contains("signature verification failed"),
+            "{err}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_signing_key_is_rejected() -> TestResult {
+        let _guard = InsecureEnvGuard::new(false);
+        let ranges = member_ranges(REAL_APK);
+        let members = split_gzip_members(REAL_APK)?;
+        let (_, _, sig) = extract_signatures(&members[0].tar).remove(0);
+        let mut apk = create_gz_stream(&tar_with(".SIGN.RSA.someone-else.rsa.pub", &sig)?)?;
+        apk.extend_from_slice(&REAL_APK[ranges[1].start..]);
+
+        let err = extract_secure(&apk).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("no public key found for 'someone-else.rsa.pub'"),
+            "{err}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn members_split_on_real_boundaries() -> TestResult {
+        // Member boundaries come from the gzip trailers, not a magic-byte scan.
+        let ranges = member_ranges(REAL_APK);
+        assert_eq!(ranges, vec![0..661, 661..1161, 1161..REAL_APK.len()]);
+        let mut fake_magic = create_gz_stream(&[0x1f, 0x8b, 0x1f, 0x8b])?;
+        let first = fake_magic.len();
+        fake_magic.extend(create_gz_stream(b"control")?);
+        fake_magic.extend(create_gz_stream(b"data")?);
+        let members = split_gzip_members(&fake_magic)?;
+        assert_eq!(members[0].raw, 0..first);
+        assert_eq!(members[0].tar, [0x1f, 0x8b, 0x1f, 0x8b]);
+        assert_eq!(members[2].tar, b"data");
+        Ok(())
+    }
+
+    #[test]
+    fn split_rejects_expansion_before_full_allocation() -> TestResult {
         let mut combined = create_gz_stream(&vec![b'a'; 2048])?;
         combined.extend(create_gz_stream(b"control")?);
         combined.extend(create_gz_stream(b"data")?);
-        let err = split_gzip_streams_with_limits(&combined, 3, 1024, 4096)
-            .expect_err("expanded stream must be rejected");
+        let err = split_gzip_members_with_limits(&combined, 1024, 4096)
+            .err()
+            .expect("expanded stream must be rejected");
         assert!(err
             .to_string()
             .contains("Stream 0 size 1025 exceeds maximum 1024"));
@@ -401,13 +636,13 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_enforces_aggregate_budget(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn split_enforces_aggregate_budget() -> TestResult {
         let mut combined = create_gz_stream(&vec![b'a'; 600])?;
         combined.extend(create_gz_stream(&vec![b'b'; 600])?);
         combined.extend(create_gz_stream(b"data")?);
-        let err = split_gzip_streams_with_limits(&combined, 3, 1024, 1000)
-            .expect_err("aggregate expansion must be rejected");
+        let err = split_gzip_members_with_limits(&combined, 1024, 1000)
+            .err()
+            .expect("aggregate expansion must be rejected");
         assert!(err
             .to_string()
             .contains("Total decompressed size 1001 exceeds maximum 1000"));
@@ -415,201 +650,25 @@ mod tests {
     }
 
     #[test]
-    fn test_split_gzip_streams_apk_size_exceeds_maximum() {
-        // Allocate a 2GB+1 byte vector initialized to zero.
-        // On modern Linux systems, this uses a lazy virtual memory allocation (mmap)
-        // and doesn't consume physical memory since we don't write to it.
-        let fake_large_data = vec![0u8; 2 * 1024 * 1024 * 1024 + 1];
-        let result = split_gzip_streams(&fake_large_data, 3);
-        assert!(result.is_err());
-        let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(
-            err_msg.contains("exceeds maximum"),
-            "Unexpected error: {}",
-            err_msg
-        );
-    }
-
-    #[test]
-    fn test_split_gzip_streams_magic_byte_at_eof(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let mut data = create_gz_stream(b"stream 1")?;
-        data.extend(create_gz_stream(b"stream 2")?);
-        data.push(0x1f);
-
-        let result = split_gzip_streams(&data, 3);
-        assert!(result.is_err());
-        let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(
-            err_msg.contains("APK has 2 gzip streams, expected 3"),
-            "Unexpected error: {}",
-            err_msg
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_split_gzip_streams_only_magic_bytes() {
-        let mut data = vec![0x1f, 0x8b];
-        data.extend(vec![0x1f, 0x8b]);
-        data.extend(vec![0x1f, 0x8b]);
-
-        let result = split_gzip_streams(&data, 3);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_split_gzip_streams_extra_streams_ignored(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let stream1 = create_gz_stream(b"stream 1 data")?;
-        let stream2 = create_gz_stream(b"stream 2 data")?;
-        let stream3 = create_gz_stream(b"stream 3 data")?;
-        let stream4 = create_gz_stream(b"stream 4 data")?;
-
-        let mut combined = Vec::new();
-        combined.extend(&stream1);
-        combined.extend(&stream2);
-        combined.extend(&stream3);
-        combined.extend(&stream4);
-
-        let result = split_gzip_streams(&combined, 3);
-        assert!(result.is_ok());
-        let (out1, out2, out3) = result?;
-
-        assert_eq!(out1, b"stream 1 data");
-        assert_eq!(out2, b"stream 2 data");
-        assert_eq!(out3, b"stream 3 data");
-        Ok(())
-    }
-
-    #[test]
-    fn test_split_gzip_streams_too_many_requested(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let stream = create_gz_stream(b"data")?;
-        let result = split_gzip_streams(&stream, 4);
-        assert!(result.is_err());
-        let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(
-            err_msg.contains("Requested 4 streams, maximum is 3"),
-            "Unexpected error: {}",
-            err_msg
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_split_gzip_streams_not_enough_streams(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let stream1 = create_gz_stream(b"data 1")?;
-        let stream2 = create_gz_stream(b"data 2")?;
-        let mut combined = Vec::new();
-        combined.extend(&stream1);
-        combined.extend(&stream2);
-
-        let result = split_gzip_streams(&combined, 3);
-        assert!(result.is_err());
-        let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(
-            err_msg.contains("APK has 2 gzip streams, expected 3"),
-            "Unexpected error: {}",
-            err_msg
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_split_gzip_streams_corrupted_gzip(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let mut data = create_gz_stream(b"stream 1 data")?;
-        data.extend(create_gz_stream(b"stream 2 data")?);
-        let mut corrupted_stream = create_gz_stream(b"stream 3 data")?;
-        corrupted_stream.truncate(5);
-        data.extend(corrupted_stream);
-        let result = split_gzip_streams(&data, 3);
-        assert!(result.is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn test_untar_entry_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn key_lookup_uses_exact_filename_and_rejects_paths() -> TestResult {
         let dir = tempdir()?;
-        let mut tar_builder = tar::Builder::new(Vec::new());
-        let mut header = tar::Header::new_gnu();
-        header.set_size(10);
-        header.set_cksum();
-        tar_builder.append_data(&mut header, "test.txt", b"0123456789".as_ref())?;
-        let mut tar_data = tar_builder.into_inner()?;
-
-        // Corrupt the header checksum to trigger an entry parsing error
-        tar_data[148..156].copy_from_slice(b"invalid\0");
-
-        let result = untar(&tar_data, dir.path());
-        assert!(result.is_err());
+        let keys_dir = dir.path().join("etc/apk/keys");
+        std::fs::create_dir_all(&keys_dir)?;
+        std::fs::write(
+            keys_dir.join("tap.rsa.pub"),
+            "-----BEGIN PUBLIC KEY-----\ndata",
+        )?;
+        assert!(find_apk_key_in_root(dir.path(), "tap.rsa.pub").is_some());
+        assert!(find_apk_key_in_root(dir.path(), "tap.rsa").is_none());
+        assert!(find_apk_key_in_root(dir.path(), "../etc/passwd").is_none());
+        assert!(find_apk_key_in_root(dir.path(), "a/b").is_none());
+        assert!(find_apk_key_in_root(dir.path(), "").is_none());
+        assert!(find_apk_key_in_root(dir.path(), REAL_KEY).is_some());
         Ok(())
     }
 
     #[test]
-    fn test_untar_entry_path_error() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
-        let mut tar_builder = tar::Builder::new(Vec::new());
-
-        // Build a valid GNU long name entry with a short name.
-        let long_name = b"short";
-        let mut ext_header = tar::Header::new_gnu();
-        ext_header.set_size(long_name.len() as u64);
-        ext_header.set_entry_type(tar::EntryType::GNULongName);
-        ext_header.set_cksum();
-        tar_builder.append_data(&mut ext_header, "././@LongLink", long_name.as_ref())?;
-
-        // Append a dummy file so the archive is initially valid.
-        let mut header = tar::Header::new_gnu();
-        header.set_size(0);
-        header.set_cksum();
-        tar_builder.append_data(&mut header, "file.txt", b"".as_ref())?;
-
-        let mut tar_data = tar_builder.into_inner()?;
-
-        // Truncate inside the long name data so the entry cannot be fully read.
-        tar_data.truncate(512 + 2);
-
-        let result = untar(&tar_data, dir.path());
-        assert!(result.is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn test_split_gzip_streams_no_magic_bytes(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let data = b"dummy string without gzip magic bytes";
-        let result = split_gzip_streams(data, 3);
-        assert!(result.is_err());
-        let err_msg = result.expect_err("Expected an error").to_string();
-        assert!(
-            err_msg.contains("APK has 0 gzip streams, expected 3"),
-            "Unexpected error: {}",
-            err_msg
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_split_gzip_streams_fake_magic_bytes(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let mut data = create_gz_stream(b"stream 1")?;
-
-        // Append raw magic bytes in between valid streams to test the function's boundary splitting logic
-        // This simulates a "fake magic" sequence where the function will incorrectly split, causing GzDecoder to fail.
-        data.extend_from_slice(&[0x1f, 0x8b, 0x00, 0x00, 0x00]);
-        data.extend(create_gz_stream(b"stream 2")?);
-        data.extend(create_gz_stream(b"stream 3")?);
-
-        let result = split_gzip_streams(&data, 3);
-        assert!(result.is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_tracked_missing_file() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_extract_tracked_missing_file() -> TestResult {
         let dir = tempdir()?;
         let missing_path = dir.path().join("does_not_exist.apk");
         let dest_dir = dir.path().join("dest");
@@ -619,135 +678,11 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_signature_info_success() -> std::result::Result<(), Box<dyn std::error::Error>>
-    {
-        let mut tar_builder = tar::Builder::new(Vec::new());
-        let mut header = tar::Header::new_gnu();
-        let data = b"dummy signature data";
-        header.set_size(data.len() as u64);
-        header.set_cksum();
-        tar_builder.append_data(
-            &mut header,
-            ".SIGN.RSA.alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
-            &data[..],
-        )?;
-        let tar_data = tar_builder.into_inner()?;
-        let result = extract_signature_info(&tar_data);
-        assert!(result.is_some());
-        let (keyname, sig) = result.ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::NotFound, "Missing signature")
-        })?;
-        assert_eq!(
-            keyname,
-            "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub"
-        );
-        assert_eq!(sig, data);
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_signature_info_not_found() -> std::result::Result<(), Box<dyn std::error::Error>>
-    {
-        let mut tar_builder = tar::Builder::new(Vec::new());
-        let mut header = tar::Header::new_gnu();
-        let data = b"some other file";
-        header.set_size(data.len() as u64);
-        header.set_cksum();
-        tar_builder.append_data(&mut header, "some_other_file.txt", &data[..])?;
-        let tar_data = tar_builder.into_inner()?;
-        let result = extract_signature_info(&tar_data);
-        assert!(result.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_signature_info_invalid_tar(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let invalid_tar_data = b"not a tar file";
-        let result = extract_signature_info(invalid_tar_data);
-        assert!(result.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn test_untar_invalid_tar() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_untar_invalid_tar() -> TestResult {
         let dir = tempdir()?;
         let invalid_tar_data = b"not a valid tar file";
         let result = untar(invalid_tar_data, dir.path());
         assert!(result.is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn test_find_apk_key_in_root_happy_path_etc(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
-        let keys_dir = dir.path().join("etc/apk/keys");
-        std::fs::create_dir_all(&keys_dir)?;
-        let key_path = keys_dir.join("testkey.pub");
-        std::fs::write(
-            &key_path,
-            "some key data\n-----BEGIN PUBLIC KEY-----\nmore data",
-        )?;
-
-        let result = find_apk_key_in_root(dir.path(), "testkey");
-        assert!(result.is_some());
-        assert!(result.unwrap().contains("BEGIN PUBLIC KEY"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_find_apk_key_in_root_happy_path_usr(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
-        let keys_dir = dir.path().join("usr/share/apk/keys");
-        std::fs::create_dir_all(&keys_dir)?;
-        let key_path = keys_dir.join("testkey2.pub");
-        std::fs::write(&key_path, "-----BEGIN PUBLIC KEY-----\ndata")?;
-
-        let result = find_apk_key_in_root(dir.path(), "testkey2");
-        assert!(result.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn test_find_apk_key_in_root_invalid_content(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
-        let keys_dir = dir.path().join("etc/apk/keys");
-        std::fs::create_dir_all(&keys_dir)?;
-        let key_path = keys_dir.join("testkey3.pub");
-        std::fs::write(&key_path, "just some random data, no begin block")?;
-
-        let result = find_apk_key_in_root(dir.path(), "testkey3");
-        assert!(result.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn test_find_apk_key_in_root_not_found() -> std::result::Result<(), Box<dyn std::error::Error>>
-    {
-        let dir = tempdir()?;
-        // Empty directory
-        let result = find_apk_key_in_root(dir.path(), "testkey4");
-        assert!(result.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn test_find_apk_key_in_root_rejects_path_keyname(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
-        let keys_dir = dir.path().join("etc/apk/keys");
-        std::fs::create_dir_all(&keys_dir)?;
-        std::fs::write(
-            keys_dir.join("legit.pub"),
-            "-----BEGIN PUBLIC KEY-----\ndata",
-        )?;
-        assert!(find_apk_key_in_root(dir.path(), "../etc/passwd").is_none());
-        assert!(find_apk_key_in_root(dir.path(), "a/b").is_none());
-        assert!(find_apk_key_in_root(dir.path(), "").is_none());
-        assert!(find_apk_key_in_root(dir.path(), "legit").is_some());
         Ok(())
     }
 
@@ -780,124 +715,36 @@ mod tests {
         assert!(!is_safe_symlink(link_target, dest, dest_dir));
     }
 
-    struct InsecureEnvGuard {
-        _lock: std::sync::MutexGuard<'static, ()>,
-        original_insecure: Option<std::ffi::OsString>,
-    }
-
-    impl InsecureEnvGuard {
-        fn new() -> Self {
-            // Shared with util::security tests, which also toggle OIL_INSECURE_NO_VERIFY.
-            let lock = crate::test_support::home_env_lock();
-            let original_insecure = std::env::var_os("OIL_INSECURE_NO_VERIFY");
-            Self {
-                _lock: lock,
-                original_insecure,
-            }
-        }
-    }
-
-    impl Drop for InsecureEnvGuard {
-        fn drop(&mut self) {
-            match &self.original_insecure {
-                Some(val) => std::env::set_var("OIL_INSECURE_NO_VERIFY", val),
-                None => std::env::remove_var("OIL_INSECURE_NO_VERIFY"),
-            }
-        }
-    }
-
     #[test]
-    fn test_extract_tracked_success() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
-        let dest_dir = dir.path().join("dest");
-        let apk_path = dir.path().join("test.apk");
-
-        // We'll create a tar archive for each of the three streams.
-        // 1. Signature stream
-        let mut sig_tar = tar::Builder::new(Vec::new());
-        let sig_data = b"dummy signature";
-        let mut header = tar::Header::new_gnu();
-        header.set_size(sig_data.len() as u64);
-        header.set_cksum();
-        sig_tar.append_data(&mut header, ".SIGN.RSA.testkey.pub", &sig_data[..])?;
-        let sig_tar_data = sig_tar.into_inner()?;
-
-        // 2. Control stream (can be empty tar)
-        let ctrl_tar = tar::Builder::new(Vec::new());
-        let ctrl_tar_data = ctrl_tar.into_inner()?;
-
-        // 3. Data stream
-        let mut data_tar = tar::Builder::new(Vec::new());
-        let file_data = b"hello world";
-        let mut header = tar::Header::new_gnu();
-        header.set_size(file_data.len() as u64);
-        header.set_cksum();
-        data_tar.append_data(&mut header, "hello.txt", &file_data[..])?;
-        let data_tar_data = data_tar.into_inner()?;
-
-        // Compress each tar
-        let mut apk_data = create_gz_stream(&sig_tar_data)?;
-        apk_data.extend(create_gz_stream(&ctrl_tar_data)?);
-        apk_data.extend(create_gz_stream(&data_tar_data)?);
-
-        std::fs::write(&apk_path, &apk_data)?;
-
-        let _guard = InsecureEnvGuard::new();
-
-        // Set OIL_INSECURE_NO_VERIFY=1 so we don't need a real key or valid signature
-        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
-
-        let result = extract_tracked(&apk_path, &dest_dir)?;
-
-        assert_eq!(result.0.len(), 1); // one file written
-        assert_eq!(result.0, vec![dest_dir.join("hello.txt")]);
-        assert!(result.1.is_empty());
-        assert!(dest_dir.join("hello.txt").exists());
-        let content = std::fs::read_to_string(dest_dir.join("hello.txt"))?;
-        assert_eq!(content, "hello world");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_tracked_no_signature_stream(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn unsigned_package_needs_insecure_mode() -> TestResult {
         let dir = tempdir()?;
         let dest_dir = dir.path().join("dest");
         let apk_path = dir.path().join("unsigned.apk");
 
         // Stream 1 is gzip but not a tar, so no signature entry can be found.
-        let mut data_tar = tar::Builder::new(Vec::new());
-        let file_data = b"hello world";
-        let mut header = tar::Header::new_gnu();
-        header.set_size(file_data.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        data_tar.append_data(&mut header, "hello.txt", &file_data[..])?;
-        let data_tar_data = data_tar.into_inner()?;
-
+        let data_tar_data = tar_with("hello.txt", b"hello world")?;
         let mut apk_data = create_gz_stream(b"dummy sig")?;
         apk_data.extend(create_gz_stream(b"dummy control")?);
         apk_data.extend(create_gz_stream(&data_tar_data)?);
         std::fs::write(&apk_path, &apk_data)?;
 
-        let _guard = InsecureEnvGuard::new();
-
-        // Secure mode: an unsigned package is rejected before anything is written.
-        std::env::remove_var("OIL_INSECURE_NO_VERIFY");
-        let err = extract_tracked(&apk_path, &dest_dir).unwrap_err();
-        assert!(
-            matches!(
-                &err,
-                OilError::Install(msg)
-                    if msg == "APK has no signature stream; set OIL_INSECURE_NO_VERIFY=1 to override"
-            ),
-            "unexpected error: {err:?}"
-        );
-        assert!(!dest_dir.exists());
+        {
+            // Secure mode: an unsigned package is rejected before anything is written.
+            let _guard = InsecureEnvGuard::new(false);
+            let err = extract_tracked(&apk_path, &dest_dir).unwrap_err();
+            assert!(
+                matches!(
+                    &err,
+                    OilError::Install(msg)
+                        if msg == "APK has no signature stream; set OIL_INSECURE_NO_VERIFY=1 to override"
+                ),
+                "unexpected error: {err:?}"
+            );
+            assert!(!dest_dir.exists());
+        }
 
         // Insecure mode: extraction proceeds with the data stream.
-        std::env::set_var("OIL_INSECURE_NO_VERIFY", "1");
+        let _guard = InsecureEnvGuard::new(true);
         let (files, dirs) = extract_tracked(&apk_path, &dest_dir)?;
         assert_eq!(files, vec![dest_dir.join("hello.txt")]);
         assert!(dirs.is_empty());
@@ -905,7 +752,6 @@ mod tests {
             std::fs::read_to_string(dest_dir.join("hello.txt"))?,
             "hello world"
         );
-
         Ok(())
     }
 }

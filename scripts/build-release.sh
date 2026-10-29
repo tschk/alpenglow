@@ -5,6 +5,9 @@ set -eu
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 . "${ROOT_DIR}/scripts/lib/initramfs-codec-identity.sh"
+# The edition decides services, world, /state format and kernel profile.
+# edition-resolve.sh honours ALPENGLOW_EDITION, then _SKU, then _ROLE, then potato.
+. "${ROOT_DIR}/scripts/edition-resolve.sh"
 OUT_DIR="${ROOT_DIR}/build/release"
 IMAGE="${OUT_DIR}/alpenglow.img"
 KERNEL="${OUT_DIR}/vmlinuz"
@@ -30,6 +33,7 @@ sgdisk_ok() {
 }
 
 echo "=== Alpenglow release build v${ALPENGLOW_VERSION} ==="
+echo "  edition: ${ALPENGLOW_SKU}"
 echo "  arch:  ${ALPENGLOW_ARCH}"
 echo "  image: ${IMAGE}"
 echo "  size:  ${IMAGE_SIZE_MB}MB"
@@ -38,13 +42,12 @@ echo ""
 mkdir -p "${OUT_DIR}" "${MNT_ROOT}" "${MNT_STATE}"
 
 # ── 1. Build kernel + initramfs ────────────────────────────────────
+# Full build output, and any failure stops the release: an image without its
+# kernel, services or package manager must never be produced.
 echo "→ Building kernel and initramfs..."
-KERNEL_BUILD=1 BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5 || {
-  echo "WARNING: boot-native.sh failed, trying without custom kernel"
-  BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5
-}
-cp "${KERNEL}" "${OUT_DIR}/vmlinuz" 2>/dev/null || true
-cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}" 2>/dev/null || true
+KERNEL_BUILD=1 BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh"
+sh "${ROOT_DIR}/scripts/check-release-rootfs.sh" "${OUT_DIR}/../native/rootfs"
+cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}"
 INITRAMFS="$(initramfs_resolve_release_artifact "${OUT_DIR}/../native" "${OUT_DIR}")" || {
   if [ -f "${OUT_DIR}/initramfs.cpio.gz" ]; then
     INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
@@ -89,18 +92,25 @@ sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
 echo "→ Formatting partitions..."
-LOOP_DEV=$(sudo losetup -fP --show "${IMAGE}" 2>/dev/null || echo "")
-if [ -z "${LOOP_DEV}" ]; then
-  echo "  (using direct partition mapping)"
-  sudo kpartx -a "${IMAGE}" 2>/dev/null || true
-  LOOP_ROOT="/dev/mapper/loop0p1"
-  LOOP_STATE="/dev/mapper/loop0p2"
-  LOOP_LIMINE="/dev/mapper/loop0p3"
-else
-  LOOP_ROOT="${LOOP_DEV}p1"
-  LOOP_STATE="${LOOP_DEV}p2"
-  LOOP_LIMINE="${LOOP_DEV}p3"
-fi
+# Release mounts and the loop device on any exit; each step may fail alone.
+LOOP_DEV=""
+cleanup() {
+  for mnt in "${MNT_STATE}" "${MNT_ROOT}"; do
+    if grep -q " ${mnt} " /proc/mounts 2>/dev/null; then
+      sudo umount "${mnt}" || echo "warning: could not unmount ${mnt}" >&2
+    fi
+  done
+  if [ -n "${LOOP_DEV}" ]; then
+    sudo losetup -d "${LOOP_DEV}" || echo "warning: could not detach ${LOOP_DEV}" >&2
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+LOOP_DEV="$(sudo losetup -fP --show "${IMAGE}")"
+[ -n "${LOOP_DEV}" ] || { echo "losetup failed for ${IMAGE}" >&2; exit 1; }
+LOOP_ROOT="${LOOP_DEV}p1"
+LOOP_STATE="${LOOP_DEV}p2"
+LOOP_LIMINE="${LOOP_DEV}p3"
 
 sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null
 # /state compression is a format-time default (editions.toml state_compression);
@@ -134,7 +144,9 @@ verbose: no
   module_path: boot():/boot/${INITRAMFS_BASENAME}
 LIMINE
 sudo cp /tmp/limine.conf "${MNT_ROOT}/boot/limine/limine.conf"
-sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 2>/dev/null || true
+sudo cp "${LIMINE_DIR}/limine-bios.sys" "${MNT_ROOT}/boot/limine/"
+# GPT: stage 2 goes into partition 3 ("Limine"), as Limine's BIOS/GPT docs require.
+sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 3
 
 # ── 7. Install state partition (first-boot setup) ──────────────────
 echo "→ Setting up state partition..."
@@ -147,11 +159,9 @@ else
 fi
 
 # ── 8. Cleanup ─────────────────────────────────────────────────────
-sudo umount "${MNT_ROOT}" 2>/dev/null || true
-if [ -n "${LOOP_DEV}" ]; then
-  sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
-fi
-sudo kpartx -d "${IMAGE}" 2>/dev/null || true
+sudo umount "${MNT_ROOT}"
+sudo losetup -d "${LOOP_DEV}"
+LOOP_DEV=""
 
 echo ""
 echo "✓ Alpenglow release image created:"

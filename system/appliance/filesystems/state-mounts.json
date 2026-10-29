@@ -38,6 +38,13 @@
       "owner": "root:root",
       "mode": "0700",
       "purpose": "appliance logs"
+    },
+    {
+      "source": "/state/oil",
+      "target": "/opt/oil",
+      "owner": "root:root",
+      "mode": "0755",
+      "purpose": "oil packages and their database"
     }
   ],
   "directories": [

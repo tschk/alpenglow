@@ -68,7 +68,8 @@ prepare_state_markers() {
 }
 
 bind_state_dir() {
-  if ! mount --bind "$1" "$2"; then
+  # Targets live in the RAM root; a lean image may not ship every one.
+  if ! mkdir -p "$2" || ! mount --bind "$1" "$2"; then
     echo "state bind mount failed: $1 -> $2" >&2
     return 1
   fi
@@ -96,10 +97,13 @@ setup_state_paths() {
   ensure_state_dir "${state_root}/var/cache/alpenglow" 770:770 0700 alpenglow_cache || return 1
   ensure_state_dir "${state_root}/var/log" 0:0 0755 var_log || return 1
   ensure_state_dir "${state_root}/var/log/alpenglow" 0:0 0700 alpenglow_log || return 1
+  # Oil's package root: installed packages and their database.
+  ensure_state_dir "${state_root}/oil" 0:0 0755 oil_root || return 1
 
-  # All four binds are required for persistent state to be ready.
+  # All five binds are required for persistent state to be ready.
   bind_state_dir "${state_root}/home" "${target_root}/home" || return 1
   bind_state_dir "${state_root}/var/lib/alpenglow" "${target_root}/var/lib/alpenglow" || return 1
   bind_state_dir "${state_root}/var/cache/alpenglow" "${target_root}/var/cache/alpenglow" || return 1
   bind_state_dir "${state_root}/var/log/alpenglow" "${target_root}/var/log/alpenglow" || return 1
+  bind_state_dir "${state_root}/oil" "${target_root}/opt/oil" || return 1
 }

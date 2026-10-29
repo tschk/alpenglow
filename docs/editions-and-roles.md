@@ -11,14 +11,14 @@ One OS. Four public SKUs. Source: [`editions.toml`](../editions.toml), [`scripts
 
 `fast` is the zero-overhead SKU: FAST kernel (no swap, no bcachefs, no zram), Zig `/init` straight into dinit and a serial shell, embedded lz4 initramfs, SeaBIOS. Nothing optional runs and nothing optional is configured. It is tuned only for boot time, RAM and kernel size.
 
-`potato` is the small general-purpose OS: minimal kernel (with swap, zram and bcachefs), appliance net, SSH, time, logs, DNS, OOM guard, Oil. Skinny GUI packages (`alpenglowed-lite`) may be on that world; they stay stopped unless `ALPENGLOW_SESSION=alpenglowed`.
+`potato` is the small general-purpose OS: minimal kernel (with swap, zram and bcachefs), DHCP (sdhcp), key-only SSH (dropbear), NTP (chrony), a DNS cache (dnsmasq) and Oil, with `/state` mounted at boot. `scripts/check-release-rootfs.sh` fails the release build if the image lacks those services' binaries or boot entries, the `/state` mount or Oil (it checks the rootfs only, not kernel options). The x86 image does not yet ship a syslog daemon or OOM guard (toybox's are not in its defconfig; earlyoom is not built). Skinny GUI packages (`alpenglowed-lite`) may be on that world; they stay stopped unless `ALPENGLOW_SESSION=alpenglowed`.
 
 ### `/state` and opt-ins
 
 The OS always lives in RAM; `/state` (bcachefs) is the user's layer: home, Oil packages and apps, caches, logs. Three edition keys control it:
 
 - `state_compression` — bcachefs format-time `--compression` for the state partition. Default `lz4` for potato, desktop and internet (best cold app-launch time with about half the space; see the 2026-10-28 table); `zstd` and `none` stay available as opt-ins (`scripts/build-release.sh`, `scripts/build-aarch64-efi-release.sh`). It is stored in the superblock; mounts need no option.
-- `state_snapshots = 1` — the image ships `/etc/alpenglow/state-snapshots`, and Oil takes a read-only snapshot of `/state` under `/state/.snapshots/oil-<ms>-<op>` before install, uninstall, reinstall, upgrade and `system add`, keeping the newest 10. A failed snapshot warns and does not block the transaction.
+- `state_snapshots = 1` — the image ships `/etc/alpenglow/state-snapshots`, and Oil takes a read-only snapshot of `/state` under `/state/.snapshots/oil-<ms>-<op>` before install, uninstall, reinstall, upgrade, `system add` and a repairing `system sync`, keeping the newest 10. A failed snapshot warns and does not block the transaction.
 - `kernel_policy` — which `system/backends/appliance/kernel-policy-<name>.json` becomes `/etc/alpenglow/kernel-policy.json`; editions with a policy also start `alpenglow-kernel-policy` and `alpenglow-zram`. `none` ships neither.
 
 `fast` turns all three off. To opt in deliberately without editing `editions.toml`: `ALPENGLOW_STATE_COMPRESSION=lz4|zstd|none`, `ALPENGLOW_STATE_SNAPSHOTS=1`, `ALPENGLOW_KERNEL_POLICY=potato`. At runtime `OIL_STATE_SNAPSHOTS=1|0` overrides the marker.
