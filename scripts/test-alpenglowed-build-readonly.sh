@@ -14,6 +14,7 @@ fail() { printf 'test-alpenglowed-build-readonly: %s\n' "$1" >&2; exit 1; }
 
 src="${tmp}/alpenglowed"
 mkdir -p "${src}/src" "${src}/alpenglow-greeter" "${src}/.git" "${src}/target"
+mkdir -p "${src}/alpenglow-greeter/target" "${src}/alpenglow-greeter/.git"
 cat > "${src}/Cargo.toml" << 'EOF'
 [package]
 name = "alpenglowed"
@@ -27,6 +28,8 @@ printf 'lock v1\n' > "${src}/Cargo.lock"
 printf 'fn main() {}\n' > "${src}/src/main.rs"
 printf 'host build cache\n' > "${src}/target/from-host"
 printf 'host git metadata\n' > "${src}/.git/config"
+printf 'nested host cache\n' > "${src}/alpenglow-greeter/target/from-host"
+printf 'nested git metadata\n' > "${src}/alpenglow-greeter/.git/config"
 snapshot() { (cd "${src}" && find . -type f -exec cksum {} + | sort; find . | sort); }
 snapshot > "${tmp}/before"
 
@@ -38,6 +41,7 @@ cat > "${bin}/cargo" << 'EOF'
 #!/bin/sh
 set -eu
 [ ! -e .git ] && [ ! -e target/from-host ] || exit 66
+[ ! -e alpenglow-greeter/.git ] && [ ! -e alpenglow-greeter/target/from-host ] || exit 67
 printf 'lock v2\n' > Cargo.lock
 [ "${FAIL_CARGO:-0}" = 0 ] || exit 3
 t=target/release

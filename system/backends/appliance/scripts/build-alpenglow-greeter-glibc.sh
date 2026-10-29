@@ -37,7 +37,7 @@ docker run --rm --platform linux/amd64 -v "${ALPENGLOWED_SRC}:/src/alpenglowed:r
   apt-get update -qq 2>/dev/null
   apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libfreetype6-dev pkg-config 2>/dev/null >/dev/null
   mkdir -p /build/alpenglowed
-  tar -C /src/alpenglowed --exclude=./.git --exclude=./target -cf /tmp/alpenglowed-src.tar .
+  tar -C /src/alpenglowed --exclude=.git --exclude=target -cf /tmp/alpenglowed-src.tar .
   tar -C /build/alpenglowed -xf /tmp/alpenglowed-src.tar
   rm /tmp/alpenglowed-src.tar
   cd /build/alpenglowed
