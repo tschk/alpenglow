@@ -40,13 +40,19 @@ mkdir -p "${OUT_DIR}/alpenglowed-glibc"
 
 echo "→ Building alpenglowed (glibc, dynamic linking, ${SKU})..."
 
-DOCKER_VOLUMES="-v ${ALPENGLOWED_SRC}:/build/alpenglowed"
+# The source may be somebody else's active checkout. Mount it read-only, then
+# build from a container-local copy: sed, Cargo.lock and target must never leak
+# back into the source tree. Do not copy host build artifacts or Git metadata.
 
-docker run --rm --platform linux/amd64 -e ALPENGLOW_SKU="${SKU}" ${DOCKER_VOLUMES} -v "${OUT_DIR}/alpenglowed-glibc:/out" rust:latest sh -c '
+docker run --rm --platform linux/amd64 -e ALPENGLOW_SKU="${SKU}" -v "${ALPENGLOWED_SRC}:/src/alpenglowed:ro" -v "${OUT_DIR}/alpenglowed-glibc:/out" rust:latest sh -c '
   set -e
   apt-get update -qq 2>/dev/null
   apt-get install -y -qq libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev pkg-config 2>/dev/null >/dev/null
 
+  mkdir -p /build/alpenglowed
+  tar -C /src/alpenglowed --exclude=.git --exclude=target -cf /tmp/alpenglowed-src.tar .
+  tar -C /build/alpenglowed -xf /tmp/alpenglowed-src.tar
+  rm /tmp/alpenglowed-src.tar
   cd /build/alpenglowed
   sed -i "s#crepuscularity-core = { path = \"../crepuscularity/crates/crepuscularity-core\" }#crepuscularity-core = \"0.4.18\"#" Cargo.toml
   sed -i "s#crepuscularity-gpui = { path = \"../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#g" Cargo.toml
