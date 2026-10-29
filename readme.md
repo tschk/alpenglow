@@ -74,7 +74,7 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Init | dinit | Parallel dependency graph, both modes |
 | Userland | toybox (838KB), oksh | Static musl. Desktop Alpenglowed currently uses an isolated glibc graphics path |
 | Package mgr | Oil | APK-compatible, standalone binary |
-| Kernel | Tracks kernel.org latest stable + Rust modules | CONFIG_RUST=y, alpenglow_core.ko |
+| Kernel | Tracks kernel.org latest stable, CONFIG_RUST=y | Appliance kernels have CONFIG_MODULES off, so the out-of-tree `alpenglow_core.ko` (system/kernel-modules) is a separate artifact that they cannot load |
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |

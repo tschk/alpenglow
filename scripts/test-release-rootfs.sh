@@ -54,6 +54,8 @@ payloads() {
   stub "$1/oil"
 }
 
+if [ "${1:-}" = compose-only ]; then compose "$2" "$3"; exit; fi
+
 for edition in potato internet desktop fast; do
   out="${tmp}/${edition}"
   payloads "${out}"
@@ -79,7 +81,14 @@ for edition in potato fast desktop; do
 done
 # configure-rootfs.sh service users survive the serial-login passwd step.
 grep -q '^dnsmasq:' "${tmp}/desktop/rootfs/etc/passwd" || fail "desktop: service users dropped"
+# The console waits for /state so the first password can be kept there.
+grep -qx 'waits-for = state-mount' "${lean}/shell-ttyS0" || fail "potato: console must wait for state-mount"
+# Missing optional payloads are a dev-boot condition, not an assembler failure.
+# Run in its own shell: inside `||` the shell would ignore set -e.
+sh "$0" compose-only potato "${tmp}/bare" ||
+  fail "potato without payloads: assembler failed"
 # fast stays zero-overhead.
+! grep -q 'state-mount' "${tmp}/fast/rootfs/etc/dinit.d/shell-ttyS0" || fail "fast: console waits for state-mount"
 [ ! -e "${tmp}/fast/rootfs/etc/dinit.d/boot.d/dropbear" ] || fail "fast: dropbear started"
 [ ! -e "${tmp}/fast/rootfs/usr/local/bin/oil" ] || fail "fast: oil shipped"
 

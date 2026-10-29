@@ -344,9 +344,9 @@ fn run_system_sync(prefix: Option<PathBuf>) -> Result<()> {
         }
         None => install::package_root()?,
     };
-    let mut state = install::InstallState::new()?;
+    let mut state = install::InstallState::at(&root)?;
     let mut registry: Option<Vec<system::registry::PackageMetadata>> = None;
-    let repaired = sync_package_root(&mut state, &root, |name| {
+    let outcome = sync_package_root(&mut state, &root, |name| {
         if registry.is_none() {
             registry = Some(load_registry()?);
         }
@@ -357,31 +357,59 @@ fn run_system_sync(prefix: Option<PathBuf>) -> Result<()> {
             .ok_or_else(|| error::OilError::FormulaNotFound(name.to_string()))?;
         let files = install_package(pkg, &root)?;
         Ok((pkg.version.clone(), files))
-    })?;
-    if repaired.is_empty() {
-        println!("system sync: {} is consistent", root.display());
-    } else {
+    });
+    if !outcome.repaired.is_empty() {
         state.save()?;
-        println!("system sync: reinstalled {}", repaired.join(", "));
+        println!("system sync: reinstalled {}", outcome.repaired.join(", "));
+    }
+    if !outcome.failed.is_empty() {
+        let failed: Vec<String> = outcome
+            .failed
+            .iter()
+            .map(|(name, e)| format!("{name}: {e}"))
+            .collect();
+        return Err(error::OilError::Install(format!(
+            "system sync could not repair {}",
+            failed.join("; ")
+        )));
+    }
+    if outcome.repaired.is_empty() {
+        println!("system sync: {} is consistent", root.display());
     }
     Ok(())
+}
+
+struct SyncOutcome {
+    repaired: Vec<String>,
+    failed: Vec<(String, error::OilError)>,
 }
 
 fn sync_package_root(
     state: &mut install::InstallState,
     root: &Path,
     mut reinstall: impl FnMut(&str) -> Result<(String, Vec<PathBuf>)>,
-) -> Result<Vec<String>> {
+) -> SyncOutcome {
     let broken = state.broken_packages(root);
     if !broken.is_empty() {
         util::snapshot::before_transaction("sync");
     }
-    for name in &broken {
-        let (version, files) = reinstall(name)?;
-        state.mark_installed(name, Some(version.as_str()));
-        state.set_files(name, root, &files);
+    // One unrepairable package (delisted, network, bad signature) must not
+    // stop the rest or lose the records of those already reinstalled.
+    let mut outcome = SyncOutcome {
+        repaired: Vec::new(),
+        failed: Vec::new(),
+    };
+    for name in broken {
+        match reinstall(&name) {
+            Ok((version, files)) => {
+                state.mark_installed(&name, Some(version.as_str()));
+                state.set_files(&name, root, &files);
+                outcome.repaired.push(name);
+            }
+            Err(e) => outcome.failed.push((name, e)),
+        }
     }
-    Ok(broken)
+    outcome
 }
 
 fn run_update() -> Result<()> {
@@ -868,44 +896,67 @@ mod tests {
     use super::*;
     use crate::test_support::IsolatedHome;
 
+    /// Restores OIL_SYSTEM_PREFIX even when an assertion panics.
+    struct PrefixGuard(Option<std::ffi::OsString>);
+
+    impl Drop for PrefixGuard {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(v) => std::env::set_var("OIL_SYSTEM_PREFIX", v),
+                None => std::env::remove_var("OIL_SYSTEM_PREFIX"),
+            }
+        }
+    }
+
     #[test]
     fn system_sync_reinstalls_only_packages_with_missing_files() -> Result<()> {
         let _home = IsolatedHome::new();
+        let _prefix = PrefixGuard(std::env::var_os("OIL_SYSTEM_PREFIX"));
+        // The default root must not be the one sync works on.
+        let elsewhere = tempfile::tempdir().expect("tempdir");
+        std::env::set_var("OIL_SYSTEM_PREFIX", elsewhere.path());
         let dir = tempfile::tempdir().expect("tempdir");
-        let previous = std::env::var_os("OIL_SYSTEM_PREFIX");
-        std::env::set_var("OIL_SYSTEM_PREFIX", dir.path());
-        let root = install::package_root()?;
+        let root = dir.path().join("opt/oil");
         std::fs::create_dir_all(root.join("usr/bin"))?;
         std::fs::write(root.join("usr/bin/kept"), "")?;
 
-        let mut state = install::InstallState::new()?;
-        state.mark_installed("kept", Some("1"));
-        state.set_files("kept", &root, &[root.join("usr/bin/kept")]);
-        state.mark_installed("lost", Some("1"));
-        state.set_files("lost", &root, &[root.join("usr/bin/lost")]);
+        let mut state = install::InstallState::at(&root)?;
+        for name in ["kept", "lost", "delisted", "zlost"] {
+            state.mark_installed(name, Some("1"));
+            state.set_files(name, &root, &[root.join("usr/bin").join(name)]);
+        }
 
         let mut calls = Vec::new();
-        let repaired = sync_package_root(&mut state, &root, |name| {
+        let outcome = sync_package_root(&mut state, &root, |name| {
             calls.push(name.to_string());
+            if name == "delisted" {
+                return Err(error::OilError::FormulaNotFound(name.to_string()));
+            }
             let file = root.join("usr/bin").join(name);
             std::fs::write(&file, "")?;
             Ok(("2".to_string(), vec![file]))
-        })?;
-        assert_eq!(repaired, vec!["lost".to_string()]);
-        assert_eq!(calls, vec!["lost".to_string()]);
+        });
+        // A failure in the middle does not stop later repairs.
+        assert_eq!(calls, ["delisted", "lost", "zlost"]);
+        assert_eq!(outcome.repaired, ["lost", "zlost"]);
+        assert_eq!(outcome.failed.len(), 1);
+        assert_eq!(outcome.failed[0].0, "delisted");
         assert_eq!(state.get("lost").unwrap().version, "2");
+        assert_eq!(state.get("delisted").unwrap().version, "1");
         assert_eq!(state.get("kept").unwrap().version, "1");
 
-        // Once repaired, a second sync has nothing to do.
-        let again = sync_package_root(&mut state, &root, |name| {
-            panic!("unexpected reinstall of {name}")
-        })?;
-        assert!(again.is_empty());
+        // The database saved is the one under `root`, not the default root.
+        state.save()?;
+        let reloaded = install::InstallState::at(&root)?;
+        assert_eq!(reloaded.get("zlost").unwrap().version, "2");
+        assert!(install::InstallState::new()?.get("zlost").is_none());
 
-        match previous {
-            Some(v) => std::env::set_var("OIL_SYSTEM_PREFIX", v),
-            None => std::env::remove_var("OIL_SYSTEM_PREFIX"),
-        }
+        // Only the unrepairable package is still broken.
+        let again = sync_package_root(&mut state, &root, |name| {
+            Err(error::OilError::FormulaNotFound(name.to_string()))
+        });
+        assert!(again.repaired.is_empty());
+        assert_eq!(again.failed.len(), 1);
         Ok(())
     }
 

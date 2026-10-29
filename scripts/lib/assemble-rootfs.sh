@@ -251,19 +251,27 @@ _assemble_login() {
 # the hash on /state, so it survives reboots on editions that mount /state.
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 saved=/state/etc/root-shadow
-if [ -s "${saved}" ] && ! grep -qxF "$(cat "${saved}")" /etc/shadow; then
+state_mounted() { grep -q ' /state ' /proc/mounts; }
+# A fresh boot has the image's locked root: bring back the saved hash.
+if grep -q '^root:!:' /etc/shadow && [ -s "${saved}" ]; then
   { cat "${saved}"; grep -v '^root:' /etc/shadow; } > /etc/shadow.new &&
     chmod 600 /etc/shadow.new && mv /etc/shadow.new /etc/shadow
 fi
 if grep -q '^root:!:' /etc/shadow; then
   echo "First login on this machine: choose a root password."
-  until /bin/toybox passwd -a sha512 root; do :; done
-  if grep -q ' /state ' /proc/mounts; then
-    mkdir -p /state/etc && chmod 700 /state/etc
-    grep '^root:' /etc/shadow > "${saved}" && chmod 600 "${saved}"
-  else
-    echo "No /state mounted: this password lasts until reboot."
-  fi
+  tries=0
+  until /bin/toybox passwd -a sha512 root; do
+    tries=$((tries + 1))
+    [ "${tries}" -lt 5 ] || { echo "Could not set a password; root stays locked."; break; }
+    sleep 1
+  done
+  state_mounted || echo "No /state mounted: this password lasts until reboot."
+fi
+# Keep /state in step with the live hash, including later passwd changes.
+if state_mounted && ! grep -q '^root:!:' /etc/shadow &&
+  ! grep -qxF "$(cat "${saved}" 2>/dev/null)" /etc/shadow; then
+  mkdir -p /state/etc && chmod 700 /state/etc
+  grep '^root:' /etc/shadow > "${saved}" && chmod 600 "${saved}"
 fi
 exec /bin/toybox login "$@"
 LOGIN
@@ -323,6 +331,9 @@ _assemble_lean_service_units() {
   # Edition kernel policy (editions.toml kernel_policy) and zram swap.
   [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-kernelctl" ] && cp "${BACKEND_DIR}/dinit/alpenglow-kernel-policy" "${d}/"
   [ -f "${ROOTFS_DIR}/usr/local/bin/alpenglow-zramctl-zig" ] && cp "${BACKEND_DIR}/dinit/alpenglow-zram" "${d}/"
+  # The console waits for the /state attempt so the first-login password can
+  # be kept there; state-mount never fails, so this cannot block the console.
+  printf 'waits-for = state-mount\n' >> "${d}/shell-ttyS0"
   # Diskless boots are valid: no state partition means RAM-only, said aloud.
   cat > "${d}/state-mount" << 'UNIT'
 type = scripted
@@ -371,11 +382,11 @@ UNIT
   fi
   _merge_etc_db passwd << 'PASSWD'
 chrony:x:776:776:chrony:/var/empty:/sbin/nologin
-dnsmasq:x:777:777:dnsmasq:/var/empty:/sbin/nologin
+dnsmasq:x:781:781:dnsmasq:/var/empty:/sbin/nologin
 PASSWD
   _merge_etc_db group << 'GROUP'
 chrony:x:776:
-dnsmasq:x:777:
+dnsmasq:x:781:
 GROUP
 }
 
@@ -435,6 +446,8 @@ _assemble_native_boot_services() {
       fi
       ;;
   esac
+  # A missing optional binary is expected, not a failure under set -e.
+  return 0
 }
 
 _assemble_qemu_serial_login() {

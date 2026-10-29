@@ -11,7 +11,7 @@ One OS. Four public SKUs. Source: [`editions.toml`](../editions.toml), [`scripts
 
 `fast` is the zero-overhead SKU: FAST kernel (no swap, no bcachefs, no zram), Zig `/init` straight into dinit and a serial shell, embedded lz4 initramfs, SeaBIOS. Nothing optional runs and nothing optional is configured. It is tuned only for boot time, RAM and kernel size.
 
-`potato` is the small general-purpose OS: minimal kernel (with swap, zram and bcachefs), DHCP (sdhcp), key-only SSH (dropbear), NTP (chrony), a DNS cache (dnsmasq) and Oil, with `/state` mounted at boot. `scripts/check-release-rootfs.sh` fails the release build if any of these is missing from the image. The x86 image does not yet ship a syslog daemon or OOM guard (toybox's are not in its defconfig; earlyoom is not built). Skinny GUI packages (`alpenglowed-lite`) may be on that world; they stay stopped unless `ALPENGLOW_SESSION=alpenglowed`.
+`potato` is the small general-purpose OS: minimal kernel (with swap, zram and bcachefs), DHCP (sdhcp), key-only SSH (dropbear), NTP (chrony), a DNS cache (dnsmasq) and Oil, with `/state` mounted at boot. `scripts/check-release-rootfs.sh` fails the release build if the image lacks those services' binaries or boot entries, the `/state` mount or Oil (it checks the rootfs only, not kernel options). The x86 image does not yet ship a syslog daemon or OOM guard (toybox's are not in its defconfig; earlyoom is not built). Skinny GUI packages (`alpenglowed-lite`) may be on that world; they stay stopped unless `ALPENGLOW_SESSION=alpenglowed`.
 
 ### `/state` and opt-ins
 

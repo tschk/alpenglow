@@ -7,10 +7,7 @@ set -eu
 
 ROOTFS="${1:?rootfs directory}"
 ROOT_DIR="${ROOT_DIR:-$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)}"
-if [ -z "${ALPENGLOW_SKU:-}" ]; then
-  export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-potato}"
-  . "${ROOT_DIR}/scripts/edition-resolve.sh"
-fi
+[ -n "${FAST:-}" ] && [ -n "${WORLD_FILE:-}" ] || . "${ROOT_DIR}/scripts/edition-resolve.sh"
 WORLD="${ROOT_DIR}/system/backends/appliance/${WORLD_FILE}"
 problems=""
 problem() { problems="${problems}  - $1

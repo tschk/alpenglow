@@ -6,7 +6,7 @@ set -eu
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 . "${ROOT_DIR}/scripts/lib/initramfs-codec-identity.sh"
 # The edition decides services, world, /state format and kernel profile.
-export ALPENGLOW_EDITION="${ALPENGLOW_EDITION:-potato}"
+# edition-resolve.sh honours ALPENGLOW_EDITION, then _SKU, then _ROLE, then potato.
 . "${ROOT_DIR}/scripts/edition-resolve.sh"
 OUT_DIR="${ROOT_DIR}/build/release"
 IMAGE="${OUT_DIR}/alpenglow.img"
@@ -92,6 +92,20 @@ sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
 echo "→ Formatting partitions..."
+# Release mounts and the loop device on any exit; each step may fail alone.
+LOOP_DEV=""
+cleanup() {
+  for mnt in "${MNT_STATE}" "${MNT_ROOT}"; do
+    if grep -q " ${mnt} " /proc/mounts 2>/dev/null; then
+      sudo umount "${mnt}" || echo "warning: could not unmount ${mnt}" >&2
+    fi
+  done
+  if [ -n "${LOOP_DEV}" ]; then
+    sudo losetup -d "${LOOP_DEV}" || echo "warning: could not detach ${LOOP_DEV}" >&2
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 LOOP_DEV="$(sudo losetup -fP --show "${IMAGE}")"
 [ -n "${LOOP_DEV}" ] || { echo "losetup failed for ${IMAGE}" >&2; exit 1; }
 LOOP_ROOT="${LOOP_DEV}p1"
@@ -147,6 +161,7 @@ fi
 # ── 8. Cleanup ─────────────────────────────────────────────────────
 sudo umount "${MNT_ROOT}"
 sudo losetup -d "${LOOP_DEV}"
+LOOP_DEV=""
 
 echo ""
 echo "✓ Alpenglow release image created:"

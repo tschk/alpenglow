@@ -24,8 +24,8 @@ pub fn package_root() -> Result<PathBuf> {
     crate::util::security::resolve_install_dest(None, Path::new(PACKAGE_ROOT))
 }
 
-fn state_path() -> Result<PathBuf> {
-    Ok(package_root()?.join("var/lib/oil/installed.json"))
+fn state_path_in(root: &Path) -> PathBuf {
+    root.join("var/lib/oil/installed.json")
 }
 
 /// Pre-/opt/oil location, read once so existing records are not lost.
@@ -37,11 +37,19 @@ fn legacy_state_path() -> Option<PathBuf> {
 
 pub struct InstallState {
     packages: HashMap<String, InstalledPackage>,
+    /// Database file; always the one under the root it describes.
+    path: PathBuf,
 }
 
 impl InstallState {
     pub fn new() -> Result<Self> {
-        let mut path = state_path()?;
+        Self::at(&package_root()?)
+    }
+
+    /// The database for packages installed under `root`.
+    pub fn at(root: &Path) -> Result<Self> {
+        let state = state_path_in(root);
+        let mut path = state.clone();
         if !path.exists() {
             if let Some(legacy) = legacy_state_path().filter(|p| p.exists()) {
                 path = legacy;
@@ -58,7 +66,10 @@ impl InstallState {
         } else {
             HashMap::new()
         };
-        Ok(Self { packages })
+        Ok(Self {
+            packages,
+            path: state,
+        })
     }
 
     pub fn load(&self) -> Result<HashMap<String, InstalledPackage>> {
@@ -66,11 +77,10 @@ impl InstallState {
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = state_path()?;
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&path, serde_json::to_string_pretty(&self.packages)?)?;
+        std::fs::write(&self.path, serde_json::to_string_pretty(&self.packages)?)?;
         Ok(())
     }
 

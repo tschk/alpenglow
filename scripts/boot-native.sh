@@ -110,6 +110,8 @@ build_toybox() {
     sed -i "s/# CONFIG_STATIC is not set/CONFIG_STATIC=y/" .config
     sed -i "s/# CONFIG_SH is not set/CONFIG_SH=y/" .config
     sed -i "s/# CONFIG_GETTY is not set/CONFIG_GETTY=y/" .config
+    # passwd is off in defconfig; alpenglow-login needs it to set the first root password.
+    sed -i "s/# CONFIG_PASSWD is not set/CONFIG_PASSWD=y/" .config
     sed -i "s/CONFIG_VI=y/# CONFIG_VI is not set/" .config 2>/dev/null || true
     make -j$(nproc) LDFLAGS="-static" >/dev/null 2>&1
     cp toybox /out/toybox
@@ -393,8 +395,9 @@ if [ "${BUILD_SERVICES}" = "1" ] || world_has dnsmasq; then
 fi
 
 if world_has sdhcp; then
-  # sdhcp — DHCP client for images without udhcpc (static musl)
-  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+  # sdhcp — DHCP client for images without udhcpc (static musl). Full log kept;
+  # dev boots go on without it, release images fail check-release-rootfs.sh.
+  if ! docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
     apk add --no-cache gcc musl-dev make curl tar >/dev/null 2>&1
     cd /tmp
     curl -fsSL https://dl.2f30.org/releases/sdhcp-0.1.tar.gz -o sdhcp.tar.gz || exit 1
@@ -404,7 +407,10 @@ if world_has sdhcp; then
     make CC=gcc CFLAGS="-Os -D_BSD_SOURCE" LDFLAGS="-static -s" >/dev/null
     mkdir -p /out/sdhcp/usr/sbin
     cp sdhcp /out/sdhcp/usr/sbin/sdhcp
-  ' 2>&1 | tail -1
+  ' > "${OUT_DIR}/sdhcp-build.log" 2>&1; then
+    tail -20 "${OUT_DIR}/sdhcp-build.log" >&2
+    echo "sdhcp build failed (log: ${OUT_DIR}/sdhcp-build.log)" >&2
+  fi
   if [ -f "${OUT_DIR}/sdhcp/usr/sbin/sdhcp" ]; then
     echo "  sdhcp: ${OUT_DIR}/sdhcp/usr/sbin/sdhcp"
   fi
