@@ -87,7 +87,7 @@ assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'r
 assert_not_contains scripts/boot-native.sh 'alpenglowed-bin --compositor'
 assert_not_contains scripts/build-aarch64-desktop.sh 'alpenglowed --compositor'
 assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release --no-default-features'
-assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release '
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release( |$)'
 assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'compositor)'
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
