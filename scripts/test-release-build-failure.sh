@@ -51,4 +51,22 @@ cmp "${tmp}/build/native/vmlinuz" "${tmp}/build/release/vmlinuz" || {
   echo 'release did not select the freshly built kernel' >&2
   exit 1
 }
+cat > "${tmp}/bin/docker" <<'EOF'
+#!/bin/sh
+echo docker >> "${PROBE_LOG}"
+exit 71
+EOF
+chmod +x "${tmp}/bin/docker"
+touch -t 200001010000 "${tmp}/build/native/initramfs.cpio.lz4"
+touch "${tmp}/build/native/vmlinuz" "${tmp}/build/native/.kernel-fast.ok"
+: > "${tmp}/calls"
+if PATH="${tmp}/bin:${PATH}" PROBE_LOG="${tmp}/calls" KERNEL_BUILD=1 KERNEL_VERSION=7.1.3 sh "${root}/system/backends/appliance/scripts/build-kernel-fast.sh" "${tmp}/build/native" "${root}" > "${tmp}/output" 2>&1; then
+  echo 'fast kernel build accepted the cached kernel' >&2
+  exit 1
+fi
+[ "$(cat "${tmp}/calls")" = docker ] || {
+  echo 'fast kernel build did not invoke Docker' >&2
+  cat "${tmp}/output" >&2
+  exit 1
+}
 echo 'release stops on failure and selects the freshly built initramfs'
