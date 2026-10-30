@@ -15,7 +15,7 @@ KERNEL_TAR="linux-${KERNEL_VERSION}"
 VMLINUZ="${OUT_DIR}/vmlinuz"
 STAMP="${OUT_DIR}/.kernel-virtio-gpu.ok"
 
-if [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ]; then
+if [ "${KERNEL_BUILD:-0}" != "1" ] && [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ]; then
   echo "  kernel: ${VMLINUZ} (cached)"
   exit 0
 fi

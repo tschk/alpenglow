@@ -167,9 +167,9 @@ fi
 if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
   # FAST path: build a tiny kernel with embedded initramfs after initramfs is ready.
   : # placeholder; build happens after initramfs
-elif [ ! -f "${KERNEL_IMAGE}" ]; then
+elif [ "${KERNEL_BUILD:-0}" = "1" ] || [ ! -f "${KERNEL_IMAGE}" ]; then
   if [ "${GRAPHICAL}" = "1" ] && [ "${KERNEL_BUILD:-0}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
-    sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
+    KERNEL_BUILD=1 sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
   elif [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
     echo "→ Building Linux ${KERNEL_VERSION} + CONFIG_RUST=y kernel..."
     KERNEL_SRC="${OUT_DIR}/linux-${KERNEL_VERSION}"
@@ -385,9 +385,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
 
   # alpenglowed with glibc dynamic linking
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
-  if [ ! -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
-    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed" "${ALPENGLOW_SKU:-desktop}"
-  fi
+  sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed" "${ALPENGLOW_SKU:-desktop}"
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
   # glibc Mesa/Vulkan/EGL libs from Debian
@@ -664,7 +662,12 @@ echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
 # FAST kernel: tiny kernel with embedded initramfs
-if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ] && command -v docker >/dev/null 2>&1; then
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+  if [ "${INITRAMFS}" != "${OUT_DIR}/initramfs.cpio.lz4" ]; then
+    echo "FAST requires ${OUT_DIR}/initramfs.cpio.lz4" >&2
+    exit 1
+  fi
+  require_cmd docker
   KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
 fi
 

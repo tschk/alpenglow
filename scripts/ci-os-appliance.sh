@@ -66,6 +66,7 @@ assert_file scripts/build.sh
 sh -n scripts/build.sh || fail "syntax: scripts/build.sh"
 assert_file scripts/build-release.sh
 sh -n scripts/build-release.sh || fail "syntax: scripts/build-release.sh"
+sh scripts/test-release-build-failure.sh
 
 # Rust crates compile
 cargo check 2>/dev/null || echo "warning: cargo check failed (expected outside Linux)"
@@ -86,7 +87,7 @@ assert_not_contains system/backends/appliance/scripts/alpenglow-session-start 'r
 assert_not_contains scripts/boot-native.sh 'alpenglowed-bin --compositor'
 assert_not_contains scripts/build-aarch64-desktop.sh 'alpenglowed --compositor'
 assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release --no-default-features'
-assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release '
+assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'cargo build --release( |$)'
 assert_contains system/backends/appliance/scripts/build-alpenglowed-glibc.sh 'compositor)'
 assert_contains system/backends/appliance/packages-runtime.txt '^alpenglowed$'
 assert_not_contains system/backends/appliance/packages-standard.txt '^alpenglowed$'
