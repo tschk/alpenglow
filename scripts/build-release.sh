@@ -39,20 +39,15 @@ mkdir -p "${OUT_DIR}" "${MNT_ROOT}" "${MNT_STATE}"
 
 # ── 1. Build kernel + initramfs ────────────────────────────────────
 echo "→ Building kernel and initramfs..."
-KERNEL_BUILD=1 BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5 || {
-  echo "WARNING: boot-native.sh failed, trying without custom kernel"
-  BUILD_ONLY=1 "${ROOT_DIR}/scripts/boot-native.sh" 2>&1 | tail -5
-}
-cp "${KERNEL}" "${OUT_DIR}/vmlinuz" 2>/dev/null || true
-cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}" 2>/dev/null || true
-INITRAMFS="$(initramfs_resolve_release_artifact "${OUT_DIR}/../native" "${OUT_DIR}")" || {
-  if [ -f "${OUT_DIR}/initramfs.cpio.gz" ]; then
-    INITRAMFS="${OUT_DIR}/initramfs.cpio.gz"
-  else
-    echo "missing built initramfs under ${OUT_DIR}" >&2
-    exit 1
-  fi
-}
+if command -v lz4 >/dev/null 2>&1; then
+  INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.lz4"
+else
+  INITRAMFS="${ROOT_DIR}/build/native/initramfs.cpio.zst"
+fi
+KERNEL_BUILD=1 BUILD_ONLY=1 INITRAMFS="${INITRAMFS}" "${ROOT_DIR}/scripts/boot-native.sh"
+cp "${OUT_DIR}/../native/vmlinuz" "${KERNEL}"
+cp "${INITRAMFS}" "${OUT_DIR}/$(basename -- "${INITRAMFS}")"
+INITRAMFS="${OUT_DIR}/$(basename -- "${INITRAMFS}")"
 test -f "${KERNEL}" || { echo "missing built kernel: ${KERNEL}" >&2; exit 1; }
 test -n "${INITRAMFS}" && test -f "${INITRAMFS}" || { echo "missing built initramfs under ${OUT_DIR}" >&2; exit 1; }
 initramfs_assert_codec_identity "${INITRAMFS}" || exit 1

@@ -66,6 +66,7 @@ assert_file scripts/build.sh
 sh -n scripts/build.sh || fail "syntax: scripts/build.sh"
 assert_file scripts/build-release.sh
 sh -n scripts/build-release.sh || fail "syntax: scripts/build-release.sh"
+sh scripts/test-release-build-failure.sh
 
 # Rust crates compile
 cargo check 2>/dev/null || echo "warning: cargo check failed (expected outside Linux)"
