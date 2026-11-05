@@ -98,16 +98,16 @@ impl Recipe {
     /// This is the same type the Alpine APKINDEX loader produces, so
     /// `install_package()` treats a recipe-sourced package identically to
     /// a registry-sourced one.
-    pub fn to_package_metadata(&self) -> PackageMetadata {
+    pub fn to_package_metadata<'a>(&self) -> PackageMetadata<'a> {
         PackageMetadata {
-            name: self.name.clone(),
-            version: self.version.clone(),
-            description: self.description.clone(),
-            download_url: self.source.url.clone(),
-            sha256: self.source.sha256.clone(),
+            name: std::borrow::Cow::Owned(self.name.clone()),
+            version: std::borrow::Cow::Owned(self.version.clone()),
+            description: std::borrow::Cow::Owned(self.description.clone()),
+            download_url: std::borrow::Cow::Owned(self.source.url.clone()),
+            sha256: self.source.sha256.clone().map(std::borrow::Cow::Owned),
             installed_size: 0,
-            depends: self.depends.clone(),
-            provides: self.provides.clone(),
+            depends: self.depends.iter().map(|s| std::borrow::Cow::Owned(s.clone())).collect(),
+            provides: self.provides.iter().map(|s| std::borrow::Cow::Owned(s.clone())).collect(),
         }
     }
 
@@ -141,7 +141,7 @@ source:
         assert!(recipe.build.is_empty());
         assert_eq!(recipe.install, "/usr/local");
         assert_eq!(
-            recipe.source.sha256.as_deref(),
+            recipe.source.sha256.map(std::borrow::Cow::Owned).as_deref(),
             Some("c24fc17a556859e3b5fd6a1fdb079c5b60c02872dba1113a37fcfab222b6d73e")
         );
     }
@@ -173,7 +173,7 @@ provides:
         assert_eq!(meta.name, "dinit");
         assert_eq!(meta.version, "0.21.0-r0");
         assert_eq!(meta.download_url, recipe.source.url);
-        assert_eq!(meta.sha256, recipe.source.sha256);
+        assert_eq!(meta.sha256, recipe.source.sha256.map(std::borrow::Cow::Owned));
     }
 
     #[test]
