@@ -350,6 +350,43 @@ mod tests {
     }
 
     #[test]
+    fn test_run_installer_with_draw_success_with_mock() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+        std::fs::write(&source, b"fake image content").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn fake_install(
+            source: &Path,
+            target: &Path,
+            allow_regular: bool,
+        ) -> Result<u64, InstallError> {
+            // The CLI must never permit installing onto a regular file.
+            assert!(!allow_regular);
+            let data = std::fs::read(source).unwrap();
+            std::fs::write(target, &data).unwrap();
+            Ok(data.len() as u64)
+        }
+
+        assert_eq!(
+            run_installer_with_draw_and_install(args, fake_draw, fake_install),
+            0
+        );
+
+        assert_eq!(std::fs::read(&target).unwrap(), b"fake image content");
+    }
+
+    #[test]
     fn test_run_installer_tui_no_target() {
         fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
             Ok(())
