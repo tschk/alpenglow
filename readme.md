@@ -49,6 +49,9 @@ wsl -d Alpenglow
 
 Standard live ISOs use the terminal installer:
 
+> [!WARNING]
+> Installing overwrites the target disk. The installer does not snapshot the source image. Keep the source unchanged until installation finishes. A same-size change during installation can produce a corrupt image without an error.
+
 ```sh
 alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX
 ```
