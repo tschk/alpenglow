@@ -26,6 +26,17 @@ fn copies_image_when_allowed() {
 }
 
 #[test]
+fn rejects_source_as_target_without_truncating_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let alias = dir.path().join("alias.img");
+    fs::write(&source, b"keep this image").unwrap();
+    fs::hard_link(&source, &alias).unwrap();
+    assert!(install_image(&source, &alias, true).is_err());
+    assert_eq!(fs::read(&source).unwrap(), b"keep this image");
+}
+
+#[test]
 fn plain_auto_install_copies_image_when_allowed() {
     let dir = tempfile::tempdir().unwrap();
     let source = dir.path().join("source.img");
@@ -165,5 +176,7 @@ fn zst_auto_install_fails_on_unopenable_target() {
     fs::create_dir(&target).unwrap();
 
     let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
-    assert!(err.to_string().contains("refusing to write image to non-block-device target"));
+    assert!(err
+        .to_string()
+        .contains("refusing to write image to non-block-device target"));
 }

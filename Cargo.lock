@@ -60,6 +60,7 @@ dependencies = [
  "crepuscularity-gpui",
  "crepuscularity-tui",
  "gpui",
+ "libc",
  "tempfile",
  "zstd",
 ]

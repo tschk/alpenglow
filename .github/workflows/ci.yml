@@ -35,6 +35,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Check Rust core
         run: scripts/ci-rust-core.sh
+      - name: Install loop-device test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq strace zstd
+      - name: Check installer disk safety
+        run: sh scripts/test-installer-disk-safety.sh
 
   rust-kernel-module:
     name: Rust kernel module compile
