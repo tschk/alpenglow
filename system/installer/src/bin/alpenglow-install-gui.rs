@@ -21,14 +21,15 @@ fn is_install_disk_name(name: &str) -> bool {
 }
 
 #[cfg(feature = "gui")]
-fn main() {
-    use alpenglow_installer::{install_image_maybe_compressed, parse_install_args};
+mod gui {
+    use super::{format_disk_size, is_install_disk_name};
+    use alpenglow_installer::install_image_maybe_compressed;
     use crepuscularity_gpui::prelude::*;
-    use gpui::{bounds, point, size, App, Application, ClickEvent};
+    use gpui::ClickEvent;
     use std::fs;
     use std::path::PathBuf;
 
-    struct InstallerView {
+    pub struct InstallerView {
         source: PathBuf,
         target: Option<PathBuf>,
         disks: Vec<DiskChoice>,
@@ -36,14 +37,14 @@ fn main() {
     }
 
     #[derive(Clone)]
-    struct DiskChoice {
+    pub struct DiskChoice {
         path: PathBuf,
         name: String,
         detail: String,
     }
 
     impl InstallerView {
-        fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
+        pub fn new(source: PathBuf, target: Option<PathBuf>) -> Self {
             let disks = discover_disks();
             let target = target.or_else(|| disks.first().map(|disk| disk.path.clone()));
             let status = target
@@ -271,7 +272,7 @@ fn main() {
         }
     }
 
-    fn discover_disks() -> Vec<DiskChoice> {
+    pub fn discover_disks() -> Vec<DiskChoice> {
         let entries: Vec<_> = fs::read_dir("/sys/block")
             .ok()
             .into_iter()
@@ -316,6 +317,15 @@ fn main() {
         disks.sort_by(|left, right| left.name.cmp(&right.name));
         disks
     }
+
+}
+
+#[cfg(feature = "gui")]
+fn main() {
+    use alpenglow_installer::parse_install_args;
+    use crepuscularity_gpui::prelude::*;
+    use gpui::{bounds, point, size, App, Application};
+    use gui::InstallerView;
 
     let (source, target) = parse_install_args(std::env::args_os().skip(1));
     Application::new().run(|cx: &mut App| {
