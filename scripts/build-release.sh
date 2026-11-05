@@ -146,6 +146,11 @@ sudo mkfs.bcachefs ${STATE_MKFS_OPTS} -L alpenglow-state "${LOOP_STATE}" >/dev/n
 # ── 5. Install boot files ──────────────────────────────────────────
 echo "→ Installing system..."
 sudo mount "${LOOP_ROOT}" "${MNT_ROOT}"
+BOOT_MOUNT_TYPE=$(findmnt -n -o FSTYPE --target "${MNT_ROOT}" 2>/dev/null || echo unknown)
+case "${BOOT_MOUNT_TYPE}" in
+  fuse*) echo "WARNING: boot filesystem uses ${BOOT_MOUNT_TYPE}; FUSE FAT assembly is not verified for release reproducibility" >&2 ;;
+  *) echo "  boot filesystem: ${BOOT_MOUNT_TYPE}" ;;
+esac
 sudo mkdir -p "${MNT_ROOT}/boot" "${MNT_ROOT}/state"
 sudo cp "${KERNEL}" "${MNT_ROOT}/boot/vmlinuz"
 sudo cp "${INITRAMFS}" "${MNT_ROOT}/boot/${INITRAMFS_BASENAME}"
@@ -186,6 +191,8 @@ else
 fi
 
 # ── 8. Cleanup ─────────────────────────────────────────────────────
+sudo sync
+sudo umount "${MNT_ROOT}"
 cleanup
 trap - EXIT HUP INT TERM
 if [ "${ALPENGLOW_ARCH}" = "aarch64" ]; then
