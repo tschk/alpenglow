@@ -21,6 +21,17 @@ pub struct IsolatedHome {
 
 #[cfg(test)]
 impl IsolatedHome {
+    pub fn path(&self) -> &std::path::Path {
+        self._dir.path()
+    }
+
+    pub fn write_state(&self, file: &str, content: &str) {
+        let oil_dir = self.path().join(".oil");
+        std::fs::create_dir_all(&oil_dir).unwrap();
+        let path = oil_dir.join(file);
+        std::fs::write(&path, content).unwrap();
+    }
+
     pub fn new() -> Self {
         let lock = home_env_lock();
         let dir = tempfile::tempdir().expect("tempdir");
