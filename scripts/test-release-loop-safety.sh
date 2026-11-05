@@ -4,13 +4,16 @@ set -eu
 root="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT INT TERM
-mkdir -p "${tmp}/scripts/lib" "${tmp}/build/native" "${tmp}/build/release/limine" "${tmp}/bin"
+mkdir -p "${tmp}/scripts/lib" "${tmp}/build/native/rootfs/bin" "${tmp}/build/release/limine" "${tmp}/bin"
 cp "${root}/scripts/build-release.sh" "${tmp}/scripts/"
+cp "${root}/scripts/check-release-architecture.py" "${tmp}/scripts/"
 cp "${root}/scripts/lib/initramfs-codec-identity.sh" "${tmp}/scripts/lib/"
+python3 -c 'import sys; open(sys.argv[1], "wb").write(b"\x7fELF\x02\x01" + bytes(12) + b"\x3e\x00")' "${tmp}/build/native/rootfs/bin/true"
 cat > "${tmp}/scripts/boot-native.sh" <<'EOF'
 #!/bin/sh
 [ "${TEST_BOOT_FAIL:-0}" = 0 ] || exit 71
-[ "${TEST_MISSING_KERNEL:-0}" = 1 ] || printf 'new kernel\n' > "$(dirname "$0")/../build/native/vmlinuz"
+[ "${TEST_MISSING_KERNEL:-0}" = 1 ] || python3 -c 'import sys; open(sys.argv[1], "wb").write(bytes(0x202) + b"HdrS")' "$(dirname "$0")/../build/native/vmlinuz"
+[ "${TEST_WRONG_ARCH:-0}" = 0 ] || python3 -c 'import sys; open(sys.argv[1], "wb").write(b"\x7fELF\x02\x01" + bytes(12) + b"\xb7\x00")' "$(dirname "$0")/../build/native/rootfs/bin/wrong"
 printf '\002\041\114\030new' > "${INITRAMFS:?release must choose an initramfs path}"
 EOF
 chmod +x "${tmp}/scripts/boot-native.sh"
@@ -44,6 +47,16 @@ if [ -e "${TEST_SUDO_LOG}" ]; then
   echo 'release build used a stale kernel after the build produced none' >&2
   exit 1
 fi
+if PATH="${tmp}/bin:${PATH}" TEST_WRONG_ARCH=1 sh "${tmp}/scripts/build-release.sh" >"${tmp}/architecture-output" 2>&1; then
+  echo 'release build accepted the wrong architecture' >&2
+  exit 1
+fi
+grep -q 'wrong ELF architecture' "${tmp}/architecture-output"
+if [ -e "${TEST_SUDO_LOG}" ]; then
+  echo 'release build reached disk operations with a wrong-architecture binary' >&2
+  exit 1
+fi
+rm "${tmp}/build/native/rootfs/bin/wrong"
 if PATH="${tmp}/bin:${PATH}" sh "${tmp}/scripts/build-release.sh" >"${tmp}/output" 2>&1; then
   echo 'release build succeeded after losetup failed' >&2
   exit 1

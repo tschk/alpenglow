@@ -125,6 +125,7 @@ if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
   if [ -n "${GUI_INSTALLER}" ] && [ -f "${GUI_INSTALLER}" ]; then
     cp "${GUI_INSTALLER}" "${LIVE_ROOT}/usr/bin/"
   fi
+  python3 "${ROOT_DIR}/scripts/check-release-architecture.py" "${ARCH}" "${LIVE_ROOT}" "${KERNEL}"
   (cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
 fi
 

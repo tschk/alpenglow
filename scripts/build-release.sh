@@ -52,6 +52,8 @@ test -f "${NATIVE_DIR}/vmlinuz" && test -f "${NATIVE_INITRAMFS}" || {
   echo "boot build did not produce the requested kernel and initramfs" >&2
   exit 1
 }
+python3 "${ROOT_DIR}/scripts/check-release-architecture.py" \
+  "${ALPENGLOW_ARCH}" "${NATIVE_DIR}/rootfs" "${NATIVE_DIR}/vmlinuz"
 cp "${NATIVE_DIR}/vmlinuz" "${KERNEL}"
 INITRAMFS="${OUT_DIR}/$(basename -- "${NATIVE_INITRAMFS}")"
 cp "${NATIVE_INITRAMFS}" "${INITRAMFS}"
@@ -149,6 +151,7 @@ sudo umount "${MNT_ROOT}" 2>/dev/null || true
 if [ -n "${LOOP_DEV}" ]; then
   sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
 fi
+python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --uefi-image "${IMAGE}"
 
 echo ""
 echo "✓ Alpenglow release image created:"

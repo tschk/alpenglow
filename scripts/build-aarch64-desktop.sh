@@ -159,6 +159,7 @@ PRETTY_NAME="Alpenglow ${EDITION} aarch64"
 EOF
 chmod 755 "${ROOTFS}/init" "${ROOTFS}/usr/local/bin/start-desktop"
 
+python3 "${ROOT_DIR}/scripts/check-release-architecture.py" aarch64 "${ROOTFS}" "${KERNEL}"
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${OUT_DIR}/initramfs-proper.cpio.lz4")
 rm -rf "${ROOTFS}"
