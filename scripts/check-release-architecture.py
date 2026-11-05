@@ -13,16 +13,22 @@ import zlib
 
 MACHINES = {"x86_64": 62, "aarch64": 183}
 ESP_GUID = uuid.UUID("c12a7328-f81f-11d2-ba4b-00a0c93ec93b").bytes_le
+BIOS_GUID = uuid.UUID("21686148-6449-6e6f-744e-656564454649").bytes_le
 
 
-def check_uefi_image(path):
+def check_disk_image(path, firmware):
     with open(path, "rb") as image:
         image.seek(0, os.SEEK_END)
         size = image.tell()
+        if firmware == "bios":
+            image.seek(0)
+            mbr = image.read(512)
+            if len(mbr) != 512 or mbr[510:] != b"\x55\xaa" or not any(mbr[:440]):
+                raise ValueError(f"missing BIOS MBR boot code: {path}")
         image.seek(512)
         header = image.read(512)
         if len(header) != 512 or header[:8] != b"EFI PART":
-            raise ValueError(f"missing GPT on UEFI image: {path}")
+            raise ValueError(f"missing GPT on {firmware} image: {path}")
         header_size, header_crc = struct.unpack_from("<II", header, 12)
         if not 92 <= header_size <= 512:
             raise ValueError(f"invalid GPT header: {path}")
@@ -41,14 +47,20 @@ def check_uefi_image(path):
             raise ValueError(f"invalid GPT partition checksum: {path}")
         for offset in range(0, table_size, entry_size):
             entry = table[offset:offset + entry_size]
-            if entry[:16] == ESP_GUID:
+            if entry[:16] == (ESP_GUID if firmware == "uefi" else BIOS_GUID):
                 first, last = struct.unpack_from("<QQ", entry, 32)
                 if first > 0 and first <= last and (last + 1) * 512 <= size:
                     image.seek(first * 512)
+                    if firmware == "bios":
+                        if any(image.read(min((last - first + 1) * 512, 65536))):
+                            return
+                        continue
                     boot_sector = image.read(512)
                     if (len(boot_sector) == 512 and boot_sector[510:] == b"\x55\xaa"
                             and (boot_sector[82:90] == b"FAT32   " or boot_sector[54:62] == b"FAT16   ")):
                         return
+        if firmware == "bios":
+            raise ValueError(f"missing or empty GPT BIOS boot partition: {path}")
         raise ValueError(f"missing EFI System Partition in UEFI image: {path}")
 
 
@@ -80,11 +92,11 @@ def check_file(path, expected):
 
 
 def main():
-    if len(sys.argv) == 3 and sys.argv[1] == "--uefi-image":
-        check_uefi_image(sys.argv[2])
+    if len(sys.argv) == 3 and sys.argv[1] in ("--uefi-image", "--bios-image"):
+        check_disk_image(sys.argv[2], "uefi" if sys.argv[1] == "--uefi-image" else "bios")
         return
     if len(sys.argv) not in (3, 4) or sys.argv[1] not in MACHINES or not os.path.isdir(sys.argv[2]):
-        raise ValueError("usage: check-release-architecture.py x86_64|aarch64 ROOTFS [KERNEL] | --uefi-image IMAGE")
+        raise ValueError("usage: check-release-architecture.py x86_64|aarch64 ROOTFS [KERNEL] | --uefi-image|--bios-image IMAGE")
     expected = MACHINES[sys.argv[1]]
     for directory, _, names in os.walk(sys.argv[2], onerror=lambda error: (_ for _ in ()).throw(error)):
         for name in names:

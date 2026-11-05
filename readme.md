@@ -56,9 +56,11 @@ Standard live ISOs use the terminal installer:
 alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX
 ```
 
-Desktop live ISOs boot Alpenglowed and open the graphical installer against the same bundled image at `/run/alpenglow/alpenglow.img.zst`.
+Desktop live ISOs are intended to boot Alpenglowed and open the graphical installer against the bundled image at `/run/alpenglow/alpenglow.img.zst`. The v0.1.721 desktop sessions did not reach a verified usable desktop in the QEMU tests documented in the [boot audit](docs/release-v0.1.721-boot-audit.md).
 
-Aarch64 desktop assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They boot on generic ARM64 UEFI firmware, including UTM. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
+Aarch64 desktop assets use a GPT disk with a FAT32 EFI System Partition and a bcachefs state partition. They target generic ARM64 UEFI firmware, including UTM; the v0.1.721 desktop was not verified usable there. Non-UEFI boards need their own firmware, device tree, and boot chain before using the same disk image.
+
+For the v0.1.721 aarch64 desktop live ISO, the tested minimum for reaching root-ready was 1,288 MiB RAM in QEMU 7.2.22 with ARM UEFI and Cortex-A72 (three successful runs). At 1,287 MiB, all three runs reported `Initramfs unpacking failed: write error`, followed by `Kernel panic - not syncing: Requested init /init failed (error -26)`. This is a minimum for that tested virtual machine, not for physical hardware, and does not verify a working graphical desktop.
 
 ## Quick Start
 

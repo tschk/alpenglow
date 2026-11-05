@@ -54,6 +54,10 @@ test -f "${NATIVE_DIR}/vmlinuz" && test -f "${NATIVE_INITRAMFS}" || {
 }
 python3 "${ROOT_DIR}/scripts/check-release-architecture.py" \
   "${ALPENGLOW_ARCH}" "${NATIVE_DIR}/rootfs" "${NATIVE_DIR}/vmlinuz"
+if [ "${ALPENGLOW_ARCH}" = "x86_64" ] && [ "$(od -An -tu1 -j 564 -N 1 "${NATIVE_DIR}/vmlinuz" | tr -d ' ')" != "1" ]; then
+  echo "x86_64 UEFI requires a relocatable kernel (CONFIG_RELOCATABLE=y)" >&2
+  exit 1
+fi
 cp "${NATIVE_DIR}/vmlinuz" "${KERNEL}"
 INITRAMFS="${OUT_DIR}/$(basename -- "${NATIVE_INITRAMFS}")"
 cp "${NATIVE_INITRAMFS}" "${INITRAMFS}"
@@ -71,6 +75,15 @@ if [ ! -f "${LIMINE_DIR}/limine" ]; then
   tar -xJf "${OUT_DIR}/limine.tar.xz" -C "${LIMINE_DIR}" --strip-components=1 2>/dev/null || {
     tar -xJf "${OUT_DIR}/limine.tar.xz" -C "${LIMINE_DIR}"
   }
+  make -C "${LIMINE_DIR}"
+fi
+[ -x "${LIMINE_DIR}/limine" ] && [ -s "${LIMINE_DIR}/limine-bios.sys" ] || {
+  echo "missing Limine installer or limine-bios.sys in ${LIMINE_DIR}" >&2
+  exit 1
+}
+if [ "${ALPENGLOW_ARCH}" = "x86_64" ] && [ ! -s "${LIMINE_DIR}/BOOTX64.EFI" ]; then
+  echo "missing Limine BOOTX64.EFI in ${LIMINE_DIR}" >&2
+  exit 1
 fi
 
 # ── 3. Create disk image ───────────────────────────────────────────
@@ -86,9 +99,14 @@ STATE_END=$(( STATE_START + (STATE_SIZE_MB * 2048) ))
 LIMINE_START=$(( STATE_END + 2048 ))
 
 sgdisk_ok -o "${IMAGE}"
-sgdisk_ok -n 1:${ROOT_START}:${ROOT_END} -t 1:8300 -c 1:"alpenglow-boot" "${IMAGE}"
+if [ "${ALPENGLOW_ARCH}" = "x86_64" ]; then
+  BOOT_TYPE=ef00
+else
+  BOOT_TYPE=8300
+fi
+sgdisk_ok -n 1:${ROOT_START}:${ROOT_END} -t 1:${BOOT_TYPE} -c 1:"alpenglow-boot" "${IMAGE}"
 sgdisk_ok -n 2:${STATE_START}:${STATE_END} -t 2:8300 -c 2:"alpenglow-state" "${IMAGE}"
-sgdisk_ok -n 3:${LIMINE_START}: -t 3:8301 -c 3:"Limine" "${IMAGE}"
+sgdisk_ok -n 3:${LIMINE_START}: -t 3:ef02 -c 3:"Limine" "${IMAGE}"
 sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
@@ -102,7 +120,11 @@ LOOP_ROOT="${LOOP_DEV}p1"
 LOOP_STATE="${LOOP_DEV}p2"
 LOOP_LIMINE="${LOOP_DEV}p3"
 
-sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null
+if [ "${ALPENGLOW_ARCH}" = "x86_64" ]; then
+  sudo mkfs.vfat -F 32 -n ALPGBOOT "${LOOP_ROOT}" >/dev/null
+else
+  sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null
+fi
 # /state compression is a format-time default (editions.toml state_compression);
 # it lives in the superblock, so mounts need no extra option. fast: none.
 STATE_MKFS_OPTS=""
@@ -134,7 +156,17 @@ verbose: no
   module_path: boot():/boot/${INITRAMFS_BASENAME}
 LIMINE
 sudo cp /tmp/limine.conf "${MNT_ROOT}/boot/limine/limine.conf"
-sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}" 2>/dev/null || true
+sudo cp "${LIMINE_DIR}/limine-bios.sys" "${MNT_ROOT}/boot/limine/limine-bios.sys"
+if [ "${ALPENGLOW_ARCH}" = "x86_64" ]; then
+  sudo mkdir -p "${MNT_ROOT}/EFI/BOOT"
+  sudo cp "${LIMINE_DIR}/BOOTX64.EFI" "${MNT_ROOT}/EFI/BOOT/BOOTX64.EFI"
+fi
+if ! sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}"; then
+  sudo umount "${MNT_ROOT}" 2>/dev/null || true
+  sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
+  echo "failed to install the Limine BIOS bootloader" >&2
+  exit 1
+fi
 
 # ── 7. Install state partition (first-boot setup) ──────────────────
 echo "→ Setting up state partition..."
@@ -152,6 +184,9 @@ if [ -n "${LOOP_DEV}" ]; then
   sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
 fi
 if [ "${ALPENGLOW_ARCH}" = "aarch64" ]; then
+  python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --uefi-image "${IMAGE}"
+else
+  python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --bios-image "${IMAGE}"
   python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --uefi-image "${IMAGE}"
 fi
 

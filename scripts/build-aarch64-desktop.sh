@@ -12,7 +12,7 @@ KERNEL="${OUT_DIR}/vmlinuz-${EDITION}"
 CID=""
 
 case "${EDITION}" in
-  desktop|desktop-full) PACKAGES="dinit cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland pipewire wireplumber alsa-lib alsa-utils iwd dropbear chrony dnsmasq curl ca-certificates zstd" ;;
+  desktop|desktop-full) PACKAGES="dinit eudev eudev-hwids cage seatd foot xwayland font-dejavu mesa-dri-gallium mesa-vulkan-swrast libxkbcommon libxkbcommon-x11 wayland pipewire wireplumber alsa-lib alsa-utils iwd dropbear chrony dnsmasq curl ca-certificates zstd" ;;
   *) echo "usage: $0 [desktop]" >&2; exit 1 ;;
 esac
 
@@ -100,7 +100,10 @@ cat > "${ROOTFS}/init" <<'EOF'
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
-mount -t devpts devpts /dev/pts
+mkdir -p /dev/pts
+mkdir -p /dev/shm
+mount -t devpts devpts /dev/pts || exit 1
+mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /dev/shm || exit 1
 [ -e /dev/ptmx ] || ln -s pts/ptmx /dev/ptmx
 mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
 printf 'Alpenglow aarch64 root ready\n' > /dev/console
@@ -115,6 +118,32 @@ cat > "${ROOTFS}/etc/dinit.d/boot" <<'EOF'
 type = internal
 waits-for.d = boot.d
 EOF
+cat > "${ROOTFS}/etc/dinit.d/udevd" <<'EOF'
+type = process
+command = /sbin/udevd
+restart = yes
+EOF
+cat > "${ROOTFS}/etc/dinit.d/udev-coldplug" <<'EOF'
+type = scripted
+command = /usr/local/bin/udev-coldplug
+depends-on = udevd
+EOF
+cat > "${ROOTFS}/usr/local/bin/udev-coldplug" <<'EOF'
+#!/bin/sh
+set -eu
+attempts=0
+until /sbin/udevadm control --reload --timeout=2 2>/dev/null; do
+  attempts=$((attempts + 1))
+  if [ "${attempts}" -ge 30 ]; then
+    echo 'udevd did not become ready' >&2
+    exit 1
+  fi
+  sleep 1
+done
+/sbin/udevadm trigger --type=subsystems --action=add
+/sbin/udevadm trigger --type=devices --action=add
+/sbin/udevadm settle --timeout=60
+EOF
 cat > "${ROOTFS}/etc/dinit.d/seatd" <<'EOF'
 type = process
 command = /usr/bin/seatd -g root -n 1
@@ -124,6 +153,7 @@ cat > "${ROOTFS}/etc/dinit.d/desktop" <<'EOF'
 type = process
 command = /usr/local/bin/start-desktop
 depends-on = seatd
+depends-on = udev-coldplug
 restart = no
 EOF
 if [ -n "${ALPENGLOWED_BIN:-}" ]; then
@@ -157,7 +187,7 @@ ID=alpenglow
 VERSION_ID="${EDITION}"
 PRETTY_NAME="Alpenglow ${EDITION} aarch64"
 EOF
-chmod 755 "${ROOTFS}/init" "${ROOTFS}/usr/local/bin/start-desktop"
+chmod 755 "${ROOTFS}/init" "${ROOTFS}/usr/local/bin/start-desktop" "${ROOTFS}/usr/local/bin/udev-coldplug"
 
 python3 "${ROOT_DIR}/scripts/check-release-architecture.py" aarch64 "${ROOTFS}" "${KERNEL}"
 (cd "${ROOTFS}" && find . -print | cpio -o -H newc 2>/dev/null | gzip -1 > "${INITRAMFS}")
