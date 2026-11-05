@@ -48,6 +48,54 @@ fn confirmed_disk_identity_is_checked_before_writing() {
         15
     );
     assert_eq!(&read_prefix(&first), b"confirmed image");
+
+    let tui_source = dir.path().join("tui-source.img");
+    fs::write(&tui_source, b"tui image bytes").unwrap();
+    let status = alpenglow_installer::run_installer_with_draw(
+        [
+            OsString::from("--tui"),
+            tui_source.clone().into_os_string(),
+            first.clone().into_os_string(),
+        ],
+        |draw_source, draw_target| {
+            assert_eq!(draw_source, tui_source);
+            assert_eq!(draw_target, Some(first.as_path()));
+            Ok(())
+        },
+    );
+    assert_eq!(status, 0);
+    assert_eq!(&read_prefix(&first), b"tui image bytes");
+}
+
+#[test]
+fn tui_rejects_invalid_targets_without_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let regular_target = dir.path().join("target.img");
+    let missing_target = dir.path().join("missing.img");
+    fs::write(&source, b"new image").unwrap();
+    fs::write(&regular_target, b"keep target").unwrap();
+
+    for target in [&regular_target, &missing_target] {
+        let mut drawn = false;
+        let status = alpenglow_installer::run_installer_with_draw(
+            [
+                OsString::from("--tui"),
+                source.clone().into_os_string(),
+                target.clone().into_os_string(),
+            ],
+            |draw_source, draw_target| {
+                drawn = true;
+                assert_eq!(draw_source, source);
+                assert_eq!(draw_target, Some(target.as_path()));
+                Ok(())
+            },
+        );
+        assert!(drawn);
+        assert_eq!(status, 1);
+    }
+    assert_eq!(fs::read(&regular_target).unwrap(), b"keep target");
+    assert!(!missing_target.exists());
 }
 
 #[test]
