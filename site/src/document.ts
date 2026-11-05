@@ -1,18 +1,17 @@
 import { reactRenderer } from "@tschk/moonshine-react";
-import type { RenderContext, RouteArtifact } from "@tschk/moonshine-framework";
 import { resolve } from "node:path";
 import { description, title } from "./App";
 import { globalCss } from "./styles";
 
 export const clientEntry = "/shell.js";
 
-export const route: RouteArtifact = {
+export const route = {
   id: "home",
   path: "/",
   file: resolve(import.meta.dir, "App.tsx"),
-  mode: "static",
-  runtime: "bun",
-  decision: "server",
+  mode: "static" as const,
+  runtime: "bun" as const,
+  decision: "server" as const,
   clientEntries: [clientEntry],
 };
 
@@ -30,7 +29,7 @@ const headTags = [
 const bodyTags = `<script type="module" src="${clientEntry}"></script>`;
 
 export async function renderDocument(request: Request): Promise<string> {
-  const context: RenderContext = {
+  const context = {
     request,
     route,
     params: {},
