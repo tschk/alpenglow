@@ -1,9 +1,11 @@
-# cargo-audit configuration.
+# cargo-deny advisory configuration.
 #
 # Scope rule: this list contains ONLY advisories with no patched release
 # (unfixable today). Never add an advisory that has a fixed upgrade
 # available -- upgrade the dependency instead.
 [advisories]
+yanked = "deny"
+unsound = "all"
 ignore = [
     # rsa 0.9.10 -- Marvin attack (RustSec RUSTSEC-2023-0071). No patched
     # release exists upstream (patched = [] as of 2026-10-15); direct
@@ -23,4 +25,8 @@ ignore = [
     "RUSTSEC-2026-0370",  # zvariant 5.12.0
     "RUSTSEC-2026-0371",  # zbus_names 4.3.2
     "RUSTSEC-2026-0372",  # zvariant_derive 5.12.0
+    # Expires 2026-12-30 (90 days after publication on 2026-10-01).
+    # GPUI's HTTP client needs async-std for archive extraction; the warning
+    # concerns maintenance, and no compatible release removes this dependency.
+    { id = "RUSTSEC-2026-0441", reason = "Unmaintained pin-utils is required by async-std in the pinned GPUI HTTP client; migration requires a GUI dependency upgrade" },
 ]

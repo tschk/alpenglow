@@ -75,10 +75,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-      - name: Run cargo audit
-        run: cargo audit --deny warnings
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --version 0.20.2 --locked
+      - name: Check pin-utils exception expiry
+        run: |
+          if grep -q 'RUSTSEC-2026-0441' deny.toml && [[ "$(date -u +%F)" > "2026-12-29" ]]; then
+            echo 'RUSTSEC-2026-0441 exception expired on 2026-12-30' >&2
+            exit 1
+          fi
+      - name: Check dependency advisories
+        run: cargo deny --all-features check advisories
 
   zig:
     name: Alpenglow Zig gates
