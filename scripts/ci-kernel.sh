@@ -55,8 +55,9 @@ case "${MODE}" in
   config)
     for profile in minimal desktop; do
       configure "${profile}"
-      want_y "${profile}" SWAP BLK_DEV ZRAM BCACHEFS_FS
+      want_y "${profile}" SWAP BLK_DEV BLK_DEV_SD VIRTIO_BLK ATA_PIIX SATA_AHCI BLK_DEV_NVME ZRAM BCACHEFS_FS
     done
+    want_y desktop USB_STORAGE USB_XHCI_HCD
     configure fast
     for opt in SWAP ZRAM BCACHEFS_FS; do
       ! grep -q "^CONFIG_${opt}=y$" .config || fail "fast: CONFIG_${opt} must stay off"
@@ -72,7 +73,7 @@ case "${MODE}" in
     ./scripts/config --disable OBJTOOL --disable STACK_VALIDATION --disable UNWINDER_ORC \
       --set-str INITRAMFS_SOURCE ""
     make ARCH=x86_64 CC="${CC}" olddefconfig >/dev/null
-    want_y potato SWAP BLK_DEV ZRAM BCACHEFS_FS
+    want_y potato SWAP BLK_DEV BLK_DEV_SD ZRAM BCACHEFS_FS
     KBUILD_BUILD_TIMESTAMP=0 KBUILD_BUILD_USER=ci KBUILD_BUILD_HOST=ci \
       make -j"${JOBS}" ARCH=x86_64 CC="${CC}" bzImage >/dev/null
     printf 'ci-kernel: potato bzImage %s bytes\n' "$(stat -c%s arch/x86/boot/bzImage)"

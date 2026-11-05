@@ -1,5 +1,11 @@
 # v0.1.721 release boot audit
 
+## The release gate did not prove a usable boot
+
+The common x86 release image had multiple independent blockers: an absent BIOS boot chain, then, in a fresh corrected build, a shell unable to execute the state script, unresolved state labels, missing disk support, and services whose executables were absent. Reaching the kernel alone would not establish a usable system. The release pipeline did not boot the x86 disk and verify its state mount before upload. That missing end-to-end gate allowed these failures to escape together; fixing individual faults without adding that gate would leave the same gap.
+
+The workflow does include a separate aarch64 desktop ISO QEMU check, but it checks only for the root-ready message, not a working desktop, state, or installation. It did not cover the common x86 disk path.
+
 ## Suppressed bootloader failure produced unbootable disks
 
 The common disk builder extracted the Limine 12.4.0 binary distribution without compiling its Linux `limine` utility. That distribution contains `limine.c` and a Makefile, not a Linux executable. The builder then ignored errors from `limine bios-install`. Independently, its partition named `Limine` had GPT type `8301` (Linux reserved), but Limine selects a BIOS boot partition by type `EF02`, not by name. Either a missing executable or the incorrect type can prevent the install. The released image alone does not establish which error occurred in its build.
@@ -34,7 +40,7 @@ In the aarch64 desktop QEMU guest, devtmpfs hid the staged `/dev/pts` directory,
 
 ## Corrected release work
 
-- [ ] Build and boot a complete corrected x86 disk image through SeaBIOS and UEFI without a direct kernel override. A later builder run used a freshly compiled kernel and initramfs and a real bcachefs state partition; because the host lacked a FAT kernel driver, it used a FUSE FAT mount for image assembly. The resulting image reached Linux and init under both QEMU firmware modes, but state-mount and other services failed and dinit entered boot-failure recovery. It is not a working release.
+- [ ] Verify a corrected x86 release on the normal release build host. A fresh local build with the corrected shell, service graph, kernel, initramfs and real bcachefs state passed `scripts/test-release-x86-boot.sh` under both SeaBIOS and OVMF: each QEMU snapshot reached a root shell, mounted `/state` read-write as bcachefs, and wrote and read a file. This does not verify persistence across reboots or physical hardware. The orb lacked a FAT kernel driver, so image assembly used an experimental FUSE FAT mount. One compressed copy had a truncated initramfs even though a later read of the disk was intact; the passing run used a flushed copy. Repeat on the normal release build host without FUSE before treating the release as reproducible.
 - [x] Put Limine's BIOS stage 3 on a FAT32 EFI System Partition, and provide the EFI executable for UEFI boot.
 - [ ] Fix the x86 potato live ISO's Limine failure under OVMF. Investigate the non-relocatable kernel's required load address `0x1000000`, then rerun the affected ISO under OVMF.
 - [ ] Build the aarch64 potato and internet images with an ARM64 kernel and userspace and a UEFI boot chain, then boot their disk and live ISO assets.

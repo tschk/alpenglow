@@ -229,7 +229,7 @@ jobs:
       - name: Install release tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev mtools pkg-config qemu-efi-aarch64 qemu-system-arm qemu-utils xorriso zstd
+          sudo apt-get install -y bcachefs-tools bc bison build-essential curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev mtools ovmf pkg-config qemu-efi-aarch64 qemu-system-arm qemu-system-x86 qemu-utils xorriso zstd
 
       - name: Build release assets (${{ matrix.arch }} / ${{ matrix.edition }})
         env:
@@ -238,6 +238,13 @@ jobs:
           AARCH64_KERNEL_JOBS: ${{ matrix.arch == 'aarch64' && '2' || '' }}
         run: |
           sh scripts/release-assets.sh "${{ needs.prepare.outputs.version }}"
+
+      - name: Boot x86 disk with SeaBIOS and OVMF
+        if: matrix.arch == 'x86_64'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          EDITION: ${{ matrix.edition }}
+        run: sh scripts/test-release-x86-boot.sh "build/release/assets/alpenglow-${VERSION}-${EDITION}-x86_64.img.zst"
 
       - name: Boot aarch64 desktop ISO with UEFI
         if: matrix.arch == 'aarch64' && startsWith(matrix.edition, 'desktop')
