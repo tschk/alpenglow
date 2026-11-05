@@ -1,5 +1,7 @@
 # v0.1.721 release boot audit
 
+For the corrected release decision, see [v0.1.722 release readiness](release-v0.1.722-readiness.md).
+
 ## The release gate did not prove a usable boot
 
 The common x86 release image had multiple independent blockers: an absent BIOS boot chain, then, in a fresh corrected build, a shell unable to execute the state script, unresolved state labels, missing disk support, and services whose executables were absent. Reaching the kernel alone would not establish a usable system. The release pipeline did not boot the x86 disk and verify its state mount before upload. That missing end-to-end gate allowed these failures to escape together; fixing individual faults without adding that gate would leave the same gap.
