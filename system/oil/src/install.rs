@@ -165,10 +165,19 @@ mod tests {
         let _guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
         std::env::set_var("HOME", temp_dir.path());
+
+        setup_corrupt_install_state(&temp_dir);
+
+        verify_corrupt_state_error()
+    }
+
+    fn setup_corrupt_install_state(temp_dir: &tempfile::TempDir) {
         let oil_dir = temp_dir.path().join(".oil");
         std::fs::create_dir_all(&oil_dir).expect("create .oil");
         std::fs::write(oil_dir.join("installed.json"), "{not-json").expect("write corrupt state");
+    }
 
+    fn verify_corrupt_state_error() -> Result<()> {
         match InstallState::new() {
             Err(crate::error::OilError::Install(msg)) => {
                 assert!(
