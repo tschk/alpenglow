@@ -6,6 +6,50 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
 
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "requires two disposable loop devices; run scripts/test-installer-disk-safety.sh"]
+fn confirmed_disk_identity_is_checked_before_writing() {
+    use alpenglow_installer::{inspect_install_disk, install_image_to_disk};
+    use std::io::Read;
+    use std::os::unix::fs::symlink;
+
+    let first = PathBuf::from(std::env::var_os("ALPENGLOW_TEST_DISK").unwrap());
+    let second = PathBuf::from(std::env::var_os("ALPENGLOW_TEST_OTHER_DISK").unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let alias = dir.path().join("chosen-disk");
+    fs::write(&source, b"confirmed image").unwrap();
+    symlink(&first, &alias).unwrap();
+    let identity = inspect_install_disk(&alias).unwrap();
+    let read_prefix = |disk: &PathBuf| {
+        let mut bytes = [0; 15];
+        fs::File::open(disk).unwrap().read_exact(&mut bytes).unwrap();
+        bytes
+    };
+    let first_before = read_prefix(&first);
+    let second_before = read_prefix(&second);
+
+    assert!(install_image_to_disk(&source, &identity, "wrong-name").is_err());
+    assert_eq!(read_prefix(&first), first_before);
+    fs::remove_file(&alias).unwrap();
+    symlink(&second, &alias).unwrap();
+    let error = install_image_to_disk(&source, &identity, "chosen-disk").unwrap_err();
+    assert!(
+        error.to_string().contains("disk identity changed"),
+        "{error}"
+    );
+    assert_eq!(read_prefix(&second), second_before);
+
+    fs::remove_file(&alias).unwrap();
+    symlink(&first, &alias).unwrap();
+    assert_eq!(
+        install_image_to_disk(&source, &identity, "chosen-disk").unwrap(),
+        15
+    );
+    assert_eq!(&read_prefix(&first), b"confirmed image");
+}
+
 #[test]
 fn rejects_non_device_targets_by_default() {
     let dir = tempfile::tempdir().unwrap();

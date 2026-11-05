@@ -97,5 +97,8 @@ for syscall in write fsync; do
     failed=1
   fi
 done
+test_binary="$(cargo test --manifest-path "${root}/system/installer/Cargo.toml" --test install --no-run --message-format=json | jq -r 'select(.reason == "compiler-artifact" and .target.name == "install" and .executable != null) | .executable')"
+sudo env ALPENGLOW_TEST_DISK="${small_loop}" ALPENGLOW_TEST_OTHER_DISK="${mounted_loop}" \
+  "${test_binary}" --ignored --exact confirmed_disk_identity_is_checked_before_writing
 [ "${failed}" -eq 0 ] || exit 1
 echo 'installer rejects unsafe targets and reports write and sync failures'

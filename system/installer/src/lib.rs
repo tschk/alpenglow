@@ -36,6 +36,90 @@ pub struct InstallRequest {
     pub allow_regular_file: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiskIdentity {
+    pub path: PathBuf,
+    pub model: String,
+    pub size_bytes: u64,
+    pub removable: bool,
+    device: u64,
+    inode: u64,
+    rdev: u64,
+    diskseq: u64,
+}
+
+#[cfg(target_os = "linux")]
+fn disk_identity(path: &Path, metadata: &fs::Metadata) -> Result<DiskIdentity, InstallError> {
+    use std::os::unix::fs::MetadataExt;
+    if !is_block_device(metadata) {
+        return Err(InstallError::InvalidTarget("not a block device".into()));
+    }
+    let sysfs = PathBuf::from(format!(
+        "/sys/dev/block/{}:{}",
+        libc::major(metadata.rdev()),
+        libc::minor(metadata.rdev())
+    ));
+    if sysfs.join("partition").exists() {
+        return Err(InstallError::InvalidTarget(
+            "select a whole disk, not a partition".into(),
+        ));
+    }
+    let number = |name: &str| -> Result<u64, InstallError> {
+        let value = fs::read_to_string(sysfs.join(name))?;
+        value.trim().parse().map_err(|_| {
+            InstallError::InvalidTarget(format!("invalid {name} for {}", path.display()))
+        })
+    };
+    let model = fs::read_to_string(sysfs.join("device/model"))
+        .map(|value| value.trim().to_string())
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Unknown model".into());
+    let size_bytes = number("size")?
+        .checked_mul(512)
+        .ok_or_else(|| InstallError::InvalidTarget("disk size overflow".into()))?;
+    let removable = match number("removable")? {
+        0 => false,
+        1 => true,
+        _ => return Err(InstallError::InvalidTarget("invalid removable flag".into())),
+    };
+    Ok(DiskIdentity {
+        path: path.to_path_buf(),
+        model,
+        size_bytes,
+        removable,
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        rdev: metadata.rdev(),
+        diskseq: number("diskseq")?,
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn disk_identity(_path: &Path, _metadata: &fs::Metadata) -> Result<DiskIdentity, InstallError> {
+    Err(InstallError::InvalidTarget(
+        "disk identity requires Linux".into(),
+    ))
+}
+
+pub fn inspect_install_disk(path: &Path) -> Result<DiskIdentity, InstallError> {
+    disk_identity(path, &fs::metadata(path)?)
+}
+
+pub fn install_image_to_disk(
+    source: &Path,
+    disk: &DiskIdentity,
+    confirmation: &str,
+) -> Result<u64, InstallError> {
+    if disk.path.file_name().and_then(|name| name.to_str()) != Some(confirmation) {
+        return Err(InstallError::InvalidTarget(
+            "device name does not match".into(),
+        ));
+    }
+    let compressed = source.extension().and_then(|ext| ext.to_str()) == Some("zst");
+    install_image_inner(source, &disk.path, false, compressed, Some(disk))
+}
+
 pub fn default_live_source() -> PathBuf {
     PathBuf::from("/run/alpenglow/alpenglow.img.zst")
 }
@@ -150,7 +234,7 @@ pub fn install_image(
     target: &Path,
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
-    install_image_inner(source, target, allow_regular_file, false)
+    install_image_inner(source, target, allow_regular_file, false, None)
 }
 
 pub fn install_image_maybe_compressed(
@@ -159,7 +243,7 @@ pub fn install_image_maybe_compressed(
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
     let compressed = source.extension().and_then(|ext| ext.to_str()) == Some("zst");
-    install_image_inner(source, target, allow_regular_file, compressed)
+    install_image_inner(source, target, allow_regular_file, compressed, None)
 }
 
 fn install_image_inner(
@@ -167,6 +251,7 @@ fn install_image_inner(
     target: &Path,
     allow_regular_file: bool,
     compressed: bool,
+    expected_disk: Option<&DiskIdentity>,
 ) -> Result<u64, InstallError> {
     let target_metadata = target_metadata(target, allow_regular_file)?;
     let mut input = File::open(source)?;
@@ -196,6 +281,13 @@ fn install_image_inner(
     }
     let mut output = options.open(target)?;
     let output_metadata = output.metadata()?;
+    if let Some(expected) = expected_disk {
+        if disk_identity(target, &output_metadata)? != *expected {
+            return Err(InstallError::InvalidTarget(
+                "disk identity changed; select it again".into(),
+            ));
+        }
+    }
     if is_block_device(&output_metadata) != is_block
         || (!is_block && !(allow_regular_file && output_metadata.is_file()))
     {
