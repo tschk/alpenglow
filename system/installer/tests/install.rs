@@ -165,5 +165,7 @@ fn zst_auto_install_fails_on_unopenable_target() {
     fs::create_dir(&target).unwrap();
 
     let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
-    assert!(err.to_string().contains("refusing to write image to non-block-device target"));
+    assert!(err
+        .to_string()
+        .contains("refusing to write image to non-block-device target"));
 }
