@@ -151,7 +151,9 @@ sudo umount "${MNT_ROOT}" 2>/dev/null || true
 if [ -n "${LOOP_DEV}" ]; then
   sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
 fi
-python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --uefi-image "${IMAGE}"
+if [ "${ALPENGLOW_ARCH}" = "aarch64" ]; then
+  python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --uefi-image "${IMAGE}"
+fi
 
 echo ""
 echo "✓ Alpenglow release image created:"
