@@ -83,6 +83,8 @@ if [ "$(sha256_of "${TOYBOX_BIN}")" != "${EXPECTED_SHA256}" ]; then
   fi
 fi
 file "${OUT_DIR}/toybox-aarch64" | grep -q 'aarch64' || { echo "not aarch64: ${OUT_DIR}/toybox-aarch64" >&2; exit 1; }
+. "${ROOT_DIR}/scripts/lib/toybox-safety.sh"
+check_toybox_safety "${TOYBOX_BIN}"
 rm -rf "${ROOTFS}"
 mkdir -p "${ROOTFS}"
 

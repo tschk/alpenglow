@@ -690,7 +690,7 @@ if [ -f "${VRO_SRC}" ]; then
 fi
 
 # ── User management basics ──────────────────────────────────────────
-# toybox passwd enabled; root password managed via chpasswd on state
+# Root password managed via chpasswd on state; Toybox account applets are blocked.
 mkdir -p "${ROOTFS}/etc/crontabs"
 cat > "${ROOTFS}/etc/crontabs/root" <<'CRONTAB'
 # Root cron jobs

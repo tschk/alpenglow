@@ -136,6 +136,8 @@ build_dinit() {
 
 [ -f "${OUT_DIR}/toybox" ] || build_toybox
 [ -f "${OUT_DIR}/dinit" ] || build_dinit
+. "${ROOT_DIR}/scripts/lib/toybox-safety.sh"
+check_toybox_safety "${OUT_DIR}/toybox"
 
 # Zig init (replaces /bin/toybox sh /init)
 ZIG="${ZIG:-zig}"
@@ -408,7 +410,7 @@ for applet in sh ls cat cp mv rm mkdir rmdir ln mount umount ps kill sleep echo 
   basename dirname chmod chown touch clear printf yes false true head tail sort wc cut \
   tr od strings uniq diff sed grep find xargs dd df du stat id whoami hostname \
   dmesg modprobe insmod switch_root getty login more less tar gzip gunzip zcat bzcat \
-  date cal reboot halt poweroff passwd syslogd crond logger; do
+  date cal reboot halt poweroff syslogd crond logger; do
   ln -sf /bin/toybox "${ROOTFS_DIR}/bin/${applet}" 2>/dev/null || true
 done
 toybox_has() { "${OUT_DIR}/toybox" "$1" --help >/dev/null 2>&1; }
