@@ -298,7 +298,10 @@ source:
 install: /opt/custom
 "#;
         let recipe = Recipe::parse(yaml).expect("recipe should parse");
-        assert_eq!(recipe.install_dest(), std::path::PathBuf::from("/opt/custom"));
+        assert_eq!(
+            recipe.install_dest(),
+            std::path::PathBuf::from("/opt/custom")
+        );
     }
 
     #[test]
@@ -371,11 +374,13 @@ provides:
         assert_eq!(meta.version, "1.2.3-r4");
         assert_eq!(meta.description, "A test package");
         assert_eq!(meta.download_url, "https://example.com/test-pkg.apk");
-        assert_eq!(meta.sha256.as_deref(), Some("01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"));
+        assert_eq!(
+            meta.sha256.as_deref(),
+            Some("01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b")
+        );
         assert_eq!(meta.installed_size, 0);
         assert_eq!(meta.depends, vec!["dep1".to_string(), "dep2".to_string()]);
         assert_eq!(meta.provides, vec!["prov1".to_string()]);
-
     }
 
     #[test]

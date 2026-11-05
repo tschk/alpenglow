@@ -577,7 +577,8 @@ mod tests {
             version: "1.0".into(),
             description: "test".into(),
             // Safe URL so it would be loaded if we didn't clear the cache
-            download_url: "https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/testpkg-1.0.apk".into(),
+            download_url: "https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/testpkg-1.0.apk"
+                .into(),
             sha256: None,
             installed_size: 0,
             depends: Vec::new(),
@@ -593,10 +594,15 @@ mod tests {
 
         // refresh should clear the cache and then call load()
         // load() will now fail because the network URL is attacker.example and not in cache
-        let err = registry.refresh().expect_err("should fail after clearing cache");
+        let err = registry
+            .refresh()
+            .expect_err("should fail after clearing cache");
 
         assert!(!cache_path.exists(), "cache should be deleted");
-        assert!(err.to_string().contains("download host not allowed"), "should try to fetch from network and fail due to security check");
+        assert!(
+            err.to_string().contains("download host not allowed"),
+            "should try to fetch from network and fail due to security check"
+        );
     }
 
     #[test]
@@ -616,7 +622,9 @@ mod tests {
             provides: Vec::new(),
         }];
         write_cache(&cache_path, &poisoned).expect("write poisoned cache");
-        let err = registry.load().expect_err("poisoned cache must not be used");
+        let err = registry
+            .load()
+            .expect_err("poisoned cache must not be used");
         let msg = err.to_string();
         assert!(
             msg.contains("download host not allowed"),
