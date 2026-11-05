@@ -3,9 +3,26 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 fn main() {
+    mount_basic_filesystems();
+    create_directories();
+    mount_tmpfs();
+    setup_user_directories();
+    load_modules();
+
+    println!();
+    println!("Alpenglow boot (rust-init)");
+    println!();
+
+    exec_init();
+}
+
+fn mount_basic_filesystems() {
     run("/bin/mount", &["-t", "proc", "proc", "/proc"]);
     run("/bin/mount", &["-t", "sysfs", "sysfs", "/sys"]);
     run("/bin/mount", &["-t", "devtmpfs", "devtmpfs", "/dev"]);
+}
+
+fn create_directories() {
     for d in &["/run", "/dev/shm", "/tmp", "/state", "/sysroot"] {
         if let Err(e) = std::fs::create_dir_all(d) {
             eprintln!("init: failed to create directory {}: {}", d, e);
@@ -19,6 +36,9 @@ fn main() {
             eprintln!("init: failed to set permissions for directory {}: {}", d, e);
         }
     }
+}
+
+fn mount_tmpfs() {
     run(
         "/bin/mount",
         &[
@@ -65,6 +85,9 @@ fn main() {
             "/tmp",
         ],
     );
+}
+
+fn setup_user_directories() {
     if let Err(e) = std::fs::create_dir_all("/run/user/0") {
         eprintln!("init: failed to create directory /run/user/0: {}", e);
     }
@@ -75,6 +98,9 @@ fn main() {
     {
         eprintln!("init: failed to set permissions for /run/user/0: {}", e);
     }
+}
+
+fn load_modules() {
     for m in &["ext4", "virtio-blk", "virtio-net", "snd", "snd-hda-intel"] {
         if m.is_empty()
             || m.starts_with('-')
@@ -95,9 +121,9 @@ fn main() {
             _ => {}
         }
     }
-    println!();
-    println!("Alpenglow boot (rust-init)");
-    println!();
+}
+
+fn exec_init() {
     let err = Command::new("/usr/sbin/dinit")
         .args(["-d", "/etc/dinit.d", "-s", "-t", "shell-ttyS0"])
         .env_clear()
@@ -105,6 +131,7 @@ fn main() {
     eprintln!("init: dinit exec failed: {}", err);
     std::process::exit(1);
 }
+
 fn run(prog: &str, args: &[&str]) {
     if let Err(e) = Command::new(prog).args(args).env_clear().status() {
         eprintln!("init: {} failed: {}", prog, e);
