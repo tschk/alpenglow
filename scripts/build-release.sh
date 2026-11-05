@@ -89,18 +89,14 @@ sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
 echo "→ Formatting partitions..."
-LOOP_DEV=$(sudo losetup -fP --show "${IMAGE}" 2>/dev/null || echo "")
-if [ -z "${LOOP_DEV}" ]; then
-  echo "  (using direct partition mapping)"
-  sudo kpartx -a "${IMAGE}" 2>/dev/null || true
-  LOOP_ROOT="/dev/mapper/loop0p1"
-  LOOP_STATE="/dev/mapper/loop0p2"
-  LOOP_LIMINE="/dev/mapper/loop0p3"
-else
-  LOOP_ROOT="${LOOP_DEV}p1"
-  LOOP_STATE="${LOOP_DEV}p2"
-  LOOP_LIMINE="${LOOP_DEV}p3"
-fi
+LOOP_DEV=$(sudo losetup -fP --show "${IMAGE}") || {
+  echo "failed to attach release image to a loop device" >&2
+  exit 1
+}
+[ -n "${LOOP_DEV}" ] || { echo "losetup returned no loop device" >&2; exit 1; }
+LOOP_ROOT="${LOOP_DEV}p1"
+LOOP_STATE="${LOOP_DEV}p2"
+LOOP_LIMINE="${LOOP_DEV}p3"
 
 sudo mkfs.ext4 -L alpenglow-boot "${LOOP_ROOT}" >/dev/null
 # /state compression is a format-time default (editions.toml state_compression);
@@ -151,7 +147,6 @@ sudo umount "${MNT_ROOT}" 2>/dev/null || true
 if [ -n "${LOOP_DEV}" ]; then
   sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
 fi
-sudo kpartx -d "${IMAGE}" 2>/dev/null || true
 
 echo ""
 echo "✓ Alpenglow release image created:"
