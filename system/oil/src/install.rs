@@ -160,14 +160,23 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_install_state_rejects_corrupt_json() -> Result<()> {
-        let _guard = EnvGuard::new();
+    fn setup_temp_home() -> (EnvGuard, tempfile::TempDir) {
+        let guard = EnvGuard::new();
         let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
         std::env::set_var("HOME", temp_dir.path());
-        let oil_dir = temp_dir.path().join(".oil");
+        (guard, temp_dir)
+    }
+
+    fn write_corrupt_state(temp_dir: &std::path::Path) {
+        let oil_dir = temp_dir.join(".oil");
         std::fs::create_dir_all(&oil_dir).expect("create .oil");
         std::fs::write(oil_dir.join("installed.json"), "{not-json").expect("write corrupt state");
+    }
+
+    #[test]
+    fn test_install_state_rejects_corrupt_json() -> Result<()> {
+        let (_guard, temp_dir) = setup_temp_home();
+        write_corrupt_state(temp_dir.path());
 
         match InstallState::new() {
             Err(crate::error::OilError::Install(msg)) => {
