@@ -372,6 +372,30 @@ mod tests {
     }
 
     #[test]
+    fn test_run_installer_tui_success_with_mock() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.img");
+        let target = dir.path().join("target.img");
+
+        std::fs::write(&source, b"fake data").unwrap();
+
+        let args: Vec<OsString> = vec![
+            OsString::from("--tui"),
+            OsString::from(source.to_string_lossy().to_string()),
+            OsString::from(target.to_string_lossy().to_string()),
+        ];
+
+        fn fake_draw(_source: &Path, _target: Option<&Path>) -> Result<(), String> {
+            Ok(())
+        }
+
+        assert_eq!(
+            run_installer_with_draw(args, fake_draw),
+            1 // Fails because target is not a block device, but the TUI draw succeeds.
+        );
+    }
+
+    #[test]
     fn test_run_installer_success_with_mock() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("source.img");
