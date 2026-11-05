@@ -74,8 +74,8 @@ impl<'a> PackageIndex<'a> {
         &self,
         name: &str,
         skip: F,
-        visiting: &mut HashSet<String>,
-        scheduled: &mut HashSet<String>,
+        visiting: &mut HashSet<&'a str>,
+        scheduled: &mut HashSet<&'a str>,
         order: &mut Vec<&'a PackageMetadata>,
     ) -> Result<()> {
         if skip(name) {
@@ -86,18 +86,18 @@ impl<'a> PackageIndex<'a> {
             .find(name)
             .ok_or_else(|| OilError::FormulaNotFound(name.to_string()))?;
 
-        if scheduled.contains(&pkg.name) {
+        if scheduled.contains(&pkg.name.as_str()) {
             return Ok(());
         }
 
-        if visiting.contains(&pkg.name) {
+        if visiting.contains(&pkg.name.as_str()) {
             return Err(OilError::Install(format!(
                 "circular dependency involving {}",
                 pkg.name
             )));
         }
 
-        visiting.insert(pkg.name.clone());
+        visiting.insert(pkg.name.as_str());
 
         for dep in &pkg.depends {
             let dep_name = parse_dep_name(dep);
@@ -107,8 +107,8 @@ impl<'a> PackageIndex<'a> {
             self.visit_install_deps(dep_name, skip, visiting, scheduled, order)?;
         }
 
-        visiting.remove(&pkg.name);
-        scheduled.insert(pkg.name.clone());
+        visiting.remove(&pkg.name.as_str());
+        scheduled.insert(pkg.name.as_str());
         order.push(pkg);
         Ok(())
     }
