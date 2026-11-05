@@ -92,17 +92,18 @@ impl InstallState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::home_env_lock;
+    use crate::test_support::{home_env_lock, IsolatedHome};
 
-    struct EnvGuard {
+    struct NoHomeGuard {
         _lock: std::sync::MutexGuard<'static, ()>,
         original_home: Option<std::ffi::OsString>,
     }
 
-    impl EnvGuard {
+    impl NoHomeGuard {
         fn new() -> Self {
             let lock = home_env_lock();
             let original_home = std::env::var_os("HOME");
+            std::env::remove_var("HOME");
             Self {
                 _lock: lock,
                 original_home,
@@ -110,7 +111,7 @@ mod tests {
         }
     }
 
-    impl Drop for EnvGuard {
+    impl Drop for NoHomeGuard {
         fn drop(&mut self) {
             match &self.original_home {
                 Some(home) => std::env::set_var("HOME", home),
@@ -121,8 +122,7 @@ mod tests {
 
     #[test]
     fn test_state_path_no_home() -> Result<()> {
-        let _guard = EnvGuard::new();
-        std::env::remove_var("HOME");
+        let _guard = NoHomeGuard::new();
 
         let result = state_path();
         assert!(result.is_err(), "Expected error when HOME is not set");
@@ -137,20 +137,17 @@ mod tests {
 
     #[test]
     fn test_state_path_with_home() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        let _home = IsolatedHome::new();
+        let home_dir = std::env::var_os("HOME").map(PathBuf::from).unwrap();
 
         let result = state_path().expect("Expected valid state path");
-        assert_eq!(result, temp_dir.path().join(".oil").join("installed.json"));
+        assert_eq!(result, home_dir.join(".oil").join("installed.json"));
         Ok(())
     }
 
     #[test]
     fn test_install_state_new() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        let _home = IsolatedHome::new();
 
         let state = InstallState::new().expect("Failed to create new InstallState");
         assert!(
@@ -162,10 +159,9 @@ mod tests {
 
     #[test]
     fn test_install_state_rejects_corrupt_json() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
-        let oil_dir = temp_dir.path().join(".oil");
+        let _home = IsolatedHome::new();
+        let home_dir = std::env::var_os("HOME").map(PathBuf::from).unwrap();
+        let oil_dir = home_dir.join(".oil");
         std::fs::create_dir_all(&oil_dir).expect("create .oil");
         std::fs::write(oil_dir.join("installed.json"), "{not-json").expect("write corrupt state");
 
@@ -184,9 +180,7 @@ mod tests {
 
     #[test]
     fn test_install_state_save_load() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        let _home = IsolatedHome::new();
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
         state.mark_installed("pkg-a", Some("1.0.0"));
@@ -207,9 +201,7 @@ mod tests {
 
     #[test]
     fn test_install_state_operations() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        let _home = IsolatedHome::new();
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 
@@ -239,9 +231,7 @@ mod tests {
 
     #[test]
     fn test_install_state_load_method() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        let _home = IsolatedHome::new();
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 
@@ -276,9 +266,7 @@ mod tests {
 
     #[test]
     fn test_install_state_clear() -> Result<()> {
-        let _guard = EnvGuard::new();
-        let temp_dir = tempfile::tempdir().expect("Failed to create tempdir");
-        std::env::set_var("HOME", temp_dir.path());
+        let _home = IsolatedHome::new();
 
         let mut state = InstallState::new().expect("Failed to create new InstallState");
 
