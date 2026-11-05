@@ -12,6 +12,7 @@
 //! `install_package()` in `main.rs` doesn't need a second code path: a
 //! recipe is just another `PackageMetadata` source.
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde::Deserialize;
 
@@ -106,8 +107,8 @@ impl Recipe {
             download_url: self.source.url.clone(),
             sha256: self.source.sha256.clone(),
             installed_size: 0,
-            depends: self.depends.clone(),
-            provides: self.provides.clone(),
+            depends: self.depends.clone().into_iter().map(Arc::from).collect(),
+            provides: self.provides.clone().into_iter().map(Arc::from).collect(),
         }
     }
 
@@ -373,8 +374,8 @@ provides:
         assert_eq!(meta.download_url, "https://example.com/test-pkg.apk");
         assert_eq!(meta.sha256.as_deref(), Some("01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"));
         assert_eq!(meta.installed_size, 0);
-        assert_eq!(meta.depends, vec!["dep1".to_string(), "dep2".to_string()]);
-        assert_eq!(meta.provides, vec!["prov1".to_string()]);
+        assert_eq!(meta.depends, vec![Arc::from("dep1"), Arc::from("dep2")]);
+        assert_eq!(meta.provides, vec![Arc::from("prov1")]);
 
     }
 

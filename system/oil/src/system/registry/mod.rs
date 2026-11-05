@@ -1,6 +1,7 @@
 pub mod apk;
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
 
 use crate::error::{OilError, Result};
@@ -13,8 +14,8 @@ pub struct PackageMetadata {
     pub download_url: String,
     pub sha256: Option<String>,
     pub installed_size: u64,
-    pub depends: Vec<String>,
-    pub provides: Vec<String>,
+    pub depends: Vec<Arc<str>>,
+    pub provides: Vec<Arc<str>>,
 }
 
 pub struct PackageIndex<'a> {
@@ -30,7 +31,7 @@ impl<'a> PackageIndex<'a> {
 
         for (i, pkg) in packages.iter().enumerate() {
             for prov in &pkg.provides {
-                provides_index.entry(prov.as_str()).or_insert(i);
+                provides_index.entry(&**prov).or_insert(i);
             }
             name_index.entry(pkg.name.as_str()).or_insert(i);
         }
@@ -212,7 +213,7 @@ mod tests {
                 sha256: None,
                 installed_size: 0,
                 depends: vec![],
-                provides: vec!["libssl".to_string()],
+                provides: vec![Arc::from("libssl")],
             },
         ];
         let index = PackageIndex::new(&pkgs);
@@ -233,7 +234,7 @@ mod tests {
                 sha256: None,
                 installed_size: 0,
                 depends: vec![],
-                provides: vec!["virtual".to_string(), "shared".to_string()],
+                provides: vec![Arc::from("virtual"), Arc::from("shared")],
             },
             PackageMetadata {
                 name: "virtual".to_string(),
@@ -243,7 +244,7 @@ mod tests {
                 sha256: None,
                 installed_size: 0,
                 depends: vec![],
-                provides: vec!["shared".to_string()],
+                provides: vec![Arc::from("shared")],
             },
             PackageMetadata {
                 name: "duplicate".to_string(),
@@ -287,7 +288,7 @@ mod tests {
                 sha256: None,
                 installed_size: 0,
                 depends: vec![],
-                provides: vec!["providerA".to_string(), "shared".to_string()],
+                provides: vec![Arc::from("providerA"), Arc::from("shared")],
             },
             PackageMetadata {
                 name: "providerA".to_string(),
@@ -297,7 +298,7 @@ mod tests {
                 sha256: None,
                 installed_size: 0,
                 depends: vec![],
-                provides: vec!["shared".to_string()],
+                provides: vec![Arc::from("shared")],
             },
         ];
         let index = PackageIndex::new(&pkgs);
@@ -311,7 +312,7 @@ mod tests {
         assert_eq!(found_shared.version, "1.0.0");
     }
 
-    fn sample_pkg(name: &str, depends: Vec<String>) -> PackageMetadata {
+    fn sample_pkg(name: &str, depends: Vec<Arc<str>>) -> PackageMetadata {
         PackageMetadata {
             name: name.to_string(),
             version: "1.0.0".to_string(),
@@ -327,7 +328,7 @@ mod tests {
     #[test]
     fn test_resolve_install_order_deps_before_dependents() {
         let pkgs = vec![
-            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("app", vec![Arc::from("liba")]),
             sample_pkg("liba", vec![]),
         ];
         let index = PackageIndex::new(&pkgs);
@@ -342,8 +343,8 @@ mod tests {
     #[test]
     fn test_resolve_install_order_transitive() {
         let pkgs = vec![
-            sample_pkg("app", vec!["libb".to_string()]),
-            sample_pkg("libb", vec!["liba".to_string()]),
+            sample_pkg("app", vec![Arc::from("libb")]),
+            sample_pkg("libb", vec![Arc::from("liba")]),
             sample_pkg("liba", vec![]),
         ];
         let index = PackageIndex::new(&pkgs);
@@ -358,7 +359,7 @@ mod tests {
     #[test]
     fn test_resolve_install_order_skips_installed() {
         let pkgs = vec![
-            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("app", vec![Arc::from("liba")]),
             sample_pkg("liba", vec![]),
         ];
         let index = PackageIndex::new(&pkgs);
@@ -373,8 +374,8 @@ mod tests {
     #[test]
     fn test_resolve_install_order_circular_dependency() {
         let pkgs = vec![
-            sample_pkg("a", vec!["b".to_string()]),
-            sample_pkg("b", vec!["a".to_string()]),
+            sample_pkg("a", vec![Arc::from("b")]),
+            sample_pkg("b", vec![Arc::from("a")]),
         ];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
@@ -387,9 +388,9 @@ mod tests {
     #[test]
     fn test_resolve_install_order_diamond_dependency() {
         let pkgs = vec![
-            sample_pkg("a", vec!["b".to_string(), "c".to_string()]),
-            sample_pkg("b", vec!["d".to_string()]),
-            sample_pkg("c", vec!["d".to_string()]),
+            sample_pkg("a", vec![Arc::from("b"), Arc::from("c")]),
+            sample_pkg("b", vec![Arc::from("d")]),
+            sample_pkg("c", vec![Arc::from("d")]),
             sample_pkg("d", vec![]),
         ];
         let index = PackageIndex::new(&pkgs);
@@ -404,8 +405,8 @@ mod tests {
     #[test]
     fn test_resolve_install_order_multiple_roots() {
         let pkgs = vec![
-            sample_pkg("app1", vec!["liba".to_string()]),
-            sample_pkg("app2", vec!["libb".to_string(), "liba".to_string()]),
+            sample_pkg("app1", vec![Arc::from("liba")]),
+            sample_pkg("app2", vec![Arc::from("libb"), Arc::from("liba")]),
             sample_pkg("liba", vec![]),
             sample_pkg("libb", vec![]),
         ];
@@ -424,7 +425,7 @@ mod tests {
     #[test]
     fn test_resolve_install_order_not_found() {
         let pkgs = vec![
-            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("app", vec![Arc::from("liba")]),
         ];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
@@ -435,7 +436,7 @@ mod tests {
 
     #[test]
     fn test_resolve_install_order_not_found_names_missing_dep() {
-        let pkgs = vec![sample_pkg("app", vec!["nonexistent".to_string()])];
+        let pkgs = vec![sample_pkg("app", vec![Arc::from("nonexistent")])];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
         let result = index.resolve_install_order(&["app".to_string()], |n| skip.contains(n));
@@ -449,8 +450,8 @@ mod tests {
     #[test]
     fn test_resolve_install_order_shared_dependency() {
         let pkgs = vec![
-            sample_pkg("app1", vec!["libshared".to_string()]),
-            sample_pkg("app2", vec!["libshared".to_string()]),
+            sample_pkg("app1", vec![Arc::from("libshared")]),
+            sample_pkg("app2", vec![Arc::from("libshared")]),
             sample_pkg("libshared", vec![]),
         ];
         let index = PackageIndex::new(&pkgs);
@@ -465,7 +466,7 @@ mod tests {
     #[test]
     fn test_resolve_install_order_empty_dep_name() {
         let pkgs = vec![
-            sample_pkg("app", vec!["".to_string(), ">1.0".to_string()]),
+            sample_pkg("app", vec![Arc::from(""), Arc::from(">1.0")]),
         ];
         let index = PackageIndex::new(&pkgs);
         let skip: HashSet<String> = HashSet::new();
@@ -479,7 +480,7 @@ mod tests {
     #[test]
     fn test_resolve_install_order_skip_requested_root() {
         let pkgs = vec![
-            sample_pkg("app", vec!["liba".to_string()]),
+            sample_pkg("app", vec![Arc::from("liba")]),
             sample_pkg("liba", vec![]),
         ];
         let index = PackageIndex::new(&pkgs);
