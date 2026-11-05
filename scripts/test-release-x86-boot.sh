@@ -6,6 +6,9 @@ if [ "$#" -ne 1 ] || [ ! -s "$1" ]; then
   exit 2
 fi
 
+echo 'NOTE: This boot gate does not verify the build host FAT assembly path.'
+echo 'NOTE: Experimental FUSE FAT assembly is not verified for release reproducibility.'
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 zstd -dc -- "$1" > "$tmp/disk.img"
@@ -24,26 +27,8 @@ firmware = '/usr/share/OVMF/OVMF_CODE.fd'
 if not os.path.isfile(firmware):
     sys.exit('missing OVMF firmware: ' + firmware)
 
-for name in ('seabios', 'ovmf'):
-    serial = os.path.join(tmp, name + '.sock')
+def run_boot(name, args, serial, command, token, boot):
     log = bytearray()
-    token = 'ALPENGLOW_RELEASE_OK_' + secrets.token_hex(16)
-    command = (
-        "/bin/busybox awk '$2 == \"/state\" && $3 == \"bcachefs\" && "
-        "$4 ~ /(^|,)rw(,|$)/ {ok=1} END {exit !ok}' /proc/mounts"
-        " && test -d /state && f=/state/.release-boot-test-$$"
-        " && ( umask 077; echo test > \"$f\" ) && test \"$(cat \"$f\")\" = test"
-        " && rm -f \"$f\" && printf '%s%s\\n' '" + token[:20] + "' '" + token[20:] + "'\n"
-    )
-    args = [
-        'qemu-system-x86_64', '-machine', 'q35', '-m', '2048', '-smp', '2',
-        '-display', 'none', '-monitor', 'none', '-no-reboot', '-snapshot',
-        '-serial', 'unix:' + serial + ',server=on,wait=off',
-        '-drive', 'file=' + os.path.join(tmp, 'disk.img') + ',format=raw,if=virtio',
-    ]
-    if name == 'ovmf':
-        args += ['-bios', firmware]
-    print('Booting ' + name, flush=True)
     proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     deadline = time.monotonic() + 240
@@ -80,7 +65,17 @@ for name in ('seabios', 'ovmf'):
                 stage = 'bcachefs mount and write verification'
                 log.clear()
             elif stage == 'bcachefs mount and write verification' and token.encode() in log:
-                print(name + ': root shell and writable bcachefs /state verified', flush=True)
+                if boot == 0:
+                    print(name + ': writable bcachefs /state and marker verified; rebooting', flush=True)
+                    conn.sendall(b'/bin/busybox reboot -f\n')
+                    try:
+                        status = proc.wait(timeout=120)
+                    except subprocess.TimeoutExpired:
+                        raise RuntimeError('timed out waiting for guest reboot')
+                    if status != 0:
+                        raise RuntimeError('QEMU exited with status ' + str(status) + ' during reboot')
+                else:
+                    print(name + ': marker persisted across reboot and was removed', flush=True)
                 break
         else:
             raise RuntimeError('timed out waiting for ' + stage)
@@ -90,7 +85,8 @@ for name in ('seabios', 'ovmf'):
         raise SystemExit(1)
     finally:
         conn.close()
-        proc.terminate()
+        if proc.poll() is None:
+            proc.terminate()
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -99,4 +95,37 @@ for name in ('seabios', 'ovmf'):
         errors = proc.stderr.read().decode(errors='replace')
         if errors:
             print(errors, file=sys.stderr)
+
+for name in ('seabios', 'ovmf'):
+    serial = os.path.join(tmp, name + '.sock')
+    overlay = os.path.join(tmp, name + '.qcow2')
+    subprocess.run(['qemu-img', 'create', '-q', '-f', 'qcow2', '-F', 'raw',
+                    '-b', os.path.join(tmp, 'disk.img'), overlay], check=True)
+    marker = 'ALPENGLOW_STATE_' + secrets.token_hex(16)
+    path = '/state/.release-boot-test-' + secrets.token_hex(16)
+    token = 'ALPENGLOW_RELEASE_OK_' + secrets.token_hex(16)
+    mount_check = (
+        "/bin/busybox awk '$2 == \"/state\" && $3 == \"bcachefs\" && "
+        "$4 ~ /(^|,)rw(,|$)/ {ok=1} END {exit !ok}' /proc/mounts && test -d /state"
+    )
+    success = " && printf '%s%s\\n' '" + token[:20] + "' '" + token[20:] + "'\n"
+    commands = [
+        mount_check + " && ( umask 077; printf '%s\\n' '" + marker + "' > '" + path + "' )"
+        + " && test \"$(cat '" + path + "')\" = '" + marker + "' && /bin/busybox sync" + success,
+        mount_check + " && test \"$(cat '" + path + "')\" = '" + marker + "'"
+        + " && rm -f '" + path + "' && /bin/busybox sync" + success,
+    ]
+    args = [
+        'qemu-system-x86_64', '-machine', 'q35', '-m', '768', '-smp', '2',
+        '-display', 'none', '-monitor', 'none', '-no-reboot',
+        '-serial', 'unix:' + serial + ',server=on,wait=off',
+        '-drive', 'file=' + overlay + ',format=qcow2,if=virtio',
+    ]
+    if name == 'ovmf':
+        args += ['-bios', firmware]
+    for boot, command in enumerate(commands):
+        print('Booting ' + name + (' (initial)' if boot == 0 else ' (after reboot)'), flush=True)
+        if os.path.exists(serial):
+            os.unlink(serial)
+        run_boot(name, args, serial, command, token, boot)
 PY
