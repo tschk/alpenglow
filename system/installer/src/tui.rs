@@ -62,7 +62,8 @@ mod tests {
         assert!(rendered.contains("Writes the release image to a target disk"));
         assert!(rendered.contains("Source: /dev/sda"));
         assert!(rendered.contains("Target: /dev/sdb"));
-        assert!(rendered.contains("Use: alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX"));
+        assert!(rendered
+            .contains("Use: alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX"));
         assert!(rendered.contains("Press Ctrl+C to cancel."));
     }
 
@@ -88,7 +89,8 @@ mod tests {
         assert!(rendered.contains("Writes the release image to a target disk"));
         assert!(rendered.contains("Source: /dev/sda"));
         assert!(rendered.contains("Target: pass target disk as second argument"));
-        assert!(rendered.contains("Use: alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX"));
+        assert!(rendered
+            .contains("Use: alpenglow-install --tui /run/alpenglow/alpenglow.img.zst /dev/sdX"));
         assert!(rendered.contains("Press Ctrl+C to cancel."));
     }
 }
