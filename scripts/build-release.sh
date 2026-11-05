@@ -111,14 +111,23 @@ sgdisk_ok -A 3:set:2 "${IMAGE}"
 
 # ── 4. Format partitions ──────────────────────────────────────────
 echo "→ Formatting partitions..."
-LOOP_DEV=$(sudo losetup -fP --show "${IMAGE}") || {
-  echo "failed to attach release image to a loop device" >&2
+LOOP_ROOT=$(sudo losetup -f --show -o $((ROOT_START * 512)) --sizelimit $(((ROOT_END - ROOT_START + 1) * 512)) "${IMAGE}") || {
+  echo "failed to attach release boot partition to a loop device" >&2
   exit 1
 }
-[ -n "${LOOP_DEV}" ] || { echo "losetup returned no loop device" >&2; exit 1; }
-LOOP_ROOT="${LOOP_DEV}p1"
-LOOP_STATE="${LOOP_DEV}p2"
-LOOP_LIMINE="${LOOP_DEV}p3"
+[ -n "${LOOP_ROOT}" ] || { echo "losetup returned no boot loop device" >&2; exit 1; }
+LOOP_STATE=""
+cleanup() {
+  sudo umount "${MNT_ROOT}" 2>/dev/null || true
+  [ -z "${LOOP_STATE}" ] || sudo losetup -d "${LOOP_STATE}" 2>/dev/null || true
+  sudo losetup -d "${LOOP_ROOT}" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+LOOP_STATE=$(sudo losetup -f --show -o $((STATE_START * 512)) --sizelimit $(((STATE_END - STATE_START + 1) * 512)) "${IMAGE}") || {
+  echo "failed to attach release state partition to a loop device" >&2
+  exit 1
+}
+[ -n "${LOOP_STATE}" ] || { echo "losetup returned no state loop device" >&2; exit 1; }
 
 if [ "${ALPENGLOW_ARCH}" = "x86_64" ]; then
   sudo mkfs.vfat -F 32 -n ALPGBOOT "${LOOP_ROOT}" >/dev/null
@@ -162,8 +171,6 @@ if [ "${ALPENGLOW_ARCH}" = "x86_64" ]; then
   sudo cp "${LIMINE_DIR}/BOOTX64.EFI" "${MNT_ROOT}/EFI/BOOT/BOOTX64.EFI"
 fi
 if ! sudo "${LIMINE_DIR}/limine" bios-install "${IMAGE}"; then
-  sudo umount "${MNT_ROOT}" 2>/dev/null || true
-  sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
   echo "failed to install the Limine BIOS bootloader" >&2
   exit 1
 fi
@@ -179,10 +186,8 @@ else
 fi
 
 # ── 8. Cleanup ─────────────────────────────────────────────────────
-sudo umount "${MNT_ROOT}" 2>/dev/null || true
-if [ -n "${LOOP_DEV}" ]; then
-  sudo losetup -d "${LOOP_DEV}" 2>/dev/null || true
-fi
+cleanup
+trap - EXIT HUP INT TERM
 if [ "${ALPENGLOW_ARCH}" = "aarch64" ]; then
   python3 "${ROOT_DIR}/scripts/check-release-architecture.py" --uefi-image "${IMAGE}"
 else

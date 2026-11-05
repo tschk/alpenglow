@@ -34,7 +34,7 @@ In the aarch64 desktop QEMU guest, devtmpfs hid the staged `/dev/pts` directory,
 
 ## Corrected release work
 
-- [ ] Build and boot a complete corrected x86 disk image through SeaBIOS and UEFI without a direct kernel override. A builder run using the published internet kernel and initramfs, an ext4 substitute for bcachefs state, offset loop devices, and mtools in place of a FAT mount reached serial login under both QEMU firmware modes; it does not verify a fresh kernel build, bcachefs, or the normal FAT mount path.
+- [ ] Build and boot a complete corrected x86 disk image through SeaBIOS and UEFI without a direct kernel override. A later builder run used a freshly compiled kernel and initramfs and a real bcachefs state partition; because the host lacked a FAT kernel driver, it used a FUSE FAT mount for image assembly. The resulting image reached Linux and init under both QEMU firmware modes, but state-mount and other services failed and dinit entered boot-failure recovery. It is not a working release.
 - [x] Put Limine's BIOS stage 3 on a FAT32 EFI System Partition, and provide the EFI executable for UEFI boot.
 - [ ] Fix the x86 potato live ISO's Limine failure under OVMF. Investigate the non-relocatable kernel's required load address `0x1000000`, then rerun the affected ISO under OVMF.
 - [ ] Build the aarch64 potato and internet images with an ARM64 kernel and userspace and a UEFI boot chain, then boot their disk and live ISO assets.

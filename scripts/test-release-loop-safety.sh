@@ -33,7 +33,7 @@ printf '%s\n' "$*" >> "${TEST_SUDO_LOG}"
 case "$1" in
   losetup)
     if [ "${TEST_LIMINE_FAIL:-0}" = 1 ]; then
-      [ "$2" != '-fP' ] || printf '/dev/fixture-loop\n'
+      [ "$2" != '-f' ] || printf '/dev/fixture-loop\n'
       exit 0
     fi
     exit 1
@@ -88,7 +88,7 @@ if PATH="${tmp}/bin:${PATH}" sh "${tmp}/scripts/build-release.sh" >"${tmp}/outpu
   echo 'release build succeeded after losetup failed' >&2
   exit 1
 fi
-grep -q '^losetup -fP --show ' "${TEST_SUDO_LOG}" || {
+grep -q '^losetup -f --show -o ' "${TEST_SUDO_LOG}" || {
   echo 'release build did not reach loop allocation' >&2
   exit 1
 }

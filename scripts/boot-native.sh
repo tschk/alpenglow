@@ -639,12 +639,12 @@ if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
   cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
 elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   echo "→ Building Oil (native package manager)..."
-  docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+  docker run --rm --platform linux/amd64 -v "${ROOT_DIR}:/workspace" -v "${OUT_DIR}:/out" alpine:3.23 sh -c '
     set -e
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
-    cd /oil-src
-    cargo build --release --no-default-features --features wax 2>/dev/null
-    cp target/release/oil /out/oil 2>/dev/null
+    cd /workspace
+    cargo build -p oil --release --no-default-features --features wax
+    cp target/release/oil /out/oil
   ' 2>&1
   if [ -f "${OUT_DIR}/oil" ]; then
     cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
