@@ -1,0 +1,10 @@
+--- system/oil/src/util/cache.rs
++++ system/oil/src/util/cache.rs
+@@ -85,6 +85,7 @@
+     }
+
+     #[test]
++    #[cfg(unix)]
+     fn test_is_cache_fresh_metadata_error() {
+         let tmp_dir = tempfile::tempdir().unwrap();
+         let file_path = tmp_dir.path().join("test_file");
