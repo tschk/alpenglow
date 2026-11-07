@@ -181,6 +181,18 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_success() {
+        // Use an allowed host to verify that the HTTP request goes through
+        // successfully and passes the URI validation post-redirect.
+        // We use a known stable file to ensure the test is not flaky.
+        // The ureq wrapper used in get_validated maps all non-200 responses to an error,
+        // so we must use a URL that actually exists.
+        let url = "https://raw.githubusercontent.com/rust-lang/rust/master/README.md";
+        let resp = get_validated(url).expect("failed to get validated url");
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[test]
     fn allow_any_download_host_env_does_not_bypass_allowlist() {
         let _lock = env_lock();
         std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
