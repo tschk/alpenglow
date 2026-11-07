@@ -289,4 +289,11 @@ mod tests {
         let err = verify_sha256(data, expected).unwrap_err();
         assert!(matches!(err, OilError::ChecksumMismatch { .. }));
     }
+
+    #[test]
+    fn get_validated_success() {
+        let url = "https://raw.githubusercontent.com/torvalds/linux/master/README";
+        let resp = get_validated(url).unwrap();
+        assert_eq!(resp.status(), 200);
+    }
 }
