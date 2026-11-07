@@ -255,4 +255,25 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_install_state_save_io_error() -> Result<()> {
+        let home = IsolatedHome::new();
+
+        // Create a file instead of a directory at `.oil` so that
+        // `InstallState::save()` will fail when trying to create/write to `.oil/installed.json`.
+        let oil_dir = home.path().join(".oil");
+        std::fs::write(&oil_dir, "not a directory").expect("Failed to write mock .oil file");
+
+        let state = InstallState::new().expect("Failed to create new InstallState");
+        let result = state.save();
+
+        assert!(result.is_err(), "Expected save to fail due to IO error");
+        match result {
+            Err(crate::error::OilError::Io(_)) => {}
+            _ => panic!("Expected OilError::Io, got something else"),
+        }
+
+        Ok(())
+    }
 }
