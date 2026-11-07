@@ -181,6 +181,12 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_success() {
+        let resp = get_validated("https://raw.githubusercontent.com/tschk/alpenglow/main/readme.md").expect("fetch failed");
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[test]
     fn allow_any_download_host_env_does_not_bypass_allowlist() {
         let _lock = env_lock();
         std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
