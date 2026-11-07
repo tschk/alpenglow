@@ -255,4 +255,24 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_install_state_save_io_error() -> Result<()> {
+        let home = IsolatedHome::new();
+        let state = InstallState::new().expect("Failed to create new InstallState");
+
+        let installed_json_path = home.path().join(".oil").join("installed.json");
+        std::fs::create_dir_all(&installed_json_path).expect("Failed to create directory");
+
+        let result = state.save();
+        assert!(result.is_err(), "Expected save to fail");
+
+        match result {
+            Err(crate::error::OilError::Io(_)) => {}
+            Err(e) => panic!("Expected OilError::Io, got {:?}", e),
+            Ok(_) => panic!("Expected error, got Ok"),
+        }
+
+        Ok(())
+    }
 }
