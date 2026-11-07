@@ -289,4 +289,10 @@ mod tests {
         let err = verify_sha256(data, expected).unwrap_err();
         assert!(matches!(err, OilError::ChecksumMismatch { .. }));
     }
+
+    #[test]
+    fn get_validated_success() {
+        let resp = get_validated("https://dl-cdn.alpinelinux.org/alpine/MIRRORS.txt").expect("failed to fetch");
+        assert_eq!(resp.status(), 200);
+    }
 }
