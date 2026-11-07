@@ -255,4 +255,23 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_install_state_save_io_error() -> Result<()> {
+        let home = IsolatedHome::new();
+        let oil_dir = home.path().join(".oil");
+        std::fs::write(&oil_dir, "not a dir").expect("Failed to write mock file");
+
+        let state = InstallState::new().expect("Failed to create new InstallState");
+        let result = state.save();
+
+        assert!(result.is_err(), "Expected error when saving to invalid path");
+        match result {
+            Err(crate::error::OilError::Io(_)) => {}
+            Err(other) => panic!("Expected OilError::Io, got {:?}", other),
+            Ok(_) => panic!("Expected error, got Ok"),
+        }
+
+        Ok(())
+    }
 }
