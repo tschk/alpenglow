@@ -181,6 +181,20 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_success() {
+        let url = "https://raw.githubusercontent.com/octocat/Hello-World/master/README";
+        let res = get_validated(url);
+        match res {
+            Ok(resp) => {
+                assert!(resp.status() == 200 || resp.status() == 404);
+            }
+            Err(e) => {
+                panic!("Expected success or HTTP error, got validation error: {e}");
+            }
+        }
+    }
+
+    #[test]
     fn allow_any_download_host_env_does_not_bypass_allowlist() {
         let _lock = env_lock();
         std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
