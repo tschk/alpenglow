@@ -83,4 +83,20 @@ mod tests {
             .unwrap();
         assert!(!is_cache_fresh(tmp.path()));
     }
+
+    #[test]
+    fn test_is_cache_fresh_metadata_error() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("restricted_file");
+        std::fs::write(&file_path, "test").unwrap();
+
+        // Remove read/execute permissions from the directory so metadata on the file fails
+        std::fs::set_permissions(tmp_dir.path(), std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        assert!(!is_cache_fresh(&file_path));
+
+        // Restore permissions so tempdir can be cleaned up
+        std::fs::set_permissions(tmp_dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
 }
