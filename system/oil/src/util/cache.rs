@@ -83,4 +83,22 @@ mod tests {
             .unwrap();
         assert!(!is_cache_fresh(tmp.path()));
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_is_cache_fresh_metadata_error() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("file");
+        std::os::unix::fs::symlink("file", &file_path).unwrap();
+
+        assert!(std::fs::symlink_metadata(&file_path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let error = std::fs::metadata(&file_path).unwrap_err();
+        assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
+        #[cfg(target_os = "linux")]
+        assert_eq!(error.raw_os_error(), Some(libc::ELOOP));
+        assert!(!is_cache_fresh(&file_path));
+    }
 }
