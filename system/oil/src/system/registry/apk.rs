@@ -51,7 +51,7 @@ impl ApkRegistry {
         )))
     }
 
-    pub fn refresh(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn refresh(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
         if cache_path.exists() {
             std::fs::remove_file(&cache_path)?;
@@ -60,7 +60,7 @@ impl ApkRegistry {
         self.load()
     }
 
-    pub fn load(&self) -> Result<Vec<PackageMetadata>> {
+    pub fn load(&self) -> Result<Vec<PackageMetadata<'static>>> {
         let cache_path = self.cache_path()?;
 
         if is_cache_fresh(&cache_path) {
@@ -82,7 +82,7 @@ impl ApkRegistry {
             let branch = self.branch.clone();
             let arch = self.arch.clone();
             handles.push(std::thread::spawn(
-                move || -> Result<Vec<PackageMetadata>> {
+                move || -> Result<Vec<PackageMetadata<'static>>> {
                     eprintln!("Fetching APK index: {url}");
                     let resp = crate::util::security::get_validated(&url).map_err(|e| {
                         OilError::Install(format!("Failed to fetch APK index from {url}: {e}"))
@@ -99,7 +99,7 @@ impl ApkRegistry {
             ));
         }
 
-        let mut all_packages: Vec<PackageMetadata> = Vec::new();
+        let mut all_packages: Vec<PackageMetadata<'static>> = Vec::new();
         for handle in handles {
             all_packages.extend(
                 handle
@@ -136,10 +136,11 @@ impl ApkRegistry {
     }
 }
 
-fn read_cache(path: &std::path::Path) -> Result<Vec<PackageMetadata>> {
+fn read_cache(path: &std::path::Path) -> Result<Vec<PackageMetadata<'static>>> {
     let decoder = MultiGzDecoder::new(std::fs::File::open(path)?);
     let body = read_limited(decoder, MAX_DECOMPRESSED_INDEX_SIZE, "APK index cache")?;
-    Ok(serde_json::from_slice(&body)?)
+    let body = Box::leak(body.into_boxed_slice());
+    Ok(serde_json::from_slice(body)?)
 }
 
 fn read_limited<R: Read>(reader: R, limit: usize, name: &str) -> Result<Vec<u8>> {
@@ -153,7 +154,7 @@ fn read_limited<R: Read>(reader: R, limit: usize, name: &str) -> Result<Vec<u8>>
     Ok(body)
 }
 
-fn write_cache(path: &std::path::Path, packages: &[PackageMetadata]) -> Result<()> {
+fn write_cache(path: &std::path::Path, packages: &[PackageMetadata<'_>]) -> Result<()> {
     let mut encoder = GzEncoder::new(std::fs::File::create(path)?, Compression::fast());
     serde_json::to_writer(&mut encoder, packages)?;
     encoder.finish()?.flush()?;
@@ -210,9 +211,10 @@ fn parse_apkindex_archive(
     branch: &str,
     repo: &str,
     arch: &str,
-) -> Result<Vec<PackageMetadata>> {
+) -> Result<Vec<PackageMetadata<'static>>> {
     let decoder = MultiGzDecoder::new(bytes);
     let tar = read_limited(decoder, MAX_DECOMPRESSED_INDEX_SIZE, "APKINDEX archive")?;
+    let tar = Box::leak(tar.into_boxed_slice());
 
     let mut offset = 0usize;
     while offset + 512 <= tar.len() {
@@ -266,18 +268,18 @@ fn tar_header_size(bytes: &[u8]) -> Result<usize> {
 }
 
 fn parse_apk_stanza(
-    stanza: &str,
+    stanza: &'static str,
     mirror: &str,
     branch: &str,
     repo: &str,
     arch: &str,
-) -> Option<PackageMetadata> {
-    let mut name = String::new();
-    let mut version = String::new();
-    let mut description = String::new();
+) -> Option<PackageMetadata<'static>> {
+    let mut name = "";
+    let mut version = "";
+    let mut description = "";
     let mut installed_size: u64 = 0;
-    let mut depends: Vec<String> = Vec::new();
-    let mut provides: Vec<String> = Vec::new();
+    let mut depends: Vec<std::borrow::Cow<'static, str>> = Vec::new();
+    let mut provides: Vec<std::borrow::Cow<'static, str>> = Vec::new();
 
     for line in stanza.lines() {
         if line.len() < 2 || line.as_bytes()[1] != b':' {
@@ -287,15 +289,15 @@ fn parse_apk_stanza(
         let val = line[2..].trim();
 
         match key {
-            "P" => name = val.to_string(),
-            "V" => version = val.to_string(),
-            "T" => description = val.to_string(),
+            "P" => name = val,
+            "V" => version = val,
+            "T" => description = val,
             "I" => installed_size = val.parse().unwrap_or(0),
             "D" => {
                 for dep in val.split_whitespace() {
                     let dname = super::parse_dep_name(dep);
                     if !dname.is_empty() && !dname.starts_with('!') {
-                        depends.push(dname.to_string());
+                        depends.push(std::borrow::Cow::Borrowed(dname));
                     }
                 }
             }
@@ -303,7 +305,7 @@ fn parse_apk_stanza(
                 for prov in val.split_whitespace() {
                     let pname = super::parse_dep_name(prov);
                     if !pname.is_empty() {
-                        provides.push(pname.to_string());
+                        provides.push(std::borrow::Cow::Borrowed(pname));
                     }
                 }
             }
@@ -317,10 +319,10 @@ fn parse_apk_stanza(
 
     let url = format!("{mirror}/{branch}/{repo}/{arch}/{name}-{version}.apk");
     Some(PackageMetadata {
-        name,
-        version,
-        description,
-        download_url: url,
+        name: std::borrow::Cow::Borrowed(name),
+        version: std::borrow::Cow::Borrowed(version),
+        description: std::borrow::Cow::Borrowed(description),
+        download_url: std::borrow::Cow::Owned(url),
         sha256: None,
         installed_size,
         depends,
@@ -329,12 +331,12 @@ fn parse_apk_stanza(
 }
 
 fn parse_apkindex(
-    content: &str,
+    content: &'static str,
     mirror: &str,
     branch: &str,
     repo: &str,
     arch: &str,
-) -> Vec<PackageMetadata> {
+) -> Vec<PackageMetadata<'static>> {
     let mut packages = Vec::new();
 
     for stanza in content.split("\n\n") {
@@ -573,11 +575,11 @@ mod tests {
         let cache_path = registry.cache_path().expect("cache path");
 
         let packages = [PackageMetadata {
-            name: "testpkg".into(),
-            version: "1.0".into(),
-            description: "test".into(),
+            name: std::borrow::Cow::Borrowed("testpkg"),
+            version: std::borrow::Cow::Borrowed("1.0"),
+            description: std::borrow::Cow::Borrowed("test"),
             // Safe URL so it would be loaded if we didn't clear the cache
-            download_url: "https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/testpkg-1.0.apk".into(),
+            download_url: std::borrow::Cow::Borrowed("https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/testpkg-1.0.apk"),
             sha256: None,
             installed_size: 0,
             depends: Vec::new(),
@@ -606,10 +608,10 @@ mod tests {
         let registry = ApkRegistry::new("https://example.com/alpine", "v3.20");
         let cache_path = registry.cache_path().expect("cache path");
         let poisoned = [PackageMetadata {
-            name: "evil".into(),
-            version: "1".into(),
-            description: String::new(),
-            download_url: "https://attacker.example/evil.apk".into(),
+            name: std::borrow::Cow::Borrowed("evil"),
+            version: std::borrow::Cow::Borrowed("1"),
+            description: std::borrow::Cow::Borrowed(""),
+            download_url: std::borrow::Cow::Borrowed("https://attacker.example/evil.apk"),
             sha256: None,
             installed_size: 0,
             depends: Vec::new(),
