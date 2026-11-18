@@ -181,6 +181,15 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_success() {
+        // We test with an allowed host (raw.githubusercontent.com).
+        // We fetch a well-known public file that is highly unlikely to disappear.
+        let url = "https://raw.githubusercontent.com/rust-lang/rust/master/README.md";
+        let resp = get_validated(url).expect("should fetch successfully");
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[test]
     fn allow_any_download_host_env_does_not_bypass_allowlist() {
         let _lock = env_lock();
         std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
