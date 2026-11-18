@@ -159,23 +159,29 @@ build_dinit() {
 check_toybox_safety "${OUT_DIR}/toybox"
 
 # Zig init (replaces /bin/toybox sh /init)
-ZIG="${ZIG:-zig}"
-if ! command -v "${ZIG}" >/dev/null 2>&1; then
-  if command -v /usr/local/bin/zig >/dev/null 2>&1; then
-    ZIG=/usr/local/bin/zig
-  elif command -v /opt/homebrew/Cellar/zig/0.16.0_1/bin/zig >/dev/null 2>&1; then
-    ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
+if [ -z "${ZIG:-}" ]; then
+  ZIG=zig
+  if ! command -v "${ZIG}" >/dev/null 2>&1; then
+    if command -v /usr/local/bin/zig >/dev/null 2>&1; then
+      ZIG=/usr/local/bin/zig
+    elif command -v /opt/homebrew/Cellar/zig/0.16.0_1/bin/zig >/dev/null 2>&1; then
+      ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
+    fi
   fi
 fi
-if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
+if [ "${ZIG_INIT:-0}" = "1" ]; then
+  command -v "${ZIG}" >/dev/null 2>&1 || { echo "ERROR: Zig init requested but compiler not found: ${ZIG}" >&2; exit 1; }
   echo "→ Building Zig init..."
-  "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
+  rm -f "${OUT_DIR}/alpenglow-init"
+  if ! "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
     -target x86_64-linux-musl -O ReleaseSmall -fstrip \
-    -femit-bin="${OUT_DIR}/alpenglow-init" 2>&1 | tail -5
-  if [ -f "${OUT_DIR}/alpenglow-init" ]; then
-    file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64"; exit 1; }
-    echo "  init: ${OUT_DIR}/alpenglow-init"
+    -femit-bin="${OUT_DIR}/alpenglow-init"; then
+    echo "ERROR: failed to build requested Zig init" >&2
+    exit 1
   fi
+  [ -f "${OUT_DIR}/alpenglow-init" ] || { echo "ERROR: Zig compiler produced no init" >&2; exit 1; }
+  file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64" >&2; exit 1; }
+  echo "  init: ${OUT_DIR}/alpenglow-init"
 fi
 if [ "${FAST}" != "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   if [ ! -f "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" ]; then
@@ -655,11 +661,7 @@ ALPENGLOW
 fi
 
 # Oil (native package manager)
-OIL_BIN="${ROOT_DIR}/build/native/oil"
-OIL_SRC="${ROOT_DIR}/system/oil"
-if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
-  cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
-elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
+if [ "${FAST}" != "1" ]; then
   echo "→ Building Oil (native package manager)..."
   docker run --rm --platform linux/amd64 -v "${ROOT_DIR}:/workspace" -v "${OUT_DIR}:/out" alpine:3.23 sh -c '
     set -e
@@ -667,12 +669,14 @@ elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
     cd /workspace
     cargo build -p oil --release --no-default-features --features wax
     cp target/release/oil /out/oil
+    cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so.1
   ' 2>&1
-  if [ -f "${OUT_DIR}/oil" ]; then
-    cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
-    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
-    echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
-  fi
+  cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
+  cp "${OUT_DIR}/libgcc_s.so.1" "${ROOTFS_DIR}/lib/libgcc_s.so.1"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+  docker run --rm --platform linux/amd64 -v "${ROOTFS_DIR}:/rootfs" alpine:3.23 \
+    chroot /rootfs /usr/local/bin/oil --version
+  echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
 fi
 
 # Normalize the generated Toybox shell scripts to the shell shipped as /bin/sh.

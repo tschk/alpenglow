@@ -105,7 +105,8 @@ SCRIPT
     cp "${ALPENGLOW_MODULE}" "${ROOTFS_DIR}/lib/modules/"
   fi
 
-  if [ "${ZIG_INIT:-0}" = "1" ] && [ -f "${OUT_DIR}/alpenglow-init" ]; then
+  if [ "${ZIG_INIT:-0}" = "1" ]; then
+    [ -f "${OUT_DIR}/alpenglow-init" ] || { echo "ERROR: requested Zig init is missing" >&2; return 1; }
     cp "${OUT_DIR}/alpenglow-init" "${ROOTFS_DIR}/init"
     chmod 755 "${ROOTFS_DIR}/init"
   else
@@ -350,8 +351,16 @@ _assemble_native_validate_services() {
 
 _assemble_minimal_rootfs() {
   _assemble_qemu_mount_units
+  if [ "${ALPENGLOW_REQUIRE_STATE:-0}" = "1" ]; then
+    cp "${BACKEND_DIR}/dinit/state-mount" "${ROOTFS_DIR}/etc/dinit.d/state-mount"
+    printf '%s\n' 'depends-on = mount-filesystems' >> "${ROOTFS_DIR}/etc/dinit.d/state-mount"
+    printf '%s\n' 'depends-on = state-mount' >> "${ROOTFS_DIR}/etc/dinit.d/shell-ttyS0"
+    cp "${BACKEND_DIR}/scripts/mount-state.sh" "${BACKEND_DIR}/scripts/mount-state-paths.sh" "${ROOTFS_DIR}/usr/local/bin/"
+    mkdir -p "${ROOTFS_DIR}/home" "${ROOTFS_DIR}/var/lib/alpenglow" "${ROOTFS_DIR}/var/cache/alpenglow" "${ROOTFS_DIR}/var/log/alpenglow"
+  fi
   if [ "${FAST:-0}" = "1" ]; then
     BOOT_SERVICES="shell-ttyS0 mount-filesystems"
+    [ "${ALPENGLOW_REQUIRE_STATE:-0}" != "1" ] || BOOT_SERVICES="state-mount ${BOOT_SERVICES}"
     _wire_boot_services
     _assemble_boot_native_passwd
     _assemble_common_rootfs_tail
@@ -362,6 +371,7 @@ _assemble_minimal_rootfs() {
   _assemble_minimal_toybox_syslogd
   _assemble_minimal_toybox_crond
   _assemble_native_boot_services
+  [ "${ALPENGLOW_REQUIRE_STATE:-0}" != "1" ] || BOOT_SERVICES="state-mount ${BOOT_SERVICES}"
   _wire_boot_services
   _assemble_minimal_configs
   _assemble_common_rootfs_tail

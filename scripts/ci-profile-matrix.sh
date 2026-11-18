@@ -70,6 +70,64 @@ assert_not_contains "${userspace}/etc/dinit.d/greetd" '^depends-on = state-mount
 assert_not_contains "${userspace}/etc/dinit.d/alpenglowed" '^depends-on = state-mount$'
 assert_not_contains "${userspace}/etc/dinit.d/alpenglow-session" '^depends-on = state-mount$'
 
+# A requested Zig init must never silently fall back to the shell init.
+(
+  ROOTFS_DIR="${tmp_root}/missing-init-root"
+  OUT_DIR="${tmp_root}/missing-init-build"
+  ALPENGLOW_MODULE="${tmp_root}/missing-module"
+  mkdir -p "${ROOTFS_DIR}/dev" "${ROOTFS_DIR}/etc" "${OUT_DIR}"
+  . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+  if (ZIG_INIT=1; _assemble_common_rootfs_tail) >/dev/null 2>&1; then
+    fail 'requested Zig init silently fell back when the binary was missing'
+  fi
+  ZIG_INIT=0
+  _assemble_common_rootfs_tail >/dev/null
+  head -n 1 "${ROOTFS_DIR}/init" | grep -q '^#!/bin/toybox sh$' || fail 'explicit shell init was not retained'
+)
+
+cp /bin/true "${tmp_root}/alpenglow-init"
+for sku in potato fast; do
+  native_minimal="${tmp_root}/native-${sku}"
+  mkdir -p "${native_minimal}/bin" "${native_minimal}/dev" "${native_minimal}/etc" "${native_minimal}/usr/local/bin"
+  cp /bin/true "${native_minimal}/bin/toybox"
+  ln -s /bin/toybox "${native_minimal}/bin/sh"
+  ln -s /bin/toybox "${native_minimal}/bin/true"
+  (
+    ROOT_DIR="${REPO_ROOT}" ALPENGLOW_EDITION="${sku}"
+    . "${REPO_ROOT}/scripts/edition-resolve.sh"
+    ROOTFS_DIR="${native_minimal}" OUT_DIR="${tmp_root}"
+    ALPENGLOW_REQUIRE_STATE=1
+    BACKEND_DIR="${REPO_ROOT}/system/backends/appliance"
+    ALPENGLOW_MODULE="${tmp_root}/missing-module"
+    toybox_has() { return 0; }
+    . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+    assemble_rootfs_config >/dev/null
+  )
+  assert_contains "${native_minimal}/etc/dinit.d/boot" '^depends-on = state-mount$'
+  assert_contains "${native_minimal}/etc/dinit.d/state-mount" '^depends-on = mount-filesystems$'
+  assert_contains "${native_minimal}/etc/dinit.d/shell-ttyS0" '^depends-on = state-mount$'
+  [ -x "${native_minimal}/usr/local/bin/mount-state.sh" ] || fail "${sku} state mount script missing"
+  [ -f "${native_minimal}/usr/local/bin/mount-state-paths.sh" ] || fail "${sku} state path script missing"
+  for dir in home var/lib/alpenglow var/cache/alpenglow var/log/alpenglow; do
+    [ -d "${native_minimal}/${dir}" ] || fail "${sku} state bind target missing: ${dir}"
+  done
+done
+
+diskless="${tmp_root}/native-diskless"
+mkdir -p "${diskless}/bin" "${diskless}/dev" "${diskless}/etc" "${diskless}/usr/local/bin"
+cp /bin/true "${diskless}/bin/toybox"
+ln -s /bin/toybox "${diskless}/bin/sh"
+ln -s /bin/toybox "${diskless}/bin/true"
+(
+  ROOTFS_DIR="${diskless}" OUT_DIR="${tmp_root}" ROOT_DIR="${REPO_ROOT}"
+  BACKEND_DIR="${REPO_ROOT}/system/backends/appliance" BUILD_PROFILE=minimal FAST=0
+  ALPENGLOW_MODULE="${tmp_root}/missing-module"
+  toybox_has() { return 0; }
+  . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+  assemble_rootfs_config >/dev/null
+)
+assert_not_contains "${diskless}/etc/dinit.d/boot" '^depends-on = state-mount$'
+
 native="${tmp_root}/native"
 mkdir -p "${native}/bin" "${native}/dev" "${native}/etc" "${native}/usr/local/bin"
 cp /bin/true "${native}/bin/toybox"

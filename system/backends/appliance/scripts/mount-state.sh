@@ -1,6 +1,7 @@
 #!/bin/sh
 # Alpenglow mount-state script
 # Mounts persistent state partition by label or kernel arg.
+# Live installer boots do not require a persistent state partition.
 #
 # Encrypted /state (optional LUKS path):
 #   alpenglow.state.encrypted=1  — require LUKS open before bcachefs mount
@@ -14,6 +15,7 @@ STATE_ENCRYPTED=""
 STATE_KEY=""
 for arg in $(cat /proc/cmdline 2>/dev/null); do
   case "${arg}" in
+    alpenglow.live=1) echo "live boot: persistent state is not required"; exit 0 ;;
     alpenglow.state=*) STATE_DEV="${arg#alpenglow.state=}" ;;
     alpenglow.state.encrypted=*) STATE_ENCRYPTED="${arg#alpenglow.state.encrypted=}" ;;
     alpenglow.state.key=*) STATE_KEY="${arg#alpenglow.state.key=}" ;;
