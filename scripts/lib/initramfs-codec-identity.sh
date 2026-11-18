@@ -37,18 +37,19 @@ initramfs_assert_codec_identity() {
   }
 }
 
-initramfs_resolve_release_artifact() {
-  native_dir="$1"
-  out_dir="$2"
-  for name in initramfs.cpio.zst initramfs.cpio.lz4 initramfs.cpio.gz; do
-    src="${native_dir}/${name}"
-    if [ -f "${src}" ]; then
-      dest="${out_dir}/${name}"
-      cp "${src}" "${dest}"
-      initramfs_assert_codec_identity "${dest}" || return 1
-      printf '%s\n' "${dest}"
-      return 0
-    fi
-  done
-  return 1
-}
+initramfs_pack() (
+  root="$1"
+  destination="$2"
+  destination="$(CDPATH='' cd -- "$(dirname -- "${destination}")" && pwd)/$(basename -- "${destination}")" || exit 1
+  work="$(mktemp -d "$(dirname -- "${destination}")/.initramfs.XXXXXX")" || exit 1
+  trap 'rm -rf "${work}"' EXIT INT TERM
+  cd "${root}" || exit 1
+  find . -print > "${work}/files" || exit 1
+  cpio -o -H newc < "${work}/files" > "${work}/archive" || exit 1
+  case "${destination}" in
+    *.zst) zstd -6 -T0 < "${work}/archive" > "${work}/compressed" || exit 1 ;;
+    *.lz4) lz4 -l -9 -c < "${work}/archive" > "${work}/compressed" || exit 1 ;;
+    *) printf 'unsupported initramfs destination: %s\n' "${destination}" >&2; exit 1 ;;
+  esac
+  mv "${work}/compressed" "${destination}"
+)

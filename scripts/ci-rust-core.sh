@@ -34,6 +34,7 @@ if [ -f .cargo/config.toml ]; then
 fi
 
 run_cargo cargo check --workspace
+run_cargo cargo test -p alpenglow-installer
 run_cargo cargo test -p oil
 run_cargo cargo test -p oil --no-default-features
 

@@ -84,6 +84,8 @@ build_alpenglow() {
   rm -rf "$rootfs"
   mkdir -p "$rootfs"/{bin,sbin,dev,proc,sys,tmp,run}
 
+  . "${REPO_ROOT}/scripts/lib/toybox-safety.sh"
+  check_toybox_safety "${REPO_ROOT}/build/native/toybox" || return 1
   cp "${REPO_ROOT}/build/native/toybox" "$rootfs/bin/" 2>/dev/null || return 1
   cp "${REPO_ROOT}/build/native/dinit" "$rootfs/sbin/" 2>/dev/null || return 1
   ln -sf /bin/toybox "$rootfs/sbin/init" 2>/dev/null || true

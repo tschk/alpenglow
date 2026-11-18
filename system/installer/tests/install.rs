@@ -6,6 +6,98 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
 
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "requires two disposable loop devices; run scripts/test-installer-disk-safety.sh"]
+fn confirmed_disk_identity_is_checked_before_writing() {
+    use alpenglow_installer::{inspect_install_disk, install_image_to_disk};
+    use std::io::Read;
+    use std::os::unix::fs::symlink;
+
+    let first = PathBuf::from(std::env::var_os("ALPENGLOW_TEST_DISK").unwrap());
+    let second = PathBuf::from(std::env::var_os("ALPENGLOW_TEST_OTHER_DISK").unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let alias = dir.path().join("chosen-disk");
+    fs::write(&source, b"confirmed image").unwrap();
+    symlink(&first, &alias).unwrap();
+    let identity = inspect_install_disk(&alias).unwrap();
+    let read_prefix = |disk: &PathBuf| {
+        let mut bytes = [0; 15];
+        fs::File::open(disk).unwrap().read_exact(&mut bytes).unwrap();
+        bytes
+    };
+    let first_before = read_prefix(&first);
+    let second_before = read_prefix(&second);
+
+    assert!(install_image_to_disk(&source, &identity, "wrong-name").is_err());
+    assert_eq!(read_prefix(&first), first_before);
+    fs::remove_file(&alias).unwrap();
+    symlink(&second, &alias).unwrap();
+    let error = install_image_to_disk(&source, &identity, "chosen-disk").unwrap_err();
+    assert!(
+        error.to_string().contains("disk identity changed"),
+        "{error}"
+    );
+    assert_eq!(read_prefix(&second), second_before);
+
+    fs::remove_file(&alias).unwrap();
+    symlink(&first, &alias).unwrap();
+    assert_eq!(
+        install_image_to_disk(&source, &identity, "chosen-disk").unwrap(),
+        15
+    );
+    assert_eq!(&read_prefix(&first), b"confirmed image");
+
+    let tui_source = dir.path().join("tui-source.img");
+    fs::write(&tui_source, b"tui image bytes").unwrap();
+    let status = alpenglow_installer::run_installer_with_draw(
+        [
+            OsString::from("--tui"),
+            tui_source.clone().into_os_string(),
+            first.clone().into_os_string(),
+        ],
+        |draw_source, draw_target| {
+            assert_eq!(draw_source, tui_source);
+            assert_eq!(draw_target, Some(first.as_path()));
+            Ok(())
+        },
+    );
+    assert_eq!(status, 0);
+    assert_eq!(&read_prefix(&first), b"tui image bytes");
+}
+
+#[test]
+fn tui_rejects_invalid_targets_without_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let regular_target = dir.path().join("target.img");
+    let missing_target = dir.path().join("missing.img");
+    fs::write(&source, b"new image").unwrap();
+    fs::write(&regular_target, b"keep target").unwrap();
+
+    for target in [&regular_target, &missing_target] {
+        let mut drawn = false;
+        let status = alpenglow_installer::run_installer_with_draw(
+            [
+                OsString::from("--tui"),
+                source.clone().into_os_string(),
+                target.clone().into_os_string(),
+            ],
+            |draw_source, draw_target| {
+                drawn = true;
+                assert_eq!(draw_source, source);
+                assert_eq!(draw_target, Some(target.as_path()));
+                Ok(())
+            },
+        );
+        assert!(drawn);
+        assert_eq!(status, 1);
+    }
+    assert_eq!(fs::read(&regular_target).unwrap(), b"keep target");
+    assert!(!missing_target.exists());
+}
+
 #[test]
 fn rejects_non_device_targets_by_default() {
     let dir = tempfile::tempdir().unwrap();
@@ -23,6 +115,17 @@ fn copies_image_when_allowed() {
     fs::write(&source, b"alpenglow").unwrap();
     install_image(&source, &target, true).unwrap();
     assert_eq!(fs::read(&target).unwrap(), b"alpenglow");
+}
+
+#[test]
+fn rejects_source_as_target_without_truncating_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.img");
+    let alias = dir.path().join("alias.img");
+    fs::write(&source, b"keep this image").unwrap();
+    fs::hard_link(&source, &alias).unwrap();
+    assert!(install_image(&source, &alias, true).is_err());
+    assert_eq!(fs::read(&source).unwrap(), b"keep this image");
 }
 
 #[test]
@@ -165,5 +268,7 @@ fn zst_auto_install_fails_on_unopenable_target() {
     fs::create_dir(&target).unwrap();
 
     let err = install_image_maybe_compressed(&source, &target, true).unwrap_err();
-    assert!(err.to_string().contains("refusing to write image to non-block-device target"));
+    assert!(err
+        .to_string()
+        .contains("refusing to write image to non-block-device target"));
 }

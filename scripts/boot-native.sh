@@ -91,7 +91,7 @@ mkdir -p "${OUT_DIR}" "${ROOTFS_DIR}"
 
 echo "=== Alpenglow native boot ==="
 echo "  init:    dinit v${DINIT_VERSION}"
-echo "  shell:   toybox v${TOYBOX_VERSION}"
+echo "  shell:   busybox ash (static)"
 echo "  kernel:  $(if [ "${KERNEL_BUILD:-0}" = "1" ]; then echo "custom (${KERNEL_CONFIG})"; else echo "pre-built"; fi)"
 echo "  arch:    ${ARCH}"
 echo "  efi:     ${EFI}"
@@ -117,6 +117,24 @@ build_toybox() {
   echo "  toybox: ${OUT_DIR}/toybox"
 }
 
+build_state_tools() {
+  require_cmd docker
+  echo "→ Installing native shell and block identification tools..."
+  docker run --rm --platform linux/amd64 -v "${OUT_DIR}:/out" alpine:3.21 sh -ec '
+    apk add --no-cache busybox-static blkid >/dev/null
+    mkdir -p /out/state-tools/lib
+    cp /bin/busybox.static /out/state-tools/busybox
+    cp /sbin/blkid /out/state-tools/blkid
+    cp -L /lib/ld-musl-x86_64.so.1 /out/state-tools/lib/
+    for lib in libblkid.so.1 libeconf.so.0; do
+      path=$(find /lib /usr/lib -name "$lib" -print -quit)
+      test -n "$path"
+      cp -L "$path" /out/state-tools/lib/
+    done
+    /sbin/blkid -k | grep -qx bcachefs
+  '
+}
+
 build_dinit() {
   require_cmd docker
   echo "→ Building dinit ${DINIT_VERSION}..."
@@ -135,7 +153,10 @@ build_dinit() {
 }
 
 [ -f "${OUT_DIR}/toybox" ] || build_toybox
+[ -f "${OUT_DIR}/state-tools/busybox" ] && [ -f "${OUT_DIR}/state-tools/blkid" ] && [ -f "${OUT_DIR}/state-tools/lib/ld-musl-x86_64.so.1" ] && [ -f "${OUT_DIR}/state-tools/lib/libblkid.so.1" ] && [ -f "${OUT_DIR}/state-tools/lib/libeconf.so.0" ] || build_state_tools
 [ -f "${OUT_DIR}/dinit" ] || build_dinit
+. "${ROOT_DIR}/scripts/lib/toybox-safety.sh"
+check_toybox_safety "${OUT_DIR}/toybox"
 
 # Zig init (replaces /bin/toybox sh /init)
 ZIG="${ZIG:-zig}"
@@ -406,9 +427,14 @@ for applet in sh ls cat cp mv rm mkdir rmdir ln mount umount ps kill sleep echo 
   basename dirname chmod chown touch clear printf yes false true head tail sort wc cut \
   tr od strings uniq diff sed grep find xargs dd df du stat id whoami hostname \
   dmesg modprobe insmod switch_root getty login more less tar gzip gunzip zcat bzcat \
-  date cal reboot halt poweroff passwd syslogd crond logger; do
+  date cal reboot halt poweroff syslogd crond logger; do
   ln -sf /bin/toybox "${ROOTFS_DIR}/bin/${applet}" 2>/dev/null || true
 done
+cp "${OUT_DIR}/state-tools/busybox" "${ROOTFS_DIR}/bin/busybox"
+ln -sf /bin/busybox "${ROOTFS_DIR}/bin/sh"
+cp "${OUT_DIR}/state-tools/blkid" "${ROOTFS_DIR}/sbin/blkid"
+mkdir -p "${ROOTFS_DIR}/lib"
+cp "${OUT_DIR}/state-tools/lib/"* "${ROOTFS_DIR}/lib/"
 toybox_has() { "${OUT_DIR}/toybox" "$1" --help >/dev/null 2>&1; }
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/init"
 ln -sf /bin/toybox "${ROOTFS_DIR}/sbin/getty"
@@ -635,12 +661,13 @@ if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
   cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
 elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   echo "→ Building Oil (native package manager)..."
-  docker run --rm --platform linux/amd64 -v "${OIL_SRC}:/oil-src" -v "${OUT_DIR}:/out" alpine:3.21 sh -c '
+  docker run --rm --platform linux/amd64 -v "${ROOT_DIR}:/workspace" -v "${OUT_DIR}:/out" alpine:3.23 sh -c '
+    set -e
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
-    cd /oil-src
-    cargo build --release --no-default-features --features wax 2>/dev/null
-    cp target/release/oil /out/oil 2>/dev/null
-  ' 2>&1 | tail -1
+    cd /workspace
+    cargo build -p oil --release --no-default-features --features wax
+    cp target/release/oil /out/oil
+  ' 2>&1
   if [ -f "${OUT_DIR}/oil" ]; then
     cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
     chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
@@ -648,16 +675,41 @@ elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
   fi
 fi
 
+# Normalize the generated Toybox shell scripts to the shell shipped as /bin/sh.
+# Syntax checks cannot establish runtime semantics; exercise the POSIX constructs
+# used by the boot scripts separately before checking each script's syntax.
+echo "→ Checking initramfs shell scripts..."
+"${ROOTFS_DIR}/bin/busybox" sh -ec '
+  set -u
+  f() { local_value=$1; [ "$local_value" = ok ]; }
+  value=$(f ok && printf ok)
+  [ "$value" = ok ]
+  for value in one two; do case "$value" in two) break ;; esac; done
+  [ "$value" = two ]
+'
+find "${ROOTFS_DIR}" -type f -exec grep -Il '^#!' {} + | while IFS= read -r script; do
+  IFS= read -r first < "${script}" || continue
+  case "${first}" in
+    '#!/bin/toybox sh'|'#!/usr/bin/toybox sh')
+      sed -i '1c\#!/bin/sh' "${script}"
+      first='#!/bin/sh'
+      ;;
+  esac
+  case "${first}" in
+    '#!/bin/sh')
+      "${ROOTFS_DIR}/bin/busybox" sh -n "${script}" || { echo "shell syntax error: ${script}" >&2; exit 1; }
+      ;;
+    '#!'*sh|'#!'*sh\ *|'#!/usr/bin/env '*sh*)
+      echo "unsupported initramfs shell interpreter: ${script}: ${first}" >&2
+      exit 1
+      ;;
+  esac
+done
+
 # Build initramfs
 echo "→ Building initramfs..."
-case "${INITRAMFS}" in
-  *.zst)
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
-  ;;
-  *)
-  (cd "${ROOTFS_DIR}" && find . -print | cpio -o -H newc 2>/dev/null | lz4 -l -9 -c > "${INITRAMFS}")
-  ;;
-esac
+. "${ROOT_DIR}/scripts/lib/initramfs-codec-identity.sh"
+initramfs_pack "${ROOTFS_DIR}" "${INITRAMFS}"
 echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 

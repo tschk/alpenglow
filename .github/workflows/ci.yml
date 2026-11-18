@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Install release-image test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mtools zstd
       - name: Check appliance OS policy
         run: scripts/ci-os-appliance.sh
 
@@ -35,6 +37,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Check Rust core
         run: scripts/ci-rust-core.sh
+      - name: Install loop-device test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq strace zstd
+      - name: Check installer disk safety
+        run: sh scripts/test-installer-disk-safety.sh
 
   rust-kernel-module:
     name: Rust kernel module compile
@@ -75,10 +81,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-      - name: Run cargo audit
-        run: cargo audit --deny warnings
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --version 0.20.2 --locked
+      - name: Check pin-utils exception expiry
+        run: |
+          if grep -q 'RUSTSEC-2026-0441' deny.toml && [[ "$(date -u +%F)" > "2026-12-29" ]]; then
+            echo 'RUSTSEC-2026-0441 exception expired on 2026-12-30' >&2
+            exit 1
+          fi
+      - name: Check dependency advisories
+        run: cargo deny --all-features check advisories
 
   zig:
     name: Alpenglow Zig gates

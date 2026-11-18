@@ -70,4 +70,62 @@ assert_not_contains "${userspace}/etc/dinit.d/greetd" '^depends-on = state-mount
 assert_not_contains "${userspace}/etc/dinit.d/alpenglowed" '^depends-on = state-mount$'
 assert_not_contains "${userspace}/etc/dinit.d/alpenglow-session" '^depends-on = state-mount$'
 
+native="${tmp_root}/native"
+mkdir -p "${native}/bin" "${native}/dev" "${native}/etc" "${native}/usr/local/bin"
+cp /bin/true "${native}/bin/toybox"
+ln -s /bin/toybox "${native}/bin/sh"
+ln -s /bin/toybox "${native}/bin/true"
+(
+  ROOTFS_DIR="${native}" OUT_DIR="${tmp_root}" ROOT_DIR="${REPO_ROOT}"
+  BACKEND_DIR="${REPO_ROOT}/system/backends/appliance" BUILD_PROFILE=standard FAST=0
+  ALPENGLOW_MODULE="${tmp_root}/missing-module"
+  toybox_has() { case "$1" in sh|getty|mount) return 0 ;; *) return 1 ;; esac; }
+  . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+  assemble_rootfs_config >/dev/null
+)
+assert_contains "${native}/etc/dinit.d/boot" '^depends-on = state-mount$'
+assert_contains "${native}/etc/dinit.d/boot" '^depends-on = shell-ttyS0$'
+assert_not_contains "${native}/etc/dinit.d/boot" '^depends-on = (alpenglow-kernel-policy|alpenglow-netd|alpenglow-zram|alpenglow-pressure|alpenglow-power|networking|earlyoom|dropbear|chronyd|syslogd|crond|dnsmasq)$'
+[ ! -e "${native}/etc/dinit.d/boot.d/alpenglow-kernel-policy" ] || fail 'unavailable service remains enabled'
+(
+  ROOTFS_DIR="${native}"
+  toybox_has() { return 0; }
+  . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+  rm "${native}/usr/local/bin/mount-state.sh"
+  if _assemble_native_validate_services 2>/dev/null; then
+    fail 'validation accepted a missing required service command'
+  fi
+)
+
+native_full="${tmp_root}/native-full"
+mkdir -p "${native_full}/bin" "${native_full}/dev" "${native_full}/etc" "${native_full}/usr/local/bin"
+cp /bin/true "${native_full}/bin/toybox"
+ln -s /bin/toybox "${native_full}/bin/sh"
+ln -s /bin/toybox "${native_full}/bin/true"
+for executable in alpenglow-kernelctl alpenglow-netd alpenglow-zramctl-zig alpenglow-pressurectl-zig; do
+  cp /bin/true "${native_full}/usr/local/bin/${executable}"
+done
+(
+  ROOTFS_DIR="${native_full}" OUT_DIR="${tmp_root}" ROOT_DIR="${REPO_ROOT}"
+  BACKEND_DIR="${REPO_ROOT}/system/backends/appliance" BUILD_PROFILE=standard FAST=0
+  ALPENGLOW_MODULE="${tmp_root}/missing-module"
+  toybox_has() { return 0; }
+  . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+  assemble_rootfs_config >/dev/null
+)
+for service in state-mount alpenglow-kernel-policy alpenglow-netd alpenglow-zram alpenglow-pressure networking syslogd crond; do
+  assert_contains "${native_full}/etc/dinit.d/boot" "^depends-on = ${service}$"
+done
+assert_contains "${native_full}/etc/dinit.d/networking" '/usr/share/udhcpc/default.script'
+(
+  ROOTFS_DIR="${native_full}"
+  toybox_has() { return 0; }
+  . "${REPO_ROOT}/scripts/lib/assemble-rootfs.sh"
+  sed -i '/^depends-on = alpenglow-kernel-policy$/d' "${native_full}/etc/dinit.d/boot"
+  rm "${native_full}/usr/local/bin/alpenglow-kernelctl"
+  if _assemble_native_validate_services 2>/dev/null; then
+    fail 'validation accepted a missing transitive dependency command'
+  fi
+)
+
 printf 'ci-profile-matrix: ok\n'

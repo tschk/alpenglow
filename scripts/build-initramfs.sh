@@ -47,6 +47,10 @@ elif command -v toybox >/dev/null 2>&1; then
   ln -sf toybox "${INITRAMFS_DIR}/bin/sh"
   # toybox has symlinks for all applets via its multicall binary
 fi
+if [ -f "${INITRAMFS_DIR}/bin/toybox" ]; then
+  . "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/lib/toybox-safety.sh"
+  check_toybox_safety "${INITRAMFS_DIR}/bin/toybox"
+fi
 
 # ── Phase 2: Build kernel (if source available) ─────────────────────
 if [ -d "${KERNEL_SRC}/linux" ]; then

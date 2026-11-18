@@ -14,7 +14,9 @@ cat > "${tmp}/scripts/boot-native.sh" <<'EOF'
 #!/bin/sh
 echo called >> "${PROBE_LOG}"
 if [ "${PROBE_SUCCESS:-0}" = 1 ]; then
-  printf 'new kernel\n' > "$(dirname "$0")/../build/native/vmlinuz"
+  kernel="$(dirname "$0")/../build/native/vmlinuz"
+  dd if=/dev/zero of="$kernel" bs=1 count=564 2>/dev/null
+  printf '\001' >> "$kernel"
   printf '\002\041\114\030new' > "$(dirname "$0")/../build/native/initramfs.cpio.lz4"
   exit 0
 fi
@@ -27,6 +29,9 @@ exit 1
 EOF
 chmod +x "${tmp}/scripts/boot-native.sh" "${tmp}/bin/curl"
 cp "${tmp}/bin/curl" "${tmp}/bin/lz4"
+# This fixture tests build failure handling, not the separate kernel architecture gate.
+printf '#!/bin/sh\nexit 0\n' > "${tmp}/bin/python3"
+chmod +x "${tmp}/bin/python3"
 if PATH="${tmp}/bin:${PATH}" PROBE_LOG="${tmp}/calls" sh "${tmp}/scripts/build-release.sh" > "${tmp}/output" 2>&1; then
   echo 'release succeeded after boot build failed' >&2
   exit 1
