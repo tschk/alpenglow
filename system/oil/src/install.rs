@@ -153,6 +153,24 @@ mod tests {
     }
 
     #[test]
+    fn test_install_state_save_io_error() -> Result<()> {
+        let home = IsolatedHome::new();
+        let oil_dir = home.path().join(".oil");
+        std::fs::write(&oil_dir, "this is a file, not a directory").expect("failed to write test file");
+
+        let mut state = InstallState::new().expect("Failed to create InstallState");
+        state.mark_installed("pkg-a", Some("1.0.0"));
+
+        let result = state.save();
+        assert!(result.is_err(), "Expected error when saving state");
+        match result {
+            Err(crate::error::OilError::Io(_)) => {} // Expected
+            _ => panic!("Expected OilError::Io"),
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_install_state_save_load() -> Result<()> {
         let _home = IsolatedHome::new();
 
