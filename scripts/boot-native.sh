@@ -667,8 +667,8 @@ if [ "${FAST}" != "1" ]; then
     set -e
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
     cd /workspace
-    cargo build -p oil --release --no-default-features --features wax
-    cp target/release/oil /out/oil
+    CARGO_TARGET_DIR=/out/oil-target cargo build -p oil --release --no-default-features --features wax
+    cp /out/oil-target/release/oil /out/oil
     cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so.1
   ' 2>&1
   cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
