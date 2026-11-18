@@ -185,8 +185,10 @@ jobs:
       - name: Install release tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y bcachefs-tools bc bison build-essential cpio curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev lz4 mtools ovmf pkg-config qemu-system-x86 qemu-utils xorriso zstd
+          sudo apt-get install -y bc bison build-essential cpio curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev lz4 mtools ovmf pkg-config qemu-system-x86 qemu-utils xorriso zstd
           rustup target add x86_64-unknown-linux-musl
+          printf '%s\n' '#!/bin/sh' 'exec docker run --rm --privileged -v /dev:/dev alpine:3.23 sh -ec '\''apk add --no-cache bcachefs-tools >/dev/null; exec mkfs.bcachefs "$@"'\'' sh "$@"' | sudo tee /usr/local/bin/mkfs.bcachefs >/dev/null
+          sudo chmod 755 /usr/local/bin/mkfs.bcachefs
       - name: Build and verify exact assets on kernel FAT
         env:
           ALPENGLOW_ARCH: x86_64
