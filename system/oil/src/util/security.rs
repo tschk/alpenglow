@@ -171,6 +171,12 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_success() {
+        let resp = get_validated("https://dl-cdn.alpinelinux.org/alpine/v3.19/main/x86_64/APKINDEX.tar.gz").unwrap();
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[test]
     fn get_validated_rejects_disallowed_host_before_fetch() {
         let err = get_validated("https://attacker.example/payload").unwrap_err();
         let msg = err.to_string();
