@@ -181,6 +181,22 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires live HTTPS; run cargo test -p oil get_validated_success -- --ignored"]
+    fn get_validated_success() {
+        use ureq::ResponseExt;
+        // Using an allowed host and a commit-pinned public repo URL avoids a moving fixture.
+        let url = "https://raw.githubusercontent.com/tschk/alpenglow/64733365c811fed3e0f26db34af35197f150c284/LICENSE";
+        let resp = get_validated(url).expect("failed to fetch from allowed host");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.get_uri().to_string(), url);
+        let body = resp
+            .into_body()
+            .read_to_string()
+            .expect("read response body");
+        assert!(body.starts_with("Mozilla Public License Version 2.0\n"));
+    }
+
+    #[test]
     fn allow_any_download_host_env_does_not_bypass_allowlist() {
         let _lock = env_lock();
         std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
