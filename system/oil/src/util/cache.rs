@@ -19,7 +19,6 @@ pub fn cache_key(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
     use std::time::{Duration, SystemTime};
     use tempfile::NamedTempFile;
 
@@ -86,18 +85,20 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_is_cache_fresh_metadata_error() {
         let tmp_dir = tempfile::tempdir().unwrap();
         let file_path = tmp_dir.path().join("file");
-        std::fs::write(&file_path, "hello").unwrap();
+        std::os::unix::fs::symlink("file", &file_path).unwrap();
 
-        let mut perms = std::fs::metadata(tmp_dir.path()).unwrap().permissions();
-        perms.set_mode(0o000);
-        std::fs::set_permissions(tmp_dir.path(), perms.clone()).unwrap();
-
+        assert!(std::fs::symlink_metadata(&file_path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let error = std::fs::metadata(&file_path).unwrap_err();
+        assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
+        #[cfg(target_os = "linux")]
+        assert_eq!(error.raw_os_error(), Some(libc::ELOOP));
         assert!(!is_cache_fresh(&file_path));
-
-        perms.set_mode(0o755);
-        std::fs::set_permissions(tmp_dir.path(), perms).unwrap();
     }
 }
