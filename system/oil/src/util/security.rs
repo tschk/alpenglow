@@ -171,6 +171,14 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_success() {
+        // Use a known existing URL from an allowed host.
+        let url = "https://raw.githubusercontent.com/rust-lang/rust/master/README.md";
+        let resp = get_validated(url).unwrap();
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[test]
     fn get_validated_rejects_disallowed_host_before_fetch() {
         let err = get_validated("https://attacker.example/payload").unwrap_err();
         let msg = err.to_string();
