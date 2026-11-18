@@ -3,7 +3,7 @@ mod tui;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufReader, BufWriter};
+use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -34,6 +34,90 @@ pub struct InstallRequest {
     pub source: PathBuf,
     pub target: PathBuf,
     pub allow_regular_file: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiskIdentity {
+    pub path: PathBuf,
+    pub model: String,
+    pub size_bytes: u64,
+    pub removable: bool,
+    device: u64,
+    inode: u64,
+    rdev: u64,
+    diskseq: u64,
+}
+
+#[cfg(target_os = "linux")]
+fn disk_identity(path: &Path, metadata: &fs::Metadata) -> Result<DiskIdentity, InstallError> {
+    use std::os::unix::fs::MetadataExt;
+    if !is_block_device(metadata) {
+        return Err(InstallError::InvalidTarget("not a block device".into()));
+    }
+    let sysfs = PathBuf::from(format!(
+        "/sys/dev/block/{}:{}",
+        libc::major(metadata.rdev()),
+        libc::minor(metadata.rdev())
+    ));
+    if sysfs.join("partition").exists() {
+        return Err(InstallError::InvalidTarget(
+            "select a whole disk, not a partition".into(),
+        ));
+    }
+    let number = |name: &str| -> Result<u64, InstallError> {
+        let value = fs::read_to_string(sysfs.join(name))?;
+        value.trim().parse().map_err(|_| {
+            InstallError::InvalidTarget(format!("invalid {name} for {}", path.display()))
+        })
+    };
+    let model = fs::read_to_string(sysfs.join("device/model"))
+        .map(|value| value.trim().to_string())
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Unknown model".into());
+    let size_bytes = number("size")?
+        .checked_mul(512)
+        .ok_or_else(|| InstallError::InvalidTarget("disk size overflow".into()))?;
+    let removable = match number("removable")? {
+        0 => false,
+        1 => true,
+        _ => return Err(InstallError::InvalidTarget("invalid removable flag".into())),
+    };
+    Ok(DiskIdentity {
+        path: path.to_path_buf(),
+        model,
+        size_bytes,
+        removable,
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        rdev: metadata.rdev(),
+        diskseq: number("diskseq")?,
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn disk_identity(_path: &Path, _metadata: &fs::Metadata) -> Result<DiskIdentity, InstallError> {
+    Err(InstallError::InvalidTarget(
+        "disk identity requires Linux".into(),
+    ))
+}
+
+pub fn inspect_install_disk(path: &Path) -> Result<DiskIdentity, InstallError> {
+    disk_identity(path, &fs::metadata(path)?)
+}
+
+pub fn install_image_to_disk(
+    source: &Path,
+    disk: &DiskIdentity,
+    confirmation: &str,
+) -> Result<u64, InstallError> {
+    if disk.path.file_name().and_then(|name| name.to_str()) != Some(confirmation) {
+        return Err(InstallError::InvalidTarget(
+            "device name does not match".into(),
+        ));
+    }
+    let compressed = source.extension().and_then(|ext| ext.to_str()) == Some("zst");
+    install_image_inner(source, &disk.path, false, compressed, Some(disk))
 }
 
 pub fn default_live_source() -> PathBuf {
@@ -122,15 +206,22 @@ where
 }
 
 pub fn validate_target(target: &Path, allow_regular_file: bool) -> Result<(), InstallError> {
+    target_metadata(target, allow_regular_file).map(|_| ())
+}
+
+fn target_metadata(
+    target: &Path,
+    allow_regular_file: bool,
+) -> Result<Option<fs::Metadata>, InstallError> {
     if allow_regular_file && !target.exists() {
-        return Ok(());
+        return Ok(None);
     }
     let metadata = fs::metadata(target)?;
     if metadata.is_file() && allow_regular_file {
-        return Ok(());
+        return Ok(Some(metadata));
     }
     if is_block_device(&metadata) {
-        return Ok(());
+        return Ok(Some(metadata));
     }
     Err(InstallError::InvalidTarget(format!(
         "refusing to write image to non-block-device target: {}",
@@ -143,16 +234,7 @@ pub fn install_image(
     target: &Path,
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
-    validate_target(target, allow_regular_file)?;
-    let input = File::open(source)?;
-    let output = OpenOptions::new()
-        .write(true)
-        .create(allow_regular_file)
-        .truncate(allow_regular_file)
-        .open(target)?;
-    let mut input = BufReader::new(input);
-    let mut output = BufWriter::new(output);
-    Ok(io::copy(&mut input, &mut output)?)
+    install_image_inner(source, target, allow_regular_file, false, None)
 }
 
 pub fn install_image_maybe_compressed(
@@ -160,20 +242,125 @@ pub fn install_image_maybe_compressed(
     target: &Path,
     allow_regular_file: bool,
 ) -> Result<u64, InstallError> {
-    if source.extension().and_then(|ext| ext.to_str()) != Some("zst") {
-        return install_image(source, target, allow_regular_file);
+    let compressed = source.extension().and_then(|ext| ext.to_str()) == Some("zst");
+    install_image_inner(source, target, allow_regular_file, compressed, None)
+}
+
+fn install_image_inner(
+    source: &Path,
+    target: &Path,
+    allow_regular_file: bool,
+    compressed: bool,
+    expected_disk: Option<&DiskIdentity>,
+) -> Result<u64, InstallError> {
+    let target_metadata = target_metadata(target, allow_regular_file)?;
+    let mut input = File::open(source)?;
+    let source_metadata = input.metadata()?;
+    if !source_metadata.is_file() {
+        return Err(InstallError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "source must be a regular image file",
+        )));
     }
-    validate_target(target, allow_regular_file)?;
-    let input_file = File::open(source)?;
-    let decoder = zstd::stream::Decoder::new(input_file)?;
-    let output = OpenOptions::new()
-        .write(true)
-        .create(allow_regular_file)
-        .truncate(allow_regular_file)
-        .open(target)?;
-    let mut input = BufReader::new(decoder);
+    let is_block = target_metadata.as_ref().is_some_and(is_block_device);
+    let mut options = OpenOptions::new();
+    options.write(true);
+    if target_metadata.is_none() && allow_regular_file {
+        options.create_new(true);
+    }
+    #[cfg(target_os = "linux")]
+    if is_block || !allow_regular_file {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_EXCL);
+    }
+    #[cfg(not(target_os = "linux"))]
+    if is_block {
+        return Err(InstallError::InvalidTarget(
+            "block device safety requires Linux".into(),
+        ));
+    }
+    let mut output = options.open(target)?;
+    let output_metadata = output.metadata()?;
+    if let Some(expected) = expected_disk {
+        if disk_identity(target, &output_metadata)? != *expected {
+            return Err(InstallError::InvalidTarget(
+                "disk identity changed; select it again".into(),
+            ));
+        }
+    }
+    if is_block_device(&output_metadata) != is_block
+        || (!is_block && !(allow_regular_file && output_metadata.is_file()))
+    {
+        return Err(InstallError::InvalidTarget(
+            "target changed during validation".into(),
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Some(expected) = &target_metadata {
+            if (expected.dev(), expected.ino(), expected.rdev())
+                != (
+                    output_metadata.dev(),
+                    output_metadata.ino(),
+                    output_metadata.rdev(),
+                )
+            {
+                return Err(InstallError::InvalidTarget(
+                    "target changed during validation".into(),
+                ));
+            }
+        }
+        if (source_metadata.dev(), source_metadata.ino())
+            == (output_metadata.dev(), output_metadata.ino())
+        {
+            return Err(InstallError::InvalidTarget(
+                "source and target are the same file or device".into(),
+            ));
+        }
+    }
+    let image_size = if is_block {
+        let capacity = output.seek(SeekFrom::End(0))?;
+        output.seek(SeekFrom::Start(0))?;
+        let image_size = if compressed {
+            io::copy(
+                &mut zstd::stream::Decoder::new(&mut input)?,
+                &mut io::sink(),
+            )?
+        } else {
+            input.seek(SeekFrom::End(0))?
+        };
+        input.seek(SeekFrom::Start(0))?;
+        if image_size > capacity {
+            return Err(InstallError::InvalidTarget(format!(
+                "image requires {image_size} bytes but target has {capacity} bytes"
+            )));
+        }
+        Some(image_size)
+    } else {
+        output.set_len(0)?;
+        None
+    };
     let mut output = BufWriter::new(output);
-    let bytes = io::copy(&mut input, &mut output)?;
+    let mut input: Box<dyn Read> = if compressed {
+        Box::new(BufReader::new(zstd::stream::Decoder::new(input)?))
+    } else {
+        Box::new(BufReader::new(input))
+    };
+    let bytes = if let Some(expected) = image_size {
+        let copied = io::copy(&mut input.by_ref().take(expected), &mut output)?;
+        let mut extra = [0u8; 1];
+        if copied != expected || input.read(&mut extra)? != 0 {
+            return Err(InstallError::Io(io::Error::other(
+                "source image changed during installation",
+            )));
+        }
+        copied
+    } else {
+        io::copy(&mut input, &mut output)?
+    };
+    output.flush()?;
+    output.get_ref().sync_all()?;
     Ok(bytes)
 }
 

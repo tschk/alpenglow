@@ -98,6 +98,12 @@ fi
 BUILD_PROFILE="${BUILD_PROFILE}" COMPILER="${COMPILER}" "${BACKEND_DIR}/scripts/configure-rootfs.sh" "${ROOTFS_DIR}"
 
 # ── Phase 3: Compose immutable root image ──────────────────────────
+. "${ROOT_DIR}/scripts/lib/toybox-safety.sh"
+find "${ROOTFS_DIR}" -type f -name toybox -print > "${OUT_DIR}/toybox-binaries.list"
+while IFS= read -r toybox; do
+  check_toybox_safety "${toybox}"
+done < "${OUT_DIR}/toybox-binaries.list"
+rm -f "${OUT_DIR}/toybox-binaries.list"
 echo "→ Composing immutable root image..."
 if command -v mkfs.erofs >/dev/null 2>&1; then
   mkfs.erofs -zlz4hc "${ROOT_IMAGE}" "${ROOTFS_DIR}" >/dev/null

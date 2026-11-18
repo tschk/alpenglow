@@ -22,6 +22,8 @@ if [ ! -f "${TOYBOX_BIN}" ]; then
   file "${TOYBOX_BIN}" | grep -q aarch64 || { echo "ERROR: toybox not aarch64"; exit 1; }
   echo "  ${TOYBOX_BIN}"
 fi
+. "${REPO_ROOT}/scripts/lib/toybox-safety.sh"
+check_toybox_safety "${TOYBOX_BIN}"
 
 # Dinit: build in arm64 Alpine container
 DINIT_VERSION="0.19.2"

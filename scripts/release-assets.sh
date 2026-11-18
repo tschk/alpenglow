@@ -115,6 +115,14 @@ test -f "${IMAGE}" || {
 mkdir -p "${ASSET_DIR}"
 rm -f "${COMPRESSED_IMAGE}" "${COMPRESSED_IMAGE}.sha256"
 zstd -T0 -19 -f "${IMAGE}" -o "${COMPRESSED_IMAGE}"
+if [ "${ARCH}" = "x86_64" ]; then
+  if command -v lz4 >/dev/null 2>&1; then
+    DISK_INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
+  else
+    DISK_INITRAMFS="${OUT_DIR}/initramfs.cpio.zst"
+  fi
+  sh "${ROOT_DIR}/scripts/check-compressed-initramfs.sh" "${COMPRESSED_IMAGE}" "${DISK_INITRAMFS}"
+fi
 sha256_file "${COMPRESSED_IMAGE}"
 
 if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
@@ -125,6 +133,7 @@ if [ -d "${ROOT_DIR}/build/native/rootfs" ]; then
   if [ -n "${GUI_INSTALLER}" ] && [ -f "${GUI_INSTALLER}" ]; then
     cp "${GUI_INSTALLER}" "${LIVE_ROOT}/usr/bin/"
   fi
+  python3 "${ROOT_DIR}/scripts/check-release-architecture.py" "${ARCH}" "${LIVE_ROOT}" "${KERNEL}"
   (cd "${LIVE_ROOT}" && find . -print | cpio -o -H newc 2>/dev/null | zstd -6 -T0 > "${INITRAMFS}")
 fi
 
