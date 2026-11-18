@@ -29,9 +29,33 @@ with open(sys.argv[1], "r+b") as disk:
     disk.write(mbr)
 PY
 mounted_loop="$(sudo losetup --find --partscan --show "${tmp}/mounted.img")"
-device="$(cat "/sys/class/block/${mounted_loop##*/}p1/dev")"
+loop_diagnostics() {
+  echo "installer fixture loop diagnostics: $1" >&2
+  date -u '+%Y-%m-%dT%H:%M:%S.%NZ' >&2
+  sudo losetup "${mounted_loop}" >&2 || true
+  lsblk -o NAME,MAJ:MIN,TYPE,SIZE "${mounted_loop}" >&2 || true
+  for path in "/sys/class/block/${mounted_loop##*/}" "/sys/class/block/${mounted_loop##*/}p1"; do
+    ls -ld "${path}" >&2 || true
+    for item in dev partition size loop/backing_file loop/autoclear; do
+      [ ! -r "${path}/${item}" ] || { printf '%s: ' "${path}/${item}" >&2; cat "${path}/${item}" >&2 || true; }
+    done
+  done
+  if [ -b "${tmp}/partition" ]; then
+    ls -l "${tmp}/partition" >&2
+    sudo blockdev --getsize64 "${tmp}/partition" >&2 || true
+  fi
+}
+loop_diagnostics 'after loop attachment'
+if ! device="$(cat "/sys/class/block/${mounted_loop##*/}p1/dev")"; then
+  loop_diagnostics 'partition sysfs read failed'
+  exit 1
+fi
 sudo mknod "${tmp}/partition" b "${device%:*}" "${device#*:}"
-sudo mkfs.ext4 -q "${tmp}/partition"
+loop_diagnostics 'before filesystem format'
+if ! sudo mkfs.ext4 -q "${tmp}/partition"; then
+  loop_diagnostics 'filesystem format failed'
+  exit 1
+fi
 sudo mount "${tmp}/partition" "${tmp}/mnt"
 printf 'installer safety fixture\n' > "${tmp}/source.img"
 if sudo "${installer}" "${tmp}/source.img" "${mounted_loop}" >"${tmp}/mounted.log" 2>&1; then
