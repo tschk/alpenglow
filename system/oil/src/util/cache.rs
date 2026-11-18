@@ -83,4 +83,21 @@ mod tests {
             .unwrap();
         assert!(!is_cache_fresh(tmp.path()));
     }
+
+    #[test]
+    fn test_is_cache_fresh_metadata_error() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test_file");
+        std::fs::write(&file_path, "test").unwrap();
+
+        let mut dir_perms = std::fs::metadata(tmp_dir.path()).unwrap().permissions();
+        dir_perms.set_mode(0o000);
+        std::fs::set_permissions(tmp_dir.path(), dir_perms.clone()).unwrap();
+
+        assert!(!is_cache_fresh(&file_path));
+
+        dir_perms.set_mode(0o755);
+        std::fs::set_permissions(tmp_dir.path(), dir_perms).unwrap();
+    }
 }
