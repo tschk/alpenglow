@@ -258,23 +258,43 @@ mod tests {
 
     #[test]
     fn test_install_state_save_io_error() -> Result<()> {
-        let home = IsolatedHome::new();
-        let state = InstallState::new().expect("Failed to create new InstallState");
+        use std::io::ErrorKind;
 
-        let oil_dir = home.path().join(".oil");
-        std::fs::create_dir_all(&oil_dir)?;
+        for (blocked_path, expected_kind) in [
+            (".oil", ErrorKind::AlreadyExists),
+            (".oil/installed.json", ErrorKind::IsADirectory),
+        ] {
+            let home = IsolatedHome::new();
+            let mut state = InstallState::new()?;
+            state.mark_installed("pkg-error", Some("1.2.3"));
 
-        let file_path = oil_dir.join("installed.json");
-        std::fs::create_dir(&file_path)?;
+            let blocked = home.path().join(blocked_path);
+            if blocked_path == ".oil" {
+                std::fs::write(&blocked, "not a directory")?;
+            } else {
+                std::fs::create_dir_all(&blocked)?;
+            }
 
-        let result = state.save();
-        assert!(result.is_err(), "Expected save to fail due to IO error");
-        match result {
-            Err(crate::error::OilError::Io(_)) => {}
-            Err(e) => panic!("Expected OilError::Io, got {:?}", e),
-            Ok(_) => panic!("Expected error"),
+            match state.save() {
+                Err(crate::error::OilError::Io(error)) => {
+                    assert_eq!(error.kind(), expected_kind, "blocked {blocked_path}");
+                }
+                Err(other) => panic!("Expected OilError::Io for {blocked_path}, got {other:?}"),
+                Ok(()) => panic!("Expected save to fail for blocked {blocked_path}"),
+            }
+
+            if blocked_path == ".oil" {
+                assert_eq!(std::fs::read_to_string(&blocked)?, "not a directory");
+                std::fs::remove_file(&blocked)?;
+            } else {
+                assert!(blocked.is_dir());
+                std::fs::remove_dir(&blocked)?;
+            }
+            state.save()?;
+            let reloaded = InstallState::new()?;
+            assert_eq!(reloaded.get("pkg-error"), state.get("pkg-error"));
+            assert_eq!(reloaded.get("pkg-error").unwrap().version, "1.2.3");
         }
-
         Ok(())
     }
 }
