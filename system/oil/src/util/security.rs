@@ -181,6 +181,14 @@ mod tests {
     }
 
     #[test]
+    fn get_validated_fetches_allowed_host() {
+        let _lock = env_lock();
+        let url = "https://raw.githubusercontent.com/git/git/master/README.md";
+        let resp = get_validated(url).expect("expected success for allowed host");
+        assert_eq!(resp.status(), 200, "expected 200 OK");
+    }
+
+    #[test]
     fn allow_any_download_host_env_does_not_bypass_allowlist() {
         let _lock = env_lock();
         std::env::set_var("OIL_ALLOW_ANY_DOWNLOAD_HOST", "1");
