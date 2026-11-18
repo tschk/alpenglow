@@ -289,4 +289,11 @@ mod tests {
         let err = verify_sha256(data, expected).unwrap_err();
         assert!(matches!(err, OilError::ChecksumMismatch { .. }));
     }
+
+    #[test]
+    fn get_validated_success() {
+        let resp = get_validated("https://raw.githubusercontent.com/rust-lang/rust/master/README.md").unwrap();
+        let body = resp.into_body().read_to_string().unwrap();
+        assert!(body.contains("Rust"));
+    }
 }
