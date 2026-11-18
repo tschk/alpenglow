@@ -13,9 +13,13 @@ on:
         description: "Build and boot only the aarch64 desktop ISO; do not upload or publish"
         type: boolean
         default: false
+      validate_x86_potato_only:
+        description: "Build and validate x86 potato assets without publishing"
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}-${{ github.event.inputs.version || '' }}-${{ inputs.validate_aarch64_desktop_uefi_only || false }}
@@ -23,7 +27,9 @@ concurrency:
 
 jobs:
   prepare:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    if: ${{ github.event_name != 'workflow_dispatch' || (!inputs.validate_aarch64_desktop_uefi_only && !inputs.validate_x86_potato_only) }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -75,7 +81,7 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
   validate_aarch64_desktop_uefi:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_aarch64_desktop_uefi_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_aarch64_desktop_uefi_only && !inputs.validate_x86_potato_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -157,8 +163,80 @@ jobs:
             exit 1
           fi
 
+  validate_x86_potato:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_x86_potato_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Record source
+        run: |
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/source.txt
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Install release tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential cpio curl dosfstools dwarves flex gdisk kpartx libelf-dev libssl-dev lz4 mtools ovmf pkg-config qemu-system-x86 qemu-utils xorriso zstd
+          rustup target add x86_64-unknown-linux-musl
+          printf '%s\n' '#!/bin/sh' 'exec docker run --rm --privileged -v /dev:/dev alpine:3.23 sh -ec '\''apk add --no-cache bcachefs-tools >/dev/null; exec mkfs.bcachefs "$@"'\'' sh "$@"' | sudo tee /usr/local/bin/mkfs.bcachefs >/dev/null
+          sudo chmod 755 /usr/local/bin/mkfs.bcachefs
+      - name: Build and verify exact assets on kernel FAT
+        env:
+          ALPENGLOW_ARCH: x86_64
+          ALPENGLOW_EDITION: potato
+          ALPENGLOW_REQUIRE_KERNEL_FAT: '1'
+        run: |
+          set -o pipefail
+          sh scripts/release-assets.sh validation 2>&1 | tee evidence/build.log
+          sha256sum -c build/release/assets/*.sha256 | tee evidence/checksums.log
+          sh scripts/check-compressed-initramfs.sh build/release/assets/alpenglow-validation-potato-x86_64.img.zst build/release/initramfs.cpio.lz4 | tee evidence/content.log
+      - name: Boot and test state persistence on exact disk
+        run: |
+          set -o pipefail
+          sh scripts/test-release-x86-boot.sh build/release/assets/alpenglow-validation-potato-x86_64.img.zst 2>&1 | tee evidence/disk-boot.log
+      - name: Boot exact live ISO with both firmwares
+        run: |
+          set -eu
+          iso=build/release/assets/alpenglow-validation-potato-x86_64.iso
+          test -s "$iso"
+          for firmware in seabios ovmf; do
+            set +e
+            if [ "$firmware" = ovmf ]; then
+              timeout 180 qemu-system-x86_64 -machine q35 -m 768 -smp 2 -display none -monitor none -serial stdio -no-reboot -bios /usr/share/OVMF/OVMF_CODE.fd -cdrom "$iso" > "evidence/iso-$firmware.log" 2>&1
+            else
+              timeout 180 qemu-system-x86_64 -machine q35 -m 768 -smp 2 -display none -monitor none -serial stdio -no-reboot -cdrom "$iso" > "evidence/iso-$firmware.log" 2>&1
+            fi
+            status=$?
+            set -e
+            test "$status" -eq 124
+            grep -F '[  OK  ] boot' "evidence/iso-$firmware.log"
+            grep -F 'login:' "evidence/iso-$firmware.log"
+          done
+      - name: Retain exact assets and validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86-potato-validation-${{ github.sha }}
+          path: |
+            evidence/
+            build/release/assets/
+            build/release/initramfs.cpio.lz4
+          if-no-files-found: warn
+          retention-days: 14
+
   image:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    if: ${{ github.event_name != 'workflow_dispatch' || (!inputs.validate_aarch64_desktop_uefi_only && !inputs.validate_x86_potato_only) }}
+    permissions:
+      contents: write
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
@@ -273,7 +351,9 @@ jobs:
           sh scripts/upload-release-assets.sh "${VERSION}" "${ASSET_SCOPE}" build/release/assets .
 
   riscv64:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    if: ${{ github.event_name != 'workflow_dispatch' || (!inputs.validate_aarch64_desktop_uefi_only && !inputs.validate_x86_potato_only) }}
+    permissions:
+      contents: write
     needs: prepare
     runs-on: ubuntu-latest
     steps:
@@ -350,7 +430,9 @@ jobs:
             riscv64-src/build/release/assets riscv64-src
 
   publish:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.validate_aarch64_desktop_uefi_only }}
+    if: ${{ github.event_name != 'workflow_dispatch' || (!inputs.validate_aarch64_desktop_uefi_only && !inputs.validate_x86_potato_only) }}
+    permissions:
+      contents: write
     needs:
       - prepare
       - image

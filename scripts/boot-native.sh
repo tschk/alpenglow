@@ -159,23 +159,29 @@ build_dinit() {
 check_toybox_safety "${OUT_DIR}/toybox"
 
 # Zig init (replaces /bin/toybox sh /init)
-ZIG="${ZIG:-zig}"
-if ! command -v "${ZIG}" >/dev/null 2>&1; then
-  if command -v /usr/local/bin/zig >/dev/null 2>&1; then
-    ZIG=/usr/local/bin/zig
-  elif command -v /opt/homebrew/Cellar/zig/0.16.0_1/bin/zig >/dev/null 2>&1; then
-    ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
+if [ -z "${ZIG:-}" ]; then
+  ZIG=zig
+  if ! command -v "${ZIG}" >/dev/null 2>&1; then
+    if command -v /usr/local/bin/zig >/dev/null 2>&1; then
+      ZIG=/usr/local/bin/zig
+    elif command -v /opt/homebrew/Cellar/zig/0.16.0_1/bin/zig >/dev/null 2>&1; then
+      ZIG=/opt/homebrew/Cellar/zig/0.16.0_1/bin/zig
+    fi
   fi
 fi
-if [ "${ZIG_INIT:-0}" = "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
+if [ "${ZIG_INIT:-0}" = "1" ]; then
+  command -v "${ZIG}" >/dev/null 2>&1 || { echo "ERROR: Zig init requested but compiler not found: ${ZIG}" >&2; exit 1; }
   echo "→ Building Zig init..."
-  "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
+  rm -f "${OUT_DIR}/alpenglow-init"
+  if ! "${ZIG}" build-exe "${ROOT_DIR}/system/init/init.zig" \
     -target x86_64-linux-musl -O ReleaseSmall -fstrip \
-    -femit-bin="${OUT_DIR}/alpenglow-init" 2>&1 | tail -5
-  if [ -f "${OUT_DIR}/alpenglow-init" ]; then
-    file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64"; exit 1; }
-    echo "  init: ${OUT_DIR}/alpenglow-init"
+    -femit-bin="${OUT_DIR}/alpenglow-init"; then
+    echo "ERROR: failed to build requested Zig init" >&2
+    exit 1
   fi
+  [ -f "${OUT_DIR}/alpenglow-init" ] || { echo "ERROR: Zig compiler produced no init" >&2; exit 1; }
+  file "${OUT_DIR}/alpenglow-init" | grep -q x86-64 || { echo "ERROR: init not x86_64" >&2; exit 1; }
+  echo "  init: ${OUT_DIR}/alpenglow-init"
 fi
 if [ "${FAST}" != "1" ] && command -v "${ZIG}" >/dev/null 2>&1; then
   if [ ! -f "${OUT_DIR}/alpenglow-ctl/bin/alpenglow-ctl" ]; then
@@ -188,9 +194,9 @@ fi
 if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
   # FAST path: build a tiny kernel with embedded initramfs after initramfs is ready.
   : # placeholder; build happens after initramfs
-elif [ ! -f "${KERNEL_IMAGE}" ]; then
+elif [ "${KERNEL_BUILD:-0}" = "1" ] || [ ! -f "${KERNEL_IMAGE}" ]; then
   if [ "${GRAPHICAL}" = "1" ] && [ "${KERNEL_BUILD:-0}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
-    sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
+    KERNEL_BUILD=1 sh "${BACKEND_DIR}/scripts/build-kernel-qemu-graphical.sh" "${OUT_DIR}" "${ROOT_DIR}"
   elif [ "${KERNEL_7}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
     echo "→ Building Linux ${KERNEL_VERSION} + CONFIG_RUST=y kernel..."
     KERNEL_SRC="${OUT_DIR}/linux-${KERNEL_VERSION}"
@@ -406,9 +412,7 @@ if [ "${GRAPHICAL}" = "1" ]; then
 
   # alpenglowed with glibc dynamic linking
   ALPENGLOWED_GLIBC_BIN="${OUT_DIR}/alpenglowed-glibc/usr/bin/alpenglowed"
-  if [ ! -f "${ALPENGLOWED_GLIBC_BIN}" ]; then
-    sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed" "${ALPENGLOW_SKU:-desktop}"
-  fi
+  sh "${BACKEND_DIR}/scripts/build-alpenglowed-glibc.sh" "${OUT_DIR}" "${ROOT_DIR}/../alpenglowed" "${ALPENGLOW_SKU:-desktop}"
   echo "  alpenglowed: ${ALPENGLOWED_GLIBC_BIN}"
 
   # glibc Mesa/Vulkan/EGL libs from Debian
@@ -657,24 +661,22 @@ ALPENGLOW
 fi
 
 # Oil (native package manager)
-OIL_BIN="${ROOT_DIR}/build/native/oil"
-OIL_SRC="${ROOT_DIR}/system/oil"
-if [ "${BUILD_PROFILE}" != "minimal" ] && [ -f "${OIL_BIN}" ]; then
-  cp "${OIL_BIN}" "${ROOTFS_DIR}/usr/local/bin/oil"
-elif [ "${BUILD_PROFILE}" != "minimal" ] && [ -d "${OIL_SRC}" ]; then
+if [ "${FAST}" != "1" ]; then
   echo "→ Building Oil (native package manager)..."
   docker run --rm --platform linux/amd64 -v "${ROOT_DIR}:/workspace" -v "${OUT_DIR}:/out" alpine:3.23 sh -c '
     set -e
     apk add --no-cache rust cargo make gcc musl-dev >/dev/null
     cd /workspace
-    cargo build -p oil --release --no-default-features --features wax
-    cp target/release/oil /out/oil
+    CARGO_TARGET_DIR=/out/oil-target cargo build -p oil --release --no-default-features --features wax
+    cp /out/oil-target/release/oil /out/oil
+    cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so.1
   ' 2>&1
-  if [ -f "${OUT_DIR}/oil" ]; then
-    cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
-    chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
-    echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
-  fi
+  cp "${OUT_DIR}/oil" "${ROOTFS_DIR}/usr/local/bin/oil"
+  cp "${OUT_DIR}/libgcc_s.so.1" "${ROOTFS_DIR}/lib/libgcc_s.so.1"
+  chmod 755 "${ROOTFS_DIR}/usr/local/bin/oil"
+  docker run --rm --platform linux/amd64 -v "${ROOTFS_DIR}:/rootfs" alpine:3.23 \
+    chroot /rootfs /usr/local/bin/oil --version
+  echo "  oil: ${ROOTFS_DIR}/usr/local/bin/oil"
 fi
 
 # Normalize the generated Toybox shell scripts to the shell shipped as /bin/sh.
@@ -716,7 +718,12 @@ echo "  initramfs: ${INITRAMFS} ($(du -sh "${INITRAMFS}" | cut -f1))"
 echo ""
 
 # FAST kernel: tiny kernel with embedded initramfs
-if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ] && command -v docker >/dev/null 2>&1; then
+if [ "${FAST}" = "1" ] && [ "${ARCH}" = "x86_64" ]; then
+  if [ "${INITRAMFS}" != "${OUT_DIR}/initramfs.cpio.lz4" ]; then
+    echo "FAST requires ${OUT_DIR}/initramfs.cpio.lz4" >&2
+    exit 1
+  fi
+  require_cmd docker
   KERNEL_PROFILE=fast sh "${BACKEND_DIR}/scripts/build-kernel-fast.sh" "${OUT_DIR}" "${ROOT_DIR}"
 fi
 

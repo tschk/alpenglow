@@ -54,20 +54,20 @@ docker run --rm --platform linux/amd64 -e ALPENGLOW_SKU="${SKU}" ${DOCKER_VOLUME
   sed -i "s#crepuscularity-gpui = { path = \"../../crepuscularity/crates/crepuscularity-gpui\", features = \\[\"wayland\"\\] }#crepuscularity-gpui = { version = \"0.5.0\", features = [\"wayland\"] }#" alpenglow-greeter/Cargo.toml
   case "${ALPENGLOW_SKU}" in
     potato|potatoes)
-      cargo build --release --no-default-features 2>&1 | tail -5
+      cargo build --release --no-default-features
       mkdir -p /out/usr/bin
       cp target/release/alpenglowed /out/usr/bin/alpenglowed-lite
       cp target/release/alpenglowed /out/usr/bin/alpenglowed
       chmod 755 /out/usr/bin/alpenglowed-lite /out/usr/bin/alpenglowed
       ;;
     compositor)
-      cargo build --release --features compositor 2>&1 | tail -5
+      cargo build --release --features compositor
       mkdir -p /out/usr/bin
       cp target/release/alpenglowed /out/usr/bin/
       chmod 755 /out/usr/bin/alpenglowed
       ;;
     *)
-      cargo build --release 2>&1 | tail -5
+      cargo build --release
       mkdir -p /out/usr/bin
       cp target/release/alpenglowed /out/usr/bin/
       chmod 755 /out/usr/bin/alpenglowed

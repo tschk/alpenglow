@@ -15,6 +15,24 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT INT TERM
 unset SESSION ALPENGLOW_SESSION ALPENGLOW_SKU ALPENGLOW_EDITION ALPENGLOW_ROLE ALPENGLOWED_ROLE ARTIFACT LOCK_SESSION SHELL_LOGIN FLEET_AGENT WORLD_FILE ALPENGLOW_FLEET ALPENGLOW_KIOSK ALPENGLOW_ARTIFACT
 
+# Sourcing the resolver must not change how callers split service lists.
+(
+  ROOT_DIR="${REPO_ROOT}"
+  ALPENGLOW_EDITION=potato
+  . "${REPO_ROOT}/scripts/edition-resolve.sh"
+  services='shell-ttyS0
+mount-filesystems'
+  set -- ${services}
+  [ "$#" -eq 2 ] && [ "$1" = shell-ttyS0 ] && [ "$2" = mount-filesystems ] || fail 'edition resolver changed caller word splitting'
+)
+(
+  ROOT_DIR="${REPO_ROOT}"
+  ALPENGLOW_EDITION=potato
+  IFS=:
+  . "${REPO_ROOT}/scripts/edition-resolve.sh"
+  [ "$IFS" = : ] || fail 'edition resolver did not preserve custom IFS'
+)
+
 list="$(sh scripts/edition-resolve.sh --list)"
 for sku in fast potato desktop internet; do
   printf '%s\n' "${list}" | grep -qx "${sku}" || fail "--list missing ${sku}"

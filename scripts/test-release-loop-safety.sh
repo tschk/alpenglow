@@ -107,4 +107,19 @@ fi
 grep -q 'fixture bootloader error' "${tmp}/limine-output"
 grep -q 'failed to install the Limine BIOS bootloader' "${tmp}/limine-output"
 grep -q '^losetup -d /dev/fixture-loop$' "${TEST_SUDO_LOG}"
+cat > "${tmp}/bin/findmnt" <<'EOF'
+#!/bin/sh
+printf '%s\n' "${TEST_FSTYPE}"
+EOF
+chmod +x "${tmp}/bin/findmnt"
+if PATH="${tmp}/bin:${PATH}" TEST_LIMINE_FAIL=1 TEST_FSTYPE=fuse.fusefat ALPENGLOW_REQUIRE_KERNEL_FAT=1 sh "${tmp}/scripts/build-release.sh" >"${tmp}/fuse-output" 2>&1; then
+  echo 'kernel FAT validation accepted a FUSE mount' >&2
+  exit 1
+fi
+grep -q 'requires kernel vfat, got fuse.fusefat' "${tmp}/fuse-output"
+if PATH="${tmp}/bin:${PATH}" TEST_LIMINE_FAIL=1 TEST_FSTYPE=vfat ALPENGLOW_REQUIRE_KERNEL_FAT=1 sh "${tmp}/scripts/build-release.sh" >"${tmp}/vfat-output" 2>&1; then
+  echo 'expected bootloader failure after kernel FAT check' >&2
+  exit 1
+fi
+grep -q 'failed to install the Limine BIOS bootloader' "${tmp}/vfat-output"
 echo 'release loop allocation failure stops before formatting'

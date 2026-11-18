@@ -47,7 +47,7 @@ else
   NATIVE_INITRAMFS="${NATIVE_DIR}/initramfs.cpio.zst"
 fi
 rm -f "${NATIVE_DIR}/vmlinuz" "${NATIVE_INITRAMFS}"
-KERNEL_BUILD=1 BUILD_ONLY=1 INITRAMFS="${NATIVE_INITRAMFS}" "${ROOT_DIR}/scripts/boot-native.sh"
+KERNEL_BUILD=1 BUILD_ONLY=1 ALPENGLOW_REQUIRE_STATE=1 INITRAMFS="${NATIVE_INITRAMFS}" "${ROOT_DIR}/scripts/boot-native.sh"
 test -f "${NATIVE_DIR}/vmlinuz" && test -f "${NATIVE_INITRAMFS}" || {
   echo "boot build did not produce the requested kernel and initramfs" >&2
   exit 1
@@ -147,6 +147,10 @@ sudo mkfs.bcachefs ${STATE_MKFS_OPTS} -L alpenglow-state "${LOOP_STATE}" >/dev/n
 echo "→ Installing system..."
 sudo mount "${LOOP_ROOT}" "${MNT_ROOT}"
 BOOT_MOUNT_TYPE=$(findmnt -n -o FSTYPE --target "${MNT_ROOT}" 2>/dev/null || echo unknown)
+if [ "${ALPENGLOW_REQUIRE_KERNEL_FAT:-0}" = 1 ] && [ "${BOOT_MOUNT_TYPE}" != vfat ]; then
+  echo "ERROR: release validation requires kernel vfat, got ${BOOT_MOUNT_TYPE}" >&2
+  exit 1
+fi
 case "${BOOT_MOUNT_TYPE}" in
   fuse*) echo "WARNING: boot filesystem uses ${BOOT_MOUNT_TYPE}; FUSE FAT assembly is not verified for release reproducibility" >&2 ;;
   *) echo "  boot filesystem: ${BOOT_MOUNT_TYPE}" ;;

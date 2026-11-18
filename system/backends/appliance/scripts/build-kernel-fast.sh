@@ -16,7 +16,7 @@ VMLINUZ="${OUT_DIR}/vmlinuz"
 INITRAMFS="${OUT_DIR}/initramfs.cpio.lz4"
 STAMP="${OUT_DIR}/.kernel-${KERNEL_PROFILE:-fast}.ok"
 
-if [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ] && [ -f "${INITRAMFS}" ] && [ "${VMLINUZ}" -nt "${INITRAMFS}" ]; then
+if [ "${KERNEL_BUILD:-0}" != "1" ] && [ -f "${STAMP}" ] && [ -f "${VMLINUZ}" ] && [ -f "${INITRAMFS}" ] && [ "${VMLINUZ}" -nt "${INITRAMFS}" ]; then
   echo "  kernel: ${VMLINUZ} (cached, newer than initramfs)"
   exit 0
 fi
