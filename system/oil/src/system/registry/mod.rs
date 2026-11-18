@@ -74,8 +74,8 @@ impl<'a> PackageIndex<'a> {
         &self,
         name: &str,
         skip: F,
-        visiting: &mut HashSet<String>,
-        scheduled: &mut HashSet<String>,
+        visiting: &mut HashSet<&'a str>,
+        scheduled: &mut HashSet<&'a str>,
         order: &mut Vec<&'a PackageMetadata>,
     ) -> Result<()> {
         if skip(name) {
@@ -86,18 +86,18 @@ impl<'a> PackageIndex<'a> {
             .find(name)
             .ok_or_else(|| OilError::FormulaNotFound(name.to_string()))?;
 
-        if scheduled.contains(&pkg.name) {
+        if scheduled.contains(pkg.name.as_str()) {
             return Ok(());
         }
 
-        if visiting.contains(&pkg.name) {
+        if visiting.contains(pkg.name.as_str()) {
             return Err(OilError::Install(format!(
                 "circular dependency involving {}",
                 pkg.name
             )));
         }
 
-        visiting.insert(pkg.name.clone());
+        visiting.insert(pkg.name.as_str());
 
         for dep in &pkg.depends {
             let dep_name = parse_dep_name(dep);
@@ -107,8 +107,8 @@ impl<'a> PackageIndex<'a> {
             self.visit_install_deps(dep_name, skip, visiting, scheduled, order)?;
         }
 
-        visiting.remove(&pkg.name);
-        scheduled.insert(pkg.name.clone());
+        visiting.remove(pkg.name.as_str());
+        scheduled.insert(pkg.name.as_str());
         order.push(pkg);
         Ok(())
     }
@@ -489,5 +489,64 @@ mod tests {
             .expect("resolve order");
         let names: Vec<&str> = order.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, Vec::<&str>::new());
+    }
+
+    #[test]
+    fn test_resolve_install_order_canonicalizes_provider_aliases() {
+        let mut provider = sample_pkg("runtime", vec![]);
+        provider.provides = vec!["virtual-runtime".to_string()];
+        let pkgs = vec![
+            sample_pkg("app", vec!["virtual-runtime>=2".to_string()]),
+            provider,
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let order = index
+            .resolve_install_order(
+                &[
+                    "app".to_string(),
+                    "runtime".to_string(),
+                    "virtual-runtime".to_string(),
+                ],
+                |_| false,
+            )
+            .expect("aliases schedule their provider only once");
+        assert_eq!(
+            order.iter().map(|pkg| pkg.name.as_str()).collect::<Vec<_>>(),
+            vec!["runtime", "app"]
+        );
+    }
+
+    #[test]
+    fn test_resolve_install_order_alias_cycle_and_error_recovery() {
+        let mut provider = sample_pkg("runtime", vec!["app".to_string()]);
+        provider.provides = vec!["virtual-runtime".to_string()];
+        let pkgs = vec![
+            sample_pkg("app", vec!["virtual-runtime".to_string()]),
+            provider,
+            sample_pkg("broken", vec!["missing>=2".to_string()]),
+        ];
+        let index = PackageIndex::new(&pkgs);
+        let err = index
+            .resolve_install_order(&["app".to_string()], |_| false)
+            .expect_err("cycle through an alias must fail");
+        assert!(
+            matches!(err, OilError::Install(message) if message == "circular dependency involving app")
+        );
+        let err = index
+            .resolve_install_order(&["broken".to_string()], |_| false)
+            .expect_err("missing dependency must fail");
+        assert!(matches!(err, OilError::FormulaNotFound(name) if name == "missing"));
+
+        let order = index
+            .resolve_install_order(&["app".to_string()], |name| name == "virtual-runtime")
+            .expect("a new resolution starts clean and honors alias skips");
+        assert_eq!(
+            order.iter().map(|pkg| pkg.name.as_str()).collect::<Vec<_>>(),
+            vec!["app"]
+        );
+        let order = index
+            .resolve_install_order(&["absent".to_string()], |name| name == "absent")
+            .expect("skipped names do not need to exist in the index");
+        assert!(order.is_empty());
     }
 }
