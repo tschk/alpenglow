@@ -19,6 +19,8 @@ pub fn cache_key(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
     use std::time::{Duration, SystemTime};
     use tempfile::NamedTempFile;
 
@@ -82,5 +84,22 @@ mod tests {
             .set_times(std::fs::FileTimes::new().set_modified(exact_time))
             .unwrap();
         assert!(!is_cache_fresh(tmp.path()));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_is_cache_fresh_metadata_error() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("file");
+        std::fs::write(&file_path, "content").unwrap();
+
+        let mut perms = std::fs::metadata(tmp_dir.path()).unwrap().permissions();
+        perms.set_mode(0o000);
+        std::fs::set_permissions(tmp_dir.path(), perms.clone()).unwrap();
+
+        assert!(!is_cache_fresh(&file_path));
+
+        perms.set_mode(0o755);
+        std::fs::set_permissions(tmp_dir.path(), perms).unwrap();
     }
 }
