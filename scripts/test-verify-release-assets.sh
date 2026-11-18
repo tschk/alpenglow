@@ -130,7 +130,7 @@ EOF
 chmod +x fake-bin/gh
 export FAKE_RELEASE_DIR="${FIXTURE}/remote-assets"
 export FAKE_GH_LOG="${FIXTURE}/gh.log"
-export GITHUB_REPOSITORY=tschk/alpenglow
+export GITHUB_REPOSITORY=softwarecorporation/alpenglow
 PATH="${FIXTURE}/fake-bin:${PATH}"
 export PATH
 

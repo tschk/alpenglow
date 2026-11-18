@@ -1,4 +1,4 @@
-# sold — Soliloquy session (binary from tschk/soliloquy)
+# sold — Soliloquy session (binary from softwarecorporation/soliloquy)
 type = process
 command = /usr/bin/sold
 restart = no

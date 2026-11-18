@@ -19,11 +19,11 @@ async function applyReleaseLink() {
   const bakedVersion = versionRes?.ok ? (await versionRes.text()).trim() : "";
   if (bakedVersion) {
     releaseLink.textContent = bakedVersion;
-    releaseLink.href = `https://github.com/tschk/alpenglow/releases/tag/${encodeURIComponent(bakedVersion)}`;
+    releaseLink.href = `https://github.com/softwarecorporation/alpenglow/releases/tag/${encodeURIComponent(bakedVersion)}`;
     return;
   }
   const release = await fetch(
-    "https://api.github.com/repos/tschk/alpenglow/releases/latest",
+    "https://api.github.com/repos/softwarecorporation/alpenglow/releases/latest",
   )
     .then((response) => (response.ok ? response.json() : undefined))
     .catch(() => undefined);

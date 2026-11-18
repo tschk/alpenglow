@@ -1,6 +1,6 @@
 # Alpenglow site
 
-The Alpenglow site is built with [moonshine](https://github.com/tschk/moonshine) — a Bun-first web framework. It runs on Bun with React 19 server-rendered through `@tschk/moonshine-react` and served by `@tschk/moonshine-deploy-bun`.
+The Alpenglow site is built with [moonshine](https://github.com/softwarecorporation/moonshine) — a Bun-first web framework. It runs on Bun with React 19 server-rendered through `@tschk/moonshine-react` and served by `@tschk/moonshine-deploy-bun`.
 
 ## Stack
 

@@ -1,5 +1,5 @@
 # internet: minimal appliance + Soliloquy sold session staging.
-# sold is not an Oil package; the binary comes from tschk/soliloquy.
+# sold is not an Oil package; the binary comes from softwarecorporation/soliloquy.
 
 dinit
 musl

@@ -27,7 +27,7 @@ Early-stage; not production-hardened for arbitrary deployments.
 | Shell (appliance) | oksh |
 | Shell (v86 browser demo) | bash (demo initramfs only) |
 | Kernel | Profiles: `fast`, `minimal`, `desktop` — see `system/backends/appliance/kernel/` |
-| Desktop | `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/tschk/alpenglowed) (Wayland/Smithay) |
+| Desktop | `BUILD_PROFILE=desktop` + [Alpenglowed](https://github.com/softwarecorporation/alpenglowed) (Wayland/Smithay) |
 | Arch | x86_64 primary; branches for aarch64, riscv64, RK3566 |
 
 **Public SKUs** (`ALPENGLOW_EDITION`, default `potato`): `fast` (zero-overhead: FAST kernel, Zig init, nothing optional), `potato` (small general-purpose OS), `desktop`, `internet`. Matrix and dated measurements: `docs/editions-and-roles.md`.

@@ -41,7 +41,7 @@ describe("alpenglow site", () => {
       expect(html).toContain("loading alpenglow shell");
       expect(html).toContain("latest release");
       expect(html).toContain(
-        "https://github.com/tschk/alpenglow/releases/latest",
+        "https://github.com/softwarecorporation/alpenglow/releases/latest",
       );
       expect(html).toContain("https://tsc.hk");
       expect(html).toContain("<meter");

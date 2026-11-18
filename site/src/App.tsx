@@ -9,7 +9,7 @@ export default function App() {
       <header className="boot-top-bar" aria-label="Alpenglow links">
         <a
           id="release-link"
-          href="https://github.com/tschk/alpenglow/releases/latest"
+          href="https://github.com/softwarecorporation/alpenglow/releases/latest"
           target="_blank"
           rel="noopener noreferrer"
           aria-live="polite"
@@ -20,7 +20,7 @@ export default function App() {
           ·
         </span>
         <a
-          href="https://github.com/tschk/alpenglow"
+          href="https://github.com/softwarecorporation/alpenglow"
           target="_blank"
           rel="noopener noreferrer"
         >

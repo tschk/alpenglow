@@ -20,7 +20,7 @@ The native backend owns:
 - package manifests,
 - kernel packaging.
 
-The package-manager identity is `oil`, sourced from [Oil](https://github.com/tschk/oil). The current sibling checkout still builds a binary named `wax`, so scripts call that binary through the Oil bridge.
+The package-manager identity is `oil`, sourced from [Oil](https://github.com/semitechnological/oil). The current sibling checkout still builds a binary named `wax`, so scripts call that binary through the Oil bridge.
 
 Current backend ranking:
 

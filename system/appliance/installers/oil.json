@@ -1,6 +1,6 @@
 {
   "id": "oil",
-  "source": "https://github.com/tschk/oil",
+  "source": "https://github.com/semitechnological/oil",
   "binary": "wax",
   "role": "package manager, host installer, and managed system package bridge",
   "state_root": "/var/lib/alpenglow/oil",

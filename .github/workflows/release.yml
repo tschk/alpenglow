@@ -93,7 +93,7 @@ jobs:
           echo "version=v0.1.$(git rev-list --count HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Check out Alpenglowed
-        run: git clone --depth 1 https://github.com/tschk/alpenglowed ../alpenglowed
+        run: git clone --depth 1 https://github.com/softwarecorporation/alpenglowed ../alpenglowed
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -188,7 +188,7 @@ jobs:
 
       - name: Check out Alpenglowed
         if: matrix.edition == 'desktop' || matrix.edition == 'potato'
-        run: git clone --depth 1 https://github.com/tschk/alpenglowed ../alpenglowed
+        run: git clone --depth 1 https://github.com/softwarecorporation/alpenglowed ../alpenglowed
 
       - uses: dtolnay/rust-toolchain@stable
 

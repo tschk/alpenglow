@@ -83,7 +83,7 @@ KERNEL_BUILD=1 ./scripts/boot-native.sh
 | Kernel ctrl | kernelctl (Zig, 89KB) | Static, µs-scale startup |
 | Network | netd (Zig), udhcpc, iwd | Zero-external-deps netd |
 | Root FS | erofs/squashfs immutable image loaded into RAM. bcachefs for `/home` and mutable state |
-| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/tschk/alpenglowed) | Default graphical session. [Soliloquy](https://github.com/tschk/soliloquy) `sold` is an optional session for the internet role |
+| Desktop | Wayland + Smithay target via [Alpenglowed](https://github.com/softwarecorporation/alpenglowed) | Default graphical session. [Soliloquy](https://github.com/softwarecorporation/soliloquy) `sold` is an optional session for the internet role |
 | Security | AppArmor, read-only root (optional) | Hardened by default |
 | Audio | ALSA + PipeWire |
 | Kernel | kernel.org latest stable with CONFIG_RUST=y |
@@ -178,7 +178,7 @@ Alpenglow has one root model:
 
 **Immutable rootfs** — boot from initramfs, load the OS into RAM, and keep state on a persistent bcachefs partition. `/home`, browser profiles, package state, logs, and caches bind from `/state`; the system image stays immutable. Target: potato, desktop, and internet builds; `fast` boots diskless with no optional `/state` features.
 
-**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/tschk/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. Alpenglowed is a Wayland client on Cage. Smithay `--compositor` is experimental and is not built into the image.
+**Desktop** — `BUILD_PROFILE=desktop` adds the graphical stack and [Alpenglowed](https://github.com/softwarecorporation/alpenglowed) desktop environment on top of the immutable rootfs model. It is separate from `standard`; it is not a normal root-on-disk mode. Alpenglowed is a Wayland client on Cage. Smithay `--compositor` is experimental and is not built into the image.
 
 ## Services
 

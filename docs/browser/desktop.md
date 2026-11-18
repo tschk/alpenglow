@@ -8,6 +8,6 @@ Fullscreen GPUI bar over Wayland.
 
 Stack: greetd, seatd, foot, PipeWire, iwd, Alpenglowed.
 
-[Soliloquy](https://github.com/tschk/soliloquy) `sold` is an optional session for the `internet` role. It is not built here and does not replace Alpenglowed on desktop SKUs.
+[Soliloquy](https://github.com/softwarecorporation/soliloquy) `sold` is an optional session for the `internet` role. It is not built here and does not replace Alpenglowed on desktop SKUs.
 
 Browser demo has no Wayland.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Adapted from tschk/alpenglowed contrib/session/alpenglow-session-start (PR #2).
+# Adapted from softwarecorporation/alpenglowed contrib/session/alpenglow-session-start (PR #2).
 # Production path: Alpenglowed as a Wayland client on Cage. --compositor is unfinished.
 set -eu
 

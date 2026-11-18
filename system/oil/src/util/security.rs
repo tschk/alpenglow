@@ -185,7 +185,7 @@ mod tests {
     fn get_validated_success() {
         use ureq::ResponseExt;
         // Using an allowed host and a commit-pinned public repo URL avoids a moving fixture.
-        let url = "https://raw.githubusercontent.com/tschk/alpenglow/64733365c811fed3e0f26db34af35197f150c284/LICENSE";
+        let url = "https://raw.githubusercontent.com/softwarecorporation/alpenglow/64733365c811fed3e0f26db34af35197f150c284/LICENSE";
         let resp = get_validated(url).expect("failed to fetch from allowed host");
         assert_eq!(resp.status(), 200);
         assert_eq!(resp.get_uri().to_string(), url);
